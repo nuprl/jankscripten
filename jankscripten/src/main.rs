@@ -147,6 +147,6 @@ fn main() {
         "{}: {},{}",
         filename,
         gather.class_table.len(),
-        gather.new_table.len()
+        gather.new_table.len(),
     );
 }

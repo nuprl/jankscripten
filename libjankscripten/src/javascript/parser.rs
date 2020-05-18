@@ -404,13 +404,30 @@ fn simpl_stmt<'a>(stmt: Stmt<'a>) -> ParseResult<S::Stmt> {
         }
         Stmt::ForIn(ForInStmt { left, right, body }) => {
             let (is_var, id) = match left {
-                // TODO(arjun): support for (x in ...
-                LoopLeft::Variable(_, VarDecl { id: Pat::Ident(id), init: _ }) => (true, id.name.into_owned()),
-                _ => return unsupported()
+                LoopLeft::Variable(
+                    _,
+                    VarDecl {
+                        id: Pat::Ident(id),
+                        init: _,
+                    },
+                ) => (true, id.name.into_owned()),
+                LoopLeft::Expr(Expr::Ident(x)) => (false, x.name.into_owned()),
+                // The program may pattern match on the index, which we do not support.
+                other => {
+                    return unsupported_message(&format!(
+                        "unsupported index in a for-in loop: {:?}",
+                        other
+                    ))
+                }
             };
 
-            Ok(S::Stmt::ForIn(is_var, id, Box::new(simpl_expr(right)?), Box::new(simpl_stmt(*body)?)))
-        },
+            Ok(S::Stmt::ForIn(
+                is_var,
+                id,
+                Box::new(simpl_expr(right)?),
+                Box::new(simpl_stmt(*body)?),
+            ))
+        }
         Stmt::ForOf(_) => unsupported(),
         Stmt::Var(decls) => {
             let decls: ParseResult<Vec<_>> = decls.into_iter().map(simpl_var_decl).collect();
