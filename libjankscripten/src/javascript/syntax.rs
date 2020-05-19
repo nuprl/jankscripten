@@ -16,13 +16,19 @@ pub enum UnaryAssignOp {
     PostDec,
 }
 
+#[derive(Debug, PartialEq)]
+pub enum Num {
+    Int(i32),
+    Float(f64)
+}
+
 #[derive(Debug)]
 pub enum Lit {
-    String(String), // TODO(arjun): Currently parsed incorrectly. See parser.
+    String(String),
     Regex(String, String), // TODO(arjun): The Regex is not properly parsed
     Bool(bool),
     Null,
-    Num(String), // TODO(arjun): parse
+    Num(Num),
     Undefined,
 }
 
