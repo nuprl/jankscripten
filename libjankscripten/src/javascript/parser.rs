@@ -1,3 +1,11 @@
+//! A "parser" for JavaScript.
+//!
+//! This isn't really a parser. We use the Ressa crate to parse JavaScript.
+//! However, the JavaScript AST that Ressa produces covers new language features
+//! that we do not need to support because (1) our benchmark compilers do not
+//! produce JavaScript that uses them, and (2) they can be desugared if needed.
+//! Thus this "parser" calls the Ressa parser and transforms the Ressa AST
+//! to our simpler AST.
 use super::syntax as S;
 use resast::prelude::*;
 use ressa::Parser;
@@ -5,8 +13,10 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ParseError {
+    /// An error from the Ressa parser.
     #[error("{0}")]
     Ressa(#[from] ressa::Error),
+    /// The Ressa AST had a JavaScript feature that we do not support.
     #[error("Unsupported: {0}")]
     Unsupported(String),
 }
@@ -118,11 +128,11 @@ fn simpl_lit<'a>(lit: Lit<'a>) -> ParseResult<S::Lit> {
     match lit {
         Lit::Boolean(b) => Ok(S::Lit::Bool(b)),
         Lit::Null => Ok(S::Lit::Null),
-        Lit::Number(n) => Ok(S::Lit::Num(n.into_owned())),
+        Lit::Number(n) => Ok(S::Lit::Num(parse_number(&n))),
         Lit::RegEx(RegEx { pattern, flags }) => {
             Ok(S::Lit::Regex(pattern.into_owned(), flags.into_owned()))
         }
-        Lit::String(_lit) => Ok(S::Lit::String("".to_string())), // TODO
+        Lit::String(s) => Ok(S::Lit::String(parse_string(&s))),
         Lit::Template(_) => unsupported(),
     }
 }
@@ -517,4 +527,84 @@ fn simpl_program<'a>(program: Program<'a>) -> ParseResult<S::Stmt> {
             Ok(S::Stmt::Block(stmts?))
         }
     }
+}
+
+fn parse_number(s: &str) -> S::Num {
+    if s.starts_with("0x") {
+        return i32::from_str_radix(&s[2..], 16).map(|i| S::Num::Int(i))
+            .expect("Ressa did not parse hex value correct");
+    }
+
+    // TODO(arjun): JavaScript supports octal, which this does not parse.
+    return i32::from_str_radix(s, 10).map(|i| S::Num::Int(i))
+            .or_else(|_err| s.parse::<f64>().map(|x| S::Num::Float(x)))
+            .expect(&format!("Cannot parse {} as a number", s));
+}
+
+fn parse_string<'a>(s: &StringLit<'a>) -> String {
+    let literal_chars = match s {
+        StringLit::Double(s) => s,
+        StringLit::Single(s) => s
+    };
+    
+    let mut buf = String::with_capacity(literal_chars.len());
+    let mut iter = literal_chars.chars();
+    while let Some(ch) = iter.next() {
+        if ch != '\\' {
+            buf.push(ch);
+            continue;
+        }
+        match iter.next().expect("character after backslash") {
+            '\'' => buf.push(ch),
+            'n' => buf.push('\n'),
+            // TODO(arjun): There are a lot more escape characters
+            _ => panic!("unexpected or unhandled escape character")
+        }
+    }
+    return buf;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::super::syntax::*;
+
+    #[test]
+    fn parse_int() {
+        assert_eq!(parse_number("205"), Num::Int(205));
+    }
+
+
+    #[test]
+    fn parse_hex() {
+        assert_eq!(parse_number("0xff"), Num::Int(255));
+    }
+
+
+    #[test]
+    fn parse_float() {
+        assert_eq!(parse_number("3.14"), Num::Float(3.14));
+    }
+
+    #[test]
+    fn parse_escapes() {
+        let prog = parse(r#"var x = "Hello\nworld";"#).unwrap();
+        // This is a huge pain
+        match prog {
+            S::Stmt::Block(stmts) => match &stmts[..] {
+                [S::Stmt::VarDecl(decls)] => match &decls[..] {
+                   [S::VarDecl { name: _, named   }] => match &**named {
+                        S::Expr::Lit(S::Lit::String(s)) => {
+                            assert_eq!(s, "Hello\nworld");
+                        },
+                        _ => panic!("")
+                    }
+                   _ => panic!("")
+                },
+                _ => panic!("")
+            }
+            _ => panic!("")
+        }
+    }
+
 }
