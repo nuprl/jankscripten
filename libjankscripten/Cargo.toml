@@ -8,3 +8,4 @@ edition = "2018"
 ressa = "*"
 resast = "*"
 thiserror = "*"
+js_quote = { path = "./src/javascript/js_quote" }

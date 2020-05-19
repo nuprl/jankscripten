@@ -1,0 +1,12 @@
+[package]
+name = "js_quote"
+version = "0.1.0"
+authors = ["cosine <trash@cosine.online>"]
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = "^1.0.6"
+proc-macro2 = "^1.0.13"
