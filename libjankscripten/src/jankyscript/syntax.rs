@@ -1,8 +1,10 @@
-#[derive(Debug)]
-pub enum BinOp {
-    BinaryOp(resast::BinaryOp),
-    LogicalOp(resast::LogicalOp),
-}
+//! The source (and target) language for type inference.
+//!
+//! The JavaScript AST goes through several stages of desugaring before we
+//! produce a program in this language.
+
+/// Deliberately excludes logical operators.
+type BinOp = resast::BinaryOp;
 
 pub type UnaryOp = resast::UnaryOp;
 

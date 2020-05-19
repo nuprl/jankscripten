@@ -18,8 +18,8 @@ pub enum UnaryAssignOp {
 
 #[derive(Debug)]
 pub enum Lit {
-    String(String),
-    Regex(String, String),
+    String(String), // TODO(arjun): Currently parsed incorrectly. See parser.
+    Regex(String, String), // TODO(arjun): The Regex is not properly parsed
     Bool(bool),
     Null,
     Num(String), // TODO(arjun): parse

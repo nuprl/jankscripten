@@ -1,3 +1,11 @@
+//! A "parser" for JavaScript.
+//!
+//! This isn't really a parser. We use the Ressa crate to parse JavaScript.
+//! However, the JavaScript AST that Ressa produces covers new language features
+//! that we do not need to support because (1) our benchmark compilers do not
+//! produce JavaScript that uses them, and (2) they can be desugared if needed.
+//! Thus this "parser" calls the Ressa parser and transforms the Ressa AST
+//! to our simpler AST.
 use super::syntax as S;
 use resast::prelude::*;
 use ressa::Parser;
@@ -5,8 +13,10 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ParseError {
+    /// An error from the Ressa parser.
     #[error("{0}")]
     Ressa(#[from] ressa::Error),
+    /// The Ressa AST had a JavaScript feature that we do not support.
     #[error("Unsupported: {0}")]
     Unsupported(String),
 }
@@ -122,7 +132,8 @@ fn simpl_lit<'a>(lit: Lit<'a>) -> ParseResult<S::Lit> {
         Lit::RegEx(RegEx { pattern, flags }) => {
             Ok(S::Lit::Regex(pattern.into_owned(), flags.into_owned()))
         }
-        Lit::String(_lit) => Ok(S::Lit::String("".to_string())), // TODO
+        // TODO(arjun): Ressa does not actually parse strings. Handle it here.
+        Lit::String(_lit) => Ok(S::Lit::String("".to_string())), 
         Lit::Template(_) => unsupported(),
     }
 }
