@@ -17,12 +17,18 @@ pub enum UnaryAssignOp {
 }
 
 #[derive(Debug, PartialEq)]
+pub enum Num {
+    Int(i32),
+    Float(f64),
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Lit {
     String(String),
-    Regex(String, String),
+    Regex(String, String), // TODO(arjun): The Regex is not properly parsed
     Bool(bool),
     Null,
-    Num(String), // TODO(arjun): parse
+    Num(Num),
     Undefined,
 }
 
