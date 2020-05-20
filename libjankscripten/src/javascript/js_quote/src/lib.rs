@@ -1,4 +1,4 @@
-use proc_macro2::{Ident, TokenStream, TokenTree};
+use proc_macro2::{Ident, Punct, TokenStream, TokenTree};
 use quote::quote;
 use std::collections::HashMap;
 
@@ -66,28 +66,36 @@ fn process_input(input: TokenStream, out: &mut Parsible) {
         match &t {
             TokenTree::Punct(t) => {
                 match t.as_char() {
-                    '#' => {
-                        if let Some(TokenTree::Ident(var)) = input.next() {
-                            let varname = format!("$jen_{}", var);
-                            out.stmts_k.push(varname.to_string());
-                            out.stmts_v.push(var);
-                            // throw is chosen as a simply statement that has
-                            // an identifier for placeholder
-                            out.js.push_str(&format!("throw {};", varname));
-                        } else {
-                            panic!("incorrect #quote usage");
+                    '#' | '@' => {
+                        let mut next = input.next();
+                        let mut deref = false;
+                        if let Some(TokenTree::Punct(ref p)) = next {
+                            if p.as_char() == '*' {
+                                deref = true;
+                                next = input.next();
+                            }
                         }
-                    }
-                    '@' => {
-                        if let Some(TokenTree::Ident(var)) = input.next() {
+                        if let Some(TokenTree::Ident(var)) = next {
                             let varname = format!("$jen_{}", var);
-                            out.exprs_k.push(varname.to_string());
-                            out.exprs_v.push(var);
-                            // id is chosen as a simply statement that has an
-                            // identifier for placeholder
-                            out.js.push_str(&format!("{}", varname));
+                            let (k, v) = match t.as_char() {
+                                '#' => {
+                                    // throw is chosen as a simply statement that has
+                                    // an identifier for placeholder
+                                    out.js.push_str(&format!("throw {};", varname));
+                                    (&mut out.stmts_k, &mut out.stmts_v)
+                                }
+                                '@' => {
+                                    // id is chosen as a simply statement that has an
+                                    // identifier for placeholder
+                                    out.js.push_str(&format!("{}", varname));
+                                    (&mut out.exprs_k, &mut out.exprs_v)
+                                }
+                                _ => unreachable!(),
+                            };
+                            k.push(varname.to_string());
+                            v.push(if deref { quote!(*#var) } else { quote!(#var) });
                         } else {
-                            panic!("incorrect @quote usage");
+                            panic!("incorrect #quote/@quote/#*quote usage");
                         }
                     }
                     _ => out.js.push_str(&t.to_string()),
@@ -111,9 +119,9 @@ fn process_input(input: TokenStream, out: &mut Parsible) {
 struct Parsible {
     // making them tuples confuses quote! fsr
     stmts_k: Vec<String>,
-    stmts_v: Vec<Ident>,
+    stmts_v: Vec<TokenStream>,
     exprs_k: Vec<String>,
-    exprs_v: Vec<Ident>,
+    exprs_v: Vec<TokenStream>,
     js: String,
 }
 

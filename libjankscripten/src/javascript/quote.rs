@@ -136,6 +136,14 @@ mod test {
         );
     }
     #[test]
+    fn unbox() {
+        let boxed = Box::new(Expr::This);
+        let x = stringify!(*@test);
+        println!("{}", x);
+        let quoted = stmt!(let x = @*boxed);
+        assert_eq!(quoted, Stmt::VarDecl(vardecl1_("x", Expr::This)));
+    }
+    #[test]
     fn parse_expr_expectations() {
         let expr = parser::parse("5").unwrap();
         assert_eq!(
@@ -144,5 +152,10 @@ mod test {
                 "5".to_string()
             ))))])
         );
+    }
+    #[test]
+    #[should_panic]
+    fn eq_fails_sometimes() {
+        assert_eq!(stmt!(x = 5), stmt!(x = 6));
     }
 }
