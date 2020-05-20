@@ -520,11 +520,16 @@ fn simpl_program<'a>(program: Program<'a>) -> ParseResult<S::Stmt> {
     match program {
         Program::Mod(_) => unsupported(),
         Program::Script(parts) => {
-            let stmts: Result<Vec<_>, _> = parts
+            let maybe_stmts: Result<Vec<_>, _> = parts
                 .into_iter()
                 .map(|part| simpl_program_part(part))
                 .collect();
-            Ok(S::Stmt::Block(stmts?))
+            let mut stmts = maybe_stmts?;
+            if stmts.len() == 1 {
+                Ok(stmts.pop().unwrap())
+            } else {
+                Ok(S::Stmt::Block(stmts))
+            }
         }
     }
 }
@@ -589,21 +594,12 @@ mod tests {
     #[test]
     fn parse_escapes() {
         let prog = parse(r#"var x = "Hello\nworld";"#).unwrap();
-        // This is a huge pain
-        match prog {
-            S::Stmt::Block(stmts) => match &stmts[..] {
-                [S::Stmt::VarDecl(decls)] => match &decls[..] {
-                    [S::VarDecl { name: _, named }] => match &**named {
-                        S::Expr::Lit(S::Lit::String(s)) => {
-                            assert_eq!(s, "Hello\nworld");
-                        }
-                        _ => panic!(""),
-                    },
-                    _ => panic!(""),
-                },
-                _ => panic!(""),
-            },
-            _ => panic!(""),
-        }
+        assert_eq!(
+            prog,
+            S::Stmt::VarDecl(vec![S::VarDecl {
+                name: "x".to_string(),
+                named: Box::new(S::Expr::Lit(S::Lit::String("Hello\nworld".to_string())))
+            }])
+        );
     }
 }
