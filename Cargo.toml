@@ -3,8 +3,6 @@ members = [
     "libjankscripten",
     "jankscripten",
     "jankyp",
-    "runtime"
-]
-exclude = [
-    "wasm-game-of-life"
+    "runtime",
+    "tester"
 ]
