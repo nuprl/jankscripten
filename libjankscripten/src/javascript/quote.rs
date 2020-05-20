@@ -8,7 +8,8 @@ pub(crate) fn unplaceholder(
     mut stmts: HashMap<&'static str, Stmt>,
     mut exprs: HashMap<&'static str, Expr>,
 ) -> Stmt {
-    let init_parse = parse(template_str).unwrap(); // TODO(luna)
+    let init_parse = cancel_single_block(parse(template_str).unwrap()); // TODO(luna)
+    println!("{:?}", exprs);
     init_parse.replace_all(&mut |n| on_stmt(n, &mut stmts), &mut |n| {
         on_expr(n, &mut exprs)
     })
@@ -18,22 +19,23 @@ pub(crate) fn unplaceholder_expr(
     mut stmts: HashMap<&'static str, Stmt>,
     mut exprs: HashMap<&'static str, Expr>,
 ) -> Expr {
-    let mut init_parse = parse(template_str).unwrap(); // TODO(luna)
-    if let Stmt::Block(mut block) = init_parse {
-        if block.len() == 1 {
-            if let Some(Stmt::Expr(expr_box)) = block.pop() {
-                expr_box.replace_all(&mut |n| on_stmt(n, &mut stmts), &mut |n| {
-                    on_expr(n, &mut exprs)
-                })
-            } else {
-                panic!("not expr");
-            }
-        } else {
-            panic!("not expr");
-        }
+    let init_parse = cancel_single_block(parse(template_str).unwrap()); // TODO(luna)
+    if let Stmt::Expr(expr_box) = init_parse {
+        expr_box.replace_all(&mut |n| on_stmt(n, &mut stmts), &mut |n| {
+            on_expr(n, &mut exprs)
+        })
     } else {
         panic!("not expr");
     }
+}
+
+fn cancel_single_block(mut stmt: Stmt) -> Stmt {
+    if let Stmt::Block(ref mut block) = stmt {
+        if block.len() == 1 {
+            return block.pop().expect("len is 1");
+        }
+    }
+    stmt
 }
 
 fn on_stmt(node: Stmt, stmts: &mut HashMap<&'static str, Stmt>) -> Stmt {
@@ -56,6 +58,7 @@ fn on_stmt(node: Stmt, stmts: &mut HashMap<&'static str, Stmt>) -> Stmt {
 fn on_expr(node: Expr, exprs: &mut HashMap<&'static str, Expr>) -> Expr {
     match node {
         Expr::Id(ref x) => {
+            println!("id exists");
             if let Some(expr) = exprs.remove(x.as_str()) {
                 println!("wooexpr");
                 expr
@@ -69,17 +72,79 @@ fn on_expr(node: Expr, exprs: &mut HashMap<&'static str, Expr>) -> Expr {
 
 #[cfg(test)]
 mod test {
+    use crate::javascript::cons::*;
     use crate::javascript::parser;
-    use crate::javascript::{Expr, Lit, Stmt};
-    use js_quote::stmt;
+    use crate::javascript::{AssignOp, BinOp, Expr, Lit, Stmt};
+    use js_quote::{expr, stmt};
+    use resast::BinaryOp;
     #[test]
     fn js_quote() {
         let y = Stmt::Empty;
-        let quoted = stmt!((); #y);
-        assert_eq!(quoted, Stmt::Block(vec![Stmt::Empty, Stmt::Empty]))
+        let quoted = stmt!(throw x; #y);
+        assert_eq!(
+            quoted,
+            Stmt::Block(vec![throw_(Expr::Id("x".to_string())), Stmt::Empty])
+        )
     }
     #[test]
-    fn parse_expr() {
+    fn expr() {
+        let quoted = expr!(5 + 6);
+        assert_eq!(
+            quoted,
+            binary_(
+                BinOp::BinaryOp(BinaryOp::Plus),
+                Expr::Lit(Lit::Num("5".to_string())),
+                Expr::Lit(Lit::Num("6".to_string()))
+            )
+        );
+    }
+    #[test]
+    fn block() {
+        let quoted = stmt!({
+            throw x;
+            throw y
+        });
+        assert_eq!(
+            quoted,
+            Stmt::Block(vec![throw_(id_("x")), throw_(id_("y"))])
+        );
+    }
+    #[test]
+    fn empty_block() {
+        let quoted = stmt!({});
+        assert_eq!(quoted, Stmt::Block(vec![]));
+    }
+    #[test]
+    fn substs() {
+        let quoted = expr!(5 + 6);
+        let expected_expr = binary_(
+            BinOp::BinaryOp(BinaryOp::Plus),
+            Expr::Lit(Lit::Num("5".to_string())),
+            Expr::Lit(Lit::Num("6".to_string())),
+        );
+        assert_eq!(quoted, expected_expr);
+        let quoted = stmt!(let x = @quoted);
+        let expected_assign = Stmt::VarDecl(vardecl1_("x", expected_expr));
+        assert_eq!(quoted, expected_assign);
+        let quoted = stmt!({
+            #quoted
+            {}
+        });
+        assert_eq!(
+            quoted,
+            Stmt::Block(vec![expected_assign, Stmt::Block(vec![])])
+        );
+    }
+    #[test]
+    fn unbox() {
+        let boxed = Box::new(Expr::This);
+        let x = stringify!(*@test);
+        println!("{}", x);
+        let quoted = stmt!(let x = @*boxed);
+        assert_eq!(quoted, Stmt::VarDecl(vardecl1_("x", Expr::This)));
+    }
+    #[test]
+    fn parse_expr_expectations() {
         let expr = parser::parse("5").unwrap();
         assert_eq!(
             expr,
@@ -87,5 +152,10 @@ mod test {
                 "5".to_string()
             ))))])
         );
+    }
+    #[test]
+    #[should_panic]
+    fn eq_fails_sometimes() {
+        assert_eq!(stmt!(x = 5), stmt!(x = 6));
     }
 }
