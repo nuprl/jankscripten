@@ -1,6 +1,5 @@
-use proc_macro2::{Ident, Punct, TokenStream, TokenTree};
+use proc_macro2::{TokenStream, TokenTree};
 use quote::quote;
-use std::collections::HashMap;
 
 /// easily construct [libjankscripten::syntax]
 ///
@@ -16,7 +15,7 @@ use std::collections::HashMap;
 /// https://blog.m-ou.se/writing-python-inside-rust-2/
 #[proc_macro]
 pub fn stmt(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let mut input = TokenStream::from(input);
+    let input = TokenStream::from(input);
     let mut out = Parsible::default();
     process_input(input, &mut out);
     // another limitation of quote!
@@ -40,7 +39,7 @@ pub fn stmt(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 /// same as [stmt] but outputs an Expr
 #[proc_macro]
 pub fn expr(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let mut input = TokenStream::from(input);
+    let input = TokenStream::from(input);
     let mut out = Parsible::default();
     process_input(input, &mut out);
     let stmts_k = out.stmts_k;

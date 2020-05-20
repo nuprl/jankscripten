@@ -132,7 +132,15 @@ impl Stmt {
         // recurse
         match self {
             // 0
-            Empty | Break(_) | Continue(_) | VarDecl(_) => self,
+            Empty | Break(_) | Continue(_) => self,
+            VarDecl(vds) => VarDecl(
+                vds.into_iter()
+                    .map(|super::VarDecl { name, named }| super::VarDecl {
+                        name,
+                        named: named.box_replace(f, g),
+                    })
+                    .collect(),
+            ),
             // 1xStmt
             Label(x, a) => Label(x, a.box_replace(f, g)),
             Func(x, y, a) => Func(x, y, a.box_replace(f, g)),
@@ -272,6 +280,9 @@ pub(crate) mod cons {
     pub(crate) fn for_(init: ForInit, cond: Expr, advance: Expr, body: Stmt) -> Stmt {
         For(init, Box::new(cond), Box::new(advance), Box::new(body))
     }
+    pub(crate) fn throw_(e: Expr) -> Stmt {
+        Stmt::Throw(Box::new(e))
+    }
     pub(crate) fn vardecl1_<T: Into<String>>(name: T, val: Expr) -> Vec<VarDecl> {
         vec![VarDecl {
             name: name.into(),
@@ -283,5 +294,8 @@ pub(crate) mod cons {
     }
     pub(crate) fn binary_(op: BinOp, a: Expr, b: Expr) -> Expr {
         Expr::Binary(op, Box::new(a), Box::new(b))
+    }
+    pub(crate) fn id_<T: Into<String>>(id: T) -> Expr {
+        Expr::Id(id.into())
     }
 }

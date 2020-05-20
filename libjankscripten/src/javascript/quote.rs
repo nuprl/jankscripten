@@ -74,7 +74,7 @@ fn on_expr(node: Expr, exprs: &mut HashMap<&'static str, Expr>) -> Expr {
 mod test {
     use crate::javascript::cons::*;
     use crate::javascript::parser;
-    use crate::javascript::{AssignOp, BinOp, Expr, Lit, Stmt};
+    use crate::javascript::{BinOp, Expr, Lit, Num, Stmt};
     use js_quote::{expr, stmt};
     use resast::BinaryOp;
     #[test]
@@ -93,8 +93,8 @@ mod test {
             quoted,
             binary_(
                 BinOp::BinaryOp(BinaryOp::Plus),
-                Expr::Lit(Lit::Num("5".to_string())),
-                Expr::Lit(Lit::Num("6".to_string()))
+                Expr::Lit(Lit::Num(Num::Int(5))),
+                Expr::Lit(Lit::Num(Num::Int(6)))
             )
         );
     }
@@ -119,8 +119,8 @@ mod test {
         let quoted = expr!(5 + 6);
         let expected_expr = binary_(
             BinOp::BinaryOp(BinaryOp::Plus),
-            Expr::Lit(Lit::Num("5".to_string())),
-            Expr::Lit(Lit::Num("6".to_string())),
+            Expr::Lit(Lit::Num(Num::Int(5))),
+            Expr::Lit(Lit::Num(Num::Int(6))),
         );
         assert_eq!(quoted, expected_expr);
         let quoted = stmt!(let x = @quoted);
@@ -148,9 +148,7 @@ mod test {
         let expr = parser::parse("5").unwrap();
         assert_eq!(
             expr,
-            Stmt::Block(vec![Stmt::Expr(Box::new(Expr::Lit(Lit::Num(
-                "5".to_string()
-            ))))])
+            Stmt::Block(vec![Stmt::Expr(Box::new(Expr::Lit(Lit::Num(Num::Int(5)))))])
         );
     }
     #[test]
