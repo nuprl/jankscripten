@@ -90,11 +90,7 @@ fn process_input(input: TokenStream, out: &mut Parsible) {
                             panic!("incorrect @quote usage");
                         }
                     }
-                    // valid part of identifiers that we use = no space
-                    '$' => out.js.push_str(&t.to_string()),
-                    _ => {
-                        out.js.push_str(&t.to_string());
-                    }
+                    _ => out.js.push_str(&t.to_string()),
                 }
             }
             TokenTree::Group(g) => {
