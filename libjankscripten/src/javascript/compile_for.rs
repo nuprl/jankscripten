@@ -3,11 +3,9 @@ use super::cons::*;
 use super::Stmt::*;
 use super::{Expr, *};
 
-const LABEL_PREFIX: &str = "$LABEL_";
-
 pub fn compile_for(mut script: Stmt) -> Stmt {
     script = compile_for_in(script);
-    script = for_to_while(script);
+    script = loops_to_while(script);
     label_loops(script)
 }
 
@@ -46,7 +44,7 @@ fn compile_for_in(script: Stmt) -> Stmt {
     })
 }
 
-fn for_to_while(script: Stmt) -> Stmt {
+fn loops_to_while(script: Stmt) -> Stmt {
     script.replace(&mut |node| match node {
         For(init, cond, advance, body) => {
             let init = match init {
@@ -61,40 +59,52 @@ fn for_to_while(script: Stmt) -> Stmt {
                 }
             }
         }
+        DoWhile(body, cond) => {
+            stmt! {
+                let $jen_once = true;
+                while ($jen_once || @*cond) {
+                    $jen_once = false;
+                    #*body
+                }
+            }
+        }
         _ => node,
     })
 }
 
-/// label loops, always break/continue to labels
-/// label all breaks and continues to closest loop if not already labeled
+/// labels all while / break as expected; labels block inside of while and
+/// changes continue to break
+///
+/// please see Stopify/normalize-js/ts/desugarLoop.ts:WhileStatement
 fn label_loops(script: Stmt) -> Stmt {
     let mut label_i = 0;
-    let mut closest_loop = None;
+    let mut break_label = None;
+    let mut cont_label = None;
     // avoids adding a label recursively forever
     let mut is_labeled = false;
     script.replace(&mut |node| match node {
         Break(None) => {
             is_labeled = false;
-            Break(closest_loop.clone())
+            Break(break_label.clone())
         }
         Continue(None) => {
             is_labeled = false;
-            Continue(closest_loop.clone())
+            Break(cont_label.clone())
         }
         Label(..) => {
             is_labeled = true;
             node
         }
-        While(..) => {
-            if !is_labeled {
-                is_labeled = true;
-                let label = format!("{}{}", LABEL_PREFIX, label_i);
-                label_i += 1;
-                closest_loop = Some(label.clone());
-                Label(label, Box::new(node))
-            } else {
-                node
-            }
+        While(cond, body) if !is_labeled => {
+            is_labeled = true;
+            let break_name = format!("$break_{}", label_i);
+            let cont_name = format!("$cont_{}", label_i);
+            label_i += 1;
+            break_label = Some(break_name.clone());
+            cont_label = Some(cont_name.clone());
+            let body_with_cont = Label(cont_name, body);
+            let with_cont = While(cond, Box::new(body_with_cont));
+            Label(break_name, Box::new(with_cont))
         }
         _ => {
             is_labeled = false;
@@ -164,17 +174,31 @@ mod test {
             for (let i=0; i<10; ++i) {
                 console.log(i);
             }
+            do {
+                console.log(i);
+            } while (3 < 4)
         };
         let while_loop = stmt! {
-            let i=0;
-            while (i<10) {
-                {
-                    console.log(i);
+            {
+                let i=0;
+                while (i<10) {
+                    {
+                        console.log(i);
+                    }
+                    ++i
                 }
-                ++i
+            }
+            {
+                let $jen_once = true;
+                while ($jen_once || 3 < 4) {
+                    $jen_once = false;
+                    {
+                        console.log(i);
+                    }
+                }
             }
         };
-        assert_eq!(for_to_while(for_loop), while_loop);
+        assert_eq!(loops_to_while(for_loop), while_loop);
     }
     #[test]
     fn test_labels() {
@@ -187,10 +211,10 @@ mod test {
             }
         };
         let labeled = stmt! {
-            $LABEL_0: while (true) {
-                break $LABEL_0;
-                $LABEL_1: while (true) {
-                    continue $LABEL_1;
+            $break_0: while (true) $cont_0: {
+                break $break_0;
+                $break_1: while (true) $cont_1: {
+                    break $cont_1;
                 }
             }
         };
@@ -210,11 +234,11 @@ mod test {
             }
             {
                 let $jen_i = 0;
-                $LABEL_0: while ($jen_i<$jen_keys.length) {
+                $break_0: while ($jen_i<$jen_keys.length) $cont_0: {
                     {
                         let i = $jen_container[$jen_keys[$jen_i]];
                         {
-                            break $LABEL_0;
+                            break $break_0;
                         }
                     }
                     ++$jen_i;
