@@ -176,8 +176,8 @@ fn simpl_expr<'a>(expr: Expr<'a>) -> ParseResult<S::Expr> {
             consequent,
         }) => Ok(S::Expr::If(
             Box::new(simpl_expr(*test)?),
-            Box::new(simpl_expr(*alternate)?),
             Box::new(simpl_expr(*consequent)?),
+            Box::new(simpl_expr(*alternate)?),
         )),
         Expr::Func(Func {
             id,
@@ -531,22 +531,24 @@ fn simpl_program<'a>(program: Program<'a>) -> ParseResult<S::Stmt> {
 
 fn parse_number(s: &str) -> S::Num {
     if s.starts_with("0x") {
-        return i32::from_str_radix(&s[2..], 16).map(|i| S::Num::Int(i))
+        return i32::from_str_radix(&s[2..], 16)
+            .map(|i| S::Num::Int(i))
             .expect("Ressa did not parse hex value correct");
     }
 
     // TODO(arjun): JavaScript supports octal, which this does not parse.
-    return i32::from_str_radix(s, 10).map(|i| S::Num::Int(i))
-            .or_else(|_err| s.parse::<f64>().map(|x| S::Num::Float(x)))
-            .expect(&format!("Cannot parse {} as a number", s));
+    return i32::from_str_radix(s, 10)
+        .map(|i| S::Num::Int(i))
+        .or_else(|_err| s.parse::<f64>().map(|x| S::Num::Float(x)))
+        .expect(&format!("Cannot parse {} as a number", s));
 }
 
 fn parse_string<'a>(s: &StringLit<'a>) -> String {
     let literal_chars = match s {
         StringLit::Double(s) => s,
-        StringLit::Single(s) => s
+        StringLit::Single(s) => s,
     };
-    
+
     let mut buf = String::with_capacity(literal_chars.len());
     let mut iter = literal_chars.chars();
     while let Some(ch) = iter.next() {
@@ -558,7 +560,7 @@ fn parse_string<'a>(s: &StringLit<'a>) -> String {
             '\'' => buf.push(ch),
             'n' => buf.push('\n'),
             // TODO(arjun): There are a lot more escape characters
-            _ => panic!("unexpected or unhandled escape character")
+            _ => panic!("unexpected or unhandled escape character"),
         }
     }
     return buf;
@@ -566,20 +568,18 @@ fn parse_string<'a>(s: &StringLit<'a>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::syntax::*;
+    use super::*;
 
     #[test]
     fn parse_int() {
         assert_eq!(parse_number("205"), Num::Int(205));
     }
 
-
     #[test]
     fn parse_hex() {
         assert_eq!(parse_number("0xff"), Num::Int(255));
     }
-
 
     #[test]
     fn parse_float() {
@@ -593,18 +593,17 @@ mod tests {
         match prog {
             S::Stmt::Block(stmts) => match &stmts[..] {
                 [S::Stmt::VarDecl(decls)] => match &decls[..] {
-                   [S::VarDecl { name: _, named   }] => match &**named {
+                    [S::VarDecl { name: _, named }] => match &**named {
                         S::Expr::Lit(S::Lit::String(s)) => {
                             assert_eq!(s, "Hello\nworld");
-                        },
-                        _ => panic!("")
-                    }
-                   _ => panic!("")
+                        }
+                        _ => panic!(""),
+                    },
+                    _ => panic!(""),
                 },
-                _ => panic!("")
-            }
-            _ => panic!("")
+                _ => panic!(""),
+            },
+            _ => panic!(""),
         }
     }
-
 }
