@@ -101,29 +101,3 @@ pub enum Stmt {
     Func(Id, Vec<Id>, Box<Stmt>),
     Return(Box<Expr>),
 }
-
-pub(crate) mod cons {
-    use super::Stmt::{self, *};
-    use super::{BinOp, Expr, ForInit, VarDecl};
-    pub(crate) fn for_(init: ForInit, cond: Expr, advance: Expr, body: Stmt) -> Stmt {
-        For(init, Box::new(cond), Box::new(advance), Box::new(body))
-    }
-    pub(crate) fn throw_(e: Expr) -> Stmt {
-        Stmt::Throw(Box::new(e))
-    }
-    pub(crate) fn vardecl1_<T: Into<String>>(name: T, val: Expr) -> Vec<VarDecl> {
-        vec![VarDecl {
-            name: name.into(),
-            named: Box::new(val),
-        }]
-    }
-    pub(crate) fn dot_<T: Into<String>>(exp: Expr, field: T) -> Expr {
-        Expr::Dot(Box::new(exp), field.into())
-    }
-    pub(crate) fn binary_(op: BinOp, a: Expr, b: Expr) -> Expr {
-        Expr::Binary(op, Box::new(a), Box::new(b))
-    }
-    pub(crate) fn id_<T: Into<String>>(id: T) -> Expr {
-        Expr::Id(id.into())
-    }
-}
