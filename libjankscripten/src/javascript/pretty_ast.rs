@@ -15,8 +15,7 @@ impl Stmt {
                 )
                 .append(D::line())
                 .append(D::text("}")),
-            // TODO(luna): check? ()? {}?
-            Empty => D::nil(),
+            Empty => D::text(";"),
             Expr(e) => e.to_doc().append(D::text(";")),
             If(cond, then, other) => D::text("if (")
                 .append(cond.to_doc())
@@ -68,7 +67,7 @@ impl Stmt {
                 .append(D::text(") "))
                 .append(body.to_doc()),
             ForIn(is_decl, name, container, body) => D::text("for (")
-                .append(if *is_decl { D::text("let ") } else { D::nil() })
+                .append(if *is_decl { D::text("var ") } else { D::nil() })
                 .append(D::text(name))
                 .append(D::text(" in "))
                 .append(container.to_doc())
@@ -92,7 +91,7 @@ impl Stmt {
                 .append(D::text(" finally "))
                 .append(final_block.to_doc()),
             Throw(e) => D::text("throw ").append(e.to_doc()).append(D::text(";")),
-            VarDecl(decls) => vardecls_to_doc(decls),
+            VarDecl(decls) => vardecls_to_doc(decls).append(D::text(";")),
             Func(name, params, body) => func_to_doc(Some(name), params, body),
             Return(e) => D::text("return ").append(e.to_doc()).append(D::text(";")),
         }
@@ -106,7 +105,6 @@ impl Stmt {
     }
 }
 
-// TODO(luna): Use BoxAllocator to avoid reference counting
 impl Expr {
     pub fn to_doc(&self) -> D<()> {
         use Expr::*;
@@ -218,7 +216,7 @@ pub fn unary_op_to_doc(op: &UnaryOp) -> D<()> {
         Tilde => "~",
         TypeOf => "typeof ",
         Void => "void ",
-        Delete => "del ",
+        Delete => "delete ",
     })
 }
 
@@ -260,7 +258,6 @@ impl BinOp {
 
 impl LValue {
     pub fn to_doc(&self) -> D<()> {
-        // TODO(luna): this is all duplicated with Expr
         match self {
             LValue::Id(id) => D::text(id),
             LValue::Dot(e, id) => e.to_doc().append(D::text(".")).append(D::text(id)),
@@ -296,12 +293,12 @@ fn vardecls_to_doc(decls: &[VarDecl]) -> D<()> {
     let first = decls.first().expect("wouldn't exist without one");
     let rest = &decls[1..];
     // first with the let
-    D::text("let ")
+    let with_var = D::text("var ")
         .append(D::text(&first.name))
         .append(D::text(" = "))
-        .append(first.named.to_doc())
-        .append(D::text(", "))
-        .append(D::intersperse(
+        .append(first.named.to_doc());
+    if !rest.is_empty() {
+        with_var.append(D::text(", ")).append(D::intersperse(
             rest.iter().map(|d| {
                 // no let this time
                 D::text(&d.name)
@@ -310,6 +307,9 @@ fn vardecls_to_doc(decls: &[VarDecl]) -> D<()> {
             }),
             D::text(", "),
         ))
+    } else {
+        with_var
+    }
 }
 
 impl ForInit {
@@ -347,72 +347,65 @@ fn func_to_doc<'a>(maybe_name: Option<&'a Id>, params: &'a [Id], body: &'a Stmt)
 #[cfg(test)]
 mod test {
     use crate::javascript::parser::parse;
-    use crate::javascript::Stmt;
     const WIDTH: usize = 80;
-    fn already_pretty(what: &str) {
-        let prettied = parse(what).unwrap().to_pretty(WIDTH);
-        println!("original:\n{}", what);
-        println!("out:\n{}", prettied);
-        assert_eq!(what, prettied);
+    fn parse_pretty_parse(js_code: &str) {
+        let original_ast = parse(js_code).expect("invalid test doesn't parse");
+        let pretty = original_ast.to_pretty(WIDTH);
+        let pretty_ast =
+            parse(&pretty).expect(&format!("parsing pretty-printed string: {}", &pretty));
+        assert_eq!(original_ast, pretty_ast);
     }
-    fn already_pretty_expr(what: &str) {
-        println!("program string:\n{}", what);
-        // we wrap the exp in a statement so the parser doesn't choke
+    fn parse_pretty_parse_expr(js_code: &str) {
+        let modified = &format!("let $jen_expr = {};", js_code);
+        println!("program string:\n{}", modified);
+        // we wrap the expr in a leading statement so the parser doesn't choke
         // parser chokes on some standalone expressions
-        // TODO(luna): might need to add this to expr!
-        let parsed = parse(&format!("while ({}) {{}}", what)).unwrap();
-        println!("parsed:\n{:?}", parsed);
-        if let Stmt::While(e, ..) = parsed {
-            assert_eq!(what, e.to_pretty(WIDTH));
-            return;
-        }
-        panic!("not expr");
+        parse_pretty_parse(modified);
     }
     #[test]
-    #[should_panic]
     fn not_pretty() {
-        already_pretty_expr("   [   1,    2]");
+        parse_pretty_parse_expr("   [   1,    2]");
     }
     #[test]
     fn literals() {
-        already_pretty_expr(r#"[1, "two", null, true, /h.l*o/g]"#);
+        parse_pretty_parse_expr(r#"[1, "two", null, true, /h.l*o/g]"#);
     }
     #[test]
     fn object() {
-        already_pretty_expr("{x: 10, y: null}");
+        parse_pretty_parse_expr("{x: 10, y: null}");
     }
     #[test]
     fn new_and_this() {
-        already_pretty_expr("new Thingy(this)");
+        parse_pretty_parse("new Thingy(this)");
     }
     #[test]
     fn id_dot() {
-        already_pretty_expr("one.two");
+        parse_pretty_parse("one.two");
     }
     #[test]
     fn ops() {
-        already_pretty_expr("~5 & 9 instanceof SomeObject");
+        parse_pretty_parse("~5 & 9 instanceof SomeObject");
     }
     #[test]
     fn unary_lval() {
-        already_pretty_expr("++x[5]");
+        parse_pretty_parse("++x[5]");
     }
     #[test]
     fn is_this_haskell() {
-        already_pretty_expr("x >>= 5");
+        parse_pretty_parse("x >>= 5");
     }
     #[test]
     fn ternary_if() {
-        already_pretty_expr("true ? 5 : 3");
+        parse_pretty_parse("true ? 5 : 3");
     }
     #[test]
     fn seq() {
-        already_pretty_expr("x = 6, y");
+        parse_pretty_parse("x = 6, y");
     }
     #[ignore]
     #[test]
     fn switch() {
-        already_pretty(
+        parse_pretty_parse(
             "switch (5) {
     case 10:
         console.log(10);
@@ -426,7 +419,7 @@ mod test {
     }
     #[test]
     fn block() {
-        already_pretty(
+        parse_pretty_parse(
             "{
     console.log(5);
 }",
@@ -434,7 +427,7 @@ mod test {
     }
     #[test]
     fn while_loop() {
-        already_pretty(
+        parse_pretty_parse(
             "while (true) {
     console.log(5);
 }",
@@ -442,7 +435,7 @@ mod test {
     }
     #[test]
     fn if_else_w_blocks() {
-        already_pretty(
+        parse_pretty_parse(
             "if (true) {
     console.log(5);
 } else {
@@ -452,7 +445,7 @@ mod test {
     }
     #[test]
     fn for_loop() {
-        already_pretty(
+        parse_pretty_parse(
             "for (let i = 0, y = 5; y < 5; ++x) {
     console.log(i);
 }",
@@ -460,7 +453,7 @@ mod test {
     }
     #[test]
     fn functions() {
-        already_pretty(
+        parse_pretty_parse(
             "function hello(a, b) {
     return function(c) {
         console.log(hi);
