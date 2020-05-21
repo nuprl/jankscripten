@@ -1,7 +1,15 @@
 use super::syntax::{self, *};
+use pretty::FmtWrite;
 use pretty::RcDoc as D;
+use std::fmt::*;
 
 const INDENT: isize = 4;
+
+impl Display for Stmt {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        self.to_doc().render_fmt(80, f)
+    }
+}
 
 impl Stmt {
     pub fn to_doc(&self) -> D<()> {
@@ -206,8 +214,8 @@ impl Lit {
     }
 }
 
-// can't impl foreign type
-pub fn unary_op_to_doc(op: &UnaryOp) -> D<()> {
+/// can't impl foreign type
+fn unary_op_to_doc(op: &UnaryOp) -> D<()> {
     use resast::UnaryOp::*;
     D::text(match op {
         Minus => "-",

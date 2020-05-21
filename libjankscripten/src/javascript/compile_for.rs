@@ -1,3 +1,10 @@
+//! desugar loops
+//!
+//! - desugar for and do..while to while
+//! - then label for..in and while with a break label and a continue label
+//! - change continue to break from the continue label
+//! - use explicit labels in all breaks
+
 use super::constructors::*;
 use super::Stmt::*;
 use super::*;
@@ -118,6 +125,7 @@ mod test {
         )
         .unwrap();
         for_loop.walk(&mut LoopsToWhile::default());
+        println!("input:\n{}\noutput:\n{}", for_loop, while_loop);
         assert_eq!(for_loop, while_loop);
     }
     #[test]
@@ -146,39 +154,5 @@ mod test {
         .unwrap();
         unlabeled.walk(&mut LabelLoops::default());
         assert_eq!(unlabeled, labeled);
-    }
-    #[test]
-    fn full_unit() {
-        let mut input = parse(
-            "
-            for (let i in [1, 2, 3]) {
-                break;
-            }
-        }",
-        )
-        .unwrap();
-        let compiled = parse(
-            "
-            {
-                let $jen_container = [1, 2, 3];
-                let $jen_keys = $jen_container.keys();
-            }
-            {
-                let $jen_i = 0;
-                $break_0: while ($jen_i<$jen_keys.length) $cont_0: {
-                    {
-                        let i = $jen_container[$jen_keys[$jen_i]];
-                        {
-                            break $break_0;
-                        }
-                    }
-                    ++$jen_i;
-                }
-            }
-        }",
-        )
-        .unwrap();
-        compile_for(&mut input);
-        assert_eq!(input, compiled);
     }
 }

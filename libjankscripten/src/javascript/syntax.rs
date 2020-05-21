@@ -1,3 +1,8 @@
+//! defines the javascript AST
+//!
+//! based on the ressa parse but without features that are not used by any
+//! of our benchmarks and some preliminary sugars
+
 #[derive(Debug, PartialEq)]
 pub enum BinOp {
     BinaryOp(resast::BinaryOp),

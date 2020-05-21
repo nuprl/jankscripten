@@ -1,7 +1,7 @@
 pub mod compile_for;
 mod constructors;
 pub mod parser;
-pub mod pretty_ast;
+mod pretty_ast;
 pub mod syntax;
 pub mod walk;
 

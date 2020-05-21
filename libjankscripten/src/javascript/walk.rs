@@ -2,7 +2,17 @@
 
 use super::syntax::*;
 
-/// a visitor is passed to Stmt::walk to describe what happens when walking
+/// a visitor is passed to [Stmt::walk] to describe what happens when walking
+///
+/// each method has a default implementation of doing nothing, so you only have to specify what you need. the way to make a Visitor to pass to [Stmt::walk] is to define a newtype:
+///
+/// ```
+/// use libjankscripten::javascript::Visitor;
+/// struct WalkOn;
+/// impl Visitor for WalkOn {
+///     // ...
+/// }
+/// ```
 pub trait Visitor {
     /// called before recursing on a statement
     fn enter_stmt(&mut self, _stmt: &mut Stmt) {}
@@ -13,18 +23,25 @@ pub trait Visitor {
 impl Stmt {
     /// walk the ast, calling relevant visitor methods when appropriate
     ///
-    /// strictly depth-first, ltr
+    /// strictly depth-first, ltr. see [Visitor] for more info
     ///
     /// ```
     /// # use libjankscripten::javascript::{Stmt, Expr};
     /// # let mut stmt = Stmt::Empty;
-    /// stmt = stmt.replace_all(&mut |stmt| match stmt {
-    ///     Stmt::Break(_) => Stmt::Empty, // ...
-    ///     _ => stmt,
-    /// }, &mut |expr| match expr {
-    ///     Expr::Lit(_) => Expr::This, // or whatever,
-    ///     _ => expr
-    /// });
+    /// use libjankscripten::javascript::Visitor;
+    /// struct WalkOn;
+    /// impl Visitor for WalkOn {
+    ///     fn enter_stmt(&mut self, stmt: &mut Stmt) {
+    ///         match stmt {
+    ///             Stmt::Empty => {
+    ///                 let old = stmt.take();
+    ///                 *stmt = Stmt::Label("$jen_lbl".to_string(),
+    ///                     Box::new(old));
+    ///             }
+    ///             _ => (),
+    ///         }
+    ///     }
+    /// }
     /// ```
     pub fn walk(&mut self, v: &mut impl Visitor) {
         use Stmt::*;
@@ -78,13 +95,15 @@ impl Stmt {
             }
         }
     }
+    /// replace this statement with `;` and return its old value. this is
+    /// used to gain ownership of a mutable reference, especially in [Stmt::walk]
     pub fn take(&mut self) -> Self {
         std::mem::replace(self, Stmt::Empty)
     }
 }
 
 impl Expr {
-    /// like [Stmt::visit], but as a method on Expr. does the *exact*
+    /// like [Stmt::walk], but as a method on Expr. does the *exact*
     /// same thing
     pub fn walk(&mut self, v: &mut impl Visitor) {
         use Expr::*;
@@ -135,6 +154,9 @@ impl Expr {
             }
         }
     }
+    /// replace this statement with `undefined` and return its old
+    /// value. this is used to gain ownership of a mutable reference,
+    /// especially in [Expr::walk]
     pub fn take(&mut self) -> Self {
         std::mem::replace(self, Expr::Lit(Lit::Undefined))
     }
