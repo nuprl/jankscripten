@@ -78,6 +78,9 @@ impl Stmt {
             }
         }
     }
+    pub fn take(&mut self) -> Self {
+        std::mem::replace(self, Stmt::Empty)
+    }
 }
 
 impl Expr {
@@ -131,6 +134,9 @@ impl Expr {
                 ec.walk(v);
             }
         }
+    }
+    pub fn take(&mut self) -> Self {
+        std::mem::replace(self, Expr::Lit(Lit::Undefined))
     }
 }
 

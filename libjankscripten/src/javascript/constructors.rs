@@ -81,7 +81,7 @@ pub(crate) fn binary_(a: BinOp, b: Expr, c: Expr) -> Expr {
 }
 pub(crate) fn or_(b: Expr, c: Expr) -> Expr {
     Expr::Binary(
-        BinOp::BinaryOp(resast::BinaryOp::Or),
+        BinOp::LogicalOp(resast::LogicalOp::Or),
         Box::new(b),
         Box::new(c),
     )
