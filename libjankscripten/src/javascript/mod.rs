@@ -1,5 +1,6 @@
 pub mod compile_for;
 mod constructors;
+mod name_gen;
 pub mod parser;
 mod pretty_ast;
 pub mod syntax;

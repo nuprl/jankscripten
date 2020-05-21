@@ -63,11 +63,11 @@ impl Visitor for LabelLoops {
         match node {
             Break(None) => {
                 self.is_labeled = false;
-                *node = Break(self.break_label.clone())
+                *node = Break(self.break_label.as_ref().map(Into::into))
             }
             Continue(None) => {
                 self.is_labeled = false;
-                *node = Break(self.cont_label.clone())
+                *node = Break(self.cont_label.as_ref().map(Into::into))
             }
             Label(..) => self.is_labeled = true,
             ForIn(.., body) | While(.., body) if !self.is_labeled => {

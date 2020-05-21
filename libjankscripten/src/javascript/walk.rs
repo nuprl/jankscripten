@@ -29,14 +29,13 @@ impl Stmt {
     /// # use libjankscripten::javascript::{Stmt, Expr};
     /// # let mut stmt = Stmt::Empty;
     /// use libjankscripten::javascript::Visitor;
-    /// struct WalkOn;
-    /// impl Visitor for WalkOn {
+    /// struct EmptyToBlock;
+    /// impl Visitor for EmptyToBlock {
     ///     fn enter_stmt(&mut self, stmt: &mut Stmt) {
     ///         match stmt {
     ///             Stmt::Empty => {
     ///                 let old = stmt.take();
-    ///                 *stmt = Stmt::Label("$jen_lbl".to_string(),
-    ///                     Box::new(old));
+    ///                 *stmt = Stmt::Block(vec![]);
     ///             }
     ///             _ => (),
     ///         }

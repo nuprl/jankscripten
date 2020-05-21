@@ -43,7 +43,16 @@ pub enum Key {
     Str(String),
 }
 
-pub type Id = String;
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
+pub enum Id {
+    Named(String),
+    Generated(&'static str, usize),
+}
+impl<T: Into<String>> From<T> for Id {
+    fn from(i: T) -> Self {
+        Id::Named(i.into())
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub enum LValue {
@@ -58,7 +67,7 @@ pub enum Expr {
     Array(Vec<Expr>),
     Object(Vec<(Key, Expr)>),
     This,
-    Id(String),
+    Id(Id),
     Dot(Box<Expr>, Id),
     Bracket(Box<Expr>, Box<Expr>),
     New(Box<Expr>, Vec<Expr>),
