@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum BinOp {
     BinaryOp(resast::BinaryOp),
     LogicalOp(resast::LogicalOp),
@@ -8,7 +8,7 @@ pub type UnaryOp = resast::UnaryOp;
 
 pub type AssignOp = resast::AssignOp;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum UnaryAssignOp {
     PreInc,
     PreDec,
@@ -19,10 +19,10 @@ pub enum UnaryAssignOp {
 #[derive(Debug, PartialEq)]
 pub enum Num {
     Int(i32),
-    Float(f64)
+    Float(f64),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Lit {
     String(String),
     Regex(String, String), // TODO(arjun): The Regex is not properly parsed
@@ -40,14 +40,14 @@ pub enum Key {
 
 pub type Id = String;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum LValue {
     Id(Id),
     Dot(Expr, Id),
     Bracket(Expr, Expr),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Expr {
     Lit(Lit),
     Array(Vec<Expr>),
@@ -67,19 +67,19 @@ pub enum Expr {
     Seq(Vec<Expr>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct VarDecl {
     pub name: Id,
     pub named: Box<Expr>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ForInit {
     Expr(Box<Expr>),
     Decl(Vec<VarDecl>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Stmt {
     Block(Vec<Stmt>),
     Empty,
