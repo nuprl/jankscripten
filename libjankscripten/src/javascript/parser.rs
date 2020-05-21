@@ -40,13 +40,13 @@ pub fn parse(js_code: &str) -> ParseResult<S::Stmt> {
 
 fn simpl_lvalue<'a>(expr: Expr<'a>) -> ParseResult<S::LValue> {
     match expr {
-        Expr::Ident(id) => Ok(S::LValue::Id(id.name.into_owned())),
+        Expr::Ident(id) => Ok(S::LValue::Id(id.name.into())),
         Expr::Member(MemberExpr {
             object,
             property,
             computed: false,
         }) => match *property {
-            Expr::Ident(prop) => Ok(S::LValue::Dot(simpl_expr(*object)?, prop.name.into_owned())),
+            Expr::Ident(prop) => Ok(S::LValue::Dot(simpl_expr(*object)?, prop.name.into())),
             other => unsupported_message(&format!("unexpected syntax on RHS of dot: {:?}", other)),
         },
         Expr::Member(MemberExpr {
@@ -77,7 +77,7 @@ fn simpl_string_lit<'a>(string_lit: StringLit<'a>) -> String {
 
 fn simpl_prop_key<'a>(prop_key: PropKey) -> ParseResult<S::Key> {
     match prop_key {
-        PropKey::Pat(p) => Ok(S::Key::Str(simpl_pat(p)?)),
+        PropKey::Pat(p) => Ok(S::Key::Str(simpl_pat_str(p)?)),
         PropKey::Expr(Expr::Ident(x)) => Ok(S::Key::Str(x.name.into_owned())),
         PropKey::Lit(Lit::String(s)) => Ok(S::Key::Str(simpl_string_lit(s))),
         PropKey::Lit(Lit::Number(s)) => match s.parse::<i32>() {
@@ -201,7 +201,7 @@ fn simpl_expr<'a>(expr: Expr<'a>) -> ParseResult<S::Expr> {
             let FuncBody(parts) = body;
             Ok(expr_func_(id, params?, simpl_program_parts(parts)?))
         }
-        Expr::Ident(id) => Ok(S::Expr::Id(id.name.into_owned())),
+        Expr::Ident(id) => Ok(id_(id.name)),
         Expr::Logical(LogicalExpr {
             operator,
             left,
@@ -293,7 +293,13 @@ fn simpl_switch_case<'a>(case: SwitchCase<'a>) -> ParseResult<(Option<S::Expr>, 
 
 fn simpl_pat<'a>(pat: Pat<'a>) -> ParseResult<S::Id> {
     match pat {
-        Pat::Ident(ident) => Ok(ident.name.into_owned()),
+        Pat::Ident(ident) => Ok(ident.name.into()),
+        _ => unsupported(),
+    }
+}
+fn simpl_pat_str<'a>(pat: Pat<'a>) -> ParseResult<String> {
+    match pat {
+        Pat::Ident(ident) => Ok(ident.name.into()),
         _ => unsupported(),
     }
 }
@@ -313,8 +319,8 @@ fn simpl_stmt<'a>(stmt: Stmt<'a>) -> ParseResult<S::Stmt> {
         Stmt::With(_) => unsupported(),
         Stmt::Return(oe) => Ok(return_(simpl_opt_expr(oe)?)),
         Stmt::Labeled(LabeledStmt { label, body }) => Ok(label_(label.name, simpl_stmt(*body)?)),
-        Stmt::Break(opt_id) => Ok(S::Stmt::Break(opt_id.map(|l| l.name.into_owned()))),
-        Stmt::Continue(opt_id) => Ok(S::Stmt::Continue(opt_id.map(|l| l.name.into_owned()))),
+        Stmt::Break(opt_id) => Ok(break_(opt_id.map(|l| l.name.into_owned()))),
+        Stmt::Continue(opt_id) => Ok(continue_(opt_id.map(|l| l.name.into_owned()))),
         Stmt::If(IfStmt {
             test,
             consequent,

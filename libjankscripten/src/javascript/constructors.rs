@@ -25,11 +25,11 @@ pub(crate) fn forin_<I: Into<Id>>(a: bool, b: I, c: Expr, d: Stmt) -> Stmt {
 pub(crate) fn label_<I: Into<Id>>(a: I, b: Stmt) -> Stmt {
     Stmt::Label(a.into(), Box::new(b))
 }
-pub(crate) fn break_<I: Into<Id>>(a: I) -> Stmt {
-    Stmt::Break(Some(a.into()))
+pub(crate) fn break_<I: Into<Id>>(a: Option<I>) -> Stmt {
+    Stmt::Break(a.map(Into::into))
 }
-pub(crate) fn continue_<I: Into<Id>>(a: I) -> Stmt {
-    Stmt::Continue(Some(a.into()))
+pub(crate) fn continue_<I: Into<Id>>(a: Option<I>) -> Stmt {
+    Stmt::Continue(a.map(Into::into))
 }
 pub(crate) fn catch_<I: Into<Id>>(a: Stmt, b: I, c: Stmt) -> Stmt {
     Stmt::Catch(Box::new(a), b.into(), Box::new(c))
@@ -40,13 +40,13 @@ pub(crate) fn finally_(a: Stmt, b: Stmt) -> Stmt {
 pub(crate) fn throw_(a: Expr) -> Stmt {
     Stmt::Throw(Box::new(a))
 }
-pub(crate) fn vardecl1_<T: Into<String>>(name: T, val: Expr) -> Stmt {
+pub(crate) fn vardecl1_<T: Into<Id>>(name: T, val: Expr) -> Stmt {
     Stmt::VarDecl(vec![VarDecl {
         name: name.into(),
         named: Box::new(val),
     }])
 }
-pub(crate) fn func_<I: Into<Id>>(a: I, b: Vec<I>, c: Stmt) -> Stmt {
+pub(crate) fn func_<I: Into<Id>, J: Into<Id>>(a: I, b: Vec<J>, c: Stmt) -> Stmt {
     Stmt::Func(
         a.into(),
         b.into_iter().map(Into::into).collect(),
@@ -101,14 +101,18 @@ pub(crate) fn assign_(b: LValue, c: Expr) -> Expr {
 pub(crate) fn call_(a: Expr, b: Vec<Expr>) -> Expr {
     Expr::Call(Box::new(a), b)
 }
-pub(crate) fn expr_func_<I: Into<Id>>(a: Option<Id>, b: Vec<I>, c: Stmt) -> Expr {
-    Expr::Func(a, b.into_iter().map(Into::into).collect(), Box::new(c))
+pub(crate) fn expr_func_<I: Into<Id>, J: Into<Id>>(a: Option<I>, b: Vec<J>, c: Stmt) -> Expr {
+    Expr::Func(
+        a.map(|x| x.into()),
+        b.into_iter().map(Into::into).collect(),
+        Box::new(c),
+    )
 }
-pub(crate) fn named_func_<I: Into<Id>>(a: I, b: Vec<I>, c: Stmt) -> Expr {
+pub(crate) fn named_func_<I: Into<Id>, J: Into<Id>>(a: I, b: Vec<J>, c: Stmt) -> Expr {
     expr_func_(Some(a.into()), b, c)
 }
 pub(crate) fn lambda<I: Into<Id>>(b: Vec<I>, c: Stmt) -> Expr {
-    expr_func_(None, b, c)
+    expr_func_(Option::<I>::None, b, c)
 }
 
 // lvals

@@ -1,5 +1,6 @@
 use super::syntax::{self, *};
 use pretty::RcDoc as D;
+use std::fmt::*;
 
 const INDENT: isize = 4;
 
@@ -68,12 +69,12 @@ impl Stmt {
                 .append(body.to_doc()),
             ForIn(is_decl, name, container, body) => D::text("for (")
                 .append(if *is_decl { D::text("var ") } else { D::nil() })
-                .append(D::text(name))
+                .append(name.to_doc())
                 .append(D::text(" in "))
                 .append(container.to_doc())
                 .append(D::text(") "))
                 .append(body.to_doc()),
-            Label(name, stmt) => D::text(name).append(D::text(": ")).append(stmt.to_doc()),
+            Label(name, stmt) => name.to_doc().append(D::text(": ")).append(stmt.to_doc()),
             Break(maybe_lbl) => D::text("break")
                 .append(option_label_to_doc(maybe_lbl))
                 .append(D::text(";")),
@@ -83,7 +84,7 @@ impl Stmt {
             Catch(try_in, bind, catch) => D::text("try ")
                 .append(try_in.to_doc())
                 .append(D::text(" catch ("))
-                .append(D::text(bind))
+                .append(bind.to_doc())
                 .append(D::text(") "))
                 .append(catch.to_doc()),
             Finally(try_catch, final_block) => try_catch
@@ -127,8 +128,8 @@ impl Expr {
                 ))
                 .append("}"),
             This => D::text("this"),
-            Id(x) => D::text(x),
-            Dot(e, id) => e.to_doc().append(D::text(".")).append(D::text(id)),
+            Id(x) => x.to_doc(),
+            Dot(e, id) => e.to_doc().append(D::text(".")).append(id.to_doc()),
             Bracket(cont, ind) => cont
                 .to_doc()
                 .append(D::text("["))
@@ -206,6 +207,18 @@ impl Lit {
     }
 }
 
+impl Id {
+    pub fn to_doc(&self) -> D<()> {
+        match self {
+            Self::Named(name) => D::text(name),
+            Self::Generated(name, i) => D::text("$jen_")
+                .append(D::text(*name))
+                .append(D::text("_"))
+                .append(D::as_string(i)),
+        }
+    }
+}
+
 // can't impl foreign type
 pub fn unary_op_to_doc(op: &UnaryOp) -> D<()> {
     use resast::UnaryOp::*;
@@ -259,8 +272,8 @@ impl BinOp {
 impl LValue {
     pub fn to_doc(&self) -> D<()> {
         match self {
-            LValue::Id(id) => D::text(id),
-            LValue::Dot(e, id) => e.to_doc().append(D::text(".")).append(D::text(id)),
+            LValue::Id(id) => id.to_doc(),
+            LValue::Dot(e, id) => e.to_doc().append(D::text(".")).append(id.to_doc()),
             LValue::Bracket(cont, ind) => cont
                 .to_doc()
                 .append(D::text("["))
@@ -294,14 +307,15 @@ fn vardecls_to_doc(decls: &[VarDecl]) -> D<()> {
     let rest = &decls[1..];
     // first with the let
     let with_var = D::text("var ")
-        .append(D::text(&first.name))
+        .append(first.name.to_doc())
         .append(D::text(" = "))
         .append(first.named.to_doc());
     if !rest.is_empty() {
         with_var.append(D::text(", ")).append(D::intersperse(
             rest.iter().map(|d| {
                 // no let this time
-                D::text(&d.name)
+                d.name
+                    .to_doc()
                     .append(D::text(" = "))
                     .append(d.named.to_doc())
             }),
@@ -323,7 +337,7 @@ impl ForInit {
 
 fn option_label_to_doc(maybe_lbl: &Option<Id>) -> D<()> {
     if let Some(id) = maybe_lbl {
-        D::text(" ").append(D::text(id))
+        D::text(" ").append(id.to_doc())
     } else {
         D::nil()
     }
@@ -332,14 +346,11 @@ fn option_label_to_doc(maybe_lbl: &Option<Id>) -> D<()> {
 fn func_to_doc<'a>(maybe_name: Option<&'a Id>, params: &'a [Id], body: &'a Stmt) -> D<'a, ()> {
     D::text("function")
         .append(match maybe_name {
-            Some(name) => D::space().append(D::text(name)),
+            Some(name) => D::space().append(name.to_doc()),
             None => D::nil(),
         })
         .append(D::text("("))
-        .append(D::intersperse(
-            params.iter().map(|e| D::text(e)),
-            D::text(", "),
-        ))
+        .append(D::intersperse(params.iter().map(Id::to_doc), D::text(", ")))
         .append(D::text(") "))
         .append(body.to_doc())
 }
