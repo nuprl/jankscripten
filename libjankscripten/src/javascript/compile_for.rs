@@ -9,14 +9,13 @@ use super::constructors::*;
 use super::Stmt::*;
 use super::*;
 
-pub fn compile_for(script: &mut Stmt) {
-    script.walk(&mut LoopsToWhile::default());
-    script.walk(&mut LabelLoops::default());
+pub fn compile_for(script: &mut Stmt, ng: &mut NameGen) {
+    script.walk(&mut LoopsToWhile(ng));
+    script.walk(&mut LabelLoops::new(ng));
 }
 
-#[derive(Default)]
-struct LoopsToWhile;
-impl Visitor for LoopsToWhile {
+struct LoopsToWhile<'a>(&'a mut NameGen);
+impl Visitor for LoopsToWhile<'_> {
     fn enter_stmt(&mut self, node: &mut Stmt) {
         match node {
             For(init, cond, advance, body) => {
@@ -30,14 +29,12 @@ impl Visitor for LoopsToWhile {
                 ]);
             }
             DoWhile(body, cond) => {
+                let once = self.0.fresh("once");
                 *node = Block(vec![
-                    vardecl1_("$jen_once", TRUE_),
+                    vardecl1_(once.clone(), TRUE_),
                     while_(
-                        or_(id_("$jen_once"), cond.take()),
-                        Block(vec![
-                            expr_(assign_(lval_id_("$jen_once"), FALSE_)),
-                            body.take(),
-                        ]),
+                        or_(id_(once.clone()), cond.take()),
+                        Block(vec![expr_(assign_(lval_id_(once), FALSE_)), body.take()]),
                     ),
                 ])
             }
@@ -50,31 +47,39 @@ impl Visitor for LoopsToWhile {
 /// changes continue to break
 ///
 /// please see Stopify/normalize-js/ts/desugarLoop.ts:WhileStatement
-#[derive(Default)]
-struct LabelLoops {
-    label_i: usize,
-    break_label: Option<String>,
-    cont_label: Option<String>,
+struct LabelLoops<'a> {
+    ng: &'a mut NameGen,
+    break_label: Option<Id>,
+    cont_label: Option<Id>,
     /// avoids adding a label recursively forever
     is_labeled: bool,
 }
-impl Visitor for LabelLoops {
+impl<'a> LabelLoops<'a> {
+    fn new(ng: &'a mut NameGen) -> Self {
+        Self {
+            ng,
+            break_label: None,
+            cont_label: None,
+            is_labeled: false,
+        }
+    }
+}
+impl Visitor for LabelLoops<'_> {
     fn enter_stmt(&mut self, node: &mut Stmt) {
         match node {
             Break(None) => {
                 self.is_labeled = false;
-                *node = Break(self.break_label.as_ref().map(Into::into))
+                *node = Break(self.break_label.clone())
             }
             Continue(None) => {
                 self.is_labeled = false;
-                *node = Break(self.cont_label.as_ref().map(Into::into))
+                *node = Break(self.cont_label.clone())
             }
             Label(..) => self.is_labeled = true,
             ForIn(.., body) | While(.., body) if !self.is_labeled => {
                 self.is_labeled = true;
-                let break_name = format!("$break_{}", self.label_i);
-                let cont_name = format!("$cont_{}", self.label_i);
-                self.label_i += 1;
+                let break_name = self.ng.fresh("break");
+                let cont_name = self.ng.fresh("cont");
                 self.break_label = Some(break_name.clone());
                 self.cont_label = Some(cont_name.clone());
                 *body = Box::new(label_(cont_name, body.take()));
@@ -92,7 +97,7 @@ mod test {
     fn test_for_to_while() {
         let mut for_loop = parse(
             "
-            for (let i=0; i<10; ++i) {
+            for (var i=0; i<10; ++i) {
                 console.log(i);
             }
             do {
@@ -104,7 +109,7 @@ mod test {
         let while_loop = parse(
             "
             {
-                let i=0;
+                var i=0;
                 while (i<10) {
                     {
                         console.log(i);
@@ -113,9 +118,9 @@ mod test {
                 }
             }
             {
-                let $jen_once = true;
-                while ($jen_once || 3 < 4) {
-                    $jen_once = false;
+                var $jen_once_0 = true;
+                while ($jen_once_0 || 3 < 4) {
+                    $jen_once_0 = false;
                     {
                         console.log(i);
                     }
@@ -124,9 +129,11 @@ mod test {
         ",
         )
         .unwrap();
-        for_loop.walk(&mut LoopsToWhile::default());
+        let mut ng = NameGen::default();
+        for_loop.walk(&mut LoopsToWhile(&mut ng));
         println!("input:\n{}\noutput:\n{}", for_loop, while_loop);
-        assert_eq!(for_loop, while_loop);
+        // Id::Named(x) != Id::Generated(x) so this is a workaround
+        assert_eq!(for_loop.to_pretty(80), while_loop.to_pretty(80));
     }
     #[test]
     fn test_labels() {
@@ -143,16 +150,18 @@ mod test {
         .unwrap();
         let labeled = parse(
             "
-            $break_0: while (true) $cont_0: {
-                break $break_0;
-                $break_1: while (true) $cont_1: {
-                    break $cont_1;
+            $jen_break_0: while (true) $jen_cont_0: {
+                break $jen_break_0;
+                $jen_break_1: while (true) $jen_cont_1: {
+                    break $jen_cont_1;
                 }
             }
         ",
         )
         .unwrap();
-        unlabeled.walk(&mut LabelLoops::default());
-        assert_eq!(unlabeled, labeled);
+        let mut ng = NameGen::default();
+        unlabeled.walk(&mut LabelLoops::new(&mut ng));
+        // Id::Named(x) != Id::Generated(x) so this is a workaround
+        assert_eq!(unlabeled.to_pretty(80), labeled.to_pretty(80));
     }
 }

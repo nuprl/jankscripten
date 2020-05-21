@@ -2,11 +2,11 @@ use super::Id;
 use std::collections::HashMap;
 
 #[derive(Default)]
-struct NameGen {
+pub struct NameGen {
     next_name: HashMap<&'static str, usize>,
 }
 impl NameGen {
-    fn fresh(&mut self, name: &'static str) -> Id {
+    pub fn fresh(&mut self, name: &'static str) -> Id {
         Id::Generated(
             name,
             *self
