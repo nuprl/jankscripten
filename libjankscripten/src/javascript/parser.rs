@@ -138,6 +138,19 @@ fn simpl_lit<'a>(lit: Lit<'a>) -> ParseResult<S::Lit> {
     }
 }
 
+fn assign_left_to_expr<'a>(x: AssignLeft<'a>) -> ParseResult<S::Expr> {
+    // TODO(jenna): Complete cases
+    match x {
+        AssignLeft::Pat(pat) => {
+            match pat {
+                Pat::Ident(ident) => Ok(id_(ident.name)),
+                other => unimplemented!()
+            }
+        },
+        AssignLeft::Expr(expr) => Ok(simpl_expr(*expr)?)
+    }
+}
+
 fn simpl_expr<'a>(expr: Expr<'a>) -> ParseResult<S::Expr> {
     match expr {
         Expr::Array(items) => {
@@ -151,11 +164,25 @@ fn simpl_expr<'a>(expr: Expr<'a>) -> ParseResult<S::Expr> {
             operator,
             left,
             right,
-        }) => Ok(op_assign_(
-            operator,
-            simpl_assign_left(left)?,
-            simpl_expr(*right)?,
-        )),
+        }) => {
+            // TODO(jenna): Other cases here
+            match operator {
+                AssignOp::PlusEqual => {
+                    Ok(op_assign_(
+                        AssignOp::Equal,
+                        simpl_assign_left(left.clone())?,
+                        binary_(S::BinOp::BinaryOp(BinaryOp::Plus), assign_left_to_expr(left)?, simpl_expr(*right)?)
+                    ))
+                },
+                other => {
+                    Ok(op_assign_(
+                        operator,
+                        simpl_assign_left(left)?,
+                        simpl_expr(*right)?,
+                    ))
+                }
+            }
+        },
         Expr::Await(_) => unsupported(),
         Expr::Binary(BinaryExpr {
             operator,
@@ -593,16 +620,25 @@ mod tests {
         assert_eq!(prog, result);
     }
 
+    // var x = 10;
+    // x += 1;
+
+    // var x = 10;
+    // x = x + 1;
+
+    // function F ...
+    // F() += 1
+    // cannot translate F() = F() + 1
+
     #[test]
     fn parse_pluseq() {
         let prog = parse(r#"
             var x = 10;
             x += 1;
         "#).unwrap();
-        println!("{:?}", prog);
         let result = block_(vec![
             vardecl1_("x", S::Expr::Lit(S::Lit::Num(Num::Int(10)))),
-            expr_(op_assign_(S::AssignOp::PlusEqual, lval_id_("x"), S::Expr::Lit(S::Lit::Num(Num::Int(1)))))
+            expr_(op_assign_(S::AssignOp::Equal, lval_id_("x"), binary_(S::BinOp::BinaryOp(BinaryOp::Plus), S::Expr::Id(S::Id::Named("x".to_string())), S::Expr::Lit(S::Lit::Num(Num::Int(1))))))
         ]);
         assert_eq!(prog, result);
     }
