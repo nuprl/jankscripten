@@ -9,7 +9,7 @@ type ClassTable = HashSet<Class>;
 
 struct Gather {
     class_table: ClassTable,
-    new_table: HashSet<String>,
+    new_table: HashSet<Id>,
 }
 
 impl Gather {
@@ -48,7 +48,7 @@ impl Gather {
                 self.expr(e1);
                 self.expr(e2);
             }
-            Expr::UnaryAssign(_, lv) => {
+            Expr::UnaryAssign(_, _lv) => {
                 // TODO
             }
             Expr::If(e1, e2, e3) => {
@@ -56,7 +56,7 @@ impl Gather {
                 self.expr(e2);
                 self.expr(e3);
             }
-            Expr::Assign(_, lv, e) => {
+            Expr::Assign(_, _lv, e) => {
                 // TODO LV
                 self.expr(e);
             }
