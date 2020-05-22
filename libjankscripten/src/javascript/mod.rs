@@ -1,3 +1,5 @@
+//! the AST, transformations, and utils for compiling javascript to jankyscript
+
 pub mod compile_for;
 pub mod parser;
 pub mod syntax;
