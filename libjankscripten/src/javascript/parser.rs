@@ -579,4 +579,31 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn parse_stmts() {
+        let prog = parse(r#"
+            var x = 10;
+            var y = 10;
+        "#).unwrap();
+        let result = block_(vec![
+            vardecl1_("x", S::Expr::Lit(S::Lit::Num(Num::Int(10)))),
+            vardecl1_("y", S::Expr::Lit(S::Lit::Num(Num::Int(10))))
+        ]);
+        assert_eq!(prog, result);
+    }
+
+    #[test]
+    fn parse_pluseq() {
+        let prog = parse(r#"
+            var x = 10;
+            x += 1;
+        "#).unwrap();
+        println!("{:?}", prog);
+        let result = block_(vec![
+            vardecl1_("x", S::Expr::Lit(S::Lit::Num(Num::Int(10)))),
+            expr_(op_assign_(S::AssignOp::PlusEqual, lval_id_("x"), S::Expr::Lit(S::Lit::Num(Num::Int(1)))))
+        ]);
+        assert_eq!(prog, result);
+    }
 }

@@ -1,6 +1,10 @@
 use super::syntax::*;
 
 // Statements:
+pub(crate) fn block_(stmts: Vec<Stmt>) -> Stmt {
+    Stmt::Block(stmts)
+}
+
 pub(crate) fn expr_(a: Expr) -> Stmt {
     Stmt::Expr(Box::new(a))
 }
