@@ -1,3 +1,8 @@
+//! defines the javascript AST
+//!
+//! based on the ressa parse but without features that are not used by any
+//! of our benchmarks and some preliminary sugars
+
 #[derive(Debug, PartialEq)]
 pub enum BinOp {
     BinaryOp(resast::BinaryOp),
@@ -38,7 +43,16 @@ pub enum Key {
     Str(String),
 }
 
-pub type Id = String;
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
+pub enum Id {
+    Named(String),
+    Generated(&'static str, usize),
+}
+impl<T: Into<String>> From<T> for Id {
+    fn from(i: T) -> Self {
+        Id::Named(i.into())
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub enum LValue {
@@ -53,7 +67,7 @@ pub enum Expr {
     Array(Vec<Expr>),
     Object(Vec<(Key, Expr)>),
     This,
-    Id(String),
+    Id(Id),
     Dot(Box<Expr>, Id),
     Bracket(Box<Expr>, Box<Expr>),
     New(Box<Expr>, Vec<Expr>),
@@ -89,6 +103,7 @@ pub enum Stmt {
     While(Box<Expr>, Box<Stmt>),
     DoWhile(Box<Stmt>, Box<Expr>),
     For(ForInit, Box<Expr>, Box<Expr>, Box<Stmt>),
+    /// true = declare variable, false = assign to existing
     ForIn(bool, Id, Box<Expr>, Box<Stmt>),
     Label(Id, Box<Stmt>),
     Break(Option<Id>),

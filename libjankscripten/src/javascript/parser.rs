@@ -6,6 +6,7 @@
 //! produce JavaScript that uses them, and (2) they can be desugared if needed.
 //! Thus this "parser" calls the Ressa parser and transforms the Ressa AST
 //! to our simpler AST.
+use super::constructors::*;
 use super::syntax as S;
 use resast::prelude::*;
 use ressa::Parser;
@@ -39,13 +40,13 @@ pub fn parse(js_code: &str) -> ParseResult<S::Stmt> {
 
 fn simpl_lvalue<'a>(expr: Expr<'a>) -> ParseResult<S::LValue> {
     match expr {
-        Expr::Ident(id) => Ok(S::LValue::Id(id.name.into_owned())),
+        Expr::Ident(id) => Ok(S::LValue::Id(id.name.into())),
         Expr::Member(MemberExpr {
             object,
             property,
             computed: false,
         }) => match *property {
-            Expr::Ident(prop) => Ok(S::LValue::Dot(simpl_expr(*object)?, prop.name.into_owned())),
+            Expr::Ident(prop) => Ok(S::LValue::Dot(simpl_expr(*object)?, prop.name.into())),
             other => unsupported_message(&format!("unexpected syntax on RHS of dot: {:?}", other)),
         },
         Expr::Member(MemberExpr {
@@ -76,7 +77,7 @@ fn simpl_string_lit<'a>(string_lit: StringLit<'a>) -> String {
 
 fn simpl_prop_key<'a>(prop_key: PropKey) -> ParseResult<S::Key> {
     match prop_key {
-        PropKey::Pat(p) => Ok(S::Key::Str(simpl_pat(p)?)),
+        PropKey::Pat(p) => Ok(S::Key::Str(simpl_pat_str(p)?)),
         PropKey::Expr(Expr::Ident(x)) => Ok(S::Key::Str(x.name.into_owned())),
         PropKey::Lit(Lit::String(s)) => Ok(S::Key::Str(simpl_string_lit(s))),
         PropKey::Lit(Lit::Number(s)) => match s.parse::<i32>() {
@@ -150,34 +151,34 @@ fn simpl_expr<'a>(expr: Expr<'a>) -> ParseResult<S::Expr> {
             operator,
             left,
             right,
-        }) => Ok(S::Expr::Assign(
+        }) => Ok(op_assign_(
             operator,
-            Box::new(simpl_assign_left(left)?),
-            Box::new(simpl_expr(*right)?),
+            simpl_assign_left(left)?,
+            simpl_expr(*right)?,
         )),
         Expr::Await(_) => unsupported(),
         Expr::Binary(BinaryExpr {
             operator,
             left,
             right,
-        }) => Ok(S::Expr::Binary(
+        }) => Ok(binary_(
             S::BinOp::BinaryOp(operator),
-            Box::new(simpl_expr(*left)?),
-            Box::new(simpl_expr(*right)?),
+            simpl_expr(*left)?,
+            simpl_expr(*right)?,
         )),
         Expr::Class(_) => unsupported(),
         Expr::Call(CallExpr { callee, arguments }) => {
             let arguments: ParseResult<Vec<_>> = arguments.into_iter().map(simpl_expr).collect();
-            Ok(S::Expr::Call(Box::new(simpl_expr(*callee)?), arguments?))
+            Ok(call_(simpl_expr(*callee)?, arguments?))
         }
         Expr::Conditional(ConditionalExpr {
             test,
             alternate,
             consequent,
-        }) => Ok(S::Expr::If(
-            Box::new(simpl_expr(*test)?),
-            Box::new(simpl_expr(*consequent)?),
-            Box::new(simpl_expr(*alternate)?),
+        }) => Ok(if_expr_(
+            simpl_expr(*test)?,
+            simpl_expr(*consequent)?,
+            simpl_expr(*alternate)?,
         )),
         Expr::Func(Func {
             id,
@@ -198,21 +199,17 @@ fn simpl_expr<'a>(expr: Expr<'a>) -> ParseResult<S::Expr> {
             };
             let params: ParseResult<Vec<_>> = params.into_iter().map(simpl_func_arg).collect();
             let FuncBody(parts) = body;
-            Ok(S::Expr::Func(
-                id,
-                params?,
-                Box::new(simpl_program_parts(parts)?),
-            ))
+            Ok(expr_func_(id, params?, simpl_program_parts(parts)?))
         }
-        Expr::Ident(id) => Ok(S::Expr::Id(id.name.into_owned())),
+        Expr::Ident(id) => Ok(id_(id.name)),
         Expr::Logical(LogicalExpr {
             operator,
             left,
             right,
-        }) => Ok(S::Expr::Binary(
+        }) => Ok(binary_(
             S::BinOp::LogicalOp(operator),
-            Box::new(simpl_expr(*left)?),
-            Box::new(simpl_expr(*right)?),
+            simpl_expr(*left)?,
+            simpl_expr(*right)?,
         )),
         Expr::Lit(l) => Ok(S::Expr::Lit(simpl_lit(l)?)),
         Expr::Member(MemberExpr {
@@ -221,16 +218,10 @@ fn simpl_expr<'a>(expr: Expr<'a>) -> ParseResult<S::Expr> {
             computed,
         }) => {
             if computed {
-                Ok(S::Expr::Bracket(
-                    Box::new(simpl_expr(*object)?),
-                    Box::new(simpl_expr(*property)?),
-                ))
+                Ok(bracket_(simpl_expr(*object)?, simpl_expr(*property)?))
             } else {
                 match *property {
-                    Expr::Ident(id) => Ok(S::Expr::Dot(
-                        Box::new(simpl_expr(*object)?),
-                        id.name.into_owned(),
-                    )),
+                    Expr::Ident(id) => Ok(dot_(simpl_expr(*object)?, id.name)),
                     _other => unsupported(),
                 }
             }
@@ -238,7 +229,7 @@ fn simpl_expr<'a>(expr: Expr<'a>) -> ParseResult<S::Expr> {
         Expr::MetaProp(_) => unsupported(), // new.target
         Expr::New(NewExpr { callee, arguments }) => {
             let arguments: ParseResult<Vec<_>> = arguments.into_iter().map(simpl_expr).collect();
-            Ok(S::Expr::New(Box::new(simpl_expr(*callee)?), arguments?))
+            Ok(new_(simpl_expr(*callee)?, arguments?))
         }
         Expr::Obj(props) => {
             let props: ParseResult<Vec<_>> = props.into_iter().map(simpl_obj_prop).collect();
@@ -259,7 +250,7 @@ fn simpl_expr<'a>(expr: Expr<'a>) -> ParseResult<S::Expr> {
         }) => {
             // TODO(arjun): I cannot think of any postfix unary operators!
             assert!(prefix == true);
-            Ok(S::Expr::Unary(operator, Box::new(simpl_expr(*argument)?)))
+            Ok(unary_(operator, simpl_expr(*argument)?))
         }
         Expr::Update(UpdateExpr {
             operator,
@@ -272,7 +263,7 @@ fn simpl_expr<'a>(expr: Expr<'a>) -> ParseResult<S::Expr> {
                 (UpdateOp::Increment, true) => S::UnaryAssignOp::PreInc,
                 (UpdateOp::Increment, false) => S::UnaryAssignOp::PostInc,
             };
-            Ok(S::Expr::UnaryAssign(op, Box::new(simpl_lvalue(*argument)?)))
+            Ok(unaryassign_(op, simpl_lvalue(*argument)?))
         }
         Expr::Yield(_) => unsupported(),
     }
@@ -280,7 +271,7 @@ fn simpl_expr<'a>(expr: Expr<'a>) -> ParseResult<S::Expr> {
 
 fn simpl_opt_expr<'a>(opt_expr: Option<Expr<'a>>) -> ParseResult<S::Expr> {
     match opt_expr {
-        None => Ok(S::Expr::Lit(S::Lit::Undefined)),
+        None => Ok(UNDEFINED_),
         Some(e) => Ok(simpl_expr(e)?),
     }
 }
@@ -302,14 +293,20 @@ fn simpl_switch_case<'a>(case: SwitchCase<'a>) -> ParseResult<(Option<S::Expr>, 
 
 fn simpl_pat<'a>(pat: Pat<'a>) -> ParseResult<S::Id> {
     match pat {
-        Pat::Ident(ident) => Ok(ident.name.into_owned()),
+        Pat::Ident(ident) => Ok(ident.name.into()),
+        _ => unsupported(),
+    }
+}
+fn simpl_pat_str<'a>(pat: Pat<'a>) -> ParseResult<String> {
+    match pat {
+        Pat::Ident(ident) => Ok(ident.name.into()),
         _ => unsupported(),
     }
 }
 
 fn simpl_stmt<'a>(stmt: Stmt<'a>) -> ParseResult<S::Stmt> {
     match stmt {
-        Stmt::Expr(e) => Ok(S::Stmt::Expr(Box::new(simpl_expr(e)?))),
+        Stmt::Expr(e) => Ok(expr_(simpl_expr(e)?)),
         Stmt::Block(BlockStmt(parts)) => {
             let stmts: Result<Vec<_>, _> = parts
                 .into_iter()
@@ -320,21 +317,18 @@ fn simpl_stmt<'a>(stmt: Stmt<'a>) -> ParseResult<S::Stmt> {
         Stmt::Empty => Ok(S::Stmt::Empty),
         Stmt::Debugger => unimplemented!(),
         Stmt::With(_) => unsupported(),
-        Stmt::Return(oe) => Ok(S::Stmt::Return(Box::new(simpl_opt_expr(oe)?))),
-        Stmt::Labeled(LabeledStmt { label, body }) => Ok(S::Stmt::Label(
-            label.name.into_owned(),
-            Box::new(simpl_stmt(*body)?),
-        )),
-        Stmt::Break(opt_id) => Ok(S::Stmt::Break(opt_id.map(|l| l.name.into_owned()))),
-        Stmt::Continue(opt_id) => Ok(S::Stmt::Continue(opt_id.map(|l| l.name.into_owned()))),
+        Stmt::Return(oe) => Ok(return_(simpl_opt_expr(oe)?)),
+        Stmt::Labeled(LabeledStmt { label, body }) => Ok(label_(label.name, simpl_stmt(*body)?)),
+        Stmt::Break(opt_id) => Ok(break_(opt_id.map(|l| l.name.into_owned()))),
+        Stmt::Continue(opt_id) => Ok(continue_(opt_id.map(|l| l.name.into_owned()))),
         Stmt::If(IfStmt {
             test,
             consequent,
             alternate,
-        }) => Ok(S::Stmt::If(
-            Box::new(simpl_expr(test)?),
-            Box::new(simpl_stmt(*consequent)?),
-            Box::new(simpl_opt_stmt(alternate.map(|b| *b))?),
+        }) => Ok(if_(
+            simpl_expr(test)?,
+            simpl_stmt(*consequent)?,
+            simpl_opt_stmt(alternate.map(|b| *b))?,
         )),
         Stmt::Switch(SwitchStmt {
             discriminant,
@@ -350,13 +344,13 @@ fn simpl_stmt<'a>(stmt: Stmt<'a>) -> ParseResult<S::Stmt> {
                 _ => panic!("switch with multiple default cases"),
             };
             let cases = cases.into_iter().map(|(test, body)| (test.unwrap(), body));
-            Ok(S::Stmt::Switch(
-                Box::new(simpl_expr(discriminant)?),
+            Ok(switch_(
+                simpl_expr(discriminant)?,
                 cases.collect(),
-                Box::new(default_case),
+                default_case,
             ))
         }
-        Stmt::Throw(e) => Ok(S::Stmt::Throw(Box::new(simpl_expr(e)?))),
+        Stmt::Throw(e) => Ok(throw_(simpl_expr(e)?)),
         Stmt::Try(TryStmt {
             block,
             handler,
@@ -368,27 +362,19 @@ fn simpl_stmt<'a>(stmt: Stmt<'a>) -> ParseResult<S::Stmt> {
                 Some(CatchClause {
                     param: Some(pat),
                     body,
-                }) => S::Stmt::Catch(
-                    Box::new(stmt),
-                    simpl_pat(pat)?,
-                    Box::new(simpl_block(body)?),
-                ),
+                }) => catch_(stmt, simpl_pat(pat)?, simpl_block(body)?),
                 Some(_) => return unsupported(),
             };
             let stmt = match finalizer {
                 None => stmt,
-                Some(block) => S::Stmt::Finally(Box::new(stmt), Box::new(simpl_block(block)?)),
+                Some(block) => finally_(stmt, simpl_block(block)?),
             };
             Ok(stmt)
         }
-        Stmt::While(WhileStmt { test, body }) => Ok(S::Stmt::While(
-            Box::new(simpl_expr(test)?),
-            Box::new(simpl_stmt(*body)?),
-        )),
-        Stmt::DoWhile(DoWhileStmt { test, body }) => Ok(S::Stmt::DoWhile(
-            Box::new(simpl_stmt(*body)?),
-            Box::new(simpl_expr(test)?),
-        )),
+        Stmt::While(WhileStmt { test, body }) => Ok(while_(simpl_expr(test)?, simpl_stmt(*body)?)),
+        Stmt::DoWhile(DoWhileStmt { test, body }) => {
+            Ok(dowhile_(simpl_stmt(*body)?, simpl_expr(test)?))
+        }
         Stmt::For(ForStmt {
             init,
             test,
@@ -396,7 +382,7 @@ fn simpl_stmt<'a>(stmt: Stmt<'a>) -> ParseResult<S::Stmt> {
             body,
         }) => {
             let init = match init {
-                None => S::ForInit::Expr(Box::new(S::Expr::Lit(S::Lit::Undefined))),
+                None => S::ForInit::Expr(Box::new(UNDEFINED_)),
                 Some(LoopInit::Expr(e)) => S::ForInit::Expr(Box::new(simpl_expr(e)?)),
                 // TODO(arjun): Do not ignore _kind
                 Some(LoopInit::Variable(_kind, decls)) => {
@@ -405,11 +391,11 @@ fn simpl_stmt<'a>(stmt: Stmt<'a>) -> ParseResult<S::Stmt> {
                     S::ForInit::Decl(decls?)
                 }
             };
-            Ok(S::Stmt::For(
+            Ok(for_(
                 init,
-                Box::new(simpl_opt_expr(test)?),
-                Box::new(simpl_opt_expr(update)?),
-                Box::new(simpl_stmt(*body)?),
+                simpl_opt_expr(test)?,
+                simpl_opt_expr(update)?,
+                simpl_stmt(*body)?,
             ))
         }
         Stmt::ForIn(ForInStmt { left, right, body }) => {
@@ -431,12 +417,7 @@ fn simpl_stmt<'a>(stmt: Stmt<'a>) -> ParseResult<S::Stmt> {
                 }
             };
 
-            Ok(S::Stmt::ForIn(
-                is_var,
-                id,
-                Box::new(simpl_expr(right)?),
-                Box::new(simpl_stmt(*body)?),
-            ))
+            Ok(forin_(is_var, id, simpl_expr(right)?, simpl_stmt(*body)?))
         }
         Stmt::ForOf(_) => unsupported(),
         Stmt::Var(decls) => {
@@ -488,11 +469,7 @@ fn simpl_decl<'a>(decl: Decl<'a>) -> ParseResult<S::Stmt> {
             };
             let params: ParseResult<Vec<_>> = params.into_iter().map(simpl_func_arg).collect();
             let FuncBody(parts) = body;
-            Ok(S::Stmt::Func(
-                id,
-                params?,
-                Box::new(simpl_program_parts(parts)?),
-            ))
+            Ok(func_(id, params?, simpl_program_parts(parts)?))
         }
     }
 }
@@ -596,10 +573,10 @@ mod tests {
         let prog = parse(r#"var x = "Hello\nworld";"#).unwrap();
         assert_eq!(
             prog,
-            S::Stmt::VarDecl(vec![S::VarDecl {
-                name: "x".to_string(),
-                named: Box::new(S::Expr::Lit(S::Lit::String("Hello\nworld".to_string())))
-            }])
+            vardecl1_(
+                "x",
+                S::Expr::Lit(S::Lit::String("Hello\nworld".to_string()))
+            )
         );
     }
 }
