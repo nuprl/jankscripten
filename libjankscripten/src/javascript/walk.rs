@@ -18,6 +18,10 @@ pub trait Visitor {
     fn enter_stmt(&mut self, _stmt: &mut Stmt) {}
     /// called before recursing on an expression
     fn enter_expr(&mut self, _expr: &mut Expr) {}
+    /// called after recursing on a statement, with the new value
+    fn exit_stmt(&mut self, _stmt: &mut Stmt) {}
+    /// called after recursing on an expression, with the new value
+    fn exit_expr(&mut self, _expr: &mut Expr) {}
 }
 
 impl Stmt {
@@ -93,6 +97,7 @@ impl Stmt {
                 s.walk(v);
             }
         }
+        v.exit_stmt(self);
     }
     /// replace this statement with `;` and return its old value. this is
     /// used to gain ownership of a mutable reference, especially in [Stmt::walk]
@@ -152,6 +157,7 @@ impl Expr {
                 ec.walk(v);
             }
         }
+        v.exit_expr(self);
     }
     /// replace this statement with `undefined` and return its old
     /// value. this is used to gain ownership of a mutable reference,
