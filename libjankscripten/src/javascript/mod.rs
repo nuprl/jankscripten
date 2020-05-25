@@ -10,8 +10,8 @@ pub use parser::*;
 pub use syntax::*;
 pub use walk::*;
 
-mod constructors;
-mod name_gen;
+pub mod constructors;
+pub mod name_gen;
 mod pretty_ast;
 
 use name_gen::*;
