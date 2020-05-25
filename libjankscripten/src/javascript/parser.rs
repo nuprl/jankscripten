@@ -139,12 +139,14 @@ fn simpl_lit<'a>(lit: Lit<'a>) -> ParseResult<S::Lit> {
 }
 
 fn assign_left_to_expr<'a>(x: AssignLeft<'a>) -> ParseResult<S::Expr> {
-    // TODO(jenna): Complete cases
+    // NOTE(jenna): I can't seem to force the other Pat types to come up & don't know what to
+    // do /w them, so I'm leaving them unimplemented for now 
     match x {
         AssignLeft::Pat(pat) => {
             match pat {
                 Pat::Ident(ident) => Ok(id_(ident.name)),
-                other => unimplemented!()
+                _ => unimplemented!()
+                
             }
         },
         AssignLeft::Expr(expr) => Ok(simpl_expr(*expr)?)
@@ -165,8 +167,15 @@ fn simpl_expr<'a>(expr: Expr<'a>) -> ParseResult<S::Expr> {
             left,
             right,
         }) => {
-            // TODO(jenna): Other cases here
+            // TODO(jenna): Handling weird cases
             match operator {
+                AssignOp::Equal => {
+                    Ok(op_assign_(
+                        AssignOp::Equal,
+                        simpl_assign_left(left)?,
+                        simpl_expr(*right)?
+                    ))
+                },
                 AssignOp::PlusEqual => {
                     Ok(op_assign_(
                         AssignOp::Equal,
@@ -174,11 +183,81 @@ fn simpl_expr<'a>(expr: Expr<'a>) -> ParseResult<S::Expr> {
                         binary_(S::BinOp::BinaryOp(BinaryOp::Plus), assign_left_to_expr(left)?, simpl_expr(*right)?)
                     ))
                 },
-                other => {
+                AssignOp::MinusEqual => {
                     Ok(op_assign_(
-                        operator,
-                        simpl_assign_left(left)?,
-                        simpl_expr(*right)?,
+                        AssignOp::Equal,
+                        simpl_assign_left(left.clone())?,
+                        binary_(S::BinOp::BinaryOp(BinaryOp::Minus), assign_left_to_expr(left)?, simpl_expr(*right)?)
+                    ))
+                },
+                AssignOp::TimesEqual => {
+                    Ok(op_assign_(
+                        AssignOp::Equal,
+                        simpl_assign_left(left.clone())?,
+                        binary_(S::BinOp::BinaryOp(BinaryOp::Times), assign_left_to_expr(left)?, simpl_expr(*right)?)
+                    ))
+                },
+                AssignOp::DivEqual => {
+                    Ok(op_assign_(
+                        AssignOp::Equal,
+                        simpl_assign_left(left.clone())?,
+                        binary_(S::BinOp::BinaryOp(BinaryOp::Over), assign_left_to_expr(left)?, simpl_expr(*right)?)
+                    ))
+                },
+                AssignOp::ModEqual => {
+                    Ok(op_assign_(
+                        AssignOp::Equal,
+                        simpl_assign_left(left.clone())?,
+                        binary_(S::BinOp::BinaryOp(BinaryOp::Mod), assign_left_to_expr(left)?, simpl_expr(*right)?)
+                    ))
+                },
+                AssignOp::LeftShiftEqual => {
+                    Ok(op_assign_(
+                        AssignOp::Equal,
+                        simpl_assign_left(left.clone())?,
+                        binary_(S::BinOp::BinaryOp(BinaryOp::LeftShift), assign_left_to_expr(left)?, simpl_expr(*right)?)
+                    ))
+                },
+                AssignOp::RightShiftEqual => {
+                    Ok(op_assign_(
+                        AssignOp::Equal,
+                        simpl_assign_left(left.clone())?,
+                        binary_(S::BinOp::BinaryOp(BinaryOp::RightShift), assign_left_to_expr(left)?, simpl_expr(*right)?)
+                    ))
+                },
+                AssignOp::UnsignedRightShiftEqual => {
+                    Ok(op_assign_(
+                        AssignOp::Equal,
+                        simpl_assign_left(left.clone())?,
+                        binary_(S::BinOp::BinaryOp(BinaryOp::UnsignedRightShift), assign_left_to_expr(left)?, simpl_expr(*right)?)
+                    ))
+                },
+                AssignOp::PowerOfEqual => {
+                    Ok(op_assign_(
+                        AssignOp::Equal,
+                        simpl_assign_left(left.clone())?,
+                        binary_(S::BinOp::BinaryOp(BinaryOp::PowerOf), assign_left_to_expr(left)?, simpl_expr(*right)?)
+                    ))
+                },
+                AssignOp::OrEqual => {
+                    Ok(op_assign_(
+                        AssignOp::Equal,
+                        simpl_assign_left(left.clone())?,
+                        binary_(S::BinOp::BinaryOp(BinaryOp::Or), assign_left_to_expr(left)?, simpl_expr(*right)?)
+                    ))
+                },
+                AssignOp::XOrEqual => {
+                    Ok(op_assign_(
+                        AssignOp::Equal,
+                        simpl_assign_left(left.clone())?,
+                        binary_(S::BinOp::BinaryOp(BinaryOp::XOr), assign_left_to_expr(left)?, simpl_expr(*right)?)
+                    ))
+                },
+                AssignOp::AndEqual => {
+                    Ok(op_assign_(
+                        AssignOp::Equal,
+                        simpl_assign_left(left.clone())?,
+                        binary_(S::BinOp::BinaryOp(BinaryOp::And), assign_left_to_expr(left)?, simpl_expr(*right)?)
                     ))
                 }
             }
@@ -631,6 +710,19 @@ mod tests {
     // cannot translate F() = F() + 1
 
     #[test]
+    fn parse_eq() {
+        let prog = parse(r#"
+            var x = 10;
+            x = 1;
+        "#).unwrap();
+        let result = block_(vec![
+            vardecl1_("x", S::Expr::Lit(S::Lit::Num(Num::Int(10)))),
+            expr_(op_assign_(S::AssignOp::Equal, lval_id_("x"), S::Expr::Lit(S::Lit::Num(Num::Int(1)))))
+        ]);
+        assert_eq!(prog, result);
+    }
+
+    #[test]
     fn parse_pluseq() {
         let prog = parse(r#"
             var x = 10;
@@ -639,6 +731,149 @@ mod tests {
         let result = block_(vec![
             vardecl1_("x", S::Expr::Lit(S::Lit::Num(Num::Int(10)))),
             expr_(op_assign_(S::AssignOp::Equal, lval_id_("x"), binary_(S::BinOp::BinaryOp(BinaryOp::Plus), S::Expr::Id(S::Id::Named("x".to_string())), S::Expr::Lit(S::Lit::Num(Num::Int(1))))))
+        ]);
+        assert_eq!(prog, result);
+    }
+
+    #[test]
+    fn parse_minuseq() {
+        let prog = parse(r#"
+            var x = 10;
+            x -= 1;
+        "#).unwrap();
+        let result = block_(vec![
+            vardecl1_("x", S::Expr::Lit(S::Lit::Num(Num::Int(10)))),
+            expr_(op_assign_(S::AssignOp::Equal, lval_id_("x"), binary_(S::BinOp::BinaryOp(BinaryOp::Minus), S::Expr::Id(S::Id::Named("x".to_string())), S::Expr::Lit(S::Lit::Num(Num::Int(1))))))
+        ]);
+        assert_eq!(prog, result);
+    }
+
+    #[test]
+    fn parse_timeseq() {
+        let prog = parse(r#"
+            var x = 10;
+            x *= 1;
+        "#).unwrap();
+        let result = block_(vec![
+            vardecl1_("x", S::Expr::Lit(S::Lit::Num(Num::Int(10)))),
+            expr_(op_assign_(S::AssignOp::Equal, lval_id_("x"), binary_(S::BinOp::BinaryOp(BinaryOp::Times), S::Expr::Id(S::Id::Named("x".to_string())), S::Expr::Lit(S::Lit::Num(Num::Int(1))))))
+        ]);
+        assert_eq!(prog, result);
+    }
+
+    #[test]
+    fn parse_diveq() {
+        let prog = parse(r#"
+            var x = 10;
+            x /= 1;
+        "#).unwrap();
+        let result = block_(vec![
+            vardecl1_("x", S::Expr::Lit(S::Lit::Num(Num::Int(10)))),
+            expr_(op_assign_(S::AssignOp::Equal, lval_id_("x"), binary_(S::BinOp::BinaryOp(BinaryOp::Over), S::Expr::Id(S::Id::Named("x".to_string())), S::Expr::Lit(S::Lit::Num(Num::Int(1))))))
+        ]);
+        assert_eq!(prog, result);
+    }
+
+    #[test]
+    fn parse_modeq() {
+        let prog = parse(r#"
+            var x = 10;
+            x %= 1;
+        "#).unwrap();
+        let result = block_(vec![
+            vardecl1_("x", S::Expr::Lit(S::Lit::Num(Num::Int(10)))),
+            expr_(op_assign_(S::AssignOp::Equal, lval_id_("x"), binary_(S::BinOp::BinaryOp(BinaryOp::Mod), S::Expr::Id(S::Id::Named("x".to_string())), S::Expr::Lit(S::Lit::Num(Num::Int(1))))))
+        ]);
+        assert_eq!(prog, result);
+    }
+
+    #[test]
+    fn parse_lshifteq() {
+        let prog = parse(r#"
+            var x = 10;
+            x <<= 1;
+        "#).unwrap();
+        let result = block_(vec![
+            vardecl1_("x", S::Expr::Lit(S::Lit::Num(Num::Int(10)))),
+            expr_(op_assign_(S::AssignOp::Equal, lval_id_("x"), binary_(S::BinOp::BinaryOp(BinaryOp::LeftShift), S::Expr::Id(S::Id::Named("x".to_string())), S::Expr::Lit(S::Lit::Num(Num::Int(1))))))
+        ]);
+        assert_eq!(prog, result);
+    }
+
+    #[test]
+    fn parse_rshifteq() {
+        let prog = parse(r#"
+            var x = 10;
+            x >>= 1;
+        "#).unwrap();
+        let result = block_(vec![
+            vardecl1_("x", S::Expr::Lit(S::Lit::Num(Num::Int(10)))),
+            expr_(op_assign_(S::AssignOp::Equal, lval_id_("x"), binary_(S::BinOp::BinaryOp(BinaryOp::RightShift), S::Expr::Id(S::Id::Named("x".to_string())), S::Expr::Lit(S::Lit::Num(Num::Int(1))))))
+        ]);
+        assert_eq!(prog, result);
+    }
+
+    #[test]
+    fn parse_unsignedrshifteq() {
+        let prog = parse(r#"
+            var x = 10;
+            x >>>= 1;
+        "#).unwrap();
+        let result = block_(vec![
+            vardecl1_("x", S::Expr::Lit(S::Lit::Num(Num::Int(10)))),
+            expr_(op_assign_(S::AssignOp::Equal, lval_id_("x"), binary_(S::BinOp::BinaryOp(BinaryOp::UnsignedRightShift), S::Expr::Id(S::Id::Named("x".to_string())), S::Expr::Lit(S::Lit::Num(Num::Int(1))))))
+        ]);
+        assert_eq!(prog, result);
+    }
+
+    #[test]
+    fn parse_expeq() {
+        let prog = parse(r#"
+            var x = 10;
+            x **= 1;
+        "#).unwrap();
+        let result = block_(vec![
+            vardecl1_("x", S::Expr::Lit(S::Lit::Num(Num::Int(10)))),
+            expr_(op_assign_(S::AssignOp::Equal, lval_id_("x"), binary_(S::BinOp::BinaryOp(BinaryOp::PowerOf), S::Expr::Id(S::Id::Named("x".to_string())), S::Expr::Lit(S::Lit::Num(Num::Int(1))))))
+        ]);
+        assert_eq!(prog, result);
+    }
+
+    #[test]
+    fn parse_oreq() {
+        let prog = parse(r#"
+            var x = true;
+            x |= false;
+        "#).unwrap();
+        let result = block_(vec![
+            vardecl1_("x", S::Expr::Lit(S::Lit::Bool(true))),
+            expr_(op_assign_(S::AssignOp::Equal, lval_id_("x"), binary_(S::BinOp::BinaryOp(BinaryOp::Or), S::Expr::Id(S::Id::Named("x".to_string())), S::Expr::Lit(S::Lit::Bool(false)))))
+        ]);
+        assert_eq!(prog, result);
+    }
+
+    #[test]
+    fn parse_xoreq() {
+        let prog = parse(r#"
+            var x = true;
+            x ^= false;
+        "#).unwrap();
+        let result = block_(vec![
+            vardecl1_("x", S::Expr::Lit(S::Lit::Bool(true))),
+            expr_(op_assign_(S::AssignOp::Equal, lval_id_("x"), binary_(S::BinOp::BinaryOp(BinaryOp::XOr), S::Expr::Id(S::Id::Named("x".to_string())), S::Expr::Lit(S::Lit::Bool(false)))))
+        ]);
+        assert_eq!(prog, result);
+    }
+
+    #[test]
+    fn parse_andeq() {
+        let prog = parse(r#"
+            var x = true;
+            x &= false;
+        "#).unwrap();
+        let result = block_(vec![
+            vardecl1_("x", S::Expr::Lit(S::Lit::Bool(true))),
+            expr_(op_assign_(S::AssignOp::Equal, lval_id_("x"), binary_(S::BinOp::BinaryOp(BinaryOp::And), S::Expr::Id(S::Id::Named("x".to_string())), S::Expr::Lit(S::Lit::Bool(false)))))
         ]);
         assert_eq!(prog, result);
     }
