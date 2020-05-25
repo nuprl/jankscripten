@@ -513,9 +513,12 @@ fn simpl_program<'a>(program: Program<'a>) -> ParseResult<S::Stmt> {
 
 fn parse_number(s: &str) -> S::Num {
     if s.starts_with("0x") {
-        return i32::from_str_radix(&s[2..], 16)
-            .map(|i| S::Num::Int(i))
-            .expect("Ressa did not parse hex value correct");
+        // TODO(arjun): It looks like a hex literal in JavaScript can be an
+        // unsigned 32-bit integer. I presume we are doing the right thing by
+        // casting the u32 to an i32, but I am not certain.
+        return u32::from_str_radix(&s[2..], 16)
+            .map(|i| S::Num::Int(i as i32))
+            .expect(&format!("Ressa did not parse hex value correctly ({})", &s));
     }
 
     // TODO(arjun): JavaScript supports octal, which this does not parse.
@@ -539,10 +542,10 @@ fn parse_string<'a>(s: &StringLit<'a>) -> String {
             continue;
         }
         match iter.next().expect("character after backslash") {
-            '\'' => buf.push(ch),
+            '\'' | '"' | '\\' => buf.push(ch),
             'n' => buf.push('\n'),
             // TODO(arjun): There are a lot more escape characters
-            _ => panic!("unexpected or unhandled escape character"),
+            ch => panic!("unexpected or unhandled escape character: {}", ch),
         }
     }
     return buf;
