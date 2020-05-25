@@ -139,8 +139,7 @@ fn simpl_lit<'a>(lit: Lit<'a>) -> ParseResult<S::Lit> {
 }
 
 fn assign_left_to_expr<'a>(x: AssignLeft<'a>) -> ParseResult<S::Expr> {
-    // NOTE(jenna): I can't seem to force the other Pat types to come up & don't know what to
-    // do /w them, so I'm leaving them unimplemented for now 
+    // NOTE(jenna): I don't think Pat types come up in assignments
     match x {
         AssignLeft::Pat(pat) => {
             match pat {
@@ -167,7 +166,7 @@ fn simpl_expr<'a>(expr: Expr<'a>) -> ParseResult<S::Expr> {
             left,
             right,
         }) => {
-            // TODO(jenna): Handling weird cases
+            // TODO(jenna): Looking out for weird cases? 
             match operator {
                 AssignOp::Equal => {
                     Ok(op_assign_(
@@ -733,6 +732,16 @@ mod tests {
             expr_(op_assign_(S::AssignOp::Equal, lval_id_("x"), binary_(S::BinOp::BinaryOp(BinaryOp::Plus), S::Expr::Id(S::Id::Named("x".to_string())), S::Expr::Lit(S::Lit::Num(Num::Int(1))))))
         ]);
         assert_eq!(prog, result);
+
+        let prog2 = parse(r#"
+            var o = { x: 1 };
+            o.x += 1;
+        "#).unwrap();
+        let result2 = block_(vec![
+            vardecl1_("o", S::Expr::Object(vec![(S::Key::Str("x".to_string()), S::Expr::Lit(S::Lit::Num(Num::Int(1))))])),
+            expr_(op_assign_(S::AssignOp::Equal, lval_dot_(id_("o"), "x"), binary_(S::BinOp::BinaryOp(BinaryOp::Plus), dot_(id_("o"), "x"), S::Expr::Lit(S::Lit::Num(Num::Int(1))))))
+        ]);
+        assert_eq!(prog2,result2);
     }
 
     #[test]
