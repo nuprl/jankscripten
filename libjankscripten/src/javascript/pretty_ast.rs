@@ -1,5 +1,4 @@
 use super::syntax::{self, *};
-use pretty::FmtWrite;
 use pretty::RcDoc as D;
 use std::fmt::*;
 
@@ -194,8 +193,12 @@ fn fn_call_to_doc<'a>(closure: &'a Expr, args: &'a [Expr]) -> D<'a, ()> {
 impl Lit {
     pub fn to_doc(&self) -> D<()> {
         match self {
-            // TODO(luna): handle multiline strings
-            syntax::Lit::String(text) => D::text("\"").append(D::text(text)).append(D::text("\"")),
+            // TODO(arjun): This can be done more efficiently. However, we only
+            // output JS for testing, so it is not important.
+            syntax::Lit::String(text) => {
+                let unescaped = text.replace("\n", "\\n").replace('\\', "\\\\").replace("\"", "\\\"");
+                D::text("\"").append(D::text(unescaped)).append(D::text("\""))
+            },
             syntax::Lit::Regex(pattern, flags) => D::text("/")
                 .append(D::text(pattern))
                 .append(D::text("/"))
