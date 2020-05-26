@@ -13,5 +13,6 @@ pub use walk::*;
 pub mod constructors;
 pub mod name_gen;
 mod pretty_ast;
+mod simpl_fancy_updates;
 
 use name_gen::*;
