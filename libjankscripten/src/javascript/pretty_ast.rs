@@ -196,9 +196,14 @@ impl Lit {
             // TODO(arjun): This can be done more efficiently. However, we only
             // output JS for testing, so it is not important.
             syntax::Lit::String(text) => {
-                let unescaped = text.replace("\n", "\\n").replace('\\', "\\\\").replace("\"", "\\\"");
-                D::text("\"").append(D::text(unescaped)).append(D::text("\""))
-            },
+                let unescaped = text
+                    .replace("\n", "\\n")
+                    .replace('\\', "\\\\")
+                    .replace("\"", "\\\"");
+                D::text("\"")
+                    .append(D::text(unescaped))
+                    .append(D::text("\""))
+            }
             syntax::Lit::Regex(pattern, flags) => D::text("/")
                 .append(D::text(pattern))
                 .append(D::text("/"))

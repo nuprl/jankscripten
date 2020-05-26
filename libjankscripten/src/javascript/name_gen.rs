@@ -9,10 +9,12 @@ use std::collections::HashMap;
 ///
 /// the original NameGen should be created with [Default::default]:
 ///
-/// ```ignore
-/// fn pass(script: &mut Stmt, ng: &mut NameGen) {} // ...
+/// ```
+/// # use libjankscripten::javascript::*;
+/// # let mut script = Stmt::Empty;
+/// fn pass(stmt: &mut Stmt, ng: &mut NameGen) {} // ...
 /// let mut ng = NameGen::default();
-/// pass(script, &mut ng);
+/// pass(&mut script, &mut ng);
 /// ```
 #[derive(Default)]
 pub struct NameGen {
@@ -22,7 +24,9 @@ impl NameGen {
     /// fresh should be given a descriptive name of the role the name
     /// is playing
     ///
-    /// ```ignore
+    /// ```
+    /// # use libjankscripten::javascript::*;
+    /// # let mut ng = NameGen::default();
     /// let break_name = ng.fresh("break");
     /// ```
     pub fn fresh(&mut self, name: &'static str) -> Id {
