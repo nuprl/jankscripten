@@ -53,6 +53,16 @@ impl Visitor for DesugarLogical<'_> {
                 ctx.insert(ctx.index, if_stmt);
                 *expr = id_(result);
             }
+            Expr::Seq(es) => {
+                let last = es.pop().expect("sequence with no exprs");
+                let mut v = VisitorState::new(self);
+                for e in es {
+                    v.walk_expr(e, loc);
+                    let ctx = expect_block(loc);
+                    ctx.insert(ctx.index, expr_(e.take()));
+                }
+                *expr = last;
+            }
             _ => (),
         }
     }
@@ -122,5 +132,22 @@ mod test {
         unlabeled.walk(&mut DesugarLogical(&mut ng));
         println!("input:\n{}\noutput:\n{}", unlabeled, labeled);
         assert_eq!(unlabeled.to_pretty(80), labeled.to_pretty(80));
+    }
+    #[test]
+    fn seq() {
+        let mut desugar = parse(
+            "var x = 5;
+            while (x = 10, x) {}",
+        )
+        .unwrap();
+        let expected = parse(
+            "var x = 5;
+            x = 10;
+            while (x) {}",
+        )
+        .unwrap();
+        let mut ng = NameGen::default();
+        desugar.walk(&mut DesugarLogical(&mut ng));
+        assert_eq!(desugar.to_pretty(80), expected.to_pretty(80));
     }
 }
