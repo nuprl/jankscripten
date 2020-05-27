@@ -59,9 +59,13 @@ impl BlockContext {
     }
 
     fn apply_patches(mut self, block: &mut Vec<Stmt>) {
-        // Sort in ascending order by index, which will become descending
-        // when reversed. this allows patches to be placed in order
+        // but we want patches to be applied in order they were added. because
+        // we add them in reverse order we want to iterate in reverse order
+        // Vec::sort_by maintains diff=0 values to be in their original order
+        // (stable), but we want the opposite behavior. to do this we sort in
+        // ascending order and reverse the whole iterator
         self.patches.sort_by(|(m, _), (n, _)| m.cmp(n));
+        // .rev() reverses the reverse-sorted iterator now
         for (index, stmt) in self.patches.drain(0..).rev() {
             // Inserting shifts all elements to the right. However, the
             // indices are in descending order.
@@ -114,7 +118,6 @@ where
                 for (index, s) in ss.iter_mut().enumerate() {
                     block_cxt.index = index;
                     let mut loc = Loc::Node(Context::Block(&mut block_cxt), loc);
-                    println!("updated loc walking anew");
                     self.walk_stmt(s, &mut loc);
                 }
                 block_cxt.apply_patches(ss);

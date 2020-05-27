@@ -1,16 +1,23 @@
-//! desugar &&, ||, ?:
+//! desugar &&, ||, ?:, and , (seq)
 
 use super::constructors::*;
 use super::*;
 use resast::LogicalOp;
 
+/// desugar &&, ||, ?:, and , (seq)
 pub fn desugar_logical(stmt: &mut Stmt, ng: &mut NameGen) {
     stmt.walk(&mut DesugarLogical(ng));
 }
 
+/// visitor for all logical desugars
 struct DesugarLogical<'a>(&'a mut NameGen);
 impl Visitor for DesugarLogical<'_> {
-    fn enter_expr(&mut self, expr: &mut Expr, loc: &mut Loc) {
+    fn exit_expr(&mut self, expr: &mut Expr, loc: &mut Loc) {
+        let ctx = if let Loc::Node(Context::Block(ctx), ..) = loc {
+            ctx
+        } else {
+            panic!("expected block context");
+        };
         match expr {
             Expr::Binary(BinOp::LogicalOp(op), left, right) => {
                 let left_name = self.0.fresh("left");
@@ -19,46 +26,30 @@ impl Visitor for DesugarLogical<'_> {
                     LogicalOp::Or => (id_(left_name.clone()), right.take(), "or"),
                 };
                 let result = self.0.fresh(op_name);
-                let mut if_stmt = if_(
+                let if_stmt = if_(
                     id_(left_name.clone()),
                     expr_(assign_(result.clone(), cons)),
                     expr_(assign_(result.clone(), alt)),
                 );
-                // need to recurse ourselves when inserting
-                // if statement includes right but not left
-                let mut v = VisitorState::new(self);
-                v.walk_stmt(&mut if_stmt, loc);
-                let mut left = left.take();
-                v.walk_expr(&mut left, loc);
-                let ctx = expect_block(loc);
                 ctx.insert(ctx.index, vardecl1_(result.clone(), UNDEFINED_));
-                ctx.insert(ctx.index, vardecl1_(left_name, left));
+                ctx.insert(ctx.index, vardecl1_(left_name, left.take()));
                 ctx.insert(ctx.index, if_stmt);
                 *expr = id_(result);
             }
             Expr::If(cond, cons, alt) => {
                 let result = self.0.fresh("if_expr");
-                let decl = vardecl1_(result.clone(), UNDEFINED_);
-                let mut if_stmt = if_(
+                ctx.insert(ctx.index, vardecl1_(result.clone(), UNDEFINED_));
+                let if_stmt = if_(
                     cond.take(),
                     expr_(assign_(result.clone(), cons.take())),
                     expr_(assign_(result.clone(), alt.take())),
                 );
-                // insert doesn't automatically recurse its statements
-                let mut v = VisitorState::new(self);
-                // if_stmt includes cond, cons, alt so we're good
-                v.walk_stmt(&mut if_stmt, loc);
-                let ctx = expect_block(loc);
-                ctx.insert(ctx.index, decl);
                 ctx.insert(ctx.index, if_stmt);
                 *expr = id_(result);
             }
             Expr::Seq(es) => {
                 let last = es.pop().expect("sequence with no exprs");
-                let mut v = VisitorState::new(self);
                 for e in es {
-                    v.walk_expr(e, loc);
-                    let ctx = expect_block(loc);
                     ctx.insert(ctx.index, expr_(e.take()));
                 }
                 *expr = last;
@@ -68,24 +59,14 @@ impl Visitor for DesugarLogical<'_> {
     }
 }
 
-fn expect_block<'a, 'b, 'c>(loc: &'b mut Loc<'a>) -> &'c mut BlockContext
-where
-    'a: 'c,
-    'b: 'c,
-{
-    if let Loc::Node(Context::Block(ctx), ..) = loc {
-        ctx
-    } else {
-        panic!("expected block context");
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::javascript::testing::desugar_okay;
     #[test]
     fn if_expr() {
-        let mut unlabeled = parse("var x = true ? 1 : 2; var garbage = 2;").unwrap();
+        let program = "var x = true ? 1 : 2; x";
+        let mut unlabeled = parse(program).unwrap();
         let labeled = parse(
             "var $jen_if_expr_0 = undefined;
             if (true)
@@ -93,18 +74,19 @@ mod test {
             else
                 $jen_if_expr_0 = 2;
             var x = $jen_if_expr_0;
-            var garbage = 2;",
+            x",
         )
         .unwrap();
         let mut ng = NameGen::default();
         unlabeled.walk(&mut DesugarLogical(&mut ng));
         println!("input:\n{}\noutput:\n{}", unlabeled, labeled);
         assert_eq!(unlabeled.to_pretty(80), labeled.to_pretty(80));
+        desugar_okay(program, desugar_logical);
     }
     #[test]
     fn ops() {
-        let mut unlabeled =
-            parse("var x = true && false ? true || false : false; var garbage = 2;").unwrap();
+        let program = "var x = true && false ? true || false : false; x";
+        let mut unlabeled = parse(program).unwrap();
         let labeled = parse(
             "var $jen_and_0 = undefined;
             var $jen_left_0 = true;
@@ -124,7 +106,7 @@ mod test {
             else
                 $jen_if_expr_0 = false;
             var x = $jen_if_expr_0;
-            var garbage = 2;
+            x
             ",
         )
         .unwrap();
@@ -132,6 +114,7 @@ mod test {
         unlabeled.walk(&mut DesugarLogical(&mut ng));
         println!("input:\n{}\noutput:\n{}", unlabeled, labeled);
         assert_eq!(unlabeled.to_pretty(80), labeled.to_pretty(80));
+        desugar_okay(program, desugar_logical);
     }
     #[test]
     fn seq() {
