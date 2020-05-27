@@ -12,7 +12,7 @@ const WIDTH: usize = 80;
 /// original block versus the second. only works with blocks because of the
 /// nature of "result" / "value" as understood by V8
 // mostly copied from rusty_v8 crate-level docs
-fn expect_same(original: &jen::Stmt, modified: &jen::Stmt) {
+pub fn expect_same(original: &jen::Stmt, modified: &jen::Stmt) {
     START.call_once(|| {
         // initializing multiple times is not just a performance problem it causes a panic
         let platform = new_default_platform().unwrap();
