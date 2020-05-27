@@ -80,15 +80,14 @@ pub fn new_(a: Expr, b: Vec<Expr>) -> Expr {
 pub fn unary_(a: UnaryOp, b: Expr) -> Expr {
     Expr::Unary(a, Box::new(b))
 }
+pub fn not_(b: Expr) -> Expr {
+    unary_(UnaryOp::Not, b)
+}
 pub fn binary_(a: BinOp, b: Expr, c: Expr) -> Expr {
     Expr::Binary(a, Box::new(b), Box::new(c))
 }
 pub fn or_(b: Expr, c: Expr) -> Expr {
-    Expr::Binary(
-        BinOp::LogicalOp(resast::LogicalOp::Or),
-        Box::new(b),
-        Box::new(c),
-    )
+    binary_(BinOp::LogicalOp(resast::LogicalOp::Or), b, c)
 }
 pub fn unaryassign_(a: UnaryAssignOp, b: LValue) -> Expr {
     Expr::UnaryAssign(a, Box::new(b))

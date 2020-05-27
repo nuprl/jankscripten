@@ -10,36 +10,28 @@ use super::Stmt::*;
 use super::*;
 use std::collections::HashMap;
 
-pub fn compile_for(script: &mut Stmt, ng: &mut NameGen) {
+pub fn desugar_loops(script: &mut Stmt, ng: &mut NameGen) {
+    script.walk(&mut ExplicitBreaks);
     script.walk(&mut LabelLoops::new(ng));
-    script.walk(&mut LoopsToWhile(ng));
+    script.walk(&mut ForToWhile);
 }
 
-struct LoopsToWhile<'a>(&'a mut NameGen);
-impl Visitor for LoopsToWhile<'_> {
+/// changes for loops to while loops
+///
+/// precondition: already labeled because statements will be inserted after
+/// continues
+struct ForToWhile;
+impl Visitor for ForToWhile {
     fn enter_stmt(&mut self, node: &mut Stmt) {
-        match node {
-            For(init, cond, advance, body) => {
-                let init = match init {
-                    ForInit::Expr(e) => expr_(e.take()),
-                    ForInit::Decl(ds) => Stmt::VarDecl(std::mem::replace(ds, vec![])),
-                };
-                *node = Block(vec![
-                    init,
-                    while_(cond.take(), Block(vec![body.take(), expr_(advance.take())])),
-                ]);
-            }
-            DoWhile(body, cond) => {
-                let once = self.0.fresh("once");
-                *node = Block(vec![
-                    vardecl1_(once.clone(), TRUE_),
-                    while_(
-                        or_(id_(once.clone()), cond.take()),
-                        Block(vec![expr_(assign_(lval_id_(once), FALSE_)), body.take()]),
-                    ),
-                ])
-            }
-            _ => (),
+        if let For(init, cond, advance, body) = node {
+            let init = match init {
+                ForInit::Expr(e) => expr_(e.take()),
+                ForInit::Decl(ds) => Stmt::VarDecl(std::mem::replace(ds, vec![])),
+            };
+            *node = Block(vec![
+                init,
+                while_(cond.take(), Block(vec![body.take(), expr_(advance.take())])),
+            ]);
         }
     }
 }
@@ -48,6 +40,9 @@ impl Visitor for LoopsToWhile<'_> {
 /// changes continue to break
 ///
 /// please see Stopify/normalize-js/ts/desugarLoop.ts:WhileStatement
+///
+/// unlike in stopify fsr, this has to happen before ForToWhile because for
+/// loop inserts stuff after the continuation
 struct LabelLoops<'a> {
     ng: &'a mut NameGen,
     /// stack of loop labels
@@ -178,26 +173,47 @@ fn if_loop_then_body(stmt: &mut Stmt) -> Option<&mut Box<Stmt>> {
     }
 }
 
+/// unlike what stopify does, this should happen before labeling because we
+/// use an implicit break. this unfortunately means it has to happen before
+/// loop unification, so we special case them
+struct ExplicitBreaks;
+impl Visitor for ExplicitBreaks {
+    fn exit_stmt(&mut self, node: &mut Stmt) {
+        match node {
+            While(cond, body) | For(.., cond, _, body) => {
+                // if you don't add a block, inserted statements will go above
+                *body = Box::new(Block(vec![if_(cond.take(), body.take(), Break(None))]));
+                *cond = Box::new(TRUE_);
+            }
+            DoWhile(body, cond) => {
+                // if you don't add a block, inserted statements will go above
+                let new_body = Block(vec![
+                    body.take(),
+                    if_(cond.take(), Stmt::Empty, Break(None)),
+                ]);
+                *node = while_(TRUE_, new_body);
+            }
+            // TODO(luna): for..in? no expressions are possible so im not
+            // super worried rn
+            _ => (),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::javascript::testing::expect_same;
+    use crate::javascript::testing::*;
     #[test]
     fn test_for_to_while() {
         let mut for_loop = parse(
-            "
-            for (var i=0; i<10; ++i) {
+            "for (var i=0; i<10; ++i) {
                 console.log(i);
-            }
-            do {
-                console.log(i);
-            } while (3 < 4)
-        ",
+            }",
         )
         .unwrap();
         let while_loop = parse(
-            "
-            {
+            "{
                 var i=0;
                 while (i<10) {
                     {
@@ -205,21 +221,10 @@ mod test {
                     }
                     ++i
                 }
-            }
-            {
-                var $jen_once_0 = true;
-                while ($jen_once_0 || 3 < 4) {
-                    $jen_once_0 = false;
-                    {
-                        console.log(i);
-                    }
-                }
-            }
-        ",
+            }",
         )
         .unwrap();
-        let mut ng = NameGen::default();
-        for_loop.walk(&mut LoopsToWhile(&mut ng));
+        for_loop.walk(&mut ForToWhile);
         println!("input:\n{}\noutput:\n{}", for_loop, while_loop);
         // Id::Named(x) != Id::Generated(x) so this is a workaround
         assert_eq!(for_loop.to_pretty(80), while_loop.to_pretty(80));
@@ -297,8 +302,7 @@ mod test {
     }
     #[test]
     fn stopify_for_labels() {
-        let mut unlabeled = parse(
-            "let i = 0;
+        let program = "let i = 0;
             l: for (let j = 0; j < 10; j++) {
                 if (j % 2 === 0) {
                     i++;
@@ -308,9 +312,8 @@ mod test {
                     i++;
                 }
             }
-            i;",
-        )
-        .unwrap();
+            i;";
+        let mut unlabeled = parse(program).unwrap();
         let labeled = parse(
             "let i = 0;
             l: for (let j = 0; j < 10; j++) $jen_cont_0: {
@@ -328,11 +331,11 @@ mod test {
         let mut ng = NameGen::default();
         unlabeled.walk(&mut LabelLoops::new(&mut ng));
         assert_eq!(unlabeled.to_pretty(80), labeled.to_pretty(80));
+        desugar_okay(program, desugar_loops);
     }
     #[test]
     fn stopify_continue_nested() {
-        let mut unlabeled = parse(
-            "var i = 0;
+        let program = "var i = 0;
             var j = 8;
 
             checkiandj: while (i < 4) {
@@ -348,9 +351,8 @@ mod test {
             }
             // TODO(luna): ({i: i, j: j}) goes thru parser+pretty as {i: i,
             // j: j} (no parens) which isn't valid, not sure why
-            i;",
-        )
-        .unwrap();
+            i;";
+        let mut unlabeled = parse(program).unwrap();
         let labeled = parse(
             "var i = 0;
             var j = 8;
@@ -373,7 +375,7 @@ mod test {
         unlabeled.walk(&mut LabelLoops::new(&mut ng));
         println!("desugared:\n{}\nexpected:\n{}", unlabeled, labeled);
         assert_eq!(unlabeled.to_pretty(80), labeled.to_pretty(80));
-        expect_same(&unlabeled, &labeled);
+        desugar_okay(program, desugar_loops);
     }
     #[test]
     fn labeled_block_stack() {
@@ -398,7 +400,6 @@ mod test {
         let mut ng = NameGen::default();
         unlabeled.walk(&mut LabelLoops::new(&mut ng));
         assert_eq!(unlabeled.to_pretty(80), labeled.to_pretty(80));
-        expect_same(&unlabeled, &labeled);
     }
     #[test]
     fn labeled_block_to_loop() {
@@ -421,5 +422,42 @@ mod test {
         let mut ng = NameGen::default();
         unlabeled.walk(&mut LabelLoops::new(&mut ng));
         assert_eq!(unlabeled.to_pretty(80), labeled.to_pretty(80));
+    }
+    #[test]
+    fn simple_while() {
+        let mut desugar = parse(
+            "var x = 0;
+            while (x < 10) {
+                ++x;
+            }
+            x;",
+        )
+        .unwrap();
+        let expected = parse(
+            "var x = 0;
+            while (true) {
+                if (x < 10) {
+                    ++x;
+                } else break;
+            }
+            x;",
+        )
+        .unwrap();
+        desugar.walk(&mut ExplicitBreaks {});
+        assert_eq!(desugar, expected);
+        expect_same(&desugar, &expected);
+    }
+    #[test]
+    fn do_while_continue() {
+        let program = "
+            var x = 0;
+            do {
+                x += 1;
+                if (x < 5)
+                    continue;
+                x *= 10;
+            } while (x < 10);
+            x";
+        desugar_okay(program, desugar_loops);
     }
 }

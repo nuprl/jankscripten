@@ -141,7 +141,10 @@ impl Expr {
                 .append(ind.to_doc())
                 .append(D::text("]")),
             New(cons, args) => D::text("new ").append(fn_call_to_doc(cons, args)),
-            Unary(op, e) => unary_op_to_doc(op).append(e.to_doc()),
+            Unary(op, e) => unary_op_to_doc(op)
+                .append(D::text("("))
+                .append(e.to_doc())
+                .append(D::text(")")),
             Binary(op, a, b) => a
                 .to_doc()
                 .append(D::space())
