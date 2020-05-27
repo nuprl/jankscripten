@@ -50,10 +50,8 @@ impl Visitor for LoopsToWhile<'_> {
 /// please see Stopify/normalize-js/ts/desugarLoop.ts:WhileStatement
 struct LabelLoops<'a> {
     ng: &'a mut NameGen,
-    /// closest non-generated-continue label
+    /// stack of loop labels
     breaks_stack: Vec<Id>,
-    /// avoids adding a label recursively forever
-    skip_next: usize,
     /// maps named and generated labels to the 'continue -> break' desugared
     /// label
     breaks_for_conts: HashMap<Id, Id>,
@@ -63,17 +61,33 @@ impl<'a> LabelLoops<'a> {
         Self {
             ng,
             breaks_stack: vec![],
-            skip_next: 0,
             breaks_for_conts: HashMap::new(),
         }
     }
 }
 impl Visitor for LabelLoops<'_> {
+    /// on loops, add their break name to the stack
     fn enter_stmt(&mut self, node: &mut Stmt) {
-        if self.skip_next > 0 {
-            self.skip_next -= 1;
-            return;
+        // if it's already there use that
+        if let Label(break_name, labeled) = node {
+            if if_loop_then_body(labeled).is_some() {
+                // this allows continue to be desugared (see precondition
+                // at that match arm)
+                self.label_loop_state(break_name.clone());
+                // it's easier to always add the label back, so we delete
+                // it when it already exists but its in the stack now
+                // this also avoids recursing infinitely
+                *node = labeled.take();
+            }
+        } else if if_loop_then_body(node).is_some() {
+            // this does the same as the Label(..) match except generates
+            // a fresh break name
+            let break_name = self.ng.fresh("break");
+            self.label_loop_state(break_name);
         }
+    }
+    /// do the actual AST modification
+    fn exit_stmt(&mut self, node: &mut Stmt) {
         match node {
             // break to name needs no change
             // Some(unwrap) ensures we get our label
@@ -126,68 +140,33 @@ impl Visitor for LabelLoops<'_> {
                         .clone(),
                 ))
             }
-            // a labeled non-loop block, goes on the stack but no continue fanciness
-            Label(break_name, labeled) => {
-                if let Some(body) = if_loop_then_body(labeled) {
-                    // this allows continue to be desugared (see precondition
-                    // at that match arm)
-                    self.add_continue_and_state(body, break_name.clone());
-                    // now we've already desugared the loop (which is below
-                    // us in the tree) AND the cont label, so we don't want
-                    // to desugar them again when we recurse
-                    self.skip_next = 2;
-                } else {
-                    // a labeled block needs to remember its name for implicit
-                    // break, but needs no continue
-                    self.breaks_stack.push(break_name.clone());
-                }
-            }
             _ => (),
         }
         // this is only outside the match to let us use the helper fn
+        // no special handling of already-labeled because we deleted their
+        // labels
         if let Some(body) = if_loop_then_body(node) {
-            // this does the same as the Label(..) match except generates
-            // a fresh break name
-            let break_name = self.ng.fresh("break");
-            self.add_continue_and_state(body, break_name.clone());
+            let break_name = self
+                .breaks_stack
+                .pop()
+                .expect("no generated label for loop");
+            let cont_name = self
+                .breaks_for_conts
+                .remove(&break_name)
+                .expect("no cont for break");
+            *body = Box::new(label_(cont_name, body.take()));
             *node = label_(break_name, node.take());
-            // we want to skip ourselves and the cont label, and yes we will
-            // hit ourselves because our walker walks the *modified* statement
-            self.skip_next = 2;
-        }
-    }
-    /// pops the break stack
-    fn exit_stmt(&mut self, node: &mut Stmt) {
-        match node {
-            Label(name, ..) => {
-                // all break labels (loop or block) go on the stack, but
-                // generated continues do not because they're mapped to breaks
-                if let Id::Generated("cont", _) = name {
-                    // no `if !let` in stable rust
-                } else {
-                    let mut old = self
-                        .breaks_stack
-                        .pop()
-                        .expect("exited more labels than entered");
-                    assert_eq!(&mut old, name);
-                    self.breaks_for_conts.remove(&old);
-                }
-            }
-            _ => (),
         }
     }
 }
 impl LabelLoops<'_> {
     /// - generates continue name
-    /// - transforms body -> Label(continue name,  body)
     /// - adds break_name to stack of breaks
     /// - adds continue name to map of breaks->conts
-    fn add_continue_and_state(&mut self, body: &mut Box<Stmt>, break_name: Id) {
+    fn label_loop_state(&mut self, break_name: Id) {
         let cont_name = self.ng.fresh("cont");
         self.breaks_stack.push(break_name.clone());
-        self.breaks_for_conts
-            .insert(break_name.clone(), cont_name.clone());
-        *body = Box::new(label_(cont_name, body.take()));
+        self.breaks_for_conts.insert(break_name, cont_name);
     }
 }
 fn if_loop_then_body(stmt: &mut Stmt) -> Option<&mut Box<Stmt>> {
@@ -202,6 +181,7 @@ fn if_loop_then_body(stmt: &mut Stmt) -> Option<&mut Box<Stmt>> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::javascript::testing::expect_same;
     #[test]
     fn test_for_to_while() {
         let mut for_loop = parse(
@@ -366,7 +346,9 @@ mod test {
                     }
                 }
             }
-            ({i: i, j: j});",
+            // TODO(luna): ({i: i, j: j}) goes thru parser+pretty as {i: i,
+            // j: j} (no parens) which isn't valid, not sure why
+            i;",
         )
         .unwrap();
         let labeled = parse(
@@ -384,12 +366,14 @@ mod test {
                     }
                 }
             }
-            ({i: i, j: j});",
+            i;",
         )
         .unwrap();
         let mut ng = NameGen::default();
         unlabeled.walk(&mut LabelLoops::new(&mut ng));
+        println!("desugared:\n{}\nexpected:\n{}", unlabeled, labeled);
         assert_eq!(unlabeled.to_pretty(80), labeled.to_pretty(80));
+        expect_same(&unlabeled, &labeled);
     }
     #[test]
     fn labeled_block_stack() {
@@ -408,6 +392,29 @@ mod test {
                     break bogus;
                 }
                 break $jen_break_0;
+            }",
+        )
+        .unwrap();
+        let mut ng = NameGen::default();
+        unlabeled.walk(&mut LabelLoops::new(&mut ng));
+        assert_eq!(unlabeled.to_pretty(80), labeled.to_pretty(80));
+        expect_same(&unlabeled, &labeled);
+    }
+    #[test]
+    fn labeled_block_to_loop() {
+        let mut unlabeled = parse(
+            "while (true) {
+                bogus: {
+                    break;
+                }
+            }",
+        )
+        .unwrap();
+        let labeled = parse(
+            "$jen_break_0: while (true) $jen_cont_0: {
+                bogus: {
+                    break $jen_break_0;
+                }
             }",
         )
         .unwrap();
