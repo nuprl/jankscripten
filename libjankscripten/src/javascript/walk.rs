@@ -17,39 +17,41 @@ pub trait Visitor {
     /// called before recursing on a statement
     fn enter_stmt(&mut self, _stmt: &mut Stmt) {}
     /// called before recursing on an expression
-    fn enter_expr(&mut self, _expr: &mut Expr, _loc: &Loc) {}
+    fn enter_expr(&mut self, _expr: &mut Expr, _loc: &mut Loc) {}
     /// called after recursing on a statement, with the new value
     fn exit_stmt(&mut self, _stmt: &mut Stmt) {}
     /// called after recursing on an expression, with the new value
-    fn exit_expr(&mut self, _expr: &mut Expr, _loc: &Loc) {}
+    fn exit_expr(&mut self, _expr: &mut Expr, _loc: &mut Loc) {}
 }
 
-struct VisitorState<'v, V> {
-    visitor: &'v mut V
+pub struct VisitorState<'v, V> {
+    visitor: &'v mut V,
 }
 
+#[derive(Debug)]
 pub struct BlockContext {
     pub index: usize,
     pub len: usize,
-    patches: Vec<(usize, Stmt)>
+    patches: Vec<(usize, Stmt)>,
 }
 
 impl BlockContext {
     pub fn new(index: usize, len: usize) -> Self {
-        BlockContext { index, len, patches: vec![] }
+        BlockContext {
+            index,
+            len,
+            patches: vec![],
+        }
     }
 
     /// Insert `stmt` at position `index` into the block. The position 0 is
     /// before the first element, and the last position is after the last
     /// element. E.g., if the block has statements `[s0, s1, s2]` then the
     /// indices are `[0, s0, 1, s1, 2, s2, 3]`.
-    /// 
+    ///
     /// Note that you can insert multiple statements at the same index.
-    /// They will appear in some order.
-    /// 
-    /// TODO(arjun): Figure out what the order is. It should be deterministic,
-    /// as long as vector sorting is stable (see `apply_patches`).
-    /// 
+    /// They will appear in the order they were added.
+    ///
     /// Panics if the index is invalid.
     pub fn insert(&mut self, index: usize, stmt: Stmt) {
         assert!(index <= self.len);
@@ -57,9 +59,14 @@ impl BlockContext {
     }
 
     fn apply_patches(mut self, block: &mut Vec<Stmt>) {
-        // Sort in descending order by index.
-        self.patches.sort_by(|(m, _), (n, _)| n.cmp(m));
-        for (index, stmt) in self.patches.drain(0..) {
+        // but we want patches to be applied in order they were added. because
+        // we add them in reverse order we want to iterate in reverse order
+        // Vec::sort_by maintains diff=0 values to be in their original order
+        // (stable), but we want the opposite behavior. to do this we sort in
+        // ascending order and reverse the whole iterator
+        self.patches.sort_by(|(m, _), (n, _)| m.cmp(n));
+        // .rev() reverses the reverse-sorted iterator now
+        for (index, stmt) in self.patches.drain(0..).rev() {
             // Inserting shifts all elements to the right. However, the
             // indices are in descending order.
             block.insert(index, stmt);
@@ -67,6 +74,7 @@ impl BlockContext {
     }
 }
 
+#[derive(Debug)]
 pub enum Context<'a> {
     // Additional contexts can go here.
     Block(&'a mut BlockContext),
@@ -76,18 +84,21 @@ pub enum Context<'a> {
 /// This is closely related to the `location` of a zipper:
 ///
 /// Gérard Huet. The Zipper. Journal of Functional Programming. 7(5) 1997.
+#[derive(Debug)]
 pub enum Loc<'a> {
     Top,
-    Node(Context<'a>, &'a Loc<'a>)
+    Node(Context<'a>, &'a Loc<'a>),
 }
 
-impl<'v, V> VisitorState<'v, V> where V : Visitor {
-
-    fn new(visitor: &'v mut V) -> Self {
-        return VisitorState { visitor };
+impl<'v, V> VisitorState<'v, V>
+where
+    V: Visitor,
+{
+    pub fn new(visitor: &'v mut V) -> Self {
+        VisitorState { visitor }
     }
 
-    fn walk_stmt<'a>(&mut self, stmt: &'a mut Stmt, loc: &'a Loc<'a>) {
+    pub fn walk_stmt(&mut self, stmt: &mut Stmt, loc: &mut Loc) {
         use Stmt::*;
         self.visitor.enter_stmt(stmt);
         // recurse
@@ -106,11 +117,11 @@ impl<'v, V> VisitorState<'v, V> where V : Visitor {
                 let mut block_cxt = BlockContext::new(0, ss.len());
                 for (index, s) in ss.iter_mut().enumerate() {
                     block_cxt.index = index;
-                    let loc = Loc::Node(Context::Block(&mut block_cxt), loc);
-                    self.walk_stmt(s, &loc);
+                    let mut loc = Loc::Node(Context::Block(&mut block_cxt), loc);
+                    self.walk_stmt(s, &mut loc);
                 }
                 block_cxt.apply_patches(ss);
-            },
+            }
             // 1x{ .., Stmt }
             VarDecl(vds) => {
                 for super::VarDecl { name: _, named } in vds {
@@ -149,7 +160,7 @@ impl<'v, V> VisitorState<'v, V> where V : Visitor {
         self.visitor.exit_stmt(stmt);
     }
 
-    pub fn walk_expr<'a>(&mut self, expr: &'a mut Expr, loc: &'a Loc<'a>) {
+    pub fn walk_expr(&mut self, expr: &mut Expr, loc: &mut Loc) {
         use Expr::*;
         self.visitor.enter_expr(expr, loc);
         match expr {
@@ -202,7 +213,7 @@ impl<'v, V> VisitorState<'v, V> where V : Visitor {
 
     /// like [Stmt::walk], but as a method on LValue. does the *exact*
     /// same thing
-    fn walk_lval<'a>(&mut self, lval: &'a mut LValue, loc: &'a Loc<'a>) {
+    pub fn walk_lval(&mut self, lval: &mut LValue, loc: &mut Loc) {
         use LValue::*;
         match lval {
             Id(_) => (),
@@ -213,8 +224,6 @@ impl<'v, V> VisitorState<'v, V> where V : Visitor {
             }
         }
     }
-
-
 }
 
 impl Stmt {
@@ -241,8 +250,8 @@ impl Stmt {
     /// ```
     pub fn walk(&mut self, v: &mut impl Visitor) {
         let mut vs = VisitorState::new(v);
-        let loc = Loc::Top;
-        vs.walk_stmt(self, &loc);
+        let mut loc = Loc::Top;
+        vs.walk_stmt(self, &mut loc);
     }
     /// replace this statement with `;` and return its old value. this is
     /// used to gain ownership of a mutable reference, especially in [Stmt::walk]
@@ -256,8 +265,8 @@ impl Expr {
     /// same thing
     pub fn walk(&mut self, v: &mut impl Visitor) {
         let mut vs = VisitorState::new(v);
-        let loc = Loc::Top;
-        vs.walk_expr(self, &loc);
+        let mut loc = Loc::Top;
+        vs.walk_expr(self, &mut loc);
     }
     /// replace this statement with `undefined` and return its old
     /// value. this is used to gain ownership of a mutable reference,

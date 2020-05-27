@@ -12,7 +12,7 @@ const WIDTH: usize = 80;
 /// original block versus the second. only works with blocks because of the
 /// nature of "result" / "value" as understood by V8
 // mostly copied from rusty_v8 crate-level docs
-fn expect_same(original: &jen::Stmt, modified: &jen::Stmt) {
+pub fn expect_same(original: &jen::Stmt, modified: &jen::Stmt) {
     START.call_once(|| {
         // initializing multiple times is not just a performance problem it causes a panic
         let platform = new_default_platform().unwrap();
@@ -61,11 +61,11 @@ fn expect_same(original: &jen::Stmt, modified: &jen::Stmt) {
 
 /// execute the program, then desugar it using `f` and execute it again. assert
 /// that the results are equal
-fn desugar_okay(program: &str, f: fn(&mut jen::NameGen, &mut jen::Stmt)) {
+pub fn desugar_okay(program: &str, f: fn(&mut jen::Stmt, &mut jen::NameGen)) {
     let original = jen::parse(program.clone()).expect("unparsible original program");
     let mut ng = jen::NameGen::default();
     let mut desugar = jen::parse(program).unwrap();
-    f(&mut ng, &mut desugar);
+    f(&mut desugar, &mut ng);
     expect_same(&original, &desugar);
 }
 
@@ -87,7 +87,7 @@ mod testing_tests {
         );
     }
 
-    fn fake_desugar_fn(_: &mut jen::NameGen, stmt: &mut jen::Stmt) {
+    fn fake_desugar_fn(stmt: &mut jen::Stmt, _: &mut jen::NameGen) {
         *stmt = jen::parse("var x = 10; x").unwrap();
     }
     #[test]
