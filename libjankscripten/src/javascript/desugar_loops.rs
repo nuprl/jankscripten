@@ -207,221 +207,84 @@ mod test {
     #[test]
     fn test_for_to_while() {
         let mut for_loop = parse(
-            "for (var i=0; i<10; ++i) {
-                console.log(i);
-            }",
+            "var r=0;
+            for (var i=0; i<10; ++i) {
+                ++r;
+            }
+            r;",
         )
         .unwrap();
         let while_loop = parse(
-            "{
+            "var r=0;
+            {
                 var i=0;
                 while (i<10) {
                     {
-                        console.log(i);
+                        ++r;
                     }
                     ++i
                 }
-            }",
+            }
+            r;",
         )
         .unwrap();
         for_loop.walk(&mut ForToWhile);
         println!("input:\n{}\noutput:\n{}", for_loop, while_loop);
         // Id::Named(x) != Id::Generated(x) so this is a workaround
         assert_eq!(for_loop.to_pretty(80), while_loop.to_pretty(80));
-    }
-    #[test]
-    fn test_labels() {
-        let mut unlabeled = parse(
-            "
-            while (true) {
-                break;
-                while (true) {
-                    continue;
-                }
-            }
-        ",
-        )
-        .unwrap();
-        let labeled = parse(
-            "
-            $jen_break_0: while (true) $jen_cont_0: {
-                break $jen_break_0;
-                $jen_break_1: while (true) $jen_cont_1: {
-                    break $jen_cont_1;
-                }
-            }
-        ",
-        )
-        .unwrap();
-        let mut ng = NameGen::default();
-        unlabeled.walk(&mut LabelLoops::new(&mut ng));
-        // Id::Named(x) != Id::Generated(x) so this is a workaround
-        assert_eq!(unlabeled.to_pretty(80), labeled.to_pretty(80));
+        expect_same(&for_loop, &while_loop);
     }
     #[test]
     fn nested_loops() {
         let mut unlabeled = parse(
             "while (true) {
-                while (true) {}
+                while (false) {}
                 break;
-            }",
+            }
+            10;",
         )
         .unwrap();
         let labeled = parse(
             "$jen_break_0: while(true) $jen_cont_0: {
-                $jen_break_1: while(true) $jen_cont_1: {}
+                $jen_break_1: while(false) $jen_cont_1: {}
                 break $jen_break_0;
-            }",
+            }
+            10;",
         )
         .unwrap();
         let mut ng = NameGen::default();
         unlabeled.walk(&mut LabelLoops::new(&mut ng));
         assert_eq!(unlabeled.to_pretty(80), labeled.to_pretty(80));
+        expect_same(&unlabeled, &labeled);
     }
     #[test]
     fn continue_labeled_loop() {
         let mut unlabeled = parse(
-            "program_label: while (true) {
+            "var r=0;
+            program_label: while (r === 0) {
                 while (true) {
+                    ++r;
                     continue program_label;
                 }
-            }",
+            }
+            r;",
         )
         .unwrap();
         let labeled = parse(
-            "program_label: while(true) $jen_cont_0: {
+            "var r=0;
+            program_label: while(r === 0) $jen_cont_0: {
                 $jen_break_0: while(true) $jen_cont_1: {
+                    ++r;
                     break $jen_cont_0;
                 }
-            }",
-        )
-        .unwrap();
-        let mut ng = NameGen::default();
-        unlabeled.walk(&mut LabelLoops::new(&mut ng));
-        assert_eq!(unlabeled.to_pretty(80), labeled.to_pretty(80));
-    }
-    #[test]
-    fn stopify_for_labels() {
-        let program = "let i = 0;
-            l: for (let j = 0; j < 10; j++) {
-                if (j % 2 === 0) {
-                    i++;
-                    do {
-                        continue l;
-                    } while (0);
-                    i++;
-                }
             }
-            i;";
-        let mut unlabeled = parse(program).unwrap();
-        let labeled = parse(
-            "let i = 0;
-            l: for (let j = 0; j < 10; j++) $jen_cont_0: {
-                if (j % 2 === 0) {
-                    i++;
-                    $jen_break_0: do $jen_cont_1: {
-                        break $jen_cont_0;
-                    } while (0);
-                    i++;
-                }
-            }
-            i;",
+            r;",
         )
         .unwrap();
         let mut ng = NameGen::default();
         unlabeled.walk(&mut LabelLoops::new(&mut ng));
         assert_eq!(unlabeled.to_pretty(80), labeled.to_pretty(80));
-        desugar_okay(program, desugar_loops);
-    }
-    #[test]
-    fn stopify_continue_nested() {
-        let program = "var i = 0;
-            var j = 8;
-
-            checkiandj: while (i < 4) {
-                i += 1;
-
-                checkj: while (j > 4) {
-                    j -= 1;
-                    if ((j % 2) === 0) {
-                        i = 5;
-                        continue checkiandj;
-                    }
-                }
-            }
-            // TODO(luna): ({i: i, j: j}) goes thru parser+pretty as {i: i,
-            // j: j} (no parens) which isn't valid, not sure why
-            i;";
-        let mut unlabeled = parse(program).unwrap();
-        let labeled = parse(
-            "var i = 0;
-            var j = 8;
-
-            checkiandj: while (i < 4) $jen_cont_0: {
-                i += 1;
-
-                checkj: while (j > 4) $jen_cont_1: {
-                    j -= 1;
-                    if ((j % 2) === 0) {
-                        i = 5;
-                        break $jen_cont_0;
-                    }
-                }
-            }
-            i;",
-        )
-        .unwrap();
-        let mut ng = NameGen::default();
-        unlabeled.walk(&mut LabelLoops::new(&mut ng));
-        println!("desugared:\n{}\nexpected:\n{}", unlabeled, labeled);
-        assert_eq!(unlabeled.to_pretty(80), labeled.to_pretty(80));
-        desugar_okay(program, desugar_loops);
-    }
-    #[test]
-    fn labeled_block_stack() {
-        let mut unlabeled = parse(
-            "while (true) {
-                bogus: {
-                    break bogus;
-                }
-                break;
-            }",
-        )
-        .unwrap();
-        let labeled = parse(
-            "$jen_break_0: while (true) $jen_cont_0: {
-                bogus: {
-                    break bogus;
-                }
-                break $jen_break_0;
-            }",
-        )
-        .unwrap();
-        let mut ng = NameGen::default();
-        unlabeled.walk(&mut LabelLoops::new(&mut ng));
-        assert_eq!(unlabeled.to_pretty(80), labeled.to_pretty(80));
-    }
-    #[test]
-    fn labeled_block_to_loop() {
-        let mut unlabeled = parse(
-            "while (true) {
-                bogus: {
-                    break;
-                }
-            }",
-        )
-        .unwrap();
-        let labeled = parse(
-            "$jen_break_0: while (true) $jen_cont_0: {
-                bogus: {
-                    break $jen_break_0;
-                }
-            }",
-        )
-        .unwrap();
-        let mut ng = NameGen::default();
-        unlabeled.walk(&mut LabelLoops::new(&mut ng));
-        assert_eq!(unlabeled.to_pretty(80), labeled.to_pretty(80));
+        expect_same(&unlabeled, &labeled);
     }
     #[test]
     fn simple_while() {
@@ -446,6 +309,59 @@ mod test {
         desugar.walk(&mut ExplicitBreaks {});
         assert_eq!(desugar, expected);
         expect_same(&desugar, &expected);
+    }
+    #[test]
+    fn stopify_for_labels() {
+        let program = "
+            let i = 0;
+            l: for (let j = 0; j < 10; j++) {
+                if (j % 2 === 0) {
+                    i++;
+                    do {
+                        continue l;
+                    } while (0);
+                    i++;
+                }
+            }
+            i;";
+        desugar_okay(program, desugar_loops);
+    }
+    #[test]
+    fn stopify_continue_nested() {
+        let program = "
+            var i = 0;
+            var j = 8;
+
+            checkiandj: while (i < 4) {
+                i += 1;
+
+                checkj: while (j > 4) {
+                    j -= 1;
+                    if ((j % 2) === 0) {
+                        i = 5;
+                        continue checkiandj;
+                    }
+                }
+            }
+            // TODO(luna): ({i: i, j: j}) goes thru parser+pretty as {i: i,
+            // j: j} (no parens) which isn't valid, not sure why
+            i;";
+        desugar_okay(program, desugar_loops);
+    }
+    #[test]
+    fn labeled_block_to_loop() {
+        let program = "
+            var x = true;
+            while (true) {
+                bogus: {
+                    break;
+                }
+                // should never run
+                var x = false;
+                break;
+            }
+            x;";
+        desugar_okay(program, desugar_loops);
     }
     #[test]
     fn do_while_continue() {
