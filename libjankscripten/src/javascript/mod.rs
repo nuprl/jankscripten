@@ -1,15 +1,15 @@
 //! the AST, transformations, and utils for compiling javascript to jankyscript
 
-pub mod compile_for;
 pub mod constructors;
+pub mod desugar;
 pub mod desugar_logical;
+pub mod desugar_loops;
 pub mod name_gen;
 pub mod parser;
 pub mod syntax;
 pub mod walk;
 
-pub use compile_for::*;
-pub use desugar_logical::*;
+pub use desugar::*;
 pub use name_gen::*;
 pub use parser::*;
 pub use syntax::*;
