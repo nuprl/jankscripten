@@ -7,11 +7,10 @@ use resast::LogicalOp;
 
 struct SwitchToIf { }
 
-// TODO: figure out break labeling
-
 impl Visitor for SwitchToIf {
     /// called before recursing on a statement
-    fn enter_stmt(&mut self, _stmt: &mut Stmt) {}
+    fn enter_stmt(&mut self, _stmt: &mut Stmt) {
+    }
     /// called before recursing on an expression
     fn enter_expr(&mut self, _expr: &mut Expr, _loc: &mut Loc) {}
     /// called after recursing on a statement, with the new value
@@ -23,8 +22,6 @@ impl Visitor for SwitchToIf {
                     vardecl1_("fallthrough", Expr::Lit(Lit::Bool(false))),
                     vardecl1_("test", test.clone())
                 ];
-
-                // create if statements for cases (test = e || fallthrough)
                 for (e, s) in cases {
                     v.push(
                         Stmt::If(
@@ -38,19 +35,16 @@ impl Visitor for SwitchToIf {
                             Box::new(s.clone()),
                             Box::new(Stmt::Empty)))
                 }
-
-                // add default case 
                 let d = &**default;
+                //println!("{:?}", d);
                 match d {
-                    Stmt::Block(dv) => { //i think this is always a block
+                    Stmt::Block(dv) => {
                         for s in dv {
                             v.push(s.clone());
                         }
                     },
                     _ => v.push(d.clone())
                 }
-
-                //create labeled block w if statements/default 
                 *stmt = Stmt::Label(
                     Id::Named("sw".to_string()),
                     Box::new(Stmt::Block(v)))
@@ -74,7 +68,6 @@ impl Visitor for SwitchToIf {
                     x = 2;
                 default:
                     x = 3;
-                    x = 4;
             }
         "#).unwrap();
 
@@ -110,9 +103,6 @@ fn switchif() {
                 break;
             case 1: 
                 x = 2;
-            default: 
-                x = 3;
-                x = 4;
         }
     "#).unwrap();
 
