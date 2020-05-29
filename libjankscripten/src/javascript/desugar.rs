@@ -11,15 +11,39 @@ pub fn desugar(stmt: &mut Stmt, ng: &mut NameGen) {
 mod test {
     use super::*;
     use crate::javascript::testing::desugar_okay;
+    fn okay(script: &str) {
+        desugar_okay(script, desugar);
+    }
     #[test]
     fn do_while() {
-        desugar_okay(
+        okay(
             "var r = 0;
             do {
                 r += 1;
             } while (r < 10);
             r;",
-            desugar,
+        );
+    }
+    #[test]
+    fn for_loops() {
+        okay(
+            "var r;
+            for (r=0; r<10; ++r) {
+                r += 1;
+            }
+            r;",
+        );
+    }
+    #[test]
+    fn labeled_continue() {
+        okay(
+            "var r = 0;
+            label: for (var i=0; i<10; ++i) {
+                r += i;
+                continue label;
+                r = 0;
+            }
+            r;",
         );
     }
 }

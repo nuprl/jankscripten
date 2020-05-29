@@ -64,26 +64,6 @@ mod test {
     use super::*;
     use crate::javascript::testing::desugar_okay;
     #[test]
-    fn if_expr() {
-        let program = "var x = true ? 1 : 2; x";
-        let mut unlabeled = parse(program).unwrap();
-        let labeled = parse(
-            "var $jen_if_expr_0 = undefined;
-            if (true)
-                $jen_if_expr_0 = 1;
-            else
-                $jen_if_expr_0 = 2;
-            var x = $jen_if_expr_0;
-            x",
-        )
-        .unwrap();
-        let mut ng = NameGen::default();
-        unlabeled.walk(&mut DesugarLogical(&mut ng));
-        println!("input:\n{}\noutput:\n{}", unlabeled, labeled);
-        assert_eq!(unlabeled.to_pretty(80), labeled.to_pretty(80));
-        desugar_okay(program, desugar_logical);
-    }
-    #[test]
     fn ops() {
         let program = "var x = true && false ? true || false : false; x";
         let mut unlabeled = parse(program).unwrap();
@@ -117,20 +97,22 @@ mod test {
         desugar_okay(program, desugar_logical);
     }
     #[test]
+    fn if_expr() {
+        let program = "var x = true ? 1 : 2; x";
+        desugar_okay(program, desugar_logical);
+    }
+    #[test]
     fn seq() {
-        let mut desugar = parse(
-            "var x = 5;
-            while (x = 10, x) {}",
-        )
-        .unwrap();
-        let expected = parse(
-            "var x = 5;
-            x = 10;
-            while (x) {}",
-        )
-        .unwrap();
-        let mut ng = NameGen::default();
-        desugar.walk(&mut DesugarLogical(&mut ng));
-        assert_eq!(desugar.to_pretty(80), expected.to_pretty(80));
+        desugar_okay(
+            "var x = true;
+            var r = true;
+            while (x = false, x) {
+                // shouldn't happen
+                r = false;
+                break;
+            }
+            r;",
+            desugar_logical,
+        );
     }
 }
