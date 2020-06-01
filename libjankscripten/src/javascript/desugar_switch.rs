@@ -5,10 +5,10 @@ use super::constructors::*;
 use resast::BinaryOp;
 use resast::LogicalOp;
 
-struct SwitchToIf { }
+struct SwitchToIf<'a>(&'a mut NameGen);
 
 // NOTE (jenna): i don't like all this cloning but also don't know enough
-// about rust to know how to fix it right now 
+// about rust to know if i can avoid it :/
 fn name_breaks(stmts: &Stmt, name: &Id) -> Stmt {
     let mut new_vec = vec![];
     match stmts {
@@ -16,7 +16,7 @@ fn name_breaks(stmts: &Stmt, name: &Id) -> Stmt {
             for s in v {
                 match s {
                     Stmt::Break(None) => {
-                        new_vec.push(Stmt::Break(Some(name.clone())));
+                        new_vec.push(break_(Some(name.clone())));
                     } 
                     _ => {
                         new_vec.push(s.clone());
@@ -25,39 +25,37 @@ fn name_breaks(stmts: &Stmt, name: &Id) -> Stmt {
             }
         }
         _ => { 
-            // I believe the parser only produces blocks 
-            // when pairing stmts with cases so this doesnt matter
+            panic!("Block expected");
         }
     }
     Stmt::Block(new_vec)
 }
 
-impl Visitor for SwitchToIf {
+impl Visitor for SwitchToIf<'_> {
     fn exit_stmt(&mut self, stmt: &mut Stmt) {
-        let mut ng = NameGen::default(); //probably needs to be outside of this
-        let name = ng.fresh("switch");
+        let name = self.0.fresh("switch");
 
         match stmt {
             Stmt::Switch(expr, cases, default) => { //cases = vec<(expr, stmt)>
                 let test = &**expr;
                 let mut v = vec![
-                    vardecl1_("fallthrough", Expr::Lit(Lit::Bool(false))),
+                    vardecl1_("fallthrough", FALSE_),
                     vardecl1_("test", test.clone())
                 ];
 
                 // create if statements for cases (test === e || fallthrough)
                 for (e, s) in cases {
                     v.push(
-                        Stmt::If(
-                            Box::new(Expr::Binary(
+                        if_(
+                            binary_(
                                 BinOp::LogicalOp(LogicalOp::Or),
-                                Box::new(Expr::Binary(
+                                binary_(
                                     BinOp::BinaryOp(BinaryOp::StrictEqual), 
-                                    Box::new(Expr::Id(Id::Named("test".to_string()))),
-                                    Box::new(e.clone()))),
-                                Box::new(Expr::Id(Id::Named("fallthrough".to_string()))))),
-                            Box::new(name_breaks(s, &name)),
-                            Box::new(Stmt::Empty)))
+                                    id_("test".to_string()),
+                                    e.clone()),
+                                id_("fallthrough".to_string())),
+                            name_breaks(s, &name),
+                            Stmt::Empty))
                 }
 
                 // add default case 
@@ -68,17 +66,23 @@ impl Visitor for SwitchToIf {
                             v.push(s.clone());
                         }
                     },
-                    _ => v.push(d.clone())
+                    _ => {}
                 }
 
                 //create labeled block w if statements/default 
-                *stmt = Stmt::Label(
+                *stmt = label_(
                     name,
-                    Box::new(Stmt::Block(v)))
+                    Stmt::Block(v))
             }
             _ => {}
         }
     }
+}
+
+pub fn simpl(program: &mut Stmt) {
+    let mut ng = NameGen::default();
+    let mut v = SwitchToIf(&mut ng);
+    program.walk(&mut v);
 }
 
 // TODO (jenna): testing -- current "tests" for own use 
@@ -90,6 +94,8 @@ impl Visitor for SwitchToIf {
 //   maybe name_breaks should have some recursion?
 //   or maybe the visitor should look @ the context of break stmts to
 //   see if they're in a switch statement????
+//   scratch that: it seems like break statements only apply when used
+//   outside of any if statements or whatever 
 
 #[test] 
 fn parse_switch() {
@@ -107,7 +113,7 @@ fn parse_switch() {
         }
     "#).unwrap();
 
-    print!("{:?}", prog);
+    println!("{:?}", prog);
 }
 
 #[test] 
@@ -126,7 +132,7 @@ fn parse_if() {
             x = 4;
         }
     "#).unwrap();
-    print!("{:?}", prog);
+    println!("{:?}", prog);
 }
 
 #[test]
@@ -144,6 +150,6 @@ fn switchtoif() {
         }
     "#).unwrap();
 
-    prog.walk(&mut SwitchToIf {});
-    print!("{:?}", prog);
+    simpl(&mut prog);
+    println!("{:?}", prog);
 }
