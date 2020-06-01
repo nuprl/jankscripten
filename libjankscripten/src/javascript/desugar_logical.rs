@@ -13,11 +13,7 @@ pub fn desugar_logical(stmt: &mut Stmt, ng: &mut NameGen) {
 struct DesugarLogical<'a>(&'a mut NameGen);
 impl Visitor for DesugarLogical<'_> {
     fn exit_expr(&mut self, expr: &mut Expr, loc: &Loc) {
-        let ctx = if let Loc::Node(Context::Block(ctx), ..) = loc {
-            ctx
-        } else {
-            panic!("expected block context");
-        };
+        let ctx = loc.enclosing_block().expect("expected block context");
         match expr {
             Expr::Binary(BinOp::LogicalOp(op), left, right) => {
                 let left_name = self.0.fresh("left");
