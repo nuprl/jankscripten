@@ -2,5 +2,9 @@
 members = [
     "libjankscripten",
     "jankscripten",
-    "jankyp"
+    "jankyp",
+    "runtime"
+]
+exclude = [
+    "wasm-game-of-life"
 ]
