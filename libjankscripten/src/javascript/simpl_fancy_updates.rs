@@ -9,9 +9,9 @@ struct DesugarFancyUpdates <'a>(&'a mut NameGen);
 
 fn lval_to_expr(lv: &mut LValue) -> Expr {
     match lv {
-        LValue::Id(x) => Expr::Id(x.clone()),
-        LValue::Dot(e, x) => Expr::Dot(Box::new(e.clone()), x.clone()),
-        LValue::Bracket(e1, e2) => Expr::Bracket(Box::new(e1.clone()), Box::new(e2.clone()))
+        LValue::Id(x) => id_(x.clone()),
+        LValue::Dot(e, x) => dot_(e.clone(), x.clone()),
+        LValue::Bracket(e1, e2) => bracket_(e1.clone(), e2.clone())
     }
 }
 
@@ -34,14 +34,12 @@ fn desugar_assign_op(bin_op: BinaryOp, lv: &mut LValue, rhs: &mut Expr, loc: &mu
         } 
         _ => {}
     }
-    Expr::Assign(
-        AssignOp::Equal,
-        Box::new(lv.clone()),
-        Box::new(
-            Expr::Binary(
-                BinOp::BinaryOp(bin_op),
-                Box::new(lval_to_expr(lv)),
-                Box::new(rhs.take()))))
+    assign_(
+        lv.clone(),
+        binary_(
+            BinOp::BinaryOp(bin_op),
+            lval_to_expr(lv),
+            rhs.take()))
 }
 
 impl Visitor for DesugarFancyUpdates<'_> {
