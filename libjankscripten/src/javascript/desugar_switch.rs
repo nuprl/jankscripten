@@ -7,7 +7,6 @@ use resast::LogicalOp;
 
 struct SwitchToIf { }
 
-
 // NOTE (jenna): i don't like all this cloning but also don't know enough
 // about rust to know how to fix it right now 
 fn name_breaks(stmts: &Stmt, name: &Id) -> Stmt {
@@ -35,7 +34,7 @@ fn name_breaks(stmts: &Stmt, name: &Id) -> Stmt {
 
 impl Visitor for SwitchToIf {
     fn exit_stmt(&mut self, stmt: &mut Stmt) {
-        let mut ng = NameGen::default();
+        let mut ng = NameGen::default(); //probably needs to be outside of this
         let name = ng.fresh("switch");
 
         match stmt {
@@ -46,7 +45,7 @@ impl Visitor for SwitchToIf {
                     vardecl1_("test", test.clone())
                 ];
 
-                // create if statements for cases (test = e || fallthrough)
+                // create if statements for cases (test === e || fallthrough)
                 for (e, s) in cases {
                     v.push(
                         Stmt::If(
@@ -86,8 +85,11 @@ impl Visitor for SwitchToIf {
 // Notes:
 // * won't be able to get an Id::Generated just by parsing ifs, so
 //   assert-eq! won't work if doing that to compare 
-// * not sure if all possible breaks will be handled -- need to look
-//   into break behavior some more 
+// * i don't think all possible breaks will be handled -- need to look
+//   into break behavior some more. like what if it's in an if statement?
+//   maybe name_breaks should have some recursion?
+//   or maybe the visitor should look @ the context of break stmts to
+//   see if they're in a switch statement????
 
 #[test] 
 fn parse_switch() {
