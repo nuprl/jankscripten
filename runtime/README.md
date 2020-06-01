@@ -13,12 +13,3 @@ https://rustwasm.github.io/docs/book/introduction.html
     ```
     $ wasm-pack build
     ```
-
-# Deploy
-
-1. To use it on the web:
-
-    ```
-    $ npm init wasm-app www
-    $ npm install
-    ```

@@ -1,3 +1,3 @@
-# Setup
+# Dynamic Linking with Rust
 
-1. Download [`wabt`](https://github.com/WebAssembly/wabt) and build.
+- https://github.com/bytecodealliance/wasmtime/blob/master/examples/linking.rs
