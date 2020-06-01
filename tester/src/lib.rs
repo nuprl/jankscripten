@@ -30,7 +30,7 @@ fn test_add_num() -> Result<()> {
 
     // And with that we can perform the final link and the execute the module.
     let main_mod = linker.instantiate(&main_mod)?;
-    let run = main_mod.get_func("run").unwrap();
+    let run = main_mod.get_func("test_add_num").unwrap();
     let run = run.get0::<i32>()?;
     let val = run()?;
     assert_eq!(val, 10);

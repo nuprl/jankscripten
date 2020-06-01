@@ -6,81 +6,45 @@
 //!
 //! things i've learned messing around:
 //!
-//! - tag all public structs with `#[repr(C)]` and all functions with `extern
-//!   "C"` *and* `#[no_mangle]`. without it no code will be generated at all
-//! - enum structs are disallowed, but enum+union+struct is a workaround
+//! - tag all public functions with `extern "C"` *and* `#[no_mangle]`. without
+//!   it no code will be generated at all fsr
 //! - you can't really use impl productively, just stick with flat procedures
 //! - because of no multiple returns, it's much easier to think about the
 //!   generated code if types are <=64 bits
 //! - when not, generated code usually accepts a new first parameter, which
 //!   is the memory address of output (fsr no allocator provided yet)
+//! - but this isn't necessary in parameters, so easier to expect a reference
+//!   so you don't have to unpack from memory every time
 //! - build on release if you wanna read the generated code, it's 1000% better
 //! - wasm_bindgen / wasm-pack is unneccessary and gets in the way since
-//!   it's all about js bindings
-
-/// this is a bit for whether a [Num] contains i32 or f64, should not need
-/// to be used on its own. part of a workaround around no enum structs. has
-/// to be repr(C) to avoid weirdly taking up way more space
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[repr(C)]
-enum NumType {
-    I32,
-    F64,
-}
-
-union NumData {
-    data_i32: i32,
-    data_f64: f64,
-}
+//!   it's all about js bindings and disallows enum structs
 
 /// either an f64 or an i32
-// bespoke enum struct because neither enum structs nor unions are supported
-// by wasm_bindgen
-#[no_mangle]
-#[repr(C)]
-pub struct Num {
-    // this could be compressed by tagging I32's upper 32 bits with a float
-    // NaN with a special data tag in 33-52. you could check hi == TAG_VALUE
-    // => it's an I32; then it'd fit in 4 bytes. this would have further
-    // reaching benefits than you'd think because:
-    // - functions could return Nums without writing to linear memory
-    // - rust aligns the kind bit to a whole 64-bit value
-    kind: NumType,
-    data: NumData,
+#[derive(Debug, PartialEq)]
+pub enum Num {
+    I32(i32),
+    F64(f64),
 }
 /// assume the number is an i32 and give its value
 #[no_mangle]
 pub extern "C" fn num_as_i32(num: &Num) -> i32 {
-    unsafe { num.data.data_i32 }
+    if let Num::I32(i) = num {
+        *i
+    } else {
+        // TODO: panic is better but gives us unreadable code while im still reading output wasm
+        // panic = "abort" still generates a bunch of weird code not sure what i'm doing wrong
+        //panic!();
+        std::process::abort();
+    }
 }
 /// assume the number is an f64 and give its value
 #[no_mangle]
 pub extern "C" fn num_as_f64(num: &Num) -> f64 {
-    unsafe { num.data.data_f64 }
-}
-impl PartialEq for Num {
-    fn eq(&self, other: &Self) -> bool {
-        match (self.kind, other.kind) {
-            (NumType::I32, NumType::I32) => num_as_i32(&self) == num_as_i32(&other),
-            (NumType::I32, NumType::F64) | (NumType::F64, NumType::I32) => false,
-            (NumType::F64, NumType::F64) => num_as_f64(&self) == num_as_f64(&other),
-        }
-    }
-}
-impl std::fmt::Debug for Num {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.kind {
-            NumType::I32 => {
-                write!(f, "I32(")?;
-                write!(f, "{}", num_as_i32(&self))?;
-                write!(f, ")")
-            }
-            NumType::F64 => {
-                write!(f, "F64(")?;
-                write!(f, "{}", num_as_f64(&self))?;
-                write!(f, ")")
-            }
-        }
+    if let Num::F64(f) = num {
+        *f
+    } else {
+        //panic!();
+        std::process::abort();
     }
 }
 
@@ -94,33 +58,25 @@ impl std::fmt::Debug for Num {
 /// assert_eq!(sum, num_f64(10.5));
 /// ```
 #[no_mangle]
-pub extern "C" fn add_num(a: Num, b: Num) -> Num {
-    match (a.kind, b.kind) {
-        (NumType::I32, NumType::I32) => num_i32(num_as_i32(&a) + num_as_i32(&b)),
+pub extern "C" fn add_num(a: &Num, b: &Num) -> Num {
+    match (a, b) {
+        (Num::I32(a), Num::I32(b)) => Num::I32(*a + *b),
         // commutative
-        (NumType::I32, NumType::F64) | (NumType::F64, NumType::I32) => {
-            num_f64(num_as_f64(&a) + num_as_i32(&b) as f64)
-        }
-        (NumType::F64, NumType::F64) => num_f64(num_as_f64(&a) + num_as_f64(&b)),
+        (Num::I32(i), Num::F64(f)) | (Num::F64(f), Num::I32(i)) => Num::F64(*f + *i as f64),
+        (Num::F64(a), Num::F64(b)) => Num::F64(*a + *b),
     }
 }
 
 /// constructor function for creating a Num using an i32
 #[no_mangle]
 pub extern "C" fn num_i32(i: i32) -> Num {
-    Num {
-        kind: NumType::I32,
-        data: NumData { data_i32: i },
-    }
+    Num::I32(i)
 }
 
 /// constructor function for creating a Num using an f64
 #[no_mangle]
 pub extern "C" fn num_f64(f: f64) -> Num {
-    Num {
-        kind: NumType::F64,
-        data: NumData { data_f64: f },
-    }
+    Num::F64(f)
 }
 
 #[cfg(test)]
@@ -129,24 +85,24 @@ mod test {
     #[test]
     #[should_panic]
     fn bad_math_good_types() {
-        assert_eq!(num_i32(20), add_num(num_i32(4), num_i32(6)));
+        assert_eq!(num_i32(20), add_num(&num_i32(4), &num_i32(6)));
     }
     #[test]
     #[should_panic]
     fn good_math_bad_types() {
-        assert_eq!(num_i32(10), add_num(num_f64(4.), num_f64(6.)));
+        assert_eq!(num_i32(10), add_num(&num_f64(4.), &num_f64(6.)));
     }
     #[test]
     fn i32_plus_i32() {
-        assert_eq!(num_i32(10), add_num(num_i32(4), num_i32(6)));
+        assert_eq!(num_i32(10), add_num(&num_i32(4), &num_i32(6)));
     }
     #[test]
     fn f64_plus_i32() {
-        assert_eq!(num_f64(10.5), add_num(num_f64(4.5), num_i32(6)));
+        assert_eq!(num_f64(10.5), add_num(&num_f64(4.5), &num_i32(6)));
     }
     #[test]
     fn f64_plus_f64() {
-        assert_eq!(num_f64(11.0), add_num(num_f64(4.5), num_f64(6.5)));
+        assert_eq!(num_f64(11.0), add_num(&num_f64(4.5), &num_f64(6.5)));
     }
     #[test]
     fn convert_back() {
@@ -155,6 +111,6 @@ mod test {
     }
     #[test]
     fn main_wasm() {
-        assert_eq!(num_as_i32(&add_num(num_i32(6), num_i32(4))), 10);
+        assert_eq!(num_as_i32(&add_num(&num_i32(6), &num_i32(4))), 10);
     }
 }
