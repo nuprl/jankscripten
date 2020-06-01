@@ -1,6 +1,7 @@
 //! walk the statements / now you've made it
 
 use super::syntax::*;
+use std::cell::RefCell;
 
 /// a visitor is passed to [Stmt::walk] to describe what happens when walking
 ///
@@ -17,11 +18,11 @@ pub trait Visitor {
     /// called before recursing on a statement
     fn enter_stmt(&mut self, _stmt: &mut Stmt) {}
     /// called before recursing on an expression
-    fn enter_expr(&mut self, _expr: &mut Expr, _loc: &mut Loc) {}
+    fn enter_expr(&mut self, _expr: &mut Expr, _loc: &Loc) {}
     /// called after recursing on a statement, with the new value
     fn exit_stmt(&mut self, _stmt: &mut Stmt) {}
     /// called after recursing on an expression, with the new value
-    fn exit_expr(&mut self, _expr: &mut Expr, _loc: &mut Loc) {}
+    fn exit_expr(&mut self, _expr: &mut Expr, _loc: &Loc) {}
 }
 
 pub struct VisitorState<'v, V> {
@@ -32,7 +33,7 @@ pub struct VisitorState<'v, V> {
 pub struct BlockContext {
     pub index: usize,
     pub len: usize,
-    patches: Vec<(usize, Stmt)>,
+    patches: RefCell<Vec<(usize, Stmt)>>,
 }
 
 impl BlockContext {
@@ -40,7 +41,7 @@ impl BlockContext {
         BlockContext {
             index,
             len,
-            patches: vec![],
+            patches: RefCell::new(vec![]),
         }
     }
 
@@ -53,9 +54,9 @@ impl BlockContext {
     /// They will appear in the order they were added.
     ///
     /// Panics if the index is invalid.
-    pub fn insert(&mut self, index: usize, stmt: Stmt) {
+    pub fn insert(&self, index: usize, stmt: Stmt) {
         assert!(index <= self.len);
-        self.patches.push((index, stmt));
+        self.patches.borrow_mut().push((index, stmt));
     }
 
     fn apply_patches(mut self, block: &mut Vec<Stmt>) {
@@ -64,9 +65,10 @@ impl BlockContext {
         // Vec::sort_by maintains diff=0 values to be in their original order
         // (stable), but we want the opposite behavior. to do this we sort in
         // ascending order and reverse the whole iterator
-        self.patches.sort_by(|(m, _), (n, _)| m.cmp(n));
+        let patches = self.patches.get_mut();
+        patches.sort_by(|(m, _), (n, _)| m.cmp(n));
         // .rev() reverses the reverse-sorted iterator now
-        for (index, stmt) in self.patches.drain(0..).rev() {
+        for (index, stmt) in patches.drain(0..).rev() {
             // Inserting shifts all elements to the right. However, the
             // indices are in descending order.
             block.insert(index, stmt);
@@ -77,7 +79,7 @@ impl BlockContext {
 #[derive(Debug)]
 pub enum Context<'a> {
     // Additional contexts can go here.
-    Block(&'a mut BlockContext),
+    Block(&'a BlockContext),
 }
 
 /// A data structure that represents the context of a call to a visitor.
@@ -98,7 +100,7 @@ where
         VisitorState { visitor }
     }
 
-    pub fn walk_stmt(&mut self, stmt: &mut Stmt, loc: &mut Loc) {
+    pub fn walk_stmt(&mut self, stmt: &mut Stmt, loc: &Loc) {
         use Stmt::*;
         self.visitor.enter_stmt(stmt);
         // recurse
@@ -117,8 +119,8 @@ where
                 let mut block_cxt = BlockContext::new(0, ss.len());
                 for (index, s) in ss.iter_mut().enumerate() {
                     block_cxt.index = index;
-                    let mut loc = Loc::Node(Context::Block(&mut block_cxt), loc);
-                    self.walk_stmt(s, &mut loc);
+                    let loc = Loc::Node(Context::Block(&block_cxt), loc);
+                    self.walk_stmt(s, &loc);
                 }
                 block_cxt.apply_patches(ss);
             }
@@ -160,7 +162,7 @@ where
         self.visitor.exit_stmt(stmt);
     }
 
-    pub fn walk_expr(&mut self, expr: &mut Expr, loc: &mut Loc) {
+    pub fn walk_expr(&mut self, expr: &mut Expr, loc: &Loc) {
         use Expr::*;
         self.visitor.enter_expr(expr, loc);
         match expr {
@@ -213,7 +215,7 @@ where
 
     /// like [Stmt::walk], but as a method on LValue. does the *exact*
     /// same thing
-    pub fn walk_lval(&mut self, lval: &mut LValue, loc: &mut Loc) {
+    pub fn walk_lval(&mut self, lval: &mut LValue, loc: &Loc) {
         use LValue::*;
         match lval {
             Id(_) => (),
