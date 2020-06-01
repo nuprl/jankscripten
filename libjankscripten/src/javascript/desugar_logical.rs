@@ -12,7 +12,7 @@ pub fn desugar_logical(stmt: &mut Stmt, ng: &mut NameGen) {
 /// visitor for all logical desugars
 struct DesugarLogical<'a>(&'a mut NameGen);
 impl Visitor for DesugarLogical<'_> {
-    fn exit_expr(&mut self, expr: &mut Expr, loc: &mut Loc) {
+    fn exit_expr(&mut self, expr: &mut Expr, loc: &Loc) {
         let ctx = if let Loc::Node(Context::Block(ctx), ..) = loc {
             ctx
         } else {
