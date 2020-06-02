@@ -23,7 +23,7 @@ impl Stmt {
                 .append(D::line())
                 .append(D::text("}")),
             Empty => D::text(";"),
-            Expr(e) => e.to_doc().append(D::text(";")),
+            Expr(e) => D::text("(").append(e.to_doc()).append(D::text(")")).append(D::text(";")),
             If(cond, then, other) => D::text("if (")
                 .append(cond.to_doc())
                 // TODO(luna):
@@ -145,12 +145,13 @@ impl Expr {
                 .append(D::text("("))
                 .append(e.to_doc())
                 .append(D::text(")")),
-            Binary(op, a, b) => a
-                .to_doc()
+            Binary(op, a, b) => D::text("(")
+                .append(a.to_doc())
                 .append(D::space())
                 .append(op.to_doc())
                 .append(D::space())
-                .append(b.to_doc()),
+                .append(b.to_doc())
+                .append(D::text(")")),
             UnaryAssign(op, lval) => match op {
                 UnaryAssignOp::PreInc => D::text("++").append(lval.to_doc()),
                 UnaryAssignOp::PreDec => D::text("--").append(lval.to_doc()),
@@ -171,7 +172,9 @@ impl Expr {
                 .append(to.to_doc()),
             Call(clos, args) => fn_call_to_doc(clos, args),
             Func(maybe_name, params, body) => func_to_doc(maybe_name.as_ref(), params, body),
-            Seq(es) => D::intersperse(es.iter().map(Expr::to_doc), D::text(", ")),
+            Seq(es) => D::text("(")
+                .append(D::intersperse(es.iter().map(Expr::to_doc), D::text(", ")))
+                .append(D::text(")")),
         }
     }
     pub fn to_pretty(&self, width: usize) -> String {
@@ -489,4 +492,26 @@ mod test {
 }",
         )
     }
+
+    #[test]
+    fn seq_parenthesization() {
+        parse_pretty_parse_expr(r#"
+            x ? (y, z) : w
+        "#);
+    }
+
+    #[test]
+    fn add_multiply_parenthesization() {
+        parse_pretty_parse_expr(r#"
+            (x + y) * z
+        "#);
+    }
+
+    #[test]
+    fn top_level_application() {
+        parse_pretty_parse(r#"
+            (function() { }());
+        "#);
+    }
+
 }
