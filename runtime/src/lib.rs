@@ -69,8 +69,8 @@ pub extern "C" fn add_num(a: &Num, b: &Num) -> Num {
 
 /// constructor function for creating a Num using an i32
 #[no_mangle]
-pub extern "C" fn num_i32(i: i32) -> Num {
-    Num::I32(i)
+pub extern "C" fn num_i32(i: i32) -> Box<Num> {
+    Box::new(Num::I32(i))
 }
 
 /// constructor function for creating a Num using an f64
