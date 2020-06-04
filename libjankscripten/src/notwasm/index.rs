@@ -8,7 +8,7 @@ type IndexEnv = HashMap<Id, u32>;
 
 /// this turns all identifiers to indexes and all closure references to Int
 /// expressions that refer to the closure index
-fn index(program: &mut Program) {
+pub fn index(program: &mut Program) {
     // this clone is inevitable because we pass &mut func and func_names
     let func_names = program
         .functions
@@ -16,13 +16,13 @@ fn index(program: &mut Program) {
         .enumerate()
         .map(|(i, id)| (id.clone(), i as u32))
         .collect();
-    for (_, func) in program.functions {
+    for (_, mut func) in &mut program.functions {
         index_func(&mut func, &func_names);
     }
 }
 
 fn index_func(func: &mut Function, funcs: &IndexEnv) {
-    let mut vis = IndexVisitor::new(funcs);
+    let mut vis = IndexVisitor::new(funcs, &func.ty);
     func.body.walk(&mut vis);
     func.locals = vis.types;
 }
@@ -40,21 +40,8 @@ impl Visitor for IndexVisitor<'_> {
         use Stmt::*;
         match stmt {
             Var(id, expr) => self.update_env(id, expr.get_type()),
-            Assign(id, expr) => self.update_id(id),
-            Call(a, b, cs, ty) | New(a, b, cs, ty) => {
-                self.update_env(a, ty.clone());
-                self.update_id(b);
-                for c in cs {
-                    self.update_id(c);
-                }
-            }
+            Assign(id, ..) => self.update_id(id),
             // TODO(luna): index label/break
-            //HT(pairs) => {
-            //    for (id, val) in pairs {
-            //        update_id(func_names, names, id);
-            //        index_func(types, func_names, names, val);
-            //    }
-            //}
             _ => (),
         }
     }
@@ -62,32 +49,44 @@ impl Visitor for IndexVisitor<'_> {
     fn exit_expr(&mut self, expr: &mut Expr, _loc: &mut Loc) {
         use Expr::*;
         match expr {
+            Call(b, cs, ..) | New(b, cs, ..) => {
+                self.update_id(b);
+                for c in cs {
+                    self.update_id(c);
+                }
+            }
+            _ => (),
+        }
+    }
+
+    fn exit_atom(&mut self, atom: &mut Atom, _loc: &mut Loc) {
+        use Atom::*;
+        match atom {
             Id(id, ..) => self.update_id(id),
-            //HT(pairs) => {
-            //    for (id, val) in pairs {
-            //        update_id(func_names, names, id);
-            //        index_func(types, func_names, names, val);
-            //    }
-            //}
             _ => (),
         }
     }
 }
 /// from wasm-experiments
 impl<'a> IndexVisitor<'a> {
-    fn new(func_names: &'a IndexEnv) -> Self {
+    fn new(func_names: &'a IndexEnv, ty: &Type) -> Self {
+        let types = match ty {
+            Type::Fn(params, _) => params.clone(),
+            _ => panic!("non-function type given to notwasm function"),
+        };
         Self {
-            types: Vec::new(),
+            types: types,
             names: IndexEnv::new(),
             func_names,
         }
     }
+    /// become aware of a new id, and replace it with a new index
     fn update_env(&mut self, id: &mut Id, ty: Type) {
         self.names.insert(id.clone(), self.types.len() as u32);
         self.types.push(ty);
         self.update_id(id);
     }
-
+    /// replace an id with the index we already know about
     fn update_id(&self, id: &mut Id) {
         match id {
             Id::Named(_) => {
@@ -103,23 +102,7 @@ impl<'a> IndexVisitor<'a> {
             }
             Id::Index(_) => panic!("already indexed???"),
             Id::Func(_) => panic!("no closures should be indexed yet {:?}", id),
+            Id::Label(_) => todo!(),
         }
     }
 }
-
-/*pub fn _index(mut exp: &mut Exp) -> Vec<Vec<Type>> {
-    let mut locals_vec = vec![];
-    let mut func_names = HashMap::new();
-    // first we gather the lifted functions and find their locals arrays
-                        update_id(&func_names, &mut HashMap::new(), name);
-                        // we have to skip parameters because they're not
-                        // included in locals, but the indexes still start
-                        // with parameters
-                        locals_vec.push(locals.into_iter().skip(params_tys.len()).collect());
-                    }
-                    _ => break,
-                }
-            }
-            _ => break,
-        }
-}*/

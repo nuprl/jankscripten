@@ -4,24 +4,21 @@ use super::syntax::*;
 
 /// a visitor is passed to [Stmt::walk] to describe what happens when walking
 ///
-/// each method has a default implementation of doing nothing, so you only have to specify what you need. the way to make a Visitor to pass to [Stmt::walk] is to define a newtype:
-///
-/// ```
-/// use libjankscripten::syntax::Visitor;
-/// struct WalkOn;
-/// impl Visitor for WalkOn {
-///     // ...
-/// }
-/// ```
+/// each method has a default implementation of doing nothing, so you
+/// only have to specify what you need
 pub trait Visitor {
     /// called before recursing on a statement
     fn enter_stmt(&mut self, _stmt: &mut Stmt) {}
     /// called before recursing on an expression
     fn enter_expr(&mut self, _expr: &mut Expr, _loc: &mut Loc) {}
+    /// called before recursing on an atom
+    fn enter_atom(&mut self, _atom: &mut Atom, _loc: &mut Loc) {}
     /// called after recursing on a statement, with the new value
     fn exit_stmt(&mut self, _stmt: &mut Stmt) {}
     /// called after recursing on an expression, with the new value
     fn exit_expr(&mut self, _expr: &mut Expr, _loc: &mut Loc) {}
+    /// called after recursing on an atom, with the new value
+    fn exit_atom(&mut self, _atom: &mut Atom, _loc: &mut Loc) {}
 }
 
 pub struct VisitorState<'v, V> {
@@ -104,7 +101,7 @@ where
         // recurse
         match stmt {
             // 0
-            Empty | Break(..) | New(..) | Call(..) => (),
+            Empty | Break(..) => (),
             // 1xStmt
             Label(.., a) => self.walk_stmt(a, loc),
             // 1x[Stmt]
@@ -118,15 +115,17 @@ where
                 block_cxt.apply_patches(ss);
             }
             // 1xExpr
-            Assign(.., a) | Var(.., a) | Return(a) | Expr(a) => self.walk_expr(a, loc),
+            Assign(.., a) | Var(.., a) | Expr(a) => self.walk_expr(a, loc),
+            // 1xAtom
+            Return(a) => self.walk_atom(a, loc),
             // 1xExpr, 1xStmt
             While(e, s) => {
-                self.walk_expr(e, loc);
+                self.walk_atom(e, loc);
                 self.walk_stmt(s, loc);
             }
             // 1xExpr, 2xStmt
             If(e, sa, sb) => {
-                self.walk_expr(e, loc);
+                self.walk_atom(e, loc);
                 self.walk_stmt(sa, loc);
                 self.walk_stmt(sb, loc);
             }
@@ -138,8 +137,6 @@ where
         use Expr::*;
         self.visitor.enter_expr(expr, loc);
         match expr {
-            // 0
-            Lit(..) | Id(..) => (),
             // 1x[Expr]
             //Array(es) => {
             //    for e in es {
@@ -155,12 +152,28 @@ where
             //// 1xExpr
             //Dot(e, ..) | Unary(.., e) => self.walk_expr(e, loc),
             //// 2xExpr
-            Binary(.., ea, eb, _) => {
-                self.walk_expr(ea, loc);
-                self.walk_expr(eb, loc);
-            }
+            _ => (),
         }
         self.visitor.exit_expr(expr, loc);
+    }
+
+    pub fn walk_atom(&mut self, atom: &mut Atom, loc: &mut Loc) {
+        use Atom::*;
+        self.visitor.enter_atom(atom, loc);
+        match atom {
+            // 0
+            Lit(..) | Id(..) => (),
+            Binary(.., ea, eb, _) | HTGet(ea, eb, ..) => {
+                self.walk_atom(ea, loc);
+                self.walk_atom(eb, loc);
+            }
+            HTSet(ea, eb, ec, ..) => {
+                self.walk_atom(ea, loc);
+                self.walk_atom(eb, loc);
+                self.walk_atom(ec, loc);
+            }
+        }
+        self.visitor.exit_atom(atom, loc);
     }
 }
 
@@ -206,10 +219,25 @@ impl Expr {
         let mut loc = Loc::Top;
         vs.walk_expr(self, &mut loc);
     }
-    /// replace this statement with `undefined` and return its old
+    /// replace this expression with `HT` and return its old
     /// value. this is used to gain ownership of a mutable reference,
     /// especially in [Expr::walk]
     pub fn take(&mut self) -> Self {
-        std::mem::replace(self, Expr::Lit(Lit::Undefined))
+        std::mem::replace(self, Expr::HT(Type::AnyClass))
+    }
+}
+
+impl Atom {
+    /// like [Stmt::walk], but as a method on Atom
+    pub fn walk(&mut self, v: &mut impl Visitor) {
+        let mut vs = VisitorState::new(v);
+        let mut loc = Loc::Top;
+        vs.walk_atom(self, &mut loc);
+    }
+    /// replace this atom with `false` and return its old
+    /// value. this is used to gain ownership of a mutable reference,
+    /// especially in [Atom::walk]
+    pub fn take(&mut self) -> Self {
+        std::mem::replace(self, Atom::Lit(Lit::Bool(false), Type::Bool))
     }
 }

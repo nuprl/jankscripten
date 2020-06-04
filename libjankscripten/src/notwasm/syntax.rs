@@ -29,40 +29,39 @@ pub struct Program {
 pub enum Stmt {
     Empty,
     Var(Id, Expr),
-    If(Expr, Box<Stmt>, Box<Stmt>),
-    While(Expr, Box<Stmt>),
+    Expr(Expr),
+    Assign(Id, Expr),
+    If(Atom, Box<Stmt>, Box<Stmt>),
+    While(Atom, Box<Stmt>),
     // TODO: indexes for labels too
     Label(Id, Box<Stmt>),
     Break(Id),
     // Break value as return?
-    Return(Expr),
+    Return(Atom),
     Block(Vec<Stmt>),
-    Expr(Expr),
-    Assign(Id, Expr),
-    Call(Id, Id, Vec<Id>, Type),
-    New(Id, Id, Vec<Id>, Type),
 }
 
 #[derive(Debug, PartialEq)]
-pub enum Expr {
+pub enum Atom {
     Lit(Lit, Type),
-    //Array(Vec<Expr>, Type),
-    //HT(Vec<(Key, Expr, Type)>, Type),
+    HTGet(Box<Atom>, Box<Atom>, Type),
+    // is this an atom?? cause won't we have to reallocate if we insert and
+    // run out of space
+    HTSet(Box<Atom>, Box<Atom>, Box<Atom>, Type),
     // HTGet / HTSet / ClassGet / etc VS Dot / Bracket
     // TODO: classes
     Id(Id, Type),
     // only negative float is unary and in JS
     //Unary(UnaryOp, Box<Expr>, Type),
-    Binary(BinaryOp, Box<Expr>, Box<Expr>, Type),
+    Binary(BinaryOp, Box<Atom>, Box<Atom>, Type),
 }
 
-impl Expr {
-    pub fn get_type(&self) -> Type {
-        use Expr::*;
-        match self {
-            Lit(.., ty) | /*Array(.., ty) | HT(.., ty) | */Id(.., ty) | Binary(.., ty) => ty.clone(),
-        }
-    }
+#[derive(Debug, PartialEq)]
+pub enum Expr {
+    //Array(Vec<Expr>, Type),
+    HT(Type),
+    Call(Id, Vec<Id>, Type),
+    New(Id, Vec<Id>, Type),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -75,6 +74,22 @@ pub enum Type {
     Bool,
     AnyClass,
     Fn(Vec<Type>, Box<Type>),
+}
+impl Expr {
+    pub fn get_type(&self) -> Type {
+        use Expr::*;
+        match self {
+            Call(.., ty) | New(.., ty) | HT(ty) => ty.clone(),
+        }
+    }
+}
+impl Atom {
+    pub fn get_type(&self) -> Type {
+        use Atom::*;
+        match self {
+            Lit(.., ty) | /*Array(.., ty) | HT(.., ty) | */Id(.., ty) | Binary(.., ty) | HTGet(.., ty) | HTSet(.., ty) => ty.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
@@ -95,6 +110,7 @@ pub struct Class;
 pub struct Function {
     pub locals: Vec<Type>,
     pub body: Stmt,
+    pub ty: Type,
 }
 
 #[derive(Debug, PartialEq)]
