@@ -12,7 +12,7 @@
 
   
   ;; sample program: (Num(4) + Num(6) => Num(10)).unwrap() => 10
-  (func (export "test_add_num") (result i32)
+  (func (export "main") (result i32)
 
     ;; Num(4) -> [0]
     i32.const 0

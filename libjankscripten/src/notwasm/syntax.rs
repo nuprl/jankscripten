@@ -62,6 +62,7 @@ pub enum Expr {
     HT(Type),
     Call(Id, Vec<Id>, Type),
     New(Id, Vec<Id>, Type),
+    Atom(Atom, Type),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -70,7 +71,7 @@ pub enum Type {
     F64,
     Num,
     Class,
-    HT,
+    HT(Box<Type>),
     Bool,
     AnyClass,
     Fn(Vec<Type>, Box<Type>),
@@ -79,7 +80,7 @@ impl Expr {
     pub fn get_type(&self) -> Type {
         use Expr::*;
         match self {
-            Call(.., ty) | New(.., ty) | HT(ty) => ty.clone(),
+            Atom(.., ty) | Call(.., ty) | New(.., ty) | HT(ty) => ty.clone(),
         }
     }
 }
@@ -100,6 +101,15 @@ pub enum Id {
     Func(u32),
     // labels are indexed by depth above statement
     Label(u32),
+}
+impl Id {
+    pub fn index(&self) -> u32 {
+        use Id::*;
+        match self {
+            Named(..) => panic!("non-indexed id"),
+            Index(i) | Func(i) | Label(i) => *i,
+        }
+    }
 }
 
 // TODO

@@ -1,63 +1,79 @@
-//use super::compile;
-//use super::syntax::*;
-//use wasmtime::*;
-//
-//fn test_wasm(expected: i32, program: Program) {
-//    let code = compile(program).unwrap();
-//    let store = Store::default();
-//    let module = Module::new(&store, &code).unwrap();
-//    let instance = Instance::new(&module, &[]).unwrap();
-//    let func = instance
-//        .exports()
-//        .next()
-//        .unwrap()
-//        .into_func()
-//        .expect("export wasn't a function");
-//    match func.call(&[]).unwrap()[0] {
-//        Val::I32(i) => assert_eq!(expected, i),
-//        _ => panic!("non-int wasm return"),
-//    }
-//}
+use super::compile;
+use super::syntax::*;
+use std::io::Write;
+use std::process::{Command, Stdio};
 
-/*use rusty_v8::*;
-use std::sync::Once;
+fn test_wasm(expected: i32, program: Program) {
+    let wasm = compile(program).expect("couldn't compile");
+    // build runtime
+    Command::new("cargo")
+        .arg("build")
+        .arg("--target=wasm32-unknown-unknown")
+        .arg("--release")
+        .current_dir("../runtime/")
+        .status()
+        .expect("failed to build runtime");
+    let mut run = Command::new("cargo")
+        .arg("run")
+        .current_dir("../tester/")
+        // avoids needing tmp file which is test threading mess
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("failed to run tester binary");
+    // https://doc.rust-lang.org/std/process/struct.Stdio.html
+    {
+        run.stdin
+            .as_mut()
+            .expect("no stdin")
+            .write_all(&wasm)
+            .expect("couldn't write");
+    }
+    let out = run.wait_with_output().expect("no stdout");
+    // print stderr for debugging
+    println!("{}", String::from_utf8_lossy(&out.stderr));
+    let out_str = String::from_utf8_lossy(&out.stdout);
+    println!("{}", out_str);
+    assert_eq!(
+        // exclude trailing newline
+        out_str.trim_end().parse::<i32>().expect("non number"),
+        expected
+    );
+}
 
-static START: Once = Once::new();
+use super::constructors::*;
 
-fn run_v8(script: &str) -> std::string::String {
-    START.call_once(|| {
-        // initializing multiple times is not just a performance problem it causes a panic
-        let platform = new_default_platform().unwrap();
-        V8::initialize_platform(platform);
-        V8::initialize();
-    });
-
-    let mut isolate = Isolate::new(Default::default());
-
-    let mut handle_scope = HandleScope::new(&mut isolate);
-    let handle_scope = handle_scope.enter();
-
-    let context = Context::new(handle_scope);
-    let mut context_scope = ContextScope::new(handle_scope, context);
-
-    let entered_scope = context_scope.enter();
-
-    let script = String::new(entered_scope, script).unwrap();
-
-    let mut script = Script::compile(entered_scope, context, script, None).unwrap();
-    script
-        .run(entered_scope, context)
-        .unwrap()
-        .to_string(entered_scope)
-        .unwrap()
-        .to_rust_string_lossy(entered_scope)
+#[test]
+fn works_no_runtime() {
+    let program = test_program_(Stmt::Block(vec![
+        Stmt::Var(
+            Id::Named("x".to_string()),
+            Expr::Atom(Atom::Lit(Lit::I32(5), Type::I32), Type::I32),
+        ),
+        Stmt::Return(Atom::Id(Id::Named("x".to_string()), Type::I32)),
+    ]));
+    test_wasm(5, program);
 }
 
 #[test]
-fn whoo() {
-    use std::fs::read_to_string;
-    assert!(
-        &run_v8(&read_to_string("../target/wasm32-unknown-unknown/release/runtime.wasm").unwrap())
-            == "hello"
-    );
-}*/
+#[should_panic]
+fn fails_no_runtime() {
+    let program = test_program_(Stmt::Return(Atom::Lit(Lit::I32(5), Type::I32)));
+    test_wasm(7, program);
+}
+
+#[test]
+fn works_with_runtime() {
+    let ht_type = Type::HT(Box::new(Type::I32));
+    let program = test_program_(Stmt::Block(vec![
+        Stmt::Var(id_("x"), Expr::HT(ht_type.clone())),
+        Stmt::Expr(atom_(ht_set_(
+            get_id_("x", ht_type.clone()),
+            i32_(0),
+            i32_(10),
+            Type::I32,
+        ))),
+        Stmt::Return(ht_get_(get_id_("x", ht_type), i32_(0), Type::I32)),
+    ]));
+    test_wasm(10, program);
+}

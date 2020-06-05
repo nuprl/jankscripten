@@ -152,7 +152,8 @@ where
             //// 1xExpr
             //Dot(e, ..) | Unary(.., e) => self.walk_expr(e, loc),
             //// 2xExpr
-            _ => (),
+            HT(..) | Call(..) | New(..) => (),
+            Atom(a, ..) => self.walk_atom(a, loc),
         }
         self.visitor.exit_expr(expr, loc);
     }
