@@ -11,6 +11,8 @@ use parity_wasm::serialize;
 use std::collections::HashMap;
 use Instruction::*;
 
+type FuncTypeMap = HashMap<(Vec<ValueType>, ValueType), u32>;
+
 pub fn translate(program: N::Program) -> Result<Vec<u8>, Error> {
     serialize(translate_parity(program))
 }
@@ -19,14 +21,19 @@ pub fn translate_parity(mut program: N::Program) -> Module {
     let mut module = module();
     let rt_types = get_rt_bindings();
     let mut rt_indexes = HashMap::new();
+    // build up indexes for mutual recursion first
+    let mut type_indexes = HashMap::new();
     for (func_i, (name, ty)) in rt_types.iter().enumerate() {
         let type_i = if let N::Type::Fn(params, ret) = ty {
-            module.push_signature(
+            let wasm_ty = (types_as_wasm(params), ret.as_wasm());
+            let i_check = module.push_signature(
                 signature()
-                    .with_params(params.iter().map(N::Type::as_wasm).collect())
-                    .with_return_type(Some(ret.as_wasm()))
+                    .with_params(wasm_ty.0.clone())
+                    .with_return_type(Some(wasm_ty.1.clone()))
                     .build_sig(),
-            )
+            );
+            assert_eq!(*type_indexes.entry(wasm_ty).or_insert(i_check), i_check);
+            i_check
         } else {
             panic!("non-fn fn");
         };
@@ -44,19 +51,47 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         .memory(0, None)
         .build();
     let entry_index = rt_types.len() as u32;
+    for func in program.functions.values() {
+        // has to be wasm types to dedup properly
+        let func_ty = (
+            types_as_wasm(&no_ids(func.params_tys.clone())),
+            func.ret_ty.as_wasm(),
+        );
+        let next_index = type_indexes.len() as u32;
+        type_indexes.entry(func_ty).or_insert(next_index);
+    }
     for func in program.functions.values_mut() {
-        module.push_function(translate_func(func, &rt_indexes, entry_index));
+        module.push_function(translate_func(func, &rt_indexes, &type_indexes));
     }
-    for global in program.globals {
-        // do a global
+    for (i, mut global) in program.globals {
+        // can't use functions anyway so no need to worry
+        let empty = HashMap::new();
+        let empty2 = HashMap::new();
+        let mut visitor = Translate::new(&empty, &empty2);
+        visitor.translate_atom(&mut global);
+        let mut insts = visitor.out;
+        insts.push(End);
+        // TODO: do a global
     }
+    // fsr we need an identity table to call indirect
+    let mut table_build = module.table().with_min(program.functions.len() as u32);
+    let offset = rt_indexes.len() as u32;
+    let mut main_index = None;
+    for (notwasm_index, name) in program.functions.keys().enumerate() {
+        let wasm_index = notwasm_index as u32 + offset;
+        // find main
+        if name == &N::Id::Named("main".to_string()) {
+            main_index = Some(wasm_index)
+        }
+        table_build = table_build.with_element(notwasm_index as u32, vec![wasm_index]);
+    }
+    let module = table_build.build();
     // export main
-    // TODO: assumes main is first
     let module = module
         .export()
         .field("main")
         .internal()
-        .func(entry_index)
+        .func(main_index.expect("no main"))
         .build();
     module.build()
 }
@@ -64,15 +99,15 @@ pub fn translate_parity(mut program: N::Program) -> Module {
 fn translate_func(
     func: &mut N::Function,
     rt_indexes: &HashMap<String, u32>,
-    entry_index: u32,
+    type_indexes: &FuncTypeMap,
 ) -> FunctionDefinition {
     let out_func = function()
         .signature()
-        .with_params(func.params_tys.iter().map(N::Type::as_wasm).collect())
+        .with_params(types_as_wasm(&no_ids(func.params_tys.clone())))
         .with_return_type(Some(func.ret_ty.as_wasm()))
         .build();
     // generate the actual code
-    let mut visitor = Translate::new(rt_indexes, entry_index);
+    let mut visitor = Translate::new(rt_indexes, type_indexes);
     visitor.translate(&mut func.body);
     let mut insts = visitor.out;
     insts.push(End);
@@ -89,19 +124,26 @@ fn translate_func(
         .build()
 }
 
+fn types_as_wasm(types: &[N::Type]) -> Vec<ValueType> {
+    types.iter().map(N::Type::as_wasm).collect()
+}
+fn no_ids(ids_tys: Vec<(N::Id, N::Type)>) -> Vec<N::Type> {
+    ids_tys.into_iter().map(|(_, ty)| ty).collect()
+}
+
 /// don't just call walk on this, use [translate], because walk doesn't
 /// handle statements correctly
 struct Translate<'a> {
     out: Vec<Instruction>,
     rt_indexes: &'a HashMap<String, u32>,
-    entry_index: u32,
+    type_indexes: &'a FuncTypeMap,
 }
 impl<'a> Translate<'a> {
-    fn new(rt_indexes: &'a HashMap<String, u32>, entry_index: u32) -> Self {
+    fn new(rt_indexes: &'a HashMap<String, u32>, type_indexes: &'a FuncTypeMap) -> Self {
         Self {
             out: Vec::new(),
             rt_indexes,
-            entry_index,
+            type_indexes,
         }
     }
     fn translate(&mut self, stmt: &mut N::Stmt) {
@@ -142,7 +184,21 @@ impl<'a> Translate<'a> {
                 self.translate_atom(val);
                 self.rt_call_mono("ht_set", ty);
             }
-            _ => todo!(),
+            N::Expr::Call(func, args, params_tys, ret_ty) => {
+                for arg in args {
+                    self.out.push(GetLocal(arg.index()));
+                }
+                self.out.push(GetLocal(func.index()));
+                let index = if let Some(i) = self
+                    .type_indexes
+                    .get(&(types_as_wasm(params_tys), ret_ty.as_wasm()))
+                {
+                    *i
+                } else {
+                    panic!("unknown function type");
+                };
+                self.out.push(CallIndirect(index, 0));
+            }
         }
     }
     fn translate_atom(&mut self, atom: &mut N::Atom) {

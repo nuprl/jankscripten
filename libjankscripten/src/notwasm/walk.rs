@@ -147,7 +147,7 @@ where
             //// 1xExpr
             //Dot(e, ..) | Unary(.., e) => self.walk_expr(e, loc),
             //// 2xExpr
-            HT(..) | Call(..) | New(..) => (),
+            HT(..) | Call(..) => (),
             HTSet(ea, _, ec, ..) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(ec, loc);

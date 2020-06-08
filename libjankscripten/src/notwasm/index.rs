@@ -49,7 +49,7 @@ impl Visitor for IndexVisitor<'_> {
     fn exit_expr(&mut self, expr: &mut Expr, _loc: &mut Loc) {
         use Expr::*;
         match expr {
-            Call(b, cs, ..) | New(b, cs, ..) => {
+            Call(b, cs, ..) => {
                 self.update_id(b);
                 for c in cs {
                     self.update_id(c);
@@ -69,10 +69,16 @@ impl Visitor for IndexVisitor<'_> {
 }
 /// from wasm-experiments
 impl<'a> IndexVisitor<'a> {
-    fn new(func_names: &'a IndexEnv, params_tys: Vec<Type>) -> Self {
+    fn new(func_names: &'a IndexEnv, params_tys: Vec<(Id, Type)>) -> Self {
+        let mut names = IndexEnv::new();
+        let mut types = Vec::new();
+        for (id, ty) in params_tys {
+            names.insert(id, names.len() as u32);
+            types.push(ty);
+        }
         Self {
-            types: params_tys,
-            names: IndexEnv::new(),
+            types,
+            names,
             func_names,
         }
     }
@@ -100,5 +106,32 @@ impl<'a> IndexVisitor<'a> {
             Id::Func(_) => panic!("no closures should be indexed yet {:?}", id),
             Id::Label(_) => todo!(),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::super::constructors::*;
+    use super::super::syntax::*;
+    use super::index;
+    use std::collections::HashMap;
+    #[test]
+    fn index_params() {
+        let func = Function {
+            locals: Vec::new(),
+            body: Stmt::Return(get_id_("the_param")),
+            params_tys: vec![(id_("the_param"), Type::I32)],
+            ret_ty: Type::I32,
+        };
+        let mut program = program1_(func);
+        index(&mut program);
+        let indexed_func = Function {
+            locals: vec![Type::I32],
+            body: Stmt::Return(Atom::Id(Id::Index(0))),
+            params_tys: vec![(id_("the_param"), Type::I32)],
+            ret_ty: Type::I32,
+        };
+        let expected = program1_(indexed_func);
+        assert_eq!(program, expected);
     }
 }
