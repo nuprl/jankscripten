@@ -2,18 +2,24 @@
 //! with garbage collected structures, expressions, and statements
 //!
 //! From the design document:
-//! NotWasm is a lower-level IR than JankyScript, but higher-level than Wasm. It has the following features:
+//! NotWasm is a lower-level IR than JankyScript, but higher-level than
+//!   Wasm. It has the following features:
 //! - First-order functions
-//! - Garbage-collected data structures, including classes, arrays, and hash tables
-//! - An environment data structure that can store addresses of local variables.
-//! - All local variables are annotated with a flag that determines if they can be stored in an environment.
-//! - Unlike WebAssembly, NotWasm does not have an operand stack. Instead, it has compound expressions. We can easily introduce the operand stack later.
+//! - Garbage-collected data structures, including classes, arrays, and
+//!   hash tables
+//! - An environment data structure that can store addresses of local
+//!   variables.
+//! - All local variables are annotated with a flag that determines if they
+//!   can be stored in an environment.
+//! - Unlike WebAssembly, NotWasm does not have an operand stack. Instead,
+//!   it has compound expressions. We can easily introduce the operand stack later.
 //! - What is the type system?
 //!   - T ::= i32 | f64 | num | C | ht | bool | AnyClass | (T1, … Tn) -> T
 //! A Program is:
 //! - A set of classes (just fields, not methods, all public)
 //! - A set of functions
-//! - A set of global variables that are initialized to …whataever Wasm supports
+//! - A set of global variables that are initialized to …whataever Wasm
+//!   supports
 
 use std::collections::HashMap;
 
@@ -22,7 +28,7 @@ pub struct Program {
     pub classes: HashMap<Id, Class>,
     pub functions: HashMap<Id, Function>,
     // Expr must be const as defined by wasm
-    pub globals: HashMap<Id, Expr>,
+    pub globals: HashMap<Id, Atom>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -59,8 +65,8 @@ pub enum Expr {
     HT(Type),
     // TODO: String instead of i32
     HTSet(Box<Atom>, Key, Box<Atom>, Type),
-    Call(Id, Vec<Id>, Type),
-    New(Id, Vec<Id>, Type),
+    Call(Id, Vec<Id>, Vec<Type>, Type),
+    //New(Id, Vec<Id>, Type),
     Atom(Atom),
 }
 
@@ -104,7 +110,7 @@ pub struct Function {
     pub locals: Vec<Type>,
     pub body: Stmt,
     pub ret_ty: Type,
-    pub params_tys: Vec<Type>,
+    pub params_tys: Vec<(Id, Type)>,
 }
 
 #[derive(Debug, PartialEq)]
