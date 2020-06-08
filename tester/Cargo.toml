@@ -1,0 +1,12 @@
+[package]
+name = "tester"
+version = "0.1.0"
+authors = ["Emily Herbert <emilyherbert@cs.umass.edu>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+wasmtime = "0.16.0"
+wasmtime-wasi = "0.16.0"
+anyhow = "1.0.19"
