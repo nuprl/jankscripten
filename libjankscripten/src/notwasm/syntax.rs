@@ -31,7 +31,7 @@ pub enum Stmt {
     Var(Id, Expr, Type),
     Assign(Id, Expr),
     If(Atom, Box<Stmt>, Box<Stmt>),
-    While(Atom, Box<Stmt>),
+    Loop(Box<Stmt>),
     // TODO: indexes for labels too
     Label(Id, Box<Stmt>),
     Break(Id),
@@ -68,12 +68,12 @@ pub enum Expr {
 pub enum Type {
     I32,
     F64,
-    Num,
     Class,
     HT(Box<Type>),
     Bool,
     AnyClass,
     Fn(Vec<Type>, Box<Type>),
+    Any,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
@@ -138,3 +138,23 @@ pub enum BinaryOp {
     //Str(String),
 }*/
 pub type Key = i32;
+
+impl std::fmt::Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use Type::*;
+        write!(
+            f,
+            "{}",
+            match self {
+                I32 => "i32",
+                F64 => "f64",
+                Class => "class",
+                HT(..) => "ht",
+                Bool => "bool",
+                AnyClass => "anyclass",
+                Fn(..) => "fn",
+                Any => "any",
+            }
+        )
+    }
+}

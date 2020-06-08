@@ -10,6 +10,12 @@ pub fn ht_get_(a: Atom, b: Key, ty: Type) -> Atom {
 pub fn i32_(a: i32) -> Atom {
     Atom::Lit(Lit::I32(a))
 }
+pub fn binary_(op: BinaryOp, a: Atom, b: Atom, ty: Type) -> Atom {
+    Atom::Binary(op, Box::new(a), Box::new(b), ty)
+}
+pub fn plus_(a: Atom, b: Atom, ty: Type) -> Atom {
+    binary_(BinaryOp::Plus, a, b, ty)
+}
 pub fn atom_(a: Atom) -> Expr {
     Expr::Atom(a)
 }

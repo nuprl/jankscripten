@@ -30,7 +30,7 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         } else {
             panic!("non-fn fn");
         };
-        rt_indexes.insert(*name, func_i as u32);
+        rt_indexes.insert(name.clone(), func_i as u32);
         module = module
             .import()
             .path("runtime", name)
@@ -63,7 +63,7 @@ pub fn translate_parity(mut program: N::Program) -> Module {
 
 fn translate_func(
     func: &mut N::Function,
-    rt_indexes: &HashMap<&'static str, u32>,
+    rt_indexes: &HashMap<String, u32>,
     entry_index: u32,
 ) -> FunctionDefinition {
     let out_func = function()
@@ -93,11 +93,11 @@ fn translate_func(
 /// handle statements correctly
 struct Translate<'a> {
     out: Vec<Instruction>,
-    rt_indexes: &'a HashMap<&'static str, u32>,
+    rt_indexes: &'a HashMap<String, u32>,
     entry_index: u32,
 }
 impl<'a> Translate<'a> {
-    fn new(rt_indexes: &'a HashMap<&'static str, u32>, entry_index: u32) -> Self {
+    fn new(rt_indexes: &'a HashMap<String, u32>, entry_index: u32) -> Self {
         Self {
             out: Vec::new(),
             rt_indexes,
@@ -135,12 +135,12 @@ impl<'a> Translate<'a> {
     fn translate_expr(&mut self, expr: &mut N::Expr) {
         match expr {
             N::Expr::Atom(atom) => self.translate_atom(atom),
-            N::Expr::HT(ty) => self.rt_call("ht_new"),
+            N::Expr::HT(ty) => self.rt_call_mono("ht_new", ty),
             N::Expr::HTSet(ht, field, val, ty) => {
                 self.translate_atom(ht);
                 self.out.push(I32Const(*field));
                 self.translate_atom(val);
-                self.rt_call("ht_set");
+                self.rt_call_mono("ht_set", ty);
             }
             _ => todo!(),
         }
@@ -155,9 +155,35 @@ impl<'a> Translate<'a> {
             N::Atom::HTGet(ht, field, ty) => {
                 self.translate_atom(ht);
                 self.out.push(I32Const(*field));
-                self.rt_call("ht_get");
+                self.rt_call_mono("ht_get", ty);
             }
-            _ => todo!(),
+            N::Atom::Binary(op, a, b, ty) => {
+                self.translate_atom(a);
+                self.translate_atom(b);
+                self.out.push(match ty {
+                    N::Type::I32 => match op {
+                        N::BinaryOp::LeftShift => I32Shl,
+                        N::BinaryOp::RightShift => I32ShrS,
+                        N::BinaryOp::UnsignedRightShift => I32ShrU,
+                        N::BinaryOp::Plus => I32Add,
+                        N::BinaryOp::Minus => I32Sub,
+                        N::BinaryOp::Times => I32Mul,
+                        N::BinaryOp::Over => I32DivS, // TODO: signed/unsigned?
+                        N::BinaryOp::Mod => I32RemS,
+                        N::BinaryOp::Or => I32Or,
+                        N::BinaryOp::XOr => I32Xor,
+                        N::BinaryOp::And => I32And,
+                    },
+                    N::Type::F64 => match op {
+                        N::BinaryOp::Plus => F64Add,
+                        N::BinaryOp::Minus => F64Sub,
+                        N::BinaryOp::Times => F64Mul,
+                        N::BinaryOp::Over => F64Div,
+                        _ => panic!("operation unsupported on floats"),
+                    },
+                    _ => panic!("binary operations only on floats and ints in NotWasm"),
+                });
+            }
         }
     }
     fn rt_call(&mut self, name: &str) {
@@ -166,6 +192,11 @@ impl<'a> Translate<'a> {
         } else {
             panic!("cannot find rt {}", name);
         }
+    }
+    /// call a monomorphized function, which follows specific naming
+    /// conventions: `name_type`, with type given by [N::Type::fmt]
+    fn rt_call_mono(&mut self, name: &str, ty: &N::Type) {
+        self.rt_call(&format!("{}_{}", name, ty));
     }
 }
 

@@ -103,7 +103,7 @@ where
             // 0
             Empty | Break(..) => (),
             // 1xStmt
-            Label(.., a) => self.walk_stmt(a, loc),
+            Label(.., a) | Loop(a) => self.walk_stmt(a, loc),
             // 1x[Stmt]
             Block(ss) => {
                 let mut block_cxt = BlockContext::new(0, ss.len());
@@ -118,11 +118,6 @@ where
             Assign(.., a) | Var(.., a, _) => self.walk_expr(a, loc),
             // 1xAtom
             Return(a) => self.walk_atom(a, loc),
-            // 1xExpr, 1xStmt
-            While(e, s) => {
-                self.walk_atom(e, loc);
-                self.walk_stmt(s, loc);
-            }
             // 1xExpr, 2xStmt
             If(e, sa, sb) => {
                 self.walk_atom(e, loc);

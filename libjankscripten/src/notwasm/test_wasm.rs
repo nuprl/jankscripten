@@ -66,7 +66,7 @@ fn fails_no_runtime() {
 fn works_with_runtime() {
     let ht_type = Type::HT(Box::new(Type::I32));
     let program = test_program_(Stmt::Block(vec![
-        Stmt::Var(id_("x"), Expr::HT(ht_type.clone()), ht_type),
+        Stmt::Var(id_("x"), Expr::HT(Type::I32), ht_type),
         Stmt::Var(
             id_("_"),
             ht_set_(get_id_("x"), 0, i32_(10), Type::I32),
@@ -75,4 +75,10 @@ fn works_with_runtime() {
         Stmt::Return(ht_get_(get_id_("x"), 0, Type::I32)),
     ]));
     test_wasm(10, program);
+}
+
+#[test]
+fn binary_ops() {
+    let program = test_program_(Stmt::Return(plus_(i32_(5), i32_(7), Type::I32)));
+    test_wasm(12, program);
 }

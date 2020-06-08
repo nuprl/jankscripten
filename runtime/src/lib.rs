@@ -19,5 +19,8 @@
 //! - wasm_bindgen / wasm-pack is unneccessary and gets in the way since
 //!   it's all about js bindings and disallows enum structs
 
+pub type Key = i32;
+
+pub mod any;
 pub mod ht;
 pub mod num;
