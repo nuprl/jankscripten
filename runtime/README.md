@@ -1,6 +1,6 @@
 # building
 
-    cargo build --target wasm32-unknown-unknown --release
+    cargo build --target wasm32-unknown-unknown
 
 note that output goes to [../target] because the super crate owns this one
 

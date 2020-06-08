@@ -22,7 +22,7 @@ pub fn index(program: &mut Program) {
 }
 
 fn index_func(func: &mut Function, funcs: &IndexEnv) {
-    let mut vis = IndexVisitor::new(funcs, &func.ty);
+    let mut vis = IndexVisitor::new(funcs, func.params_tys.clone());
     func.body.walk(&mut vis);
     func.locals = vis.types;
 }
@@ -39,7 +39,7 @@ impl Visitor for IndexVisitor<'_> {
     fn enter_stmt(&mut self, stmt: &mut Stmt) {
         use Stmt::*;
         match stmt {
-            Var(id, expr) => self.update_env(id, expr.get_type()),
+            Var(id, _, ty) => self.update_env(id, ty.clone()),
             Assign(id, ..) => self.update_id(id),
             // TODO(luna): index label/break
             _ => (),
@@ -69,13 +69,9 @@ impl Visitor for IndexVisitor<'_> {
 }
 /// from wasm-experiments
 impl<'a> IndexVisitor<'a> {
-    fn new(func_names: &'a IndexEnv, ty: &Type) -> Self {
-        let types = match ty {
-            Type::Fn(params, _) => params.clone(),
-            _ => panic!("non-function type given to notwasm function"),
-        };
+    fn new(func_names: &'a IndexEnv, params_tys: Vec<Type>) -> Self {
         Self {
-            types: types,
+            types: params_tys,
             names: IndexEnv::new(),
             func_names,
         }

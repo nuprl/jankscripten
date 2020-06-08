@@ -1,21 +1,20 @@
 use super::syntax::*;
 use std::collections::HashMap;
 
-pub fn get_id_<S: Into<String>>(a: S, ty: Type) -> Atom {
-    Atom::Id(id_(a), ty)
+pub fn get_id_<S: Into<String>>(a: S) -> Atom {
+    Atom::Id(id_(a))
 }
-pub fn ht_get_(a: Atom, b: Atom, ty: Type) -> Atom {
-    Atom::HTGet(Box::new(a), Box::new(b), ty)
-}
-pub fn ht_set_(a: Atom, b: Atom, c: Atom, ty: Type) -> Atom {
-    Atom::HTSet(Box::new(a), Box::new(b), Box::new(c), ty)
+pub fn ht_get_(a: Atom, b: Key, ty: Type) -> Atom {
+    Atom::HTGet(Box::new(a), b, ty)
 }
 pub fn i32_(a: i32) -> Atom {
-    Atom::Lit(Lit::I32(a), Type::I32)
+    Atom::Lit(Lit::I32(a))
 }
 pub fn atom_(a: Atom) -> Expr {
-    let ty = a.get_type();
-    Expr::Atom(a, ty)
+    Expr::Atom(a)
+}
+pub fn ht_set_(a: Atom, b: Key, c: Atom, ty: Type) -> Expr {
+    Expr::HTSet(Box::new(a), b, Box::new(c), ty)
 }
 pub fn program_(functions: HashMap<Id, Function>) -> Program {
     Program {
@@ -33,7 +32,8 @@ pub fn test_program_(body: Stmt) -> Program {
     program1_(Function {
         locals: Vec::new(),
         body,
-        ty: Type::Fn(vec![], Box::new(Type::I32)),
+        params_tys: Vec::new(),
+        ret_ty: Type::I32,
     })
 }
 pub fn id_<S: Into<String>>(a: S) -> Id {

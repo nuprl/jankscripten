@@ -66,21 +66,14 @@ fn translate_func(
     rt_indexes: &HashMap<&'static str, u32>,
     entry_index: u32,
 ) -> FunctionDefinition {
-    let (params_tys, ret_ty) = if let N::Type::Fn(p, r) = &func.ty {
-        (p, r)
-    } else {
-        panic!("non-function function");
-    };
     let out_func = function()
         .signature()
-        .with_params(params_tys.iter().map(N::Type::as_wasm).collect())
-        .with_return_type(Some(ret_ty.as_wasm()))
+        .with_params(func.params_tys.iter().map(N::Type::as_wasm).collect())
+        .with_return_type(Some(func.ret_ty.as_wasm()))
         .build();
     // generate the actual code
     let mut visitor = Translate::new(rt_indexes, entry_index);
-    // TODO: this is unnecessary, we don't mutate we should change visitor
-    // to use & or get ownership of func in iteration if that's reasonable
-    func.body.walk(&mut visitor);
+    visitor.translate(&mut func.body);
     let mut insts = visitor.out;
     insts.push(End);
     let locals: Vec<_> = func
@@ -96,41 +89,12 @@ fn translate_func(
         .build()
 }
 
+/// don't just call walk on this, use [translate], because walk doesn't
+/// handle statements correctly
 struct Translate<'a> {
     out: Vec<Instruction>,
     rt_indexes: &'a HashMap<&'static str, u32>,
     entry_index: u32,
-}
-impl Visitor for Translate<'_> {
-    fn exit_stmt(&mut self, stmt: &mut N::Stmt) {
-        match stmt {
-            N::Stmt::Block(..) => (),
-            N::Stmt::Assign(id, ..) | N::Stmt::Var(id, ..) => self.out.push(SetLocal(id.index())),
-            // presumably our atom has been placed on the stack now
-            N::Stmt::Return(..) => self.out.push(Return),
-            N::Stmt::Expr(..) => self.out.push(Drop),
-            _ => todo!("{:?}", stmt),
-        }
-    }
-    fn exit_expr(&mut self, expr: &mut N::Expr, _loc: &mut Loc) {
-        match expr {
-            N::Expr::Atom(atom, ..) => (),
-            N::Expr::HT(ty) => self.rt_call("ht_new"),
-            _ => todo!(),
-        }
-    }
-    fn exit_atom(&mut self, atom: &mut N::Atom, _loc: &mut Loc) {
-        match atom {
-            N::Atom::Lit(lit, ..) => match lit {
-                N::Lit::I32(i) => self.out.push(I32Const(*i)),
-                _ => todo!(),
-            },
-            N::Atom::Id(id, ..) => self.out.push(GetLocal(id.index())),
-            N::Atom::HTGet(..) => self.rt_call("ht_get"),
-            N::Atom::HTSet(..) => self.rt_call("ht_set"),
-            _ => todo!(),
-        }
-    }
 }
 impl<'a> Translate<'a> {
     fn new(rt_indexes: &'a HashMap<&'static str, u32>, entry_index: u32) -> Self {
@@ -138,6 +102,62 @@ impl<'a> Translate<'a> {
             out: Vec::new(),
             rt_indexes,
             entry_index,
+        }
+    }
+    fn translate(&mut self, stmt: &mut N::Stmt) {
+        match stmt {
+            N::Stmt::Empty => (),
+            N::Stmt::Block(ss) => {
+                for s in ss {
+                    self.translate(s);
+                }
+            }
+            N::Stmt::Assign(id, expr) | N::Stmt::Var(id, expr, _) => {
+                // place value on stack
+                self.translate_expr(expr);
+                self.out.push(SetLocal(id.index()));
+            }
+            N::Stmt::If(cond, conseq, alt) => {
+                self.translate_atom(cond);
+                self.out.push(If(BlockType::NoResult));
+                self.translate(conseq);
+                self.out.push(Else);
+                self.translate(alt);
+                self.out.push(End);
+            }
+            N::Stmt::Return(atom) => {
+                self.translate_atom(atom);
+                self.out.push(Return);
+            }
+            _ => todo!("{:?}", stmt),
+        }
+    }
+    fn translate_expr(&mut self, expr: &mut N::Expr) {
+        match expr {
+            N::Expr::Atom(atom) => self.translate_atom(atom),
+            N::Expr::HT(ty) => self.rt_call("ht_new"),
+            N::Expr::HTSet(ht, field, val, ty) => {
+                self.translate_atom(ht);
+                self.out.push(I32Const(*field));
+                self.translate_atom(val);
+                self.rt_call("ht_set");
+            }
+            _ => todo!(),
+        }
+    }
+    fn translate_atom(&mut self, atom: &mut N::Atom) {
+        match atom {
+            N::Atom::Lit(lit) => match lit {
+                N::Lit::I32(i) => self.out.push(I32Const(*i)),
+                _ => todo!(),
+            },
+            N::Atom::Id(id) => self.out.push(GetLocal(id.index())),
+            N::Atom::HTGet(ht, field, ty) => {
+                self.translate_atom(ht);
+                self.out.push(I32Const(*field));
+                self.rt_call("ht_get");
+            }
+            _ => todo!(),
         }
     }
     fn rt_call(&mut self, name: &str) {

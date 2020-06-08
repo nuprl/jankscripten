@@ -20,7 +20,7 @@ pub fn run_with_runtime(wasm: &[u8]) -> Result<i32> {
     let main_mod = Module::new(&store, wasm)?;
     let runtime = Module::from_file(
         &store,
-        "../target/wasm32-unknown-unknown/release/runtime.wasm",
+        "../target/wasm32-unknown-unknown/debug/runtime.wasm",
     )?;
 
     // Instantiate our first module which only uses WASI, then register that

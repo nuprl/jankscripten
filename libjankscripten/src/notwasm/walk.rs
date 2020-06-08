@@ -115,7 +115,7 @@ where
                 block_cxt.apply_patches(ss);
             }
             // 1xExpr
-            Assign(.., a) | Var(.., a) | Expr(a) => self.walk_expr(a, loc),
+            Assign(.., a) | Var(.., a, _) => self.walk_expr(a, loc),
             // 1xAtom
             Return(a) => self.walk_atom(a, loc),
             // 1xExpr, 1xStmt
@@ -153,6 +153,10 @@ where
             //Dot(e, ..) | Unary(.., e) => self.walk_expr(e, loc),
             //// 2xExpr
             HT(..) | Call(..) | New(..) => (),
+            HTSet(ea, _, ec, ..) => {
+                self.walk_atom(ea, loc);
+                self.walk_atom(ec, loc);
+            }
             Atom(a, ..) => self.walk_atom(a, loc),
         }
         self.visitor.exit_expr(expr, loc);
@@ -164,14 +168,12 @@ where
         match atom {
             // 0
             Lit(..) | Id(..) => (),
-            Binary(.., ea, eb, _) | HTGet(ea, eb, ..) => {
+            HTGet(ea, ..) => {
                 self.walk_atom(ea, loc);
-                self.walk_atom(eb, loc);
             }
-            HTSet(ea, eb, ec, ..) => {
+            Binary(.., ea, eb, _) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
-                self.walk_atom(ec, loc);
             }
         }
         self.visitor.exit_atom(atom, loc);
@@ -239,6 +241,6 @@ impl Atom {
     /// value. this is used to gain ownership of a mutable reference,
     /// especially in [Atom::walk]
     pub fn take(&mut self) -> Self {
-        std::mem::replace(self, Atom::Lit(Lit::Bool(false), Type::Bool))
+        std::mem::replace(self, Atom::Lit(Lit::Bool(false)))
     }
 }

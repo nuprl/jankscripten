@@ -28,8 +28,7 @@ pub struct Program {
 #[derive(Debug, PartialEq)]
 pub enum Stmt {
     Empty,
-    Var(Id, Expr),
-    Expr(Expr),
+    Var(Id, Expr, Type),
     Assign(Id, Expr),
     If(Atom, Box<Stmt>, Box<Stmt>),
     While(Atom, Box<Stmt>),
@@ -43,14 +42,12 @@ pub enum Stmt {
 
 #[derive(Debug, PartialEq)]
 pub enum Atom {
-    Lit(Lit, Type),
-    HTGet(Box<Atom>, Box<Atom>, Type),
-    // is this an atom?? cause won't we have to reallocate if we insert and
-    // run out of space
-    HTSet(Box<Atom>, Box<Atom>, Box<Atom>, Type),
+    Lit(Lit),
+    // TODO: String instead of i32
+    HTGet(Box<Atom>, Key, Type),
     // HTGet / HTSet / ClassGet / etc VS Dot / Bracket
     // TODO: classes
-    Id(Id, Type),
+    Id(Id),
     // only negative float is unary and in JS
     //Unary(UnaryOp, Box<Expr>, Type),
     Binary(BinaryOp, Box<Atom>, Box<Atom>, Type),
@@ -60,9 +57,11 @@ pub enum Atom {
 pub enum Expr {
     //Array(Vec<Expr>, Type),
     HT(Type),
+    // TODO: String instead of i32
+    HTSet(Box<Atom>, Key, Box<Atom>, Type),
     Call(Id, Vec<Id>, Type),
     New(Id, Vec<Id>, Type),
-    Atom(Atom, Type),
+    Atom(Atom),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -75,22 +74,6 @@ pub enum Type {
     Bool,
     AnyClass,
     Fn(Vec<Type>, Box<Type>),
-}
-impl Expr {
-    pub fn get_type(&self) -> Type {
-        use Expr::*;
-        match self {
-            Atom(.., ty) | Call(.., ty) | New(.., ty) | HT(ty) => ty.clone(),
-        }
-    }
-}
-impl Atom {
-    pub fn get_type(&self) -> Type {
-        use Atom::*;
-        match self {
-            Lit(.., ty) | /*Array(.., ty) | HT(.., ty) | */Id(.., ty) | Binary(.., ty) | HTGet(.., ty) | HTSet(.., ty) => ty.clone(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
@@ -120,7 +103,8 @@ pub struct Class;
 pub struct Function {
     pub locals: Vec<Type>,
     pub body: Stmt,
-    pub ty: Type,
+    pub ret_ty: Type,
+    pub params_tys: Vec<Type>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -147,9 +131,10 @@ pub enum BinaryOp {
     And,
 }
 
-#[derive(Debug, PartialEq)]
-pub enum Key {
+//#[derive(Debug, PartialEq)]
+/*pub enum Key {
     I32(i32),
     // TODO?
     //Str(String),
-}
+}*/
+pub type Key = i32;
