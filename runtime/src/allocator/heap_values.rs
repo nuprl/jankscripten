@@ -46,8 +46,8 @@ pub struct AnyPtr<'a> {
 /// We can safely turn a `HeapRef` into a more specific type of pointer using
 /// the `view` method, which produces a `HeapRefView`.
 pub enum HeapRefView<'a> {
-    I32(I32Ref<'a>),
-    Object(ObjectRef<'a>)
+    I32(I32Ptr<'a>),
+    Object(ObjectPtr<'a>)
 }
 
 impl<'a> HeapPtr for AnyPtr<'a> {
@@ -71,20 +71,20 @@ impl<'a> AnyPtr<'a> {
     pub fn view(&self) -> HeapRefView<'a> {
         let heap_ref : Tag = unsafe {  *self.ptr };
         match heap_ref {
-            Tag::I32 => HeapRefView::I32(I32Ref::new(self.ptr)),
-            Tag::Object(_) => HeapRefView::Object(unsafe { ObjectRef::new(self.ptr) })
+            Tag::I32 => HeapRefView::I32(I32Ptr::new(self.ptr)),
+            Tag::Object(_) => HeapRefView::Object(unsafe { ObjectPtr::new(self.ptr) })
         }
     }
 }
 
 /// A pointer to a `Tag::I32`.
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub struct I32Ref<'a> {
+pub struct I32Ptr<'a> {
     ptr: *mut Tag,
     _phantom: PhantomData<&'a ()>
 }
 
-impl<'a> HeapPtr for I32Ref<'a> {
+impl<'a> HeapPtr for I32Ptr<'a> {
     fn get_ptr(&self) -> *mut Tag {
         return self.ptr;
     }
@@ -94,13 +94,13 @@ impl<'a> HeapPtr for I32Ref<'a> {
     }
 }
 
-impl<'a> I32Ref<'a> {
+impl<'a> I32Ptr<'a> {
 
     pub fn new(ptr: *mut Tag) -> Self {
         unsafe {
             assert_eq!(ptr.read(), Tag::I32);
         }
-        return I32Ref { ptr: ptr, _phantom: PhantomData };
+        return I32Ptr { ptr: ptr, _phantom: PhantomData };
     }
 
     pub fn read(&self) -> i32 {
@@ -119,12 +119,12 @@ impl<'a> I32Ref<'a> {
 
 /// A pointer to a `Tag::Object`.
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub struct ObjectRef<'a> {
+pub struct ObjectPtr<'a> {
     ptr: *mut Tag,
     _phantom: PhantomData<&'a ()>
 }
 
-impl<'a> HeapPtr for ObjectRef<'a> {
+impl<'a> HeapPtr for ObjectPtr<'a> {
     fn get_ptr(&self) -> *mut Tag {
         return self.ptr;
     }
@@ -134,10 +134,10 @@ impl<'a> HeapPtr for ObjectRef<'a> {
     }
 }
 
-impl<'a> ObjectRef<'a> {
+impl<'a> ObjectPtr<'a> {
 
     pub unsafe fn new(ptr: *mut Tag) -> Self {
-        return ObjectRef { ptr, _phantom: PhantomData };
+        return ObjectPtr { ptr, _phantom: PhantomData };
     }
 
     pub fn class_tag(&self) -> u16 {

@@ -105,12 +105,12 @@ impl Heap {
      * Allocates a primitive value on the heap, and returns a reference to the
      * tag that precedes the primitive.
      */
-    pub fn alloc_i32<'a>(&'a self, value: i32) -> Option<I32Ref<'a>> {
+    pub fn alloc_i32<'a>(&'a self, value: i32) -> Option<I32Ptr<'a>> {
         let opt_ptr = self.free_list.borrow_mut().find_free_size(self.tag_size + self.prim_size);
         match opt_ptr {
             None => None,
             Some(ptr) => {
-                let i32ref = I32Ref::new(unsafe { std::mem::transmute(ptr) });
+                let i32ref = I32Ptr::new(unsafe { std::mem::transmute(ptr) });
                 i32ref.write(value);
                 return Some(i32ref);
             }
@@ -135,6 +135,11 @@ impl Heap {
             }
         }
     }
+
+    // pub unsafe fn garbage_collect(&self, roots: &[*mut Tag]) {
+    //     self.mark_phase(roots);
+    //     self.sweep_phase(roots);
+    // }
 
 
     #[cfg(test)]
