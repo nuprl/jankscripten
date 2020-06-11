@@ -1,18 +1,20 @@
+use wasm_bindgen_test::*;
 use super::*;
 
 #[test]
+#[wasm_bindgen_test]
 fn alloc_i32s() {
     let heap = Heap::new((ALIGNMENT * 4) as isize);
-    heap.alloc_i32(32).expect("first alloc");
-    heap.alloc_i32(64).expect("second alloc");
+    let x = heap.alloc_i32(32).expect("first alloc");
+    assert_eq!(x.read(), 32);
+    let y = heap.alloc_i32(64).expect("second alloc");
+    assert_eq!(y.read(), 64);
+    assert_eq!(x.read(), 32);
     assert_eq!(heap.alloc_i32(12), None);
-    let raw = heap.raw();
-    // Both x86 and Wasm are little-endian.
-    assert_eq!(raw[ALIGNMENT], 32);
-    assert_eq!(raw[ALIGNMENT * 3], 64);
 }
 
 #[test]
+#[wasm_bindgen_test]
 fn update_prims() {
     let heap = Heap::new((ALIGNMENT * 4) as isize);
     heap.alloc_i32(32).expect("first alloc");
@@ -24,6 +26,7 @@ fn update_prims() {
 }
 
 #[test]
+#[wasm_bindgen_test]
 fn alloc_container1() {
     let mut heap = Heap::new(64);
     let type_tag = heap.new_container_type(2);
