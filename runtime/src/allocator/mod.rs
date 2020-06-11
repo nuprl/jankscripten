@@ -110,6 +110,9 @@ impl Heap {
         match opt_ptr {
             None => None,
             Some(ptr) => {
+                let tag_ptr: *mut Tag = unsafe { std::mem::transmute(ptr) };
+                let tag_ref: &mut Tag = unsafe { &mut *tag_ptr };
+                *tag_ref = Tag::i32();
                 let i32ref = I32Ptr::new(unsafe { std::mem::transmute(ptr) });
                 i32ref.write(value);
                 return Some(i32ref);
@@ -117,7 +120,7 @@ impl Heap {
         }
     }
 
-    pub fn alloc_container<'a>(&'a self, type_tag: u16) -> Option<ObjectRef<'a>> {
+    pub fn alloc_container<'a>(&'a self, type_tag: u16) -> Option<ObjectPtr<'a>> {
         let num_elements = self.container_sizes.get(&type_tag).unwrap();
         let elements_size = Layout::array::<Option<&Tag>>(*num_elements).unwrap().size() as isize;
         let opt_ptr = self.free_list.borrow_mut().find_free_size(self.tag_size + elements_size);
@@ -126,12 +129,14 @@ impl Heap {
             Some(ptr) => {
                 let tag_ptr: *mut Tag = unsafe { std::mem::transmute(ptr) };
                 let tag_ref: &mut Tag = unsafe { &mut *tag_ptr };
-                *tag_ref = Tag::Object(type_tag);
+                unsafe {
+                    tag_ptr.write(Tag::object(type_tag));
+                }
                 let values_slice = unsafe { tag_ref.slice_ref::<Option<&mut Tag>>(*num_elements) };
                 for ptr in values_slice.iter_mut() {
                     *ptr = None;
                 }
-                return Some(unsafe { ObjectRef::new(tag_ptr) });
+                return Some(unsafe { ObjectPtr::new(tag_ptr) });
             }
         }
     }
