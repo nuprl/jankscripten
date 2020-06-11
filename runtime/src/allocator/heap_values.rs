@@ -49,12 +49,13 @@ pub trait HeapPtr {
     fn get_ptr(&self) -> *mut Tag;
     /// The size of the data that follows the tag. i.e., this must exclude the
     /// size of the tag.
-    fn get_data_size(&self) -> usize;
+    fn get_data_size(&self, heap: &Heap) -> usize;
+
 }
 
 /// Returns a pointer to the data that follows the tag. Note that the size of
 /// the tag may be smaller than a machine word.
-unsafe fn data_ptr<T>(tag_ptr: *mut Tag) -> *mut T {
+pub unsafe fn data_ptr<T>(tag_ptr: *mut Tag) -> *mut T {
     return std::mem::transmute(tag_ptr.add(DATA_OFFSET));
 }
 
@@ -75,13 +76,30 @@ pub enum HeapRefView<'a> {
     Object(ObjectPtr<'a>)
 }
 
+impl<'a> HeapPtr for HeapRefView<'a> {
+
+    fn get_ptr(&self) -> *mut Tag {
+        match self {
+            HeapRefView::I32(ptr) => ptr.get_ptr(),
+            HeapRefView::Object(ptr) => ptr.get_ptr()
+        }
+    }
+
+    fn get_data_size(&self, heap: &Heap) -> usize {
+        match self {
+            HeapRefView::I32(ptr) => ptr.get_data_size(heap),
+            HeapRefView::Object(ptr) => ptr.get_data_size(heap)
+        }
+    }
+}
+
 impl<'a> HeapPtr for AnyPtr<'a> {
     fn get_ptr(&self) -> *mut Tag {
         return self.ptr;
     }
 
-    fn get_data_size(&self) -> usize {
-        unimplemented!();
+    fn get_data_size(&self, heap: &Heap) -> usize {
+        return self.view().get_data_size(heap);
     }
 }
 
@@ -114,7 +132,7 @@ impl<'a> HeapPtr for I32Ptr<'a> {
         return self.ptr;
     }
 
-    fn get_data_size(&self) -> usize {
+    fn get_data_size(&self, _heap: &Heap) -> usize {
         return 4;
     }
 }
@@ -154,8 +172,11 @@ impl<'a> HeapPtr for ObjectPtr<'a> {
         return self.ptr;
     }
 
-    fn get_data_size(&self) -> usize {
-        unimplemented!();
+    fn get_data_size(&self, heap: &Heap) -> usize {
+        let tag = unsafe { self.ptr.read() };
+        let class_tag = tag.class_tag;
+        let num_elements = heap.container_sizes.get(&class_tag).unwrap();
+        return num_elements * ALIGNMENT;
     }
 }
 
