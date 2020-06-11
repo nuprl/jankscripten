@@ -80,15 +80,14 @@ pub fn new_(a: Expr, b: Vec<Expr>) -> Expr {
 pub fn unary_(a: UnaryOp, b: Expr) -> Expr {
     Expr::Unary(a, Box::new(b))
 }
+pub fn not_(b: Expr) -> Expr {
+    unary_(UnaryOp::Not, b)
+}
 pub fn binary_(a: BinOp, b: Expr, c: Expr) -> Expr {
     Expr::Binary(a, Box::new(b), Box::new(c))
 }
 pub fn or_(b: Expr, c: Expr) -> Expr {
-    Expr::Binary(
-        BinOp::LogicalOp(resast::LogicalOp::Or),
-        Box::new(b),
-        Box::new(c),
-    )
+    binary_(BinOp::LogicalOp(resast::LogicalOp::Or), b, c)
 }
 pub fn unaryassign_(a: UnaryAssignOp, b: LValue) -> Expr {
     Expr::UnaryAssign(a, Box::new(b))
@@ -96,10 +95,10 @@ pub fn unaryassign_(a: UnaryAssignOp, b: LValue) -> Expr {
 pub fn if_expr_(a: Expr, b: Expr, c: Expr) -> Expr {
     Expr::If(Box::new(a), Box::new(b), Box::new(c))
 }
-pub fn op_assign_(a: AssignOp, b: LValue, c: Expr) -> Expr {
-    Expr::Assign(a, Box::new(b), Box::new(c))
+pub fn op_assign_<L: Into<LValue>>(a: AssignOp, b: L, c: Expr) -> Expr {
+    Expr::Assign(a, Box::new(b.into()), Box::new(c))
 }
-pub fn assign_(b: LValue, c: Expr) -> Expr {
+pub fn assign_<L: Into<LValue>>(b: L, c: Expr) -> Expr {
     op_assign_(AssignOp::Equal, b, c)
 }
 pub fn call_(a: Expr, b: Vec<Expr>) -> Expr {

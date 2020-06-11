@@ -60,6 +60,11 @@ pub enum LValue {
     Dot(Expr, Id),
     Bracket(Expr, Expr),
 }
+impl<T: Into<Id>> From<T> for LValue {
+    fn from(i: T) -> Self {
+        LValue::Id(i.into())
+    }
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {

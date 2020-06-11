@@ -23,7 +23,7 @@ impl Stmt {
                 .append(D::line())
                 .append(D::text("}")),
             Empty => D::text(";"),
-            Expr(e) => e.to_doc().append(D::text(";")),
+            Expr(e) => D::text("(").append(e.to_doc()).append(D::text(")")).append(D::text(";")),
             If(cond, then, other) => D::text("if (")
                 .append(cond.to_doc())
                 // TODO(luna):
@@ -106,7 +106,6 @@ impl Stmt {
     pub fn to_pretty(&self, width: usize) -> String {
         let mut w = Vec::new();
         let doc = self.to_doc();
-        println!("{:?}", doc);
         doc.render(width, &mut w).unwrap();
         String::from_utf8(w).unwrap()
     }
@@ -142,13 +141,17 @@ impl Expr {
                 .append(ind.to_doc())
                 .append(D::text("]")),
             New(cons, args) => D::text("new ").append(fn_call_to_doc(cons, args)),
-            Unary(op, e) => unary_op_to_doc(op).append(e.to_doc()),
-            Binary(op, a, b) => a
-                .to_doc()
+            Unary(op, e) => unary_op_to_doc(op)
+                .append(D::text("("))
+                .append(e.to_doc())
+                .append(D::text(")")),
+            Binary(op, a, b) => D::text("(")
+                .append(a.to_doc())
                 .append(D::space())
                 .append(op.to_doc())
                 .append(D::space())
-                .append(b.to_doc()),
+                .append(b.to_doc())
+                .append(D::text(")")),
             UnaryAssign(op, lval) => match op {
                 UnaryAssignOp::PreInc => D::text("++").append(lval.to_doc()),
                 UnaryAssignOp::PreDec => D::text("--").append(lval.to_doc()),
@@ -169,7 +172,9 @@ impl Expr {
                 .append(to.to_doc()),
             Call(clos, args) => fn_call_to_doc(clos, args),
             Func(maybe_name, params, body) => func_to_doc(maybe_name.as_ref(), params, body),
-            Seq(es) => D::intersperse(es.iter().map(Expr::to_doc), D::text(", ")),
+            Seq(es) => D::text("(")
+                .append(D::intersperse(es.iter().map(Expr::to_doc), D::text(", ")))
+                .append(D::text(")")),
         }
     }
     pub fn to_pretty(&self, width: usize) -> String {
@@ -196,9 +201,14 @@ impl Lit {
             // TODO(arjun): This can be done more efficiently. However, we only
             // output JS for testing, so it is not important.
             syntax::Lit::String(text) => {
-                let unescaped = text.replace("\n", "\\n").replace('\\', "\\\\").replace("\"", "\\\"");
-                D::text("\"").append(D::text(unescaped)).append(D::text("\""))
-            },
+                let unescaped = text
+                    .replace("\n", "\\n")
+                    .replace('\\', "\\\\")
+                    .replace("\"", "\\\"");
+                D::text("\"")
+                    .append(D::text(unescaped))
+                    .append(D::text("\""))
+            }
             syntax::Lit::Regex(pattern, flags) => D::text("/")
                 .append(D::text(pattern))
                 .append(D::text("/"))
@@ -482,4 +492,26 @@ mod test {
 }",
         )
     }
+
+    #[test]
+    fn seq_parenthesization() {
+        parse_pretty_parse_expr(r#"
+            x ? (y, z) : w
+        "#);
+    }
+
+    #[test]
+    fn add_multiply_parenthesization() {
+        parse_pretty_parse_expr(r#"
+            (x + y) * z
+        "#);
+    }
+
+    #[test]
+    fn top_level_application() {
+        parse_pretty_parse(r#"
+            (function() { }());
+        "#);
+    }
+
 }
