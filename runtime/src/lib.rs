@@ -24,3 +24,4 @@ pub type Key = i32;
 pub mod any;
 pub mod ht;
 pub mod num;
+pub mod allocator;
