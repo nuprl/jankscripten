@@ -6,7 +6,6 @@ mod layout;
 mod heap_values;
 mod constants;
 
-use constants::*;
 use heap_values::*;
 
 #[cfg(test)]
@@ -44,6 +43,35 @@ impl FreeList {
     pub fn new(start: *mut u8, size: isize) -> Self {
         let block = Block { start, size };
         return FreeList::Block(block, Box::new(FreeList::Nil));
+    }
+
+    pub fn insert(mut self, start: *mut u8, size: isize) -> FreeList {
+        match &mut self {
+            FreeList::Nil => {
+                return FreeList::new(start, size);
+            }
+            FreeList::Block(block, rest) => {
+                let new_block_end = unsafe { start.add(size as usize) };
+                if new_block_end < block.start {
+                    let new_block = Block { start, size };
+                    return FreeList::Block(new_block, Box::new(self));
+                }
+                else if new_block_end == block.start {
+                    block.start = start;
+                    block.size = block.size + size;
+                    return self;
+                }
+                else if start == unsafe { start.add(size as usize) } {
+                    block.size = block.size + size;
+                    return self;
+                }
+                else {
+                    let rest2 = std::mem::replace(rest.as_mut(), FreeList::Nil);
+                    *rest.as_mut() = rest2.insert(start, size);
+                    return self;
+                }
+            }
+        }
     }
 
     /**
@@ -141,10 +169,61 @@ impl Heap {
         }
     }
 
-    // pub unsafe fn garbage_collect(&self, roots: &[*mut Tag]) {
-    //     self.mark_phase(roots);
-    //     self.sweep_phase(roots);
-    // }
+    pub unsafe fn garbage_collect(&self, roots: &[*mut Tag]) {
+        self.mark_phase(roots);
+        self.sweep_phase();
+    }
+
+    fn mark_phase(&self, roots: &[*mut Tag]) {
+        let mut current_roots = roots.to_vec();
+        let mut new_roots = Vec::<*mut Tag>::new();
+
+        while current_roots.is_empty() == false {
+            for root in current_roots.drain(0..) {
+                let tag = unsafe { &mut *root };
+                
+                if tag.marked == true {
+                    continue;
+                }
+                tag.marked = true;
+
+                if tag.type_tag != TypeTag::Object {
+                    continue;
+                }
+                let class_tag = tag.class_tag; // needed since .class_tag is packed
+                let num_ptrs = *self.container_sizes.get(&class_tag).expect("unknown class tag");
+                let members_ptr : *mut *mut Tag = unsafe { data_ptr(root) };
+                let members = unsafe { std::slice::from_raw_parts(members_ptr, num_ptrs) };
+                new_roots.extend_from_slice(members);
+            }
+            std::mem::swap(&mut current_roots, &mut new_roots);
+        }
+    }
+
+    fn sweep_phase(&self) {
+        use std::borrow::BorrowMut;
+        let mut free_list = self.free_list.borrow_mut();
+        
+        let borrowed_free_list : &mut FreeList = free_list.borrow_mut();
+        let mut free_list_ptr = std::mem::replace(borrowed_free_list, FreeList::Nil);
+
+        let mut ptr : *mut u8 = self.buffer;
+        let heap_max = unsafe { self.buffer.add(self.size as usize) };
+        while ptr < heap_max {
+            let any_ptr = unsafe { AnyPtr::new(std::mem::transmute(ptr)) };
+            let tag_ref = unsafe { &mut *any_ptr.get_ptr() };
+            let size = self.tag_size as usize + any_ptr.get_data_size(self);
+            if tag_ref.marked == true {
+                tag_ref.marked = false;
+                ptr = unsafe { ptr.add(size) };
+                continue;
+            }
+
+            free_list_ptr = free_list_ptr.insert(ptr, size as isize);
+                    
+        }
+        *borrowed_free_list = free_list_ptr;
+    }
 
 
     #[cfg(test)]
