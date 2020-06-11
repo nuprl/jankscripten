@@ -33,7 +33,7 @@ fn name_breaks(stmts: &Stmt, name: &Id) -> Stmt {
 
 impl Visitor for SwitchToIf<'_> {
     fn exit_stmt(&mut self, stmt: &mut Stmt) {
-        let name = self.0.fresh("switch");
+        let name = self.0.fresh("sw");
 
         match stmt {
             Stmt::Switch(expr, cases, default) => { //cases = vec<(expr, stmt)>
@@ -79,77 +79,90 @@ impl Visitor for SwitchToIf<'_> {
     }
 }
 
-pub fn simpl(program: &mut Stmt) {
-    let mut ng = NameGen::default();
-    let mut v = SwitchToIf(&mut ng);
+pub fn simpl(program: &mut Stmt, ng: &mut NameGen) {
+    let mut v = SwitchToIf(ng);
     program.walk(&mut v);
 }
 
-// TODO (jenna): testing -- current "tests" for own use 
-// Notes:
-// * won't be able to get an Id::Generated just by parsing ifs, so
-//   assert-eq! won't work if doing that to compare 
-// * i don't think all possible breaks will be handled -- need to look
-//   into break behavior some more. like what if it's in an if statement?
-//   maybe name_breaks should have some recursion?
-//   or maybe the visitor should look @ the context of break stmts to
-//   see if they're in a switch statement????
-//   scratch that: it seems like break statements only apply when used
-//   outside of any if statements or whatever 
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::javascript::testing::*;
 
-#[test] 
-fn parse_switch() {
-    let prog = parse(r#"
-        var x = 1;
-        switch(x) {
-            case 0:
-                x = 1;
-                break;
-            case 1:
-                x = 2;
-            default:
+    #[test]
+    fn switchtoif() {
+        let prog = r#"
+            var x = 1;
+            switch(x) {
+                case 0: 
+                    x = 1;
+                    break;
+                case 1: 
+                    x = 2;
+                default: 
+                    x = 3;
+                    x = 4;
+            }
+        "#;
+        let mut parsed = parse(prog).unwrap();
+
+        let result = parse(r#"
+            var x = 1;
+            $jen_sw_9: {
+                let fallthrough = false;
+                let test = x;
+                if (test === 0 || fallthrough) {
+                    x = 1;
+                    break $jen_sw_9;
+                } if (test === 1 || fallthrough) {
+                    x = 2;
+                } 
                 x = 3;
                 x = 4;
-        }
-    "#).unwrap();
+            }
+        "#).unwrap();
+        
+        let mut ng = NameGen::default();
+        simpl(&mut parsed, &mut ng);
+        
+        assert_eq!(parsed.to_pretty(80), result.to_pretty(80));
+        desugar_okay(prog, simpl);
+    }
 
-    println!("{:?}", prog);
-}
+    #[test]
+    fn switchtoif_no_default() {
+        let prog = r#"
+            var x = 1;
+            switch(x) {
+                case 0: 
+                    x = 1;
+                    break;
+                case 1: 
+                    x = 2;
+            }
+        "#;
 
-#[test] 
-fn parse_if() {
-    let prog = parse(r#"
-        sw: {
-            let fallthrough = false;
-            let test = x;
-            if (test === 0 || fallthrough) {
-                x = 1;
-                break sw;
-            } if (test === 1 || fallthrough) {
-                x = 2;
-            } 
-            x = 3;
-            x = 4;
-        }
-    "#).unwrap();
-    println!("{:?}", prog);
-}
+        let mut parsed = parse(prog).unwrap();
 
-#[test]
-fn switchtoif() {
-    let mut prog = parse(r#"
-        switch(x) {
-            case 0: 
-                x = 1;
-                break;
-            case 1: 
-                x = 2;
-            default: 
-                x = 3;
-                x = 4;
-        }
-    "#).unwrap();
+        let result = parse(r#"
+            var x = 1;
+            $jen_sw_7: {
+                let fallthrough = false;
+                let test = x;
+                if (test === 0 || fallthrough) {
+                    x = 1;
+                    break $jen_sw_7;
+                } if (test === 1 || fallthrough) {
+                    x = 2;
+                } 
+            }
+        "#).unwrap();
 
-    simpl(&mut prog);
-    println!("{:?}", prog);
+        let mut ng = NameGen::default();
+        simpl(&mut parsed, &mut ng);
+        
+        assert_eq!(parsed.to_pretty(80), result.to_pretty(80));
+        desugar_okay(prog, simpl);
+    }
+
 }
