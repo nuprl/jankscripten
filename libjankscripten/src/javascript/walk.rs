@@ -224,8 +224,9 @@ where
             }
             // 1xExpr, 1xLValue
             Assign(.., lv, e) => {
-                let loc = Loc::Node(Context::Expr, loc);
-                self.walk_lval(lv, &loc);
+                let lv_loc = Loc::Node(Context::LVal, loc);
+                self.walk_lval(lv, &lv_loc);
+                let e_loc = Loc::Node(Context::Expr, loc);
                 self.walk_expr(e, &loc);
             }
             // 1xExpr, 1x[Expr]
