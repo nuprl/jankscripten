@@ -5,6 +5,7 @@
 use std::marker::PhantomData;
 use super::constants::*;
 use super::*;
+use super::layout;
 
 /// The first machine-word of every heap value is a `Tag`, and every pointer
 /// into the heap must point to a `Tag`. In other words, we do *not* support
@@ -138,6 +139,10 @@ impl<'a> HeapPtr for I32Ptr<'a> {
 }
 
 impl<'a> I32Ptr<'a> {
+    pub fn size() -> isize {
+        return layout::layout_aligned::<i32>(ALIGNMENT).size() as isize;
+    }
+
     pub fn new(ptr: *mut Tag) -> Self {
         unsafe {
             assert_eq!(ptr.read().type_tag, TypeTag::I32);
