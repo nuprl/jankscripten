@@ -2,3 +2,4 @@
 
 pub mod jankyscript;
 pub mod javascript;
+pub mod notwasm;
