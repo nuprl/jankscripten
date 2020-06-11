@@ -21,7 +21,6 @@ pub struct Heap {
     buffer: *mut u8,
     size: isize,
     free_list: RefCell<FreeList>,
-    prim_size: isize,
     tag_size: isize,
     container_sizes: HashMap<u16, usize>,
     next_container_type: u16
@@ -105,21 +104,16 @@ impl FreeList {
     }
 }
 
-fn layout_aligned<T>() -> Layout {
-    return Layout::from_size_align(Layout::new::<T>().size(), ALIGNMENT).unwrap().pad_to_align();
-}
-
 impl Heap {
 
     pub fn new(size: isize) -> Self { 
         let layout = Layout::from_size_align(size as usize, ALIGNMENT).unwrap();
         let buffer = unsafe { alloc::alloc_zeroed(layout) };
         let free_list = RefCell::new(FreeList::new(buffer, size));
-        let prim_size = layout_aligned::<i32>().size() as isize;
-        let tag_size = layout_aligned::<Tag>().size() as isize;
+        let tag_size = layout::layout_aligned::<Tag>(ALIGNMENT).size() as isize;
         let container_sizes = HashMap::new();
         let next_container_type = 0;
-        return Heap { buffer, size, free_list, prim_size, tag_size, container_sizes, next_container_type };
+        return Heap { buffer, size, free_list, tag_size, container_sizes, next_container_type };
     }
 
     pub fn new_container_type(&mut self, num_elements: usize) -> u16 {
@@ -134,7 +128,7 @@ impl Heap {
      * tag that precedes the primitive.
      */
     pub fn alloc_i32<'a>(&'a self, value: i32) -> Option<I32Ptr<'a>> {
-        let opt_ptr = self.free_list.borrow_mut().find_free_size(self.tag_size + self.prim_size);
+        let opt_ptr = self.free_list.borrow_mut().find_free_size(self.tag_size + I32Ptr::size());
         match opt_ptr {
             None => None,
             Some(ptr) => {
