@@ -7,15 +7,11 @@ mod heap_values;
 mod constants;
 
 use heap_values::*;
+use constants::*;
 
 #[cfg(test)]
 mod tests;
 
-#[cfg(target_pointer_width = "64")]
-pub const ALIGNMENT : usize = 8;
-
-#[cfg(target_pointer_width = "32")]
-pub const ALIGNMENT : usize = 4;
 
 pub struct Heap {
     buffer: *mut u8,
@@ -90,7 +86,7 @@ impl FreeList {
                 else if size < block.size {
                     block.size = block.size - size;
                     let addr = block.start;
-                    block.start = unsafe { block.start.offset(size) };
+                    block.start = unsafe { block.start.add(size as usize) };
                     return Some(addr);
                 }
                 else /* size > block.size */ {
