@@ -1,5 +1,5 @@
-use wasm_bindgen_test::*;
 use super::*;
+use wasm_bindgen_test::*;
 
 #[test]
 #[wasm_bindgen_test]
@@ -34,7 +34,6 @@ fn alloc_container1() {
     let container = heap.alloc_container(type_tag).expect("second alloc");
     assert_eq!(container.read_at(&heap, 0), None);
     assert_eq!(container.read_at(&heap, 1), None);
-
 }
 
 #[test]
@@ -48,10 +47,9 @@ fn alloc_container2() {
     let elt = container.read_at(&heap, 0).expect("read");
     match elt.view() {
         HeapRefView::I32(prim) => assert_eq!(100, prim.read()),
-        _ => assert!(false)
+        _ => assert!(false),
     }
 }
-
 
 #[test]
 fn alloc_container3() {
@@ -64,6 +62,6 @@ fn alloc_container3() {
     let elt = container.read_at(&heap, 1).expect("read");
     match elt.view() {
         HeapRefView::I32(prim) => assert_eq!(100, prim.read()),
-        _ => assert!(false)
+        _ => assert!(false),
     }
 }

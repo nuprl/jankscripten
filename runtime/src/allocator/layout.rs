@@ -14,9 +14,10 @@ pub trait UnstableLayoutMethods {
 }
 
 pub fn layout_aligned<T>(alignment: usize) -> Layout {
-    return Layout::from_size_align(Layout::new::<T>().size(), alignment).unwrap().pad_to_align();
+    return Layout::from_size_align(Layout::new::<T>().size(), alignment)
+        .unwrap()
+        .pad_to_align();
 }
-
 
 impl UnstableLayoutMethods for Layout {
     fn padding_needed_for(&self, align: usize) -> usize {

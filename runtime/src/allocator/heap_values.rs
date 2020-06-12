@@ -1,11 +1,10 @@
-
 //! Values on the managed heap.
-//! 
+//!
 
-use std::marker::PhantomData;
 use super::constants::*;
-use super::*;
 use super::layout;
+use super::*;
+use std::marker::PhantomData;
 
 /// The first machine-word of every heap value is a `Tag`, and every pointer
 /// into the heap must point to a `Tag`. In other words, we do *not* support
@@ -21,13 +20,20 @@ pub struct Tag {
 
 impl Tag {
     pub fn i32() -> Self {
-        return Tag { marked: false, type_tag: TypeTag::I32, class_tag: 0 };
+        return Tag {
+            marked: false,
+            type_tag: TypeTag::I32,
+            class_tag: 0,
+        };
     }
 
     pub fn object(class_tag: u16) -> Self {
-        return Tag { marked: false, type_tag: TypeTag::Object, class_tag };
+        return Tag {
+            marked: false,
+            type_tag: TypeTag::Object,
+            class_tag,
+        };
     }
-
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -36,7 +42,7 @@ pub enum TypeTag {
     I32,
     // The value inside the tag is the address where the array of pointers
     // begins, for this object.
-    Object
+    Object,
 }
 
 /// Every pointer into the heap points to a tag, thus we could build an API
@@ -51,7 +57,6 @@ pub trait HeapPtr {
     /// The size of the data that follows the tag. i.e., this must exclude the
     /// size of the tag.
     fn get_data_size(&self, heap: &Heap) -> usize;
-
 }
 
 /// Returns a pointer to the data that follows the tag. Note that the size of
@@ -67,29 +72,28 @@ pub unsafe fn data_ptr<T>(tag_ptr: *mut Tag) -> *mut T {
 #[repr(transparent)]
 pub struct AnyPtr<'a> {
     ptr: *mut Tag,
-    _phantom: PhantomData<&'a ()>
+    _phantom: PhantomData<&'a ()>,
 }
 
 /// We can safely turn a `HeapRef` into a more specific type of pointer using
 /// the `view` method, which produces a `HeapRefView`.
 pub enum HeapRefView<'a> {
     I32(I32Ptr<'a>),
-    Object(ObjectPtr<'a>)
+    Object(ObjectPtr<'a>),
 }
 
 impl<'a> HeapPtr for HeapRefView<'a> {
-
     fn get_ptr(&self) -> *mut Tag {
         match self {
             HeapRefView::I32(ptr) => ptr.get_ptr(),
-            HeapRefView::Object(ptr) => ptr.get_ptr()
+            HeapRefView::Object(ptr) => ptr.get_ptr(),
         }
     }
 
     fn get_data_size(&self, heap: &Heap) -> usize {
         match self {
             HeapRefView::I32(ptr) => ptr.get_data_size(heap),
-            HeapRefView::Object(ptr) => ptr.get_data_size(heap)
+            HeapRefView::Object(ptr) => ptr.get_data_size(heap),
         }
     }
 }
@@ -106,16 +110,19 @@ impl<'a> HeapPtr for AnyPtr<'a> {
 
 impl<'a> AnyPtr<'a> {
     pub unsafe fn new(ptr: *mut Tag) -> Self {
-        return AnyPtr { ptr, _phantom: PhantomData };
+        return AnyPtr {
+            ptr,
+            _phantom: PhantomData,
+        };
     }
 
     /// Discriminate on the tag, and return a more specific `HeapPtr` that
     /// points to the same heap value.
     pub fn view(&self) -> HeapRefView<'a> {
-        let heap_ref : Tag = unsafe {  *self.ptr };
+        let heap_ref: Tag = unsafe { *self.ptr };
         match heap_ref.type_tag {
             TypeTag::I32 => HeapRefView::I32(I32Ptr::new(self.ptr)),
-            TypeTag::Object => HeapRefView::Object(unsafe { ObjectPtr::new(self.ptr) })
+            TypeTag::Object => HeapRefView::Object(unsafe { ObjectPtr::new(self.ptr) }),
         }
     }
 }
@@ -125,7 +132,7 @@ impl<'a> AnyPtr<'a> {
 #[repr(transparent)]
 pub struct I32Ptr<'a> {
     ptr: *mut Tag,
-    _phantom: PhantomData<&'a ()>
+    _phantom: PhantomData<&'a ()>,
 }
 
 impl<'a> HeapPtr for I32Ptr<'a> {
@@ -147,7 +154,10 @@ impl<'a> I32Ptr<'a> {
         unsafe {
             assert_eq!(ptr.read().type_tag, TypeTag::I32);
         }
-        return I32Ptr { ptr: ptr, _phantom: PhantomData };
+        return I32Ptr {
+            ptr: ptr,
+            _phantom: PhantomData,
+        };
     }
 
     pub fn read(&self) -> i32 {
@@ -169,7 +179,7 @@ impl<'a> I32Ptr<'a> {
 #[repr(transparent)]
 pub struct ObjectPtr<'a> {
     ptr: *mut Tag,
-    _phantom: PhantomData<&'a ()>
+    _phantom: PhantomData<&'a ()>,
 }
 
 impl<'a> HeapPtr for ObjectPtr<'a> {
@@ -190,7 +200,10 @@ impl<'a> ObjectPtr<'a> {
     /// is valid, and (2) we assume that `ptr` is valid.
     pub unsafe fn new(ptr: *mut Tag) -> Self {
         assert_eq!(ptr.read().type_tag, TypeTag::Object);
-        return ObjectPtr { ptr, _phantom: PhantomData };
+        return ObjectPtr {
+            ptr,
+            _phantom: PhantomData,
+        };
     }
 
     pub fn class_tag(&self) -> u16 {
@@ -203,7 +216,7 @@ impl<'a> ObjectPtr<'a> {
         let type_tag = self.class_tag();
         let len = *heap.container_sizes.get(&type_tag).unwrap();
         assert!(index < len);
-        let values : *mut *mut Tag = unsafe { std::mem::transmute(self.ptr.add(DATA_OFFSET)) };
+        let values: *mut *mut Tag = unsafe { std::mem::transmute(self.ptr.add(DATA_OFFSET)) };
         let ptr = unsafe { &mut *values.add(index) };
 
         let ptr2 = *ptr;
@@ -217,19 +230,15 @@ impl<'a> ObjectPtr<'a> {
         let type_tag = self.class_tag();
         let len = *heap.container_sizes.get(&type_tag).unwrap();
         assert!(index < len);
-        let values : *mut *mut Tag = unsafe { std::mem::transmute(self.ptr.add(DATA_OFFSET)) };
+        let values: *mut *mut Tag = unsafe { std::mem::transmute(self.ptr.add(DATA_OFFSET)) };
         let ptr = unsafe { values.add(index) };
         unsafe {
             ptr.write(value.get_ptr());
         }
     }
-
 }
 
-
 impl Tag {
-
-
     /**
      * Returns a reference to a slice of values that immediately follow this
      * tag. This method assumes that the tag is truly followed by `len`
@@ -240,6 +249,4 @@ impl Tag {
         let data_ptr: *mut U = std::mem::transmute(self_ptr.add(1));
         return std::slice::from_raw_parts_mut(data_ptr, len);
     }
-    
 }
-
