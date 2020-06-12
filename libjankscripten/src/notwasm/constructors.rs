@@ -1,6 +1,15 @@
 use super::syntax::*;
 use std::collections::HashMap;
 
+pub fn if_(a: Atom, b: Stmt, c: Stmt) -> Stmt {
+    Stmt::If(a, Box::new(b), Box::new(c))
+}
+pub fn loop_(a: Stmt) -> Stmt {
+    Stmt::Loop(Box::new(a))
+}
+pub fn label_(a: Id, b: Stmt) -> Stmt {
+    Stmt::Label(a, Box::new(b))
+}
 pub fn get_id_<S: Into<String>>(a: S) -> Atom {
     Atom::Id(id_(a))
 }
@@ -15,6 +24,9 @@ pub fn binary_(op: BinaryOp, a: Atom, b: Atom, ty: Type) -> Atom {
 }
 pub fn plus_(a: Atom, b: Atom, ty: Type) -> Atom {
     binary_(BinaryOp::Plus, a, b, ty)
+}
+pub fn gt_(a: Atom, b: Atom, ty: Type) -> Atom {
+    binary_(BinaryOp::GreaterThan, a, b, ty)
 }
 pub fn atom_(a: Atom) -> Expr {
     Expr::Atom(a)

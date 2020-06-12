@@ -95,8 +95,8 @@ impl Id {
     pub fn index(&self) -> u32 {
         use Id::*;
         match self {
-            Named(..) => panic!("non-indexed id"),
-            Index(i) | Func(i) | Label(i) => *i,
+            Index(i) => *i,
+            _ => panic!("non-indexed or non-local id"),
         }
     }
 }
@@ -120,22 +120,13 @@ pub enum Lit {
     F64(f64),
 }
 
-/// binary ops needed for JS and defined by wasm (everything else should
-/// probably be desugared(?))
-#[derive(Debug, PartialEq)]
-pub enum BinaryOp {
-    LeftShift,
-    RightShift,
-    UnsignedRightShift,
-    Plus,
-    Minus,
-    Times,
-    Over,
-    Mod,
-    Or,
-    XOr,
-    And,
-}
+/// only operations not in wasm are:
+/// - Equal
+/// - NotEqual
+/// - In
+/// - InstanceOf
+/// - PowerOf
+pub type BinaryOp = resast::BinaryOp;
 
 //#[derive(Debug, PartialEq)]
 /*pub enum Key {
