@@ -135,3 +135,48 @@ fn functions() {
     let program = program_(funcs);
     test_wasm(9, program);
 }
+
+#[test]
+fn break_block() {
+    let body = Stmt::Block(vec![
+        Stmt::Var(id_("x"), atom_(i32_(0)), Type::I32),
+        label_(
+            id_("dont_do"),
+            Stmt::Block(vec![
+                Stmt::Break(id_("dont_do")),
+                Stmt::Assign(id_("x"), atom_(i32_(1))),
+            ]),
+        ),
+        Stmt::Return(get_id_("x")),
+    ]);
+    let program = test_program_(body);
+    test_wasm(0, program);
+}
+
+#[test]
+fn fib() {
+    let body = Stmt::Block(vec![
+        Stmt::Var(id_("a"), atom_(i32_(1)), Type::I32),
+        Stmt::Var(id_("b"), atom_(i32_(1)), Type::I32),
+        label_(
+            id_("loop"),
+            loop_(Stmt::Block(vec![
+                if_(
+                    gt_(get_id_("b"), i32_(1000), Type::I32),
+                    Stmt::Break(id_("loop")),
+                    Stmt::Empty,
+                ),
+                Stmt::Var(
+                    id_("temp"),
+                    atom_(plus_(get_id_("a"), get_id_("b"), Type::I32)),
+                    Type::I32,
+                ),
+                Stmt::Assign(id_("a"), atom_(get_id_("b"))),
+                Stmt::Assign(id_("b"), atom_(get_id_("temp"))),
+            ])),
+        ),
+        Stmt::Return(get_id_("b")),
+    ]);
+    let program = test_program_(body);
+    test_wasm(1597, program);
+}

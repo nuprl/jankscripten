@@ -34,6 +34,8 @@ struct IndexVisitor<'a> {
     names: IndexEnv,
     /// should be given the map of function names to indexes
     func_names: &'a IndexEnv,
+    /// index = rev_indexes.len() - rev_index - 1
+    rev_indexes: IndexEnv,
 }
 impl Visitor for IndexVisitor<'_> {
     fn enter_stmt(&mut self, stmt: &mut Stmt) {
@@ -41,7 +43,43 @@ impl Visitor for IndexVisitor<'_> {
         match stmt {
             Var(id, _, ty) => self.update_env(id, ty.clone()),
             Assign(id, ..) => self.update_id(id),
-            // TODO(luna): index label/break
+            // since some structures count in the counting of breaks in wasm
+            // but we never break to them because we create our own continue
+            // breaks, we count them with a fake name
+            Loop(..) | If(..) => {
+                self.rev_indexes.insert(
+                    fake_n_str(self.rev_indexes.len()),
+                    self.rev_indexes.len() as u32,
+                );
+            }
+            Label(id, ..) => {
+                self.rev_indexes
+                    .insert(id.clone(), self.rev_indexes.len() as u32);
+            }
+            Break(id) => {
+                let rev_index = self.rev_indexes.get(id).expect("break no label");
+                let index = self.rev_indexes.len() as u32 - rev_index - 1;
+                *id = Id::Label(index);
+            }
+            _ => (),
+        }
+    }
+
+    fn exit_stmt(&mut self, stmt: &mut Stmt) {
+        use Stmt::*;
+        match stmt {
+            Label(id, ..) => {
+                assert_eq!(
+                    self.rev_indexes.remove(id),
+                    Some(self.rev_indexes.len() as u32)
+                );
+            }
+            Loop(..) | If(..) => {
+                assert!(self
+                    .rev_indexes
+                    .remove(&fake_n_str(self.rev_indexes.len() - 1))
+                    .is_some());
+            }
             _ => (),
         }
     }
@@ -80,6 +118,7 @@ impl<'a> IndexVisitor<'a> {
             types,
             names,
             func_names,
+            rev_indexes: HashMap::new(),
         }
     }
     /// become aware of a new id, and replace it with a new index
@@ -111,12 +150,16 @@ impl<'a> IndexVisitor<'a> {
     }
 }
 
+// this will always be unique because only one index n can exist at one time
+fn fake_n_str(n: usize) -> Id {
+    Id::Named(format!("$jen_fake_{}", n))
+}
+
 #[cfg(test)]
 mod test {
     use super::super::constructors::*;
     use super::super::syntax::*;
     use super::index;
-    use std::collections::HashMap;
     #[test]
     fn index_params() {
         let func = Function {
@@ -134,6 +177,27 @@ mod test {
             ret_ty: Type::I32,
         };
         let expected = program1_(indexed_func);
+        assert_eq!(program, expected);
+    }
+    #[test]
+    fn index_labels() {
+        let body = label_(
+            id_("a"),
+            label_(
+                id_("b"),
+                Stmt::Block(vec![Stmt::Break(id_("a")), Stmt::Break(id_("b"))]),
+            ),
+        );
+        let mut program = test_program_(body);
+        index(&mut program);
+        let body = label_(
+            id_("a"),
+            label_(
+                id_("b"),
+                Stmt::Block(vec![Stmt::Break(Id::Label(1)), Stmt::Break(Id::Label(0))]),
+            ),
+        );
+        let expected = test_program_(body);
         assert_eq!(program, expected);
     }
 }

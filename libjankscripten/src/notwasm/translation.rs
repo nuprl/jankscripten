@@ -4,7 +4,6 @@
 
 use super::rt_bindings::get_rt_bindings;
 use super::syntax as N;
-use super::walk::*;
 use parity_wasm::builder::*;
 use parity_wasm::elements::*;
 use parity_wasm::serialize;
@@ -50,7 +49,6 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         .external()
         .memory(0, None)
         .build();
-    let entry_index = rt_types.len() as u32;
     for func in program.functions.values() {
         // has to be wasm types to dedup properly
         let func_ty = (
@@ -150,6 +148,8 @@ impl<'a> Translate<'a> {
         match stmt {
             N::Stmt::Empty => (),
             N::Stmt::Block(ss) => {
+                // don't surround in an actual block, those are only useful
+                // when labeled
                 for s in ss {
                     self.translate(s);
                 }
@@ -167,11 +167,27 @@ impl<'a> Translate<'a> {
                 self.translate(alt);
                 self.out.push(End);
             }
+            N::Stmt::Loop(body) => {
+                // breaks should be handled by surrounding label already
+                self.out.push(Loop(BlockType::NoResult));
+                self.translate(body);
+                // loop doesn't automatically continue, don't ask me why
+                self.out.push(Br(0));
+                self.out.push(End);
+            }
+            N::Stmt::Label(.., stmt) => {
+                self.out.push(Block(BlockType::NoResult));
+                self.translate(stmt);
+                self.out.push(End);
+            }
+            N::Stmt::Break(id) => match id {
+                N::Id::Label(i) => self.out.push(Br(*i)),
+                _ => panic!("break non-label"),
+            },
             N::Stmt::Return(atom) => {
                 self.translate_atom(atom);
                 self.out.push(Return);
             }
-            _ => todo!("{:?}", stmt),
         }
     }
     fn translate_expr(&mut self, expr: &mut N::Expr) {
@@ -188,16 +204,29 @@ impl<'a> Translate<'a> {
                 for arg in args {
                     self.out.push(GetLocal(arg.index()));
                 }
-                self.out.push(GetLocal(func.index()));
-                let index = if let Some(i) = self
-                    .type_indexes
-                    .get(&(types_as_wasm(params_tys), ret_ty.as_wasm()))
-                {
-                    *i
-                } else {
-                    panic!("unknown function type");
-                };
-                self.out.push(CallIndirect(index, 0));
+                match func {
+                    N::Id::Index(i) => {
+                        self.out.push(GetLocal(*i));
+                        let index = if let Some(i) = self
+                            .type_indexes
+                            .get(&(types_as_wasm(params_tys), ret_ty.as_wasm()))
+                        {
+                            *i
+                        } else {
+                            panic!("unknown function type");
+                        };
+                        self.out.push(CallIndirect(index, 0));
+                    }
+                    N::Id::Func(i) => {
+                        // this one's a little weird. we index in notwasm
+                        // by 0 = first user function. but wasm indexes by 0 =
+                        // first rt function. se we have to offset. but only
+                        // on direct calls, because our function table takes
+                        // care of it on indirect calls
+                        self.out.push(Call(*i + self.rt_indexes.len() as u32));
+                    }
+                    _ => panic!("id can't be function call"),
+                }
             }
         }
     }
@@ -207,7 +236,12 @@ impl<'a> Translate<'a> {
                 N::Lit::I32(i) => self.out.push(I32Const(*i)),
                 _ => todo!(),
             },
-            N::Atom::Id(id) => self.out.push(GetLocal(id.index())),
+            N::Atom::Id(id) => match id {
+                N::Id::Named(..) => panic!("unindexed id"),
+                N::Id::Label(..) => panic!("label as atom"),
+                N::Id::Func(id) => self.out.push(I32Const(*id as i32)),
+                N::Id::Index(id) => self.out.push(GetLocal(*id)),
+            },
             N::Atom::HTGet(ht, field, ty) => {
                 self.translate_atom(ht);
                 self.out.push(I32Const(*field));
@@ -218,6 +252,12 @@ impl<'a> Translate<'a> {
                 self.translate_atom(b);
                 self.out.push(match ty {
                     N::Type::I32 => match op {
+                        N::BinaryOp::StrictEqual => I32Eq,
+                        N::BinaryOp::StrictNotEqual => I32Ne,
+                        N::BinaryOp::LessThan => I32LtS,
+                        N::BinaryOp::GreaterThan => I32GtS,
+                        N::BinaryOp::LessThanEqual => I32LeS,
+                        N::BinaryOp::GreaterThanEqual => I32GeS,
                         N::BinaryOp::LeftShift => I32Shl,
                         N::BinaryOp::RightShift => I32ShrS,
                         N::BinaryOp::UnsignedRightShift => I32ShrU,
@@ -229,6 +269,7 @@ impl<'a> Translate<'a> {
                         N::BinaryOp::Or => I32Or,
                         N::BinaryOp::XOr => I32Xor,
                         N::BinaryOp::And => I32And,
+                        _ => panic!("non-supported binop"),
                     },
                     N::Type::F64 => match op {
                         N::BinaryOp::Plus => F64Add,
