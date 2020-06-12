@@ -21,8 +21,8 @@ pub fn index(program: &mut Program) {
     }
 }
 
-fn index_func(func: &mut Function, funcs: &IndexEnv) {
-    let mut vis = IndexVisitor::new(funcs, func.params_tys.clone());
+fn index_func(func: &mut Function, func_names: &IndexEnv) {
+    let mut vis = IndexVisitor::new(func_names, func.params_tys.clone());
     func.body.walk(&mut vis);
     func.locals = vis.types;
 }
@@ -92,8 +92,10 @@ impl<'a> IndexVisitor<'a> {
     fn update_id(&self, id: &mut Id) {
         match id {
             Id::Named(_) => {
-                // technically all lambdas have more outer scope than locals so
-                // this hackneyed scope trick works
+                // We assume that local variables shadow functions, which are
+                // declared in the module scope. Thus, we can first look for the
+                // index of a local, and then look for the index of a function
+                // if no no local exists.
                 if let Some(idx) = self.names.get(id) {
                     *id = Id::Index(*idx);
                 } else if let Some(idx) = self.func_names.get(id) {
