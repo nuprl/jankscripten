@@ -19,17 +19,18 @@
 //! - wasm_bindgen / wasm-pack is unneccessary and gets in the way since
 //!   it's all about js bindings and disallows enum structs
 
-pub type Key = i32;
+type Key = i32;
 
-pub mod allocator;
 pub mod any;
 pub mod ht;
 pub mod num;
 pub mod string;
 
+mod allocator;
 use allocator::*;
 static mut HEAP: Option<Heap> = None;
 
+/// needs to be called before most other code. it initializes the managed heap
 #[no_mangle]
 pub extern "C" fn init() {
     unsafe {

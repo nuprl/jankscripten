@@ -1,3 +1,5 @@
+//! managed allocation. most allocations should be made through [Heap]
+
 use std::alloc;
 use std::alloc::Layout;
 use std::cell::RefCell;
@@ -15,6 +17,11 @@ use heap_values::*;
 #[cfg(test)]
 mod tests;
 
+/// one global Heap should be maintained, provided by [crate::heap()]. it
+/// will be garbage collected
+///
+/// an unmanaged allocation is acceptable as long as it is known to the heap
+/// that that type needs to be dropped. there is one global heap, at
 pub struct Heap {
     buffer: *mut u8,
     size: isize,
@@ -126,9 +133,13 @@ impl Heap {
      * Allocates a primitive value on the heap, and returns a reference to the
      * tag that precedes the primitive.
      *
-     * safety: tag must match value
+     * Primitive values are defined as those with [HasTag] implemented
      */
-    pub unsafe fn alloc_tag<'a, T>(&'a self, tag: Tag, value: T) -> Option<TypePtr<'a, T>> {
+    pub fn alloc<T: HasTag>(&self, value: T) -> Option<TypePtr<T>> {
+        self.alloc_tag(T::get_tag(), value)
+    }
+
+    fn alloc_tag<T>(&self, tag: Tag, value: T) -> Option<TypePtr<T>> {
         let opt_ptr = self
             .free_list
             .borrow_mut()
@@ -137,26 +148,18 @@ impl Heap {
             None => None,
             Some(ptr) => {
                 // safety: ptr is free, can become anything
-                let tag_ptr: *mut Tag = std::mem::transmute(ptr);
-                let tag_ref: &mut Tag = &mut *tag_ptr;
+                let tag_ptr: *mut Tag = unsafe { std::mem::transmute(ptr) };
+                let tag_ref: &mut Tag = unsafe { &mut *tag_ptr };
                 *tag_ref = tag;
                 // safety: requested by user
-                let val_ref = TypePtr::new(tag_ptr);
+                let val_ref = TypePtr::new_checked(tag_ptr, tag.type_tag);
                 TypePtr::write(&val_ref, value);
-                return Some(val_ref);
+                Some(val_ref)
             }
         }
     }
 
-    // safety for all: ensure value is same as tag
-    pub fn alloc_i32<'a>(&'a self, value: i32) -> Option<I32Ptr<'a>> {
-        unsafe { self.alloc_tag(Tag::i32(), value) }
-    }
-    pub fn alloc_string<'a>(&'a self, value: String) -> Option<StringPtr<'a>> {
-        unsafe { self.alloc_tag(Tag::string(), value) }
-    }
-
-    pub fn alloc_container<'a>(&'a self, type_tag: u16) -> Option<ObjectPtr<'a>> {
+    pub fn alloc_container(&self, type_tag: u16) -> Option<ObjectPtr> {
         let num_elements = self.container_sizes.get(&type_tag).unwrap();
         let elements_size = Layout::array::<Option<&Tag>>(*num_elements).unwrap().size() as isize;
         let opt_ptr = self
@@ -180,6 +183,9 @@ impl Heap {
         }
     }
 
+    /// # Safety
+    ///
+    /// ??? as long as things have gone okay up to here i don't see the problem
     pub unsafe fn garbage_collect(&self, roots: &[*mut Tag]) {
         self.mark_phase(roots);
         self.sweep_phase();

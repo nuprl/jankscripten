@@ -37,11 +37,11 @@ impl Tag {
     }
 
     pub fn object(class_tag: u16) -> Self {
-        return Tag {
+        Tag {
             marked: false,
             type_tag: TypeTag::Object,
             class_tag,
-        };
+        }
     }
 }
 
@@ -134,8 +134,8 @@ impl<'a> AnyPtr<'a> {
     pub fn view(&self) -> HeapRefView<'a> {
         let heap_ref: Tag = unsafe { *self.ptr };
         match heap_ref.type_tag {
-            TypeTag::I32 => HeapRefView::I32(unsafe { I32Ptr::new(self.ptr) }),
-            TypeTag::String => HeapRefView::String(unsafe { StringPtr::new(self.ptr) }),
+            TypeTag::I32 => HeapRefView::I32(I32Ptr::new(self.ptr)),
+            TypeTag::String => HeapRefView::String(StringPtr::new(self.ptr)),
             TypeTag::Object => HeapRefView::Object(unsafe { ObjectPtr::new(self.ptr) }),
         }
     }
@@ -164,17 +164,15 @@ impl<'a, T> TypePtr<'a, T> {
     }
 
     // safety: Tag must match T
-    pub unsafe fn new(ptr: *mut Tag) -> Self {
+    pub unsafe fn new_unchecked(ptr: *mut Tag) -> Self {
         TypePtr {
-            ptr: ptr,
+            ptr,
             _phantom: PhantomData,
         }
     }
     pub fn new_checked(ptr: *mut Tag, type_tag: TypeTag) -> Self {
-        unsafe {
-            assert_eq!(ptr.read().type_tag, type_tag);
-            Self::new(ptr)
-        }
+        assert_eq!(unsafe { ptr.read().type_tag }, type_tag);
+        unsafe { Self::new_unchecked(ptr) }
     }
 
     fn data(&self) -> &mut T {

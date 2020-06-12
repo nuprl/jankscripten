@@ -1,3 +1,5 @@
+//! create (currently unmanaged) HashMaps and manage them
+
 use crate::any::Any;
 use crate::Key;
 use std::collections::HashMap;
@@ -36,7 +38,7 @@ pub extern "C" fn ht_set_any(
     field: Key,
     value: Box<Any>,
 ) -> Box<Any> {
-    ht_set_generic(ht, field, value.clone())
+    ht_set_generic(ht, field, value)
 }
 #[no_mangle]
 pub extern "C" fn ht_set_i32(ht: &mut HashMap<Key, i32>, field: Key, value: i32) -> i32 {
