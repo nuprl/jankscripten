@@ -4,6 +4,7 @@ pub mod constructors;
 pub mod desugar;
 pub mod desugar_logical;
 pub mod desugar_loops;
+pub mod desugar_updates;
 pub mod name_gen;
 pub mod parser;
 pub mod syntax;
@@ -16,7 +17,6 @@ pub use syntax::*;
 pub use walk::*;
 
 mod pretty_ast;
-mod simpl_fancy_updates;
 
 #[cfg(test)]
 mod testing;
