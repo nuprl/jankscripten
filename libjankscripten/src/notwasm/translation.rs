@@ -34,7 +34,7 @@ pub fn translate_parity(mut program: N::Program) -> Module {
             assert_eq!(*type_indexes.entry(wasm_ty).or_insert(i_check), i_check);
             i_check
         } else {
-            panic!("non-fn fn");
+            panic!("expected all elements in the runtime to have function type");
         };
         rt_indexes.insert(name.clone(), func_i as u32);
         module = module
@@ -49,6 +49,8 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         .external()
         .memory(0, None)
         .build();
+    // Create a WebAssembly function type for each function in NotWasm. These
+    // go in the table of types (type_indexes).
     for func in program.functions.values() {
         // has to be wasm types to dedup properly
         let func_ty = (
@@ -58,6 +60,10 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         let next_index = type_indexes.len() as u32;
         type_indexes.entry(func_ty).or_insert(next_index);
     }
+    // NOTE(arjun): I believe that this loop relies on Rust traversing
+    // program.functions in the same order as the call to .keys in
+    // super::index::index. I think this is brittle, and we should probably
+    // index functions first.
     for func in program.functions.values_mut() {
         module.push_function(translate_func(func, &rt_indexes, &type_indexes));
     }
@@ -105,9 +111,9 @@ fn translate_func(
         .with_return_type(Some(func.ret_ty.as_wasm()))
         .build();
     // generate the actual code
-    let mut visitor = Translate::new(rt_indexes, type_indexes);
-    visitor.translate(&mut func.body);
-    let mut insts = visitor.out;
+    let mut translator = Translate::new(rt_indexes, type_indexes);
+    translator.translate(&mut func.body);
+    let mut insts = translator.out;
     insts.push(End);
     let locals: Vec<_> = func
         .locals
@@ -129,8 +135,6 @@ fn no_ids(ids_tys: Vec<(N::Id, N::Type)>) -> Vec<N::Type> {
     ids_tys.into_iter().map(|(_, ty)| ty).collect()
 }
 
-/// don't just call walk on this, use [translate], because walk doesn't
-/// handle statements correctly
 struct Translate<'a> {
     out: Vec<Instruction>,
     rt_indexes: &'a HashMap<String, u32>,
@@ -144,6 +148,9 @@ impl<'a> Translate<'a> {
             type_indexes,
         }
     }
+
+    // We are not using a visitor, since we have to perform an operation on every
+    // give of statement and expression. Thus, the visitor wouldn't give us much.
     fn translate(&mut self, stmt: &mut N::Stmt) {
         match stmt {
             N::Stmt::Empty => (),
@@ -300,7 +307,8 @@ impl<'a> Translate<'a> {
 impl N::Type {
     pub fn as_wasm(&self) -> ValueType {
         match self {
-            // TODO: I64?
+            // NOTE(arjun): We do not need to support I64, since JavaScript cannot
+            // natively represent 64-bit integers.
             N::Type::F64 => ValueType::F64,
             // almost everything is a pointer type
             _ => ValueType::I32,

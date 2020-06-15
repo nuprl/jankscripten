@@ -1,4 +1,11 @@
-//! give de bruijn indexes to all variables
+//! This module addresses a few syntactic differences between NotWasm and Wasm:
+//!
+//! 1. In Wasm, the formal parameters and local variables of a function have
+//!    indices, whereas in NotWasm they are named.
+//! 2. Similarly, functions in Wasm are indexed too.
+//! 3. When we make an indirect call to a function, we need to supply the
+//!    type of the function as an argument, and this type must be in a a table
+//!    of function types.
 
 use super::syntax::*;
 use super::walk::*;
@@ -9,7 +16,6 @@ type IndexEnv = HashMap<Id, u32>;
 /// this turns all identifiers to indexes and all closure references to Int
 /// expressions that refer to the closure index
 pub fn index(program: &mut Program) {
-    // this clone is inevitable because we pass &mut func and func_names
     let func_names = program
         .functions
         .keys()
@@ -28,7 +34,7 @@ fn index_func(func: &mut Function, func_names: &IndexEnv) {
 }
 
 struct IndexVisitor<'a> {
-    /// ultimately holds a mapping of indexes to types
+    /// ultimately holds a table of indexes to types
     types: Vec<Type>,
     /// progressively holds names to indexes, which can then be discarded
     names: IndexEnv,
@@ -134,7 +140,7 @@ impl<'a> IndexVisitor<'a> {
                 // We assume that local variables shadow functions, which are
                 // declared in the module scope. Thus, we can first look for the
                 // index of a local, and then look for the index of a function
-                // if no no local exists.
+                // if no local exists.
                 if let Some(idx) = self.names.get(id) {
                     *id = Id::Index(*idx);
                 } else if let Some(idx) = self.func_names.get(id) {
