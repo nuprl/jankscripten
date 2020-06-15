@@ -10,7 +10,7 @@ fn alloc_i32s() {
     let y = heap.alloc_i32(64).expect("second alloc");
     assert_eq!(y.read(), 64);
     assert_eq!(x.read(), 32);
-    assert_eq!(heap.alloc_i32(12), None);
+    assert!(heap.alloc_i32(12).is_none());
 }
 
 #[test]

@@ -6,7 +6,10 @@ mod constants;
 mod heap_values;
 mod layout;
 
+pub mod heap_types;
+
 use constants::*;
+use heap_types::*;
 use heap_values::*;
 
 #[cfg(test)]
@@ -74,7 +77,7 @@ impl FreeList {
                 if size == block.size {
                     let addr = block.start;
                     let next = std::mem::replace(next.as_mut(), FreeList::Nil);
-                    std::mem::replace(self, next);
+                    *self = next;
                     return Some(addr);
                 } else if size < block.size {
                     block.size = block.size - size;
@@ -122,23 +125,35 @@ impl Heap {
     /**
      * Allocates a primitive value on the heap, and returns a reference to the
      * tag that precedes the primitive.
+     *
+     * safety: tag must match value
      */
-    pub fn alloc_i32<'a>(&'a self, value: i32) -> Option<I32Ptr<'a>> {
+    pub unsafe fn alloc_tag<'a, T>(&'a self, tag: Tag, value: T) -> Option<TypePtr<'a, T>> {
         let opt_ptr = self
             .free_list
             .borrow_mut()
-            .find_free_size(self.tag_size + I32Ptr::size());
+            .find_free_size(self.tag_size + TypePtr::<T>::size());
         match opt_ptr {
             None => None,
             Some(ptr) => {
-                let tag_ptr: *mut Tag = unsafe { std::mem::transmute(ptr) };
-                let tag_ref: &mut Tag = unsafe { &mut *tag_ptr };
-                *tag_ref = Tag::i32();
-                let i32ref = I32Ptr::new(unsafe { std::mem::transmute(ptr) });
-                i32ref.write(value);
-                return Some(i32ref);
+                // safety: ptr is free, can become anything
+                let tag_ptr: *mut Tag = std::mem::transmute(ptr);
+                let tag_ref: &mut Tag = &mut *tag_ptr;
+                *tag_ref = tag;
+                // safety: requested by user
+                let val_ref = TypePtr::new(tag_ptr);
+                TypePtr::write(&val_ref, value);
+                return Some(val_ref);
             }
         }
+    }
+
+    // safety for all: ensure value is same as tag
+    pub fn alloc_i32<'a>(&'a self, value: i32) -> Option<I32Ptr<'a>> {
+        unsafe { self.alloc_tag(Tag::i32(), value) }
+    }
+    pub fn alloc_string<'a>(&'a self, value: String) -> Option<StringPtr<'a>> {
+        unsafe { self.alloc_tag(Tag::string(), value) }
     }
 
     pub fn alloc_container<'a>(&'a self, type_tag: u16) -> Option<ObjectPtr<'a>> {

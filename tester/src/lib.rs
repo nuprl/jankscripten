@@ -8,7 +8,8 @@ use wasmtime::*;
 use wasmtime_wasi::{Wasi, WasiCtx};
 
 pub fn run_with_runtime(wasm: &[u8]) -> Result<i32> {
-    let store = Store::default();
+    let engine = Engine::new(Config::new().debug_info(true));
+    let store = Store::new(&engine);
 
     // First set up our linker which is going to be linking modules together. We
     // want our linker to have wasi available, so we set that up here as well.

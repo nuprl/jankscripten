@@ -2,9 +2,11 @@
 //!
 
 use super::constants::*;
+use super::heap_types::*;
 use super::layout;
 use super::*;
 use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 
 /// The first machine-word of every heap value is a `Tag`, and every pointer
 /// into the heap must point to a `Tag`. In other words, we do *not* support
@@ -19,12 +21,19 @@ pub struct Tag {
 }
 
 impl Tag {
-    pub fn i32() -> Self {
-        return Tag {
+    pub fn with_type(type_tag: TypeTag) -> Self {
+        Tag {
             marked: false,
-            type_tag: TypeTag::I32,
+            type_tag,
             class_tag: 0,
-        };
+        }
+    }
+
+    pub fn i32() -> Self {
+        Self::with_type(TypeTag::I32)
+    }
+    pub fn string() -> Self {
+        Self::with_type(TypeTag::String)
     }
 
     pub fn object(class_tag: u16) -> Self {
@@ -40,6 +49,7 @@ impl Tag {
 #[repr(u8)]
 pub enum TypeTag {
     I32,
+    String,
     // The value inside the tag is the address where the array of pointers
     // begins, for this object.
     Object,
@@ -79,6 +89,7 @@ pub struct AnyPtr<'a> {
 /// the `view` method, which produces a `HeapRefView`.
 pub enum HeapRefView<'a> {
     I32(I32Ptr<'a>),
+    String(StringPtr<'a>),
     Object(ObjectPtr<'a>),
 }
 
@@ -86,6 +97,7 @@ impl<'a> HeapPtr for HeapRefView<'a> {
     fn get_ptr(&self) -> *mut Tag {
         match self {
             HeapRefView::I32(ptr) => ptr.get_ptr(),
+            HeapRefView::String(ptr) => ptr.get_ptr(),
             HeapRefView::Object(ptr) => ptr.get_ptr(),
         }
     }
@@ -93,6 +105,7 @@ impl<'a> HeapPtr for HeapRefView<'a> {
     fn get_data_size(&self, heap: &Heap) -> usize {
         match self {
             HeapRefView::I32(ptr) => ptr.get_data_size(heap),
+            HeapRefView::String(ptr) => ptr.get_data_size(heap),
             HeapRefView::Object(ptr) => ptr.get_data_size(heap),
         }
     }
@@ -110,10 +123,10 @@ impl<'a> HeapPtr for AnyPtr<'a> {
 
 impl<'a> AnyPtr<'a> {
     pub unsafe fn new(ptr: *mut Tag) -> Self {
-        return AnyPtr {
+        AnyPtr {
             ptr,
             _phantom: PhantomData,
-        };
+        }
     }
 
     /// Discriminate on the tag, and return a more specific `HeapPtr` that
@@ -121,56 +134,71 @@ impl<'a> AnyPtr<'a> {
     pub fn view(&self) -> HeapRefView<'a> {
         let heap_ref: Tag = unsafe { *self.ptr };
         match heap_ref.type_tag {
-            TypeTag::I32 => HeapRefView::I32(I32Ptr::new(self.ptr)),
+            TypeTag::I32 => HeapRefView::I32(unsafe { I32Ptr::new(self.ptr) }),
+            TypeTag::String => HeapRefView::String(unsafe { StringPtr::new(self.ptr) }),
             TypeTag::Object => HeapRefView::Object(unsafe { ObjectPtr::new(self.ptr) }),
         }
     }
 }
 
-/// A pointer to a `Tag::I32`.
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
-pub struct I32Ptr<'a> {
+pub struct TypePtr<'a, T> {
     ptr: *mut Tag,
-    _phantom: PhantomData<&'a ()>,
+    _phantom: PhantomData<&'a T>,
 }
 
-impl<'a> HeapPtr for I32Ptr<'a> {
+impl<'a, T> HeapPtr for TypePtr<'a, T> {
     fn get_ptr(&self) -> *mut Tag {
-        return self.ptr;
+        self.ptr
     }
 
     fn get_data_size(&self, _heap: &Heap) -> usize {
-        return 4;
+        std::mem::size_of::<T>()
     }
 }
 
-impl<'a> I32Ptr<'a> {
+impl<'a, T> TypePtr<'a, T> {
     pub fn size() -> isize {
-        return layout::layout_aligned::<i32>(ALIGNMENT).size() as isize;
+        return layout::layout_aligned::<T>(ALIGNMENT).size() as isize;
     }
 
-    pub fn new(ptr: *mut Tag) -> Self {
-        unsafe {
-            assert_eq!(ptr.read().type_tag, TypeTag::I32);
-        }
-        return I32Ptr {
+    // safety: Tag must match T
+    pub unsafe fn new(ptr: *mut Tag) -> Self {
+        TypePtr {
             ptr: ptr,
             _phantom: PhantomData,
-        };
+        }
     }
-
-    pub fn read(&self) -> i32 {
+    pub fn new_checked(ptr: *mut Tag, type_tag: TypeTag) -> Self {
         unsafe {
-            return *data_ptr(self.ptr);
+            assert_eq!(ptr.read().type_tag, type_tag);
+            Self::new(ptr)
         }
     }
 
-    pub fn write(&self, value: i32) {
-        unsafe {
-            let p = data_ptr::<i32>(self.ptr);
-            p.write(value);
-        }
+    fn data(&self) -> &mut T {
+        unsafe { &mut *data_ptr(self.ptr) }
+    }
+
+    pub fn read(&self) -> T {
+        unsafe { std::ptr::read(data_ptr(self.ptr)) }
+    }
+
+    pub fn write(&self, val: T) {
+        unsafe { std::ptr::write(data_ptr(self.ptr), val) }
+    }
+}
+
+impl<'a, T> Deref for TypePtr<'a, T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        self.data()
+    }
+}
+impl<'a, T> DerefMut for TypePtr<'a, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.data()
     }
 }
 
