@@ -5,12 +5,10 @@ use super::constructors::*;
 use resast::BinaryOp;
 use resast::LogicalOp;
 
-struct SwitchToIf<'a>(&'a mut NameGen);
+struct SwitchToIf<'a> { ng: &'a mut NameGen }
 
-// NOTE (jenna): i don't like all this cloning but also don't know enough
-// about rust to know if i can avoid it :/
-fn name_breaks(stmts: &Stmt, name: &Id) -> Stmt {
-    let mut new_vec = vec![];
+fn name_breaks(stmts: &Stmt, name: &Id, fallthrough: &Id) -> Stmt {
+    let mut new_vec = vec![expr_(assign_(fallthrough.clone(), TRUE_))];
     match stmts {
         Stmt::Block(v) => {
             for s in v {
@@ -33,14 +31,16 @@ fn name_breaks(stmts: &Stmt, name: &Id) -> Stmt {
 
 impl Visitor for SwitchToIf<'_> {
     fn exit_stmt(&mut self, stmt: &mut Stmt) {
-        let name = self.0.fresh("sw");
-
         match stmt {
             Stmt::Switch(expr, cases, default) => { //cases = vec<(expr, stmt)>
-                let test = &**expr;
+                let name = self.ng.fresh("sw");
+                let test = expr.take();
+                let test_id = self.ng.fresh("test");
+                let fallthrough = self.ng.fresh("fallthrough");
+
                 let mut v = vec![
-                    vardecl1_("fallthrough", FALSE_),
-                    vardecl1_("test", test.clone())
+                    vardecl1_(fallthrough.clone(), FALSE_),
+                    vardecl1_(test_id.clone(), test)
                 ];
 
                 // create if statements for cases (test === e || fallthrough)
@@ -51,22 +51,25 @@ impl Visitor for SwitchToIf<'_> {
                                 BinOp::LogicalOp(LogicalOp::Or),
                                 binary_(
                                     BinOp::BinaryOp(BinaryOp::StrictEqual), 
-                                    id_("test".to_string()),
+                                    id_(test_id.clone()),
                                     e.clone()),
-                                id_("fallthrough".to_string())),
-                            name_breaks(s, &name),
+                                id_(fallthrough.clone())),
+                            name_breaks(s, &name, &fallthrough),
                             Stmt::Empty))
                 }
 
-                // add default case 
-                let d = &**default;
+                // add default case (if applicable)
+                let mut d = default.take();
                 match d {
-                    Stmt::Block(dv) => { //i think this is always a block
-                        for s in dv {
-                            v.push(s.clone());
+                    Stmt::Block(mut dv) => {
+                        for s in dv.drain(0..) {
+                            v.push(s);
                         }
                     },
-                    _ => {}
+                    Stmt::Empty => {},
+                    _ => {
+                        panic!("Block or Empty expected");
+                    }
                 }
 
                 //create labeled block w if statements/default 
@@ -79,8 +82,8 @@ impl Visitor for SwitchToIf<'_> {
     }
 }
 
-pub fn simpl(program: &mut Stmt, ng: &mut NameGen) {
-    let mut v = SwitchToIf(ng);
+pub fn simpl(program: &mut Stmt, namegen: &mut NameGen) {
+    let mut v = SwitchToIf { ng: namegen };
     program.walk(&mut v);
 }
 
@@ -90,7 +93,25 @@ mod test {
     use crate::javascript::testing::*;
 
     #[test]
-    fn switchtoif() {
+    fn switchtoif_break() {
+        let prog = r#"
+            var x = 0;
+            switch(x) {
+                case 0: 
+                    x = 1;
+                    break;
+                case 1: 
+                    x = 2;
+                default: 
+                    x = 3;
+                    x = 4;
+            }
+        "#;
+        desugar_okay(prog, simpl);
+    }
+
+    #[test]
+    fn switchtoif_nobreak() {
         let prog = r#"
             var x = 1;
             switch(x) {
@@ -104,35 +125,31 @@ mod test {
                     x = 4;
             }
         "#;
-        let mut parsed = parse(prog).unwrap();
-
-        let result = parse(r#"
-            var x = 1;
-            $jen_sw_9: {
-                let fallthrough = false;
-                let test = x;
-                if (test === 0 || fallthrough) {
-                    x = 1;
-                    break $jen_sw_9;
-                } if (test === 1 || fallthrough) {
-                    x = 2;
-                } 
-                x = 3;
-                x = 4;
-            }
-        "#).unwrap();
-        
-        let mut ng = NameGen::default();
-        simpl(&mut parsed, &mut ng);
-        
-        assert_eq!(parsed.to_pretty(80), result.to_pretty(80));
         desugar_okay(prog, simpl);
     }
 
     #[test]
-    fn switchtoif_no_default() {
+    fn switchtoif_latebreak() {
         let prog = r#"
-            var x = 1;
+            var x = 0;
+            switch(x) {
+                case 0: 
+                    x = 1;
+                case 1: 
+                    x = 2;
+                    break;
+                default: 
+                    x = 3;
+                    x = 4;
+            }
+        "#;
+        desugar_okay(prog, simpl);
+    }
+
+    #[test]
+    fn switchtoif_nodefault() {
+        let prog = r#"
+            var x = 2;
             switch(x) {
                 case 0: 
                     x = 1;
@@ -141,28 +158,6 @@ mod test {
                     x = 2;
             }
         "#;
-
-        let mut parsed = parse(prog).unwrap();
-
-        let result = parse(r#"
-            var x = 1;
-            $jen_sw_7: {
-                let fallthrough = false;
-                let test = x;
-                if (test === 0 || fallthrough) {
-                    x = 1;
-                    break $jen_sw_7;
-                } if (test === 1 || fallthrough) {
-                    x = 2;
-                } 
-            }
-        "#).unwrap();
-
-        let mut ng = NameGen::default();
-        simpl(&mut parsed, &mut ng);
-        
-        assert_eq!(parsed.to_pretty(80), result.to_pretty(80));
         desugar_okay(prog, simpl);
     }
-
 }
