@@ -1,70 +1,125 @@
 use super::syntax::*;
-use super::walk::*;
-use super::parser::parse;
 use super::*;
-use resast::BinaryOp;
 use super::constructors::*;
 
-// We name all functions using “var”. Note that this involves “lifting” function declarations.
-// We name the result of all function applications.
+// Naming the result of all function applications 
 
+struct NameFunctionCalls <'a> { ng: &'a mut NameGen }
 
-struct NameFunctions <'a> { ng: &'a mut NameGen }
-
-fn lval_to_expr(lv: &mut LValue) -> Expr {
-    match lv {
-        LValue::Id(x) => id_(x.clone()),
-        LValue::Dot(e, x) => dot_(e.clone(), x.clone()),
-        LValue::Bracket(e1, e2) => bracket_(e1.clone(), e2.clone())
-    }
-}
-
-fn desugar_assign_op(bin_op: BinaryOp, lv: &mut LValue, rhs: &mut Expr, loc: &mut Loc, ng: &mut NameGen) -> Expr {
-    match lv {
-        LValue::Dot(obj, id) => {
-            match obj {
-                Expr::Call(fid, args) => {
-                    let ctx = if let Loc::Node(Context::Block(ctx), ..) = loc {
-                        ctx
-                    } else {
-                        panic!("expected block context");
-                    };
-                    let temp_id = ng.fresh("temp");
-                    ctx.insert(ctx.index, vardecl1_(temp_id.clone(), obj.clone()));
-                    *lv = lval_dot_(id_(temp_id), id.clone());
+impl Visitor for NameFunctionCalls<'_> {
+    fn exit_expr(&mut self, expr: &mut Expr, loc: &Loc) {
+        match expr {
+            Expr::Call(_fid, _args) => {
+                match loc {
+                    Loc::Node(Context::RValue, _) => {
+                        //already being named, so no worries 
+                    },
+                    _ => {
+                        let block_ctx = loc.enclosing_block().expect("Block context expected");
+                        let name = self.ng.fresh("f_call");
+                        block_ctx.insert(block_ctx.index, vardecl1_(name.clone(), expr.clone()));
+                        *expr = id_(name);
+                    }
                 }
-                _ => {}
             }
-        } 
-        _ => {}
-    }
-    assign_(
-        lv.clone(),
-        binary_(
-            BinOp::BinaryOp(bin_op),
-            lval_to_expr(lv),
-            rhs.take()))
-}
-
-impl Visitor for NameFunctions<'_> {
-    fn exit_stmt(&mut self, stmt: &mut Stmt, loc: &mut Loc) {
-        match stmt {
             _ => {}
         }
     }
 }
 
 
-pub fn simpl(program: &mut Stmt) {
-    let mut namegen = NameGen::default();
-    let mut v = NameFunctions {ng: &mut namegen};
+pub fn simpl(program: &mut Stmt, namegen: &mut NameGen) {
+    let mut v = NameFunctionCalls {ng: namegen};
     program.walk(&mut v);
 }
 
-#[test]
-fn anon_fn() {
-    let prog = parse(r#"
-        var f = function (a, b) {return a * b};
-    "#).unwrap();
-    println!("{:?}", prog);
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::javascript::testing::*;
+
+    #[test]
+    fn name_call_fancyupdate() {
+        let prog =r#"
+            function f(arg) {
+                return arg;
+            }
+            var x = 1;
+            x += f(1);
+        "#;
+        desugar_okay(prog, simpl);
+    }
+
+    #[test]
+    fn name_call_dot() {
+        let prog =r#"
+            var obj = { x: 1 }
+            function f() {
+                return obj;
+            }
+            f().x += 1;
+        "#;
+        desugar_okay(prog, simpl);
+    }
+
+    #[test]
+    fn name_call_nested() {
+        let prog = r#"
+            function f(arg) {
+                return arg + 1;
+            }
+            function g() {
+                return 5;
+            }
+            console.log(f(g()));
+        "#;
+
+        desugar_okay(prog, simpl);
+    }
+
+    #[test]
+    fn name_call_decl() {
+        //desugar_okay gets mad when no changes are made? 
+        //using assert_eq! for now
+        let mut prog = parse(r#"
+            function f() {
+                return 1;
+            }
+            var x = f();
+        "#).unwrap();
+        let result = parse(r#"
+            function f() {
+                return 1;
+            }
+            var x = f();
+        "#).unwrap();
+
+        let mut ng = NameGen::default();
+        simpl(&mut prog, &mut ng);
+        assert_eq!(prog, result);
+    }
+
+    #[test]
+    fn name_call_simpleupdate() {
+        let mut prog = parse(r#"
+            function f() {
+                return 1;
+            }
+            var x = 2;
+            x = f();
+        "#).unwrap();
+        let result = parse(r#"
+            function f() {
+                return 1;
+            }
+            var x = 2;
+            x = f();
+        "#).unwrap();
+
+        let mut ng = NameGen::default();
+        simpl(&mut prog, &mut ng);
+        assert_eq!(prog, result);
+    }
+
+
 }
