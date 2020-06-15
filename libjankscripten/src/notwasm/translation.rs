@@ -135,6 +135,7 @@ fn no_ids(ids_tys: Vec<(N::Id, N::Type)>) -> Vec<N::Type> {
     ids_tys.into_iter().map(|(_, ty)| ty).collect()
 }
 
+
 struct Translate<'a> {
     out: Vec<Instruction>,
     rt_indexes: &'a HashMap<String, u32>,
@@ -197,6 +198,16 @@ impl<'a> Translate<'a> {
             }
         }
     }
+
+    fn translate_binop(&mut self, op: &N::BinaryOp) {
+        match op {
+            N::BinaryOp::I32Eq => self.out.push(I32Eq),
+            N::BinaryOp::I32Add => self.out.push(I32Add),
+            N::BinaryOp::I32Sub => self.out.push(I32Sub),
+            N::BinaryOp::I32GT => self.out.push(I32GtS),
+        }
+    }
+
     fn translate_expr(&mut self, expr: &mut N::Expr) {
         match expr {
             N::Expr::Atom(atom) => self.translate_atom(atom),
@@ -255,6 +266,7 @@ impl<'a> Translate<'a> {
             }
         }
     }
+
     fn translate_atom(&mut self, atom: &mut N::Atom) {
         match atom {
             N::Atom::Lit(lit) => match lit {
@@ -275,36 +287,7 @@ impl<'a> Translate<'a> {
             N::Atom::Binary(op, a, b, ty) => {
                 self.translate_atom(a);
                 self.translate_atom(b);
-                self.out.push(match ty {
-                    N::Type::I32 => match op {
-                        N::BinaryOp::StrictEqual => I32Eq,
-                        N::BinaryOp::StrictNotEqual => I32Ne,
-                        N::BinaryOp::LessThan => I32LtS,
-                        N::BinaryOp::GreaterThan => I32GtS,
-                        N::BinaryOp::LessThanEqual => I32LeS,
-                        N::BinaryOp::GreaterThanEqual => I32GeS,
-                        N::BinaryOp::LeftShift => I32Shl,
-                        N::BinaryOp::RightShift => I32ShrS,
-                        N::BinaryOp::UnsignedRightShift => I32ShrU,
-                        N::BinaryOp::Plus => I32Add,
-                        N::BinaryOp::Minus => I32Sub,
-                        N::BinaryOp::Times => I32Mul,
-                        N::BinaryOp::Over => I32DivS, // TODO: signed/unsigned?
-                        N::BinaryOp::Mod => I32RemS,
-                        N::BinaryOp::Or => I32Or,
-                        N::BinaryOp::XOr => I32Xor,
-                        N::BinaryOp::And => I32And,
-                        _ => panic!("non-supported binop"),
-                    },
-                    N::Type::F64 => match op {
-                        N::BinaryOp::Plus => F64Add,
-                        N::BinaryOp::Minus => F64Sub,
-                        N::BinaryOp::Times => F64Mul,
-                        N::BinaryOp::Over => F64Div,
-                        _ => panic!("operation unsupported on floats"),
-                    },
-                    _ => panic!("binary operations only on floats and ints in NotWasm"),
-                });
+                self.translate_binop(op);
             }
         }
     }

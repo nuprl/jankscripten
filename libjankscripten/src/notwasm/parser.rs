@@ -19,11 +19,12 @@ enum Tok {
     RBrace,
     LParen,
     RParen,
+    Op(&'static str),
+    Keyword(&'static str),
     Plus,
     Minus,
     Equalequal,
     If,
-    Break,
     Return,
     Else,
     Var,
@@ -32,7 +33,6 @@ enum Tok {
     Colon,
     Equals,
     Function,
-    Loop,
     I32,
     Int32(i32),
     Bool(bool),
@@ -52,12 +52,10 @@ impl fmt::Display for Tok {
             Minus => write!(f, "-"),
             Equalequal => write!(f, "=="),
             If => write!(f, "if"),
-            Break => write!(f, "break"),
             Return => write!(f, "return"),
             Else => write!(f, "else"),
             Function => write!(f, "function"),
             Var => write!(f, "var"),
-            Loop => write!(f, "loop"),
             Semi => write!(f, ";"),
             Comma => write!(f, ","),
             Colon => write!(f, ":"),
@@ -66,6 +64,8 @@ impl fmt::Display for Tok {
             Int32(i) => write!(f, "{}", i),
             Id(x) => write!(f, "{}", &x),
             Bool(b) => write!(f, "{}", b),
+            Op(s) => write!(f, "{}", s),
+            Keyword(s) => write!(f, "{}", s),
             Eof => write!(f, "end-of-input"),
         }
     }
@@ -81,6 +81,7 @@ fn lex(s: &str) -> Result<Vec<Tok>, easy::ParseError<&str>> {
 
     let tok = // Symbols
         string("{").map(|_x| Tok::LBrace)
+        .or(string(">").with(value(Tok::Op(">"))))
         .or(string("}").map(|_x| Tok::RBrace))
         .or(string("(").map(|_x| Tok::LParen))
         .or(string(")").map(|_x| Tok::RParen))
@@ -97,7 +98,8 @@ fn lex(s: &str) -> Result<Vec<Tok>, easy::ParseError<&str>> {
         .or(attempt(string("function")).map(|_x| Tok::Function))
         .or(attempt(string("i32")).map(|_x| Tok::I32))
         .or(attempt(string("if")).map(|_x| Tok::If))
-        .or(attempt(string("loop")).map(|_x| Tok::Loop))
+        .or(attempt(string("loop")).with(value(Tok::Keyword("loop"))))
+        .or(attempt(string("break")).with(value(Tok::Keyword("break"))))
         .or(attempt(string("return")).map(|_x| Tok::Return))
         .or(attempt(string("true")).map(|_x| Tok::Bool(true)))
         .or(attempt(string("var")).map(|_x| Tok::Var))
@@ -124,6 +126,29 @@ fn lex(s: &str) -> Result<Vec<Tok>, easy::ParseError<&str>> {
             tokens
         });
     toks.easy_parse(s).map(|tuple| tuple.0)
+}
+
+
+fn op<I>(op: &'static str) -> impl Parser<Input = I, Output = ()>
+where
+    I: Stream<Item = Tok>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    satisfy_map(move |t| match t {
+        Tok::Op(op_) if op == op_ => Some(()),
+        _ => None
+    })
+}
+
+fn kw<I>(kw: &'static str) -> impl Parser<Input = I, Output = ()>
+where
+    I: Stream<Item = Tok>,
+    I::Error: ParseError<I::Item, I::Range, I::Position>,
+{
+    satisfy_map(move |t| match t {
+        Tok::Keyword(kw_) if kw == kw_ => Some(()),
+        _ => None
+    })
 }
 
 fn lit<I>() -> impl Parser<Input = I, Output = Lit>
@@ -153,9 +178,10 @@ parser! {
     fn binop[I]()(I) -> BinaryOp
     where [I: Stream<Item = Tok>]
     {
-        token(Tok::Plus).with(value(resast::BinaryOp::Plus))
-        .or(token(Tok::Minus).with(value(resast::BinaryOp::Minus)))
-        .or(token(Tok::Equalequal).with(value(resast::BinaryOp::Equal)))
+        token(Tok::Plus).with(value(BinaryOp::I32Add))
+        .or(op(">").with(value(BinaryOp::I32GT)))
+        .or(token(Tok::Minus).with(value(BinaryOp::I32Eq)))
+        .or(token(Tok::Equalequal).with(value(BinaryOp::I32Sub)))
     }
 }
 
@@ -239,7 +265,7 @@ parser! {
             .and(block())
             .map(|((a, s1), s2)| Stmt::If(a, Box::new(s1), Box::new(s2)));
         
-        let loop_ = token(Tok::Loop)
+        let loop_ = kw("loop")
             .with(block())
             .map(|s| Stmt::Loop(Box::new(s)));
 
@@ -248,7 +274,12 @@ parser! {
             .skip(token(Tok::Semi))
             .map(|a| Stmt::Return(a));
 
-        var.or(assign).or(if_).or(return_).or(block()).or(loop_)
+        let break_ = kw("break")
+            .with(id())
+            .skip(token(Tok::Semi))
+            .map(|l| Stmt::Break(l));
+
+        var.or(assign).or(if_).or(return_).or(block()).or(loop_).or(break_)
     }
 }
 

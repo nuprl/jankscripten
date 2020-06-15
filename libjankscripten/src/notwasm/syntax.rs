@@ -23,6 +23,14 @@
 
 use std::collections::HashMap;
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum BinaryOp {
+    I32Eq,
+    I32Add,
+    I32Sub,
+    I32GT // signed
+}
+
 #[derive(Debug, PartialEq)]
 pub struct Program {
     pub classes: HashMap<Id, Class>,
@@ -128,13 +136,6 @@ pub enum Lit {
     F64(f64),
 }
 
-/// only operations not in wasm are:
-/// - Equal
-/// - NotEqual
-/// - In
-/// - InstanceOf
-/// - PowerOf
-pub type BinaryOp = resast::BinaryOp;
 
 //#[derive(Debug, PartialEq)]
 /*pub enum Key {

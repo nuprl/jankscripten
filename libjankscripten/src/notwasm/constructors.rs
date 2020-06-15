@@ -22,12 +22,6 @@ pub fn i32_(a: i32) -> Atom {
 pub fn binary_(op: BinaryOp, a: Atom, b: Atom, ty: Type) -> Atom {
     Atom::Binary(op, Box::new(a), Box::new(b), ty)
 }
-pub fn plus_(a: Atom, b: Atom, ty: Type) -> Atom {
-    binary_(BinaryOp::Plus, a, b, ty)
-}
-pub fn gt_(a: Atom, b: Atom, ty: Type) -> Atom {
-    binary_(BinaryOp::GreaterThan, a, b, ty)
-}
 pub fn atom_(a: Atom) -> Expr {
     Expr::Atom(a)
 }

@@ -62,7 +62,6 @@ fn test_wasm(expected: i32, program: Program) {
 }
 
 use super::constructors::*;
-use std::collections::HashMap;
 
 #[test]
 fn works_no_runtime() {
@@ -111,33 +110,16 @@ fn binary_ops() {
 
 #[test]
 fn functions() {
-    let mut funcs = HashMap::new();
-    funcs.insert(
-        id_("to_call"),
-        Function {
-            locals: Vec::new(),
-            body: Stmt::Return(i32_(5)),
-            params_tys: Vec::new(),
-            ret_ty: Type::I32,
-        },
-    );
-    funcs.insert(
-        id_("main"),
-        Function {
-            locals: Vec::new(),
-            body: Stmt::Block(vec![
-                Stmt::Var(
-                    id_("x"),
-                    Expr::CallDirect(id_("to_call"), vec![]),
-                    Type::I32,
-                ),
-                Stmt::Return(plus_(i32_(4), get_id_("x"), Type::I32)),
-            ]),
-            params_tys: Vec::new(),
-            ret_ty: Type::I32,
-        },
-    );
-    let program = program_(funcs);
+    let program = parse(r#"
+        function toCall() : i32 {
+            return 5;
+        }
+
+        function main() : i32 {
+            var x : i32 = toCall();
+            return 4 + x;
+        }
+    "#);
     test_wasm(9, program);
 }
 
@@ -159,30 +141,22 @@ fn break_block() {
 }
 
 #[test]
-fn fib() {
-    let body = Stmt::Block(vec![
-        Stmt::Var(id_("a"), atom_(i32_(1)), Type::I32),
-        Stmt::Var(id_("b"), atom_(i32_(1)), Type::I32),
-        label_(
-            id_("loop"),
-            loop_(Stmt::Block(vec![
-                if_(
-                    gt_(get_id_("b"), i32_(1000), Type::I32),
-                    Stmt::Break(id_("loop")),
-                    Stmt::Empty,
-                ),
-                Stmt::Var(
-                    id_("temp"),
-                    atom_(plus_(get_id_("a"), get_id_("b"), Type::I32)),
-                    Type::I32,
-                ),
-                Stmt::Assign(id_("a"), atom_(get_id_("b"))),
-                Stmt::Assign(id_("b"), atom_(get_id_("temp"))),
-            ])),
-        ),
-        Stmt::Return(get_id_("b")),
-    ]);
-    let program = test_program_(body);
+fn big_sum() {
+    let program = parse(r#"
+        function main() : i32 {
+            var a : i32 = 1;
+            var b : i32 = 1;
+            loop {
+                if (b > 1000) {
+                    return b;
+                } else { }
+                var temp : i32 = a + b;
+                a = b;
+                b = temp;
+            }
+            return b;
+        }
+    "#);
     test_wasm(1597, program);
 }
 
