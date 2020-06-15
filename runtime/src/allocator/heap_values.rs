@@ -5,6 +5,7 @@ use super::constants::*;
 use super::heap_types::*;
 use super::layout;
 use super::*;
+use crate::Any;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
@@ -29,13 +30,6 @@ impl Tag {
         }
     }
 
-    pub fn i32() -> Self {
-        Self::with_type(TypeTag::I32)
-    }
-    pub fn string() -> Self {
-        Self::with_type(TypeTag::String)
-    }
-
     pub fn object(class_tag: u16) -> Self {
         Tag {
             marked: false,
@@ -50,6 +44,9 @@ impl Tag {
 pub enum TypeTag {
     I32,
     String,
+    HTAny,
+    HTI32,
+    Any,
     // The value inside the tag is the address where the array of pointers
     // begins, for this object.
     Object,
@@ -71,7 +68,7 @@ pub trait HeapPtr {
     /// drops any data on the unmanaged heap. default implementation does
     /// nothing, because most structures ideally shouldn't allocate on the
     /// rust heap
-    fn drop(&self) {}
+    fn final_drop(&self) {}
 }
 
 /// Returns a pointer to the data that follows the tag. Note that the size of
@@ -92,49 +89,40 @@ pub struct AnyPtr<'a> {
 
 /// We can safely turn a `HeapRef` into a more specific type of pointer using
 /// the `view` method, which produces a `HeapRefView`.
+#[derive(Clone, Copy)]
 pub enum HeapRefView<'a> {
     I32(I32Ptr<'a>),
     String(StringPtr<'a>),
+    HTAny(HTPtr<'a, Any>),
+    HTI32(HTPtr<'a, i32>),
+    Any(AnyJSPtr<'a>),
     Object(ObjectPtr<'a>),
 }
-
-impl<'a> HeapPtr for HeapRefView<'a> {
-    fn get_ptr(&self) -> *mut Tag {
+impl<'a> HeapRefView<'a> {
+    /// Return a less specific `HeapPtr` that points to the same heap value,
+    /// for implementing HeapPtr
+    fn heap_ptr(&'a self) -> &'a dyn HeapPtr {
         match self {
-            HeapRefView::I32(ptr) => ptr.get_ptr(),
-            HeapRefView::String(ptr) => ptr.get_ptr(),
-            HeapRefView::Object(ptr) => ptr.get_ptr(),
-        }
-    }
-
-    fn get_data_size(&self, heap: &Heap) -> usize {
-        match self {
-            HeapRefView::I32(ptr) => ptr.get_data_size(heap),
-            HeapRefView::String(ptr) => ptr.get_data_size(heap),
-            HeapRefView::Object(ptr) => ptr.get_data_size(heap),
-        }
-    }
-
-    fn drop(&self) {
-        match self {
-            HeapRefView::I32(ptr) => ptr.drop(),
-            HeapRefView::String(ptr) => ptr.drop(),
-            HeapRefView::Object(ptr) => ptr.drop(),
+            Self::I32(val) => val,
+            Self::String(val) => val,
+            Self::HTAny(val) => val,
+            Self::HTI32(val) => val,
+            Self::Any(val) => val,
+            Self::Object(val) => val,
         }
     }
 }
-
-impl<'a> HeapPtr for AnyPtr<'a> {
+// TODO(luna): this could be better achieved by Deref if i can figure out
+// the darn lifetimes
+impl<'a> HeapPtr for HeapRefView<'a> {
     fn get_ptr(&self) -> *mut Tag {
-        return self.ptr;
+        self.heap_ptr().get_ptr()
     }
-
     fn get_data_size(&self, heap: &Heap) -> usize {
-        return self.view().get_data_size(heap);
+        self.heap_ptr().get_data_size(heap)
     }
-
-    fn drop(&self) {
-        self.view().drop()
+    fn final_drop(&self) {
+        self.heap_ptr().final_drop()
     }
 }
 
@@ -146,7 +134,7 @@ impl<'a> AnyPtr<'a> {
         }
     }
 
-    /// Discriminate on the tag, and return a more specific `HeapPtr` that
+    /// Discriminate on the tag, and return a more specific `HeapRefView` that
     /// points to the same heap value.
     pub fn view(&self) -> HeapRefView<'a> {
         let heap_ref: Tag = unsafe { *self.ptr };
@@ -155,8 +143,27 @@ impl<'a> AnyPtr<'a> {
             TypeTag::String => {
                 HeapRefView::String(unsafe { StringPtr::new_tag_unchecked(self.ptr) })
             }
+            TypeTag::HTAny => {
+                HeapRefView::HTAny(unsafe { HTPtr::<Any>::new_tag_unchecked(self.ptr) })
+            }
+            TypeTag::HTI32 => {
+                HeapRefView::HTI32(unsafe { HTPtr::<i32>::new_tag_unchecked(self.ptr) })
+            }
+            TypeTag::Any => HeapRefView::Any(unsafe { AnyJSPtr::new_tag_unchecked(self.ptr) }),
             TypeTag::Object => HeapRefView::Object(unsafe { ObjectPtr::new(self.ptr) }),
         }
+    }
+}
+// Deref as well
+impl<'a> HeapPtr for AnyPtr<'a> {
+    fn get_ptr(&self) -> *mut Tag {
+        self.view().get_ptr()
+    }
+    fn get_data_size(&self, heap: &Heap) -> usize {
+        self.view().get_data_size(heap)
+    }
+    fn final_drop(&self) {
+        self.view().final_drop()
     }
 }
 
@@ -189,7 +196,7 @@ impl<'a, T> HeapPtr for TypePtr<'a, T> {
         std::mem::size_of::<T>()
     }
 
-    fn drop(&self) {
+    fn final_drop(&self) {
         unsafe { std::ptr::drop_in_place::<T>(data_ptr(self.ptr)) }
     }
 }

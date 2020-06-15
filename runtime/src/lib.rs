@@ -28,6 +28,8 @@ pub mod string;
 
 mod allocator;
 use allocator::*;
+use any::Any;
+
 static mut HEAP: Option<Heap> = None;
 
 /// needs to be called before most other code. it initializes the managed heap

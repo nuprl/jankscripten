@@ -230,7 +230,7 @@ impl Heap {
         while ptr < heap_max {
             let any_ptr = unsafe { AnyPtr::new(std::mem::transmute(ptr)) };
             // drop any rust memory that may exist
-            any_ptr.drop();
+            any_ptr.final_drop();
             let tag_ref = unsafe { &mut *any_ptr.get_ptr() };
             let size = self.tag_size as usize + any_ptr.get_data_size(self);
             if tag_ref.marked == true {
