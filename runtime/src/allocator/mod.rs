@@ -151,9 +151,7 @@ impl Heap {
                 let tag_ptr: *mut Tag = unsafe { std::mem::transmute(ptr) };
                 let tag_ref: &mut Tag = unsafe { &mut *tag_ptr };
                 *tag_ref = tag;
-                // safety: requested by user
-                let val_ref = TypePtr::new_checked(tag_ptr, tag.type_tag);
-                TypePtr::write(&val_ref, value);
+                let val_ref = TypePtr::<T>::new(tag_ptr, tag.type_tag, value);
                 Some(val_ref)
             }
         }
@@ -185,7 +183,7 @@ impl Heap {
 
     /// # Safety
     ///
-    /// ??? as long as things have gone okay up to here i don't see the problem
+    /// roots must be live, appropriately allocated tags
     pub unsafe fn garbage_collect(&self, roots: &[*mut Tag]) {
         self.mark_phase(roots);
         self.sweep_phase();
@@ -231,6 +229,8 @@ impl Heap {
         let heap_max = unsafe { self.buffer.add(self.size as usize) };
         while ptr < heap_max {
             let any_ptr = unsafe { AnyPtr::new(std::mem::transmute(ptr)) };
+            // drop any rust memory that may exist
+            any_ptr.drop();
             let tag_ref = unsafe { &mut *any_ptr.get_ptr() };
             let size = self.tag_size as usize + any_ptr.get_data_size(self);
             if tag_ref.marked == true {

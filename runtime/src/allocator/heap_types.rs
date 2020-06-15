@@ -7,11 +7,6 @@ pub trait HasTag {
         Tag::with_type(Self::TYPE_TAG)
     }
 }
-impl<'a, T: HasTag> TypePtr<'a, T> {
-    pub fn new(ptr: *mut Tag) -> Self {
-        Self::new_checked(ptr, T::TYPE_TAG)
-    }
-}
 
 pub type I32Ptr<'a> = TypePtr<'a, i32>;
 impl HasTag for i32 {

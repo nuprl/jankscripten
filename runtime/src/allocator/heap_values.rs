@@ -61,12 +61,17 @@ pub enum TypeTag {
 /// for each variant of `Tag`. Moreover, each Rust type impements the
 /// `HeapPtr` trait, to get low-level access to the heap, which is needed to
 /// actually manipulate heap values.
-///
 pub trait HeapPtr {
     fn get_ptr(&self) -> *mut Tag;
     /// The size of the data that follows the tag. i.e., this must exclude the
     /// size of the tag.
     fn get_data_size(&self, heap: &Heap) -> usize;
+    /// this is not Drop::drop, don't call it unless you're the GC
+    ///
+    /// drops any data on the unmanaged heap. default implementation does
+    /// nothing, because most structures ideally shouldn't allocate on the
+    /// rust heap
+    fn drop(&self) {}
 }
 
 /// Returns a pointer to the data that follows the tag. Note that the size of
@@ -109,6 +114,14 @@ impl<'a> HeapPtr for HeapRefView<'a> {
             HeapRefView::Object(ptr) => ptr.get_data_size(heap),
         }
     }
+
+    fn drop(&self) {
+        match self {
+            HeapRefView::I32(ptr) => ptr.drop(),
+            HeapRefView::String(ptr) => ptr.drop(),
+            HeapRefView::Object(ptr) => ptr.drop(),
+        }
+    }
 }
 
 impl<'a> HeapPtr for AnyPtr<'a> {
@@ -118,6 +131,10 @@ impl<'a> HeapPtr for AnyPtr<'a> {
 
     fn get_data_size(&self, heap: &Heap) -> usize {
         return self.view().get_data_size(heap);
+    }
+
+    fn drop(&self) {
+        self.view().drop()
     }
 }
 
@@ -134,19 +151,34 @@ impl<'a> AnyPtr<'a> {
     pub fn view(&self) -> HeapRefView<'a> {
         let heap_ref: Tag = unsafe { *self.ptr };
         match heap_ref.type_tag {
-            TypeTag::I32 => HeapRefView::I32(I32Ptr::new(self.ptr)),
-            TypeTag::String => HeapRefView::String(StringPtr::new(self.ptr)),
+            TypeTag::I32 => HeapRefView::I32(unsafe { I32Ptr::new_tag_unchecked(self.ptr) }),
+            TypeTag::String => {
+                HeapRefView::String(unsafe { StringPtr::new_tag_unchecked(self.ptr) })
+            }
             TypeTag::Object => HeapRefView::Object(unsafe { ObjectPtr::new(self.ptr) }),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 #[repr(transparent)]
 pub struct TypePtr<'a, T> {
     ptr: *mut Tag,
-    _phantom: PhantomData<&'a T>,
+    _phantom: PhantomData<&'a ()>,
+    _drop: PhantomData<T>,
 }
+// these are necessary because if T is not clone/copy, derive will try not
+// to let it clone/copy, but this is a pointer and should copy
+impl<'a, T> Clone for TypePtr<'a, T> {
+    fn clone(&self) -> TypePtr<'a, T> {
+        TypePtr {
+            ptr: self.ptr,
+            _phantom: PhantomData,
+            _drop: PhantomData,
+        }
+    }
+}
+impl<'a, T> Copy for TypePtr<'a, T> {}
 
 impl<'a, T> HeapPtr for TypePtr<'a, T> {
     fn get_ptr(&self) -> *mut Tag {
@@ -156,6 +188,10 @@ impl<'a, T> HeapPtr for TypePtr<'a, T> {
     fn get_data_size(&self, _heap: &Heap) -> usize {
         std::mem::size_of::<T>()
     }
+
+    fn drop(&self) {
+        unsafe { std::ptr::drop_in_place::<T>(data_ptr(self.ptr)) }
+    }
 }
 
 impl<'a, T> TypePtr<'a, T> {
@@ -163,27 +199,38 @@ impl<'a, T> TypePtr<'a, T> {
         return layout::layout_aligned::<T>(ALIGNMENT).size() as isize;
     }
 
-    // safety: Tag must match T
-    pub unsafe fn new_unchecked(ptr: *mut Tag) -> Self {
+    // safety: Tag must match T, value must be immediately initialized
+    // with write
+    unsafe fn new_tag_unchecked(ptr: *mut Tag) -> Self {
         TypePtr {
             ptr,
             _phantom: PhantomData,
+            _drop: PhantomData,
         }
     }
-    pub fn new_checked(ptr: *mut Tag, type_tag: TypeTag) -> Self {
-        assert_eq!(unsafe { ptr.read().type_tag }, type_tag);
-        unsafe { Self::new_unchecked(ptr) }
+    // safety: data_ptr must be initialized with write
+    unsafe fn new_tag(ptr: *mut Tag, type_tag: TypeTag) -> Self {
+        assert_eq!(ptr.read().type_tag, type_tag);
+        Self::new_tag_unchecked(ptr)
+    }
+    pub fn new(ptr: *mut Tag, type_tag: TypeTag, value: T) -> Self {
+        let mut this = unsafe { Self::new_tag(ptr, type_tag) };
+        this.write(value);
+        this
     }
 
-    fn data(&self) -> &mut T {
+    /// safe alternatives to read / write where read() doesn't cause drop
+    pub fn get(&self) -> &T {
+        unsafe { &*data_ptr(self.ptr) }
+    }
+    /// write data, dropping old data. if you're not the allocator, this is
+    /// what you want
+    pub fn get_mut(&mut self) -> &mut T {
         unsafe { &mut *data_ptr(self.ptr) }
     }
-
-    pub fn read(&self) -> T {
-        unsafe { std::ptr::read(data_ptr(self.ptr)) }
-    }
-
-    pub fn write(&self, val: T) {
+    /// write data without dropping old rust-owned data. this should only
+    /// really be used by the allocater for writing to uninitialized tag
+    fn write(&mut self, val: T) {
         unsafe { std::ptr::write(data_ptr(self.ptr), val) }
     }
 }
@@ -191,12 +238,12 @@ impl<'a, T> TypePtr<'a, T> {
 impl<'a, T> Deref for TypePtr<'a, T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
-        self.data()
+        self.get()
     }
 }
 impl<'a, T> DerefMut for TypePtr<'a, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.data()
+        self.get_mut()
     }
 }
 
