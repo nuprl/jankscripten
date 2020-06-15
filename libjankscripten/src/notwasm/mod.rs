@@ -1,3 +1,4 @@
+//! NotWasm: It is not WebAssembly, but quite close to it.
 mod compile;
 mod constructors;
 mod index;

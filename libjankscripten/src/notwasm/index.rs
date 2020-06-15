@@ -93,10 +93,10 @@ impl Visitor for IndexVisitor<'_> {
     fn exit_expr(&mut self, expr: &mut Expr, _loc: &mut Loc) {
         use Expr::*;
         match expr {
-            Call(b, cs, ..) => {
-                self.update_id(b);
-                for c in cs {
-                    self.update_id(c);
+            CallDirect(f, args) | CallIndirect(f, _, args) => {
+                self.update_id(f);
+                for a in args {
+                    self.update_id(a);
                 }
             }
             _ => (),

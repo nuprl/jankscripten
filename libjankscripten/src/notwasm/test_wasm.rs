@@ -2,6 +2,7 @@ use super::compile;
 use super::syntax::*;
 use std::io::Write;
 use std::process::{Command, Stdio};
+use super::parser::parse;
 
 fn test_wasm(expected: i32, program: Program) {
     let wasm = compile(program).expect("couldn't compile");
@@ -100,7 +101,11 @@ fn works_with_runtime() {
 
 #[test]
 fn binary_ops() {
-    let program = test_program_(Stmt::Return(plus_(i32_(5), i32_(7), Type::I32)));
+    let program = parse(r#"
+        function main() : i32 {
+            return 5 + 7;
+        }
+    "#);
     test_wasm(12, program);
 }
 
@@ -123,7 +128,7 @@ fn functions() {
             body: Stmt::Block(vec![
                 Stmt::Var(
                     id_("x"),
-                    Expr::Call(id_("to_call"), vec![], vec![], Type::I32),
+                    Expr::CallDirect(id_("to_call"), vec![]),
                     Type::I32,
                 ),
                 Stmt::Return(plus_(i32_(4), get_id_("x"), Type::I32)),
@@ -179,4 +184,22 @@ fn fib() {
     ]);
     let program = test_program_(body);
     test_wasm(1597, program);
+}
+
+
+#[test]
+fn trivial_direct_call() {
+    let program = parse(r#"
+        function F(n : i32) : i32 {
+            return n;
+        }
+
+        function main() : i32 {
+            var n : i32 = 100;
+            var result : i32 = F(n);
+            return result;
+        }
+    "#);
+
+    test_wasm(100, program);
 }
