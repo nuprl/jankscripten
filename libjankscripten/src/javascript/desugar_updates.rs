@@ -10,7 +10,7 @@ use super::constructors::*;
 struct DesugarFancyUpdates();
 
 impl Visitor for DesugarFancyUpdates {
-    fn exit_expr(&mut self, expr: &mut Expr, _loc: &mut Loc) {
+    fn exit_expr(&mut self, expr: &mut Expr, _loc: &Loc) {
         match expr {
             Expr::Assign(AssignOp::Equal, _lv, _rhs) => { }
             Expr::Assign(AssignOp::PlusEqual, lv, rhs) => {
