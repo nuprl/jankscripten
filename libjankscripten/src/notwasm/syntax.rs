@@ -65,9 +65,16 @@ pub enum Expr {
     HT(Type),
     // TODO: String instead of i32
     HTSet(Box<Atom>, Key, Box<Atom>, Type),
-    Call(Id, Vec<Id>, Vec<Type>, Type),
+    CallDirect(Id, Vec<Id>),
+    CallIndirect(Id, FnType, Vec<Id>),
     //New(Id, Vec<Id>, Type),
     Atom(Atom),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct FnType {
+    pub args: Vec<Type>,
+    pub result: Type
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -107,13 +114,14 @@ pub struct Class;
 
 #[derive(Debug, PartialEq)]
 pub struct Function {
+    // Initialized during compilation
     pub locals: Vec<Type>,
     pub body: Stmt,
     pub ret_ty: Type,
     pub params_tys: Vec<(Id, Type)>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Lit {
     Bool(bool),
     I32(i32),
