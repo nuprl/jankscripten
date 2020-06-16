@@ -1,20 +1,12 @@
-#![allow(dead_code, unused_imports)]
 use super::syntax::*;
 
-use std::collections::HashMap;
-use combine_language::{LanguageDef, LanguageEnv, Identifier};
-use combine::error::ParseError;
 use combine::parser;
-use combine::parser::char::{alpha_num, char, digit, letter, spaces, string};
-use combine::stream::easy;
-use combine::stream::Stream;
+use combine::parser::char::{alpha_num, letter, string};
 use combine::stream::state::State;
-
-use combine::{
-    attempt, between, eof, many, many1, optional, satisfy_map, sep_end_by, token, Parser,
-    sep_by, value, chainl1, satisfy
-};
-use std::fmt;
+use combine::stream::Stream;
+use combine::{chainl1, eof, many, optional, satisfy, sep_by, value, Parser};
+use combine_language::{Identifier, LanguageDef, LanguageEnv};
+use std::collections::HashMap;
 
 type Lang<'a, I> = LanguageEnv<'a, I>;
 
@@ -55,7 +47,7 @@ parser! {
         chainl1(
             atom_item(lang),
             binop(lang).map(|op| move |lhs, rhs| Atom::Binary(op, Box::new(lhs), Box::new(rhs), Type::I32)))
-    }    
+    }
 }
 
 parser! {
@@ -70,7 +62,7 @@ parser! {
 
 enum AfterId {
     Args(Vec<Id>),
-    Op(BinaryOp, Atom)
+    Op(BinaryOp, Atom),
 }
 
 parser! {
@@ -126,7 +118,7 @@ parser! {
             .skip(lang.reserved("else"))
             .and(block(lang))
             .map(|((a, s1), s2)| Stmt::If(a, Box::new(s1), Box::new(s2)));
-        
+
         let loop_ = lang.reserved("loop")
             .with(block(lang))
             .map(|s| Stmt::Loop(Box::new(s)));
@@ -165,7 +157,7 @@ parser! {
         .skip(lang.reserved_op(":"))
         .and(type_(lang))
         .and(block(lang))
-        .map(|(((f, params_tys), ret_ty), body)| 
+        .map(|(((f, params_tys), ret_ty), body)|
         (f, Function { locals: vec![], body, params_tys, ret_ty }))
     }
 }
@@ -185,6 +177,7 @@ parser! {
     }
 }
 
+#[allow(unused)]
 pub fn parse(input: &str) -> Program {
     // NOTE(arjun): It would be nice to extract this language definition into
     // a function. But, I have no idea what its type should be, since the
@@ -193,11 +186,12 @@ pub fn parse(input: &str) -> Program {
         ident: Identifier {
             start: letter(),
             rest: alpha_num(),
-            reserved: ["if", "else", "true", "false", "function", "loop", 
-                "return", "i32" ]
-                .iter()
-                .map(|x| (*x).into())
-                .collect(),
+            reserved: [
+                "if", "else", "true", "false", "function", "loop", "return", "i32",
+            ]
+            .iter()
+            .map(|x| (*x).into())
+            .collect(),
         },
         // NOTE(arjun): This is from the combine-language documentation. I have
         // not bothered to understand it. But, it ought to define a pattern that
@@ -205,7 +199,7 @@ pub fn parse(input: &str) -> Program {
         op: Identifier {
             start: satisfy(|c| "+-*/".chars().any(|x| x == c)),
             rest: satisfy(|c| "+-*/".chars().any(|x| x == c)),
-            reserved: ["+", "-", "*", "/"].iter().map(|x| (*x).into()).collect()
+            reserved: ["+", "-", "*", "/"].iter().map(|x| (*x).into()).collect(),
         },
         comment_start: string("/*").map(|_| ()),
         comment_end: string("*/").map(|_| ()),
@@ -217,4 +211,3 @@ pub fn parse(input: &str) -> Program {
     let p = parser.easy_parse(input_stream).expect("parsing error");
     return p.0;
 }
-
