@@ -64,7 +64,7 @@ pub enum Atom {
     Id(Id),
     // only negative float is unary and in JS
     //Unary(UnaryOp, Box<Expr>, Type),
-    Binary(BinaryOp, Box<Atom>, Box<Atom>, Type),
+    Binary(BinaryOp, Box<Atom>, Box<Atom>),
 }
 
 #[derive(Debug, PartialEq)]
