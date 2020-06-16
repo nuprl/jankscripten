@@ -100,11 +100,7 @@ parser! {
             .skip(lang.reserved_op("="))
             .and(expr(lang))
             .skip(lang.reserved_op(";"))
-            .map(|((x,t),e)| {
-                let x = Stmt::Var(x, e, t);
-                println!("{:?}", x);
-                x
-            });
+            .map(|((x,t),e)| Stmt::Var(x, e, t));
 
         let assign = id(lang)
             .skip(lang.reserved_op("="))
