@@ -1,6 +1,6 @@
 //! The types associated with the Jankyscript language.
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Type {
     Any,
     Int,
