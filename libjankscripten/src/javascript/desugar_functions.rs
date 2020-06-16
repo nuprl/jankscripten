@@ -10,7 +10,10 @@ impl Visitor for NameFunctionCalls<'_> {
         match expr {
             Expr::Call(_fid, _args) => {
                 match loc {
-                    Loc::Node(Context::RValue, _) => {
+                    Loc::Node(Context::VarDeclRhs, _) => {
+                        // already being named, so no worries
+                    },
+                    Loc::Node(Context::AssignRhs(AssignOp::Equal), _) => {
                         // already being named, so no worries
                     },
                     _ => {
@@ -46,6 +49,7 @@ mod test {
             }
             var x = 1;
             x += f(1);
+            x;
         "#;
         desugar_okay(prog, simpl);
     }
@@ -58,6 +62,7 @@ mod test {
                 return obj;
             }
             f().x += 1;
+            f().x;
         "#;
         desugar_okay(prog, simpl);
     }
@@ -78,13 +83,13 @@ mod test {
     }
 
     #[test]
-    fn name_call_decl() {
+    fn name_call_decl1() {
         let prog = r#"
             function f() {
                 return 1;
             }
             var x = f();
-            x
+            x;
         "#;
 
         desugar_okay(prog, simpl);
@@ -100,7 +105,7 @@ mod test {
                 return 5;
             }
             var x = f(g());
-            x
+            x;
         "#;
 
         desugar_okay(prog, simpl);
@@ -114,6 +119,7 @@ mod test {
             }
             var x = 2;
             x = f();
+            x;
         "#;
 
         desugar_okay(prog, simpl);
