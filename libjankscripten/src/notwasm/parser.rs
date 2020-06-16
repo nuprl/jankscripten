@@ -46,7 +46,7 @@ parser! {
     {
         chainl1(
             atom_item(lang),
-            binop(lang).map(|op| move |lhs, rhs| Atom::Binary(op, Box::new(lhs), Box::new(rhs), Type::I32)))
+            binop(lang).map(|op| move |lhs, rhs| Atom::Binary(op, Box::new(lhs), Box::new(rhs))))
     }
 }
 
@@ -75,7 +75,7 @@ parser! {
         .map(|(f, opt_args)| match opt_args {
             None => Expr::Atom(Atom::Id(f)),
             Some(AfterId::Args(args)) => Expr::CallDirect(f, args),
-            Some(AfterId::Op(op, e)) => Expr::Atom(Atom::Binary(op, Box::new(Atom::Id(f)), Box::new(e), Type::I32))
+            Some(AfterId::Op(op, e)) => Expr::Atom(Atom::Binary(op, Box::new(Atom::Id(f)), Box::new(e)))
         })
         .or(atom(lang).map(|a| Expr::Atom(a)))
     }
