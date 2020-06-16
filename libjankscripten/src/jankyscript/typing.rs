@@ -1,5 +1,5 @@
 use super::syntax::*;
-use super::types::Type;
+use super::types::*;
 
 use im_rc::HashMap;
 
@@ -8,21 +8,34 @@ pub enum TypingError {
     Incorrect(String)
 }
 
-pub type TypingResult = Result<Env, TypingError>;
+pub type TypingResult<T> = Result<T, TypingError>;
 
 type Env = HashMap<Id, Type>;
 
-type Coercion = (Type, Type);
+enum Coercion {
+    Tag(Type),
+    Untag(Type)
+}
 
 pub struct Typing {
-    coercions: Vec<Coercion>,
     next_var: usize,
 }
 
 impl Typing {
-    fn fresh_metavar(&mut self) -> Type {
-        let x = self.next_var;
-        self.next_var = self.next_var + 1;
-        return Type::Metavar(x);
+    fn coerce(t1: Type, t2: Type) {
+        match (t1, t2) {
+            (Type::Ground(GroundType::Any), Type::Ground(g)) => {
+                unimplemented!()
+            },
+            _ => unimplemented!()
+        }
+    }
+
+    fn tag() {
+        unimplemented!()
+    }
+
+    fn untag(g: GroundType) {
+        unimplemented!()
     }
 }
