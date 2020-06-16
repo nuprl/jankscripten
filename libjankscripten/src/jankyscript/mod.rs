@@ -3,3 +3,4 @@ mod syntax;
 mod types;
 pub mod constructors;
 //pub mod type_checking;
+pub mod typing;

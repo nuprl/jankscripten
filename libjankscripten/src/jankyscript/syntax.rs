@@ -55,7 +55,7 @@ pub enum Expr {
 
 #[derive(Debug)]
 pub enum Stmt {
-    Var(Id, Type, Expr),
+    Var(Id, Option<Type>, Expr),
     Block(Vec<Stmt>),
     Empty,
     Assign(AssignOp, Box<LValue>, Box<Expr>),

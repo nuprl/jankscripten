@@ -14,7 +14,7 @@ pub fn binary_(op: BinOp, e1: Expr, e2: Expr) -> Expr {
 // Statements
 
 pub fn var_(x: &str, t: Option<Type>, e: Expr) -> Stmt {
-    Stmt::Var(x.to_string(), t.unwrap_or(Type::Any), e)
+    Stmt::Var(x.to_string(), t, e)
 }
 
 pub fn block_(stmts: Vec<Stmt>) -> Stmt {
