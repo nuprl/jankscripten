@@ -1,5 +1,8 @@
 [workspace]
 members = [
     "libjankscripten",
-    "jankscripten"
+    "jankscripten",
+    "jankyp",
+    "runtime",
+    "tester"
 ]
