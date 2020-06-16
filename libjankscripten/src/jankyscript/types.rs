@@ -1,6 +1,6 @@
 //! The types associated with the Jankyscript language.
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum GroundType {
     Float,
     Bool,
@@ -9,7 +9,7 @@ pub enum GroundType {
     // TODO: others
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     Ground(GroundType),
     Function(Vec<Type>, Box<Type>)
