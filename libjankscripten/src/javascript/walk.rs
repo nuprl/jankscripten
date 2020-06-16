@@ -82,7 +82,9 @@ pub enum Context<'a> {
     Block(&'a BlockContext),
     Expr,
     Stmt,
-    LValue
+    LValue,
+    VarDeclRhs,
+    AssignRhs(AssignOp),
 }
 
 /// A data structure that represents the context of a call to a visitor.
@@ -144,7 +146,7 @@ where
             // 1x{ .., Stmt }
             VarDecl(vds) => {
                 for super::VarDecl { name: _, named } in vds {
-                    let loc = Loc::Node(Context::Stmt, loc);
+                    let loc = Loc::Node(Context::VarDeclRhs, loc);
                     self.walk_expr(named, &loc);
                 }
             }
@@ -223,11 +225,11 @@ where
                 self.walk_expr(e, &loc);
             }
             // 1xExpr, 1xLValue
-            Assign(.., lv, e) => {
+            Assign(op, lv, e) => {
                 let lv_loc = Loc::Node(Context::LValue, loc);
                 self.walk_lval(lv, &lv_loc);
-                let e_loc = Loc::Node(Context::Expr, loc);
-                self.walk_expr(e, &loc);
+                let rv_loc = Loc::Node(Context::AssignRhs(*op), loc);
+                self.walk_expr(e, &rv_loc);
             }
             // 1xExpr, 1x[Expr]
             New(e, es) | Call(e, es) => {
