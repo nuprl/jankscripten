@@ -5,9 +5,6 @@ use super::constructors::*;
 // Naming the result of all function applications 
 struct NameFunctionCalls <'a> { ng: &'a mut NameGen }
 
-// Naming all functions using var 
-struct VarFunctions <'a> { ng : &'a mut NameGen }
-
 impl Visitor for NameFunctionCalls<'_> {
     fn exit_expr(&mut self, expr: &mut Expr, loc: &Loc) {
         match expr {
@@ -24,65 +21,12 @@ impl Visitor for NameFunctionCalls<'_> {
                     }
                 }
             }
-            _ => {}
+            _ => {
+                //not a call, proceed as usual
+            }
         }
     }
 }
-
-impl Visitor for VarFunctions<'_> {
-    fn exit_expr(&mut self, expr: &mut Expr, loc: &Loc) {
-        match expr {
-            Expr::Func(Some(id), args, stmt) => {
-                match loc {
-                    Loc::Node(Context::RValue, _) => {
-                        // already in a var
-                        // note: this case unsettles me. not sure abt its validity 
-                    },
-                    _ => {
-                        let block_ctx = loc.enclosing_block().expect("Block context expected");
-                        block_ctx.insert(0, vardecl1_(id.clone(), expr_func_ (None::<Id>, args.clone(), stmt.take())));
-                        *expr = id_(id.clone());
-                    }
-                }
-            },
-            Expr::Func(None, _args, _stmt) => {
-                match loc {
-                    Loc::Node(Context::RValue, _) => {
-                        // already in a var
-                    },
-                    _ => {
-                        let block_ctx = loc.enclosing_block().expect("Block context expected");
-                        let id = self.ng.fresh("f");
-                        block_ctx.insert(0, vardecl1_(id.clone(), expr.clone()));
-                        *expr = id_(id);
-                    }
-                }
-            },
-            _ => {}
-        }
-    }
-
-    fn exit_stmt(&mut self, stmt: &mut Stmt) { // tfw no loc :(
-        match stmt {
-            Stmt::Func(_id, _args, _f_stmt) => {
-                // match loc {
-                //     Loc::Node(Context::RValue, _) => {
-                //         // already in a var
-                //         // again, i don't think this is possible, but who knows with js tbh
-                //     },
-                //     _ => {
-                //         let block_ctx = loc.enclosing_block().expect("Block context expected");
-                //         block_ctx.insert(0, vardecl1_(id.clone(), expr_func_::<Id, T> (None, args.clone(), f_stmt.take())));
-                        
-                //         stmt.take(); // no need for the declaration anymore
-                //     }
-                // }
-            },
-            _ => {}
-        }
-    }
-}
-
 
 pub fn simpl(program: &mut Stmt, namegen: &mut NameGen) {
     let mut v = NameFunctionCalls {ng: namegen};
@@ -135,29 +79,20 @@ mod test {
 
     #[test]
     fn name_call_decl() {
-        //desugar_okay gets mad when no changes are made? 
-        //using assert_eq! for now
-        let mut prog = parse(r#"
+        let prog = r#"
             function f() {
                 return 1;
             }
             var x = f();
-        "#).unwrap();
-        let result = parse(r#"
-            function f() {
-                return 1;
-            }
-            var x = f();
-        "#).unwrap();
+            x
+        "#;
 
-        let mut ng = NameGen::default();
-        simpl(&mut prog, &mut ng);
-        assert_eq!(prog, result);
+        desugar_okay(prog, simpl);
     }
 
     #[test]
     fn name_call_decl2() {
-        let mut prog = r#"
+        let prog = r#"
             function f(arg) {
                 return arg+1;
             }
@@ -165,6 +100,7 @@ mod test {
                 return 5;
             }
             var x = f(g());
+            x
         "#;
 
         desugar_okay(prog, simpl);
@@ -172,24 +108,15 @@ mod test {
 
     #[test]
     fn name_call_simpleupdate() {
-        let mut prog = parse(r#"
+        let prog = r#"
             function f() {
                 return 1;
             }
             var x = 2;
             x = f();
-        "#).unwrap();
-        let result = parse(r#"
-            function f() {
-                return 1;
-            }
-            var x = 2;
-            x = f();
-        "#).unwrap();
+        "#;
 
-        let mut ng = NameGen::default();
-        simpl(&mut prog, &mut ng);
-        assert_eq!(prog, result);
+        desugar_okay(prog, simpl);
     }
 
 
