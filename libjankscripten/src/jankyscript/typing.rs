@@ -1,18 +1,12 @@
 use super::syntax::*;
 use super::types::*;
 
-/*
-use im_rc::HashMap;
-
 #[derive(Debug)]
 pub enum TypingError {
-    Bad(String)
+    Wrong(String)
 }
 
 pub type TypingResult<T> = Result<T, TypingError>;
-
-type Env = HashMap<Id, Type>;
-*/
 
 enum Coercion {
     Tag(Type),
@@ -71,6 +65,32 @@ impl Typing {
 
     fn seq(&self, c1: Coercion, c2: Coercion) {
         unimplemented!()
+    }
+
+    fn typing_stmt(&self, stmt: Stmt) -> TypingResult<Stmt> {
+        unimplemented!()
+    }
+
+    fn typing_expr(&self, expr: Expr) -> TypingResult<(Expr, Type)> {
+        match expr {
+            Expr::Lit(l) => {
+                let (l, t) = self.typing_lit(l)?;
+                Ok((Expr::Lit(l), t))
+            },
+            Expr::Binary(op, e1, e2) => {
+                let (e1, t1) = self.typing_expr(*e1)?;
+                let (e2, t2) = self.typing_expr(*e2)?;
+                unimplemented!()
+            },
+            _ => unimplemented!()
+        }
+    }
+
+    fn typing_lit(&self, lit: Lit) -> TypingResult<(Lit, Type)> {
+        match lit {
+            Lit::Num(n) => Ok((Lit::Num(n), Type::Ground(GroundType::Float))),
+            _ => unimplemented!()
+        }
     }
 
 }
