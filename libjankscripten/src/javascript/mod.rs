@@ -4,7 +4,7 @@ pub mod constructors;
 pub mod desugar;
 pub mod desugar_logical;
 pub mod desugar_loops;
-pub mod desugar_functions;
+pub mod desugar_function_applications;
 pub mod name_gen;
 pub mod parser;
 pub mod syntax;
