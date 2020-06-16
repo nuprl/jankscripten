@@ -4,7 +4,7 @@ use super::*;
 use resast::BinaryOp;
 use super::constructors::*;
 
-//note: will depend on function naming from desugar-functions in order to handle f().x += 1; cases
+//note: will depend on function naming from desugar_function_applications in order to handle f().x += 1; cases
 // x += 1;    =>    x = x + 1;
 
 struct DesugarFancyUpdates();
@@ -49,7 +49,9 @@ impl Visitor for DesugarFancyUpdates {
             Expr::Assign(AssignOp::PowerOfEqual, lv, rhs) => {
                 *expr = desugar_assign_op(BinaryOp::PowerOf, lv, rhs);
             },
-            _ => {}
+            _ => {
+                //not an assignment, proceed as usual
+            }
         }
     }
 }
