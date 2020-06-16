@@ -107,21 +107,6 @@ mod test {
     }
 
     #[test]
-    fn name_call_decl2() {
-        let mut prog = r#"
-            function f(arg) {
-                return arg+1;
-            }
-            function g() {
-                return 5;
-            }
-            var x = f(g());
-        "#;
-
-        desugar_okay(prog, simpl);
-    }
-
-    #[test]
     fn name_call_simpleupdate() {
         let prog = r#"
             function f() {
@@ -133,6 +118,4 @@ mod test {
 
         desugar_okay(prog, simpl);
     }
-
-
 }
