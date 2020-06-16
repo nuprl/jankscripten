@@ -1,0 +1,13 @@
+[package]
+name = "runtime"
+version = "0.1.0"
+authors = ["Emily Herbert <emilyherbert@cs.umass.edu>"]
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dev-dependencies]
+wasm-bindgen-test = "*"
