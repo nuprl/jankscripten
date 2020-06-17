@@ -1,5 +1,5 @@
 use super::syntax::*;
-
+use super::{constructors as ctor};
 use combine::parser;
 use combine::parser::char::{alpha_num, letter, string};
 use combine::stream::state::State;
@@ -34,6 +34,7 @@ parser! {
     where [I: Stream<Item = char>]
     {
         lang.reserved_op("+").with(value(BinaryOp::I32Add))
+        .or(lang.reserved_op("*").with(value(BinaryOp::I32Mul)))
         .or(lang.reserved_op(">").with(value(BinaryOp::I32GT)))
         .or(lang.reserved_op("-").with(value(BinaryOp::I32Eq)))
         .or(lang.reserved_op("==").with(value(BinaryOp::I32Sub)))
@@ -128,8 +129,13 @@ parser! {
             .with(id(lang))
             .skip(lang.reserved_op(";"))
             .map(|l| Stmt::Break(l));
+        
+        let while_ = lang.reserved("while")
+            .with(lang.parens(atom(lang)))
+            .and(block(lang))
+            .map(|(test,body)| ctor::while_(test, body));
 
-        var.or(if_).or(return_).or(block(lang)).or(loop_).or(break_).or(assign)
+        var.or(while_).or(if_).or(return_).or(block(lang)).or(loop_).or(break_).or(assign)
     }
 }
 
@@ -183,6 +189,7 @@ pub fn parse(input: &str) -> Program {
             rest: alpha_num(),
             reserved: [
                 "if", "else", "true", "false", "function", "loop", "return", "i32",
+                "while"
             ]
             .iter()
             .map(|x| (*x).into())

@@ -205,6 +205,7 @@ impl<'a> Translate<'a> {
             N::BinaryOp::I32Add => self.out.push(I32Add),
             N::BinaryOp::I32Sub => self.out.push(I32Sub),
             N::BinaryOp::I32GT => self.out.push(I32GtS),
+            N::BinaryOp::I32Mul => self.out.push(I32Mul),
         }
     }
 
