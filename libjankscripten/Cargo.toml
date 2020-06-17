@@ -11,6 +11,7 @@ thiserror = "*"
 pretty = "^0.10.0"
 parity-wasm = "^0.41.0"
 combine = "3.8.1"
+im-rc = "15.0.0"
 combine-language = "*"
 
 [dev-dependencies]

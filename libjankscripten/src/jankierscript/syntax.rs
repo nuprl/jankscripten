@@ -3,12 +3,25 @@
 //! The JavaScript AST goes through several stages of desugaring before we
 //! produce a program in this language.
 
-/// Deliberately excludes logical operators.
-type BinOp = resast::BinaryOp;
+use crate::jankierscript::types::Type;
 
-pub type UnaryOp = resast::UnaryOp;
+#[derive(Debug)]
+pub enum BinOp {
+    Plus(Type, Type), // initialize as any
+    // TODO: others
+}
 
-pub type AssignOp = resast::AssignOp;
+#[derive(Debug)]
+pub enum UnaryOp {
+    Increment(Type) // initialize as any
+    // TODO: others
+}
+
+#[derive(Debug)]
+pub enum AssignOp {
+    PlusEqual(Type, Type)
+    // TODO: others
+}
 
 #[derive(Debug)]
 pub enum Lit {
@@ -50,13 +63,13 @@ pub enum Expr {
 
 #[derive(Debug)]
 pub enum Stmt {
-    Var(Id, Expr),
+    Var(Id, Option<Type>, Expr), // initialize to None (recommendation is to add default behavior to constructor)
     Block(Vec<Stmt>),
     Empty,
     Assign(AssignOp, Box<LValue>, Box<Expr>),
     Call(Id, Box<Expr>, Vec<Expr>),
-    New(Id, Box<Expr>, Vec<Expr>),
-    Func(Id, Vec<Id>, Box<Stmt>),
+    New(Id, Option<Type>, Box<Expr>, Vec<Expr>),
+    Func(Id, Option<Type>, Vec<(Id, Option<Type>)>, Box<Stmt>),
     If(Box<Expr>, Box<Stmt>, Box<Stmt>),
     While(Box<Expr>, Box<Stmt>),
     Label(Id, Box<Stmt>),

@@ -748,6 +748,7 @@ name = "libjankscripten"
 version = "0.1.0"
 dependencies = [
  "combine",
+ "im-rc",
  "combine-language",
  "parity-wasm",
  "pretty",
