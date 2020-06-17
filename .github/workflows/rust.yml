@@ -13,9 +13,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Build runtime
-      run: cargo build --target wasm32-unknown-unknown --verbose
-      working-directory: ./runtime
     - name: Build
       run: cargo build --verbose
     - name: Run tests
