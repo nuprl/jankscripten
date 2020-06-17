@@ -1,6 +1,14 @@
 use super::syntax::*;
 use std::collections::HashMap;
 
+pub fn while_(test: Atom, body: Stmt) -> Stmt {
+    label_(id_("$loop"), loop_(if_(test, body, break_(id_("$loop")))))
+}
+
+pub fn break_(id: Id) -> Stmt {
+    Stmt::Break(id)
+}
+
 pub fn if_(a: Atom, b: Stmt, c: Stmt) -> Stmt {
     Stmt::If(a, Box::new(b), Box::new(c))
 }

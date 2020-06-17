@@ -28,6 +28,7 @@ pub enum BinaryOp {
     I32Eq,
     I32Add,
     I32Sub,
+    I32Mul,
     I32GT // signed
 }
 
