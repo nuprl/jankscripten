@@ -1,6 +1,6 @@
 //! the jankscripten system without IO/main
 
-pub mod jankyscript;
+pub mod jankierscript;
 pub mod javascript;
 pub mod notwasm;
 

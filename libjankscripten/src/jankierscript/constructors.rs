@@ -13,6 +13,7 @@ pub fn binary_(op: BinOp, e1: Expr, e2: Expr) -> Expr {
 
 // Statements
 
+// use default arguments for t. 
 pub fn var_(x: &str, t: Option<Type>, e: Expr) -> Stmt {
     Stmt::Var(x.to_string(), t, e)
 }
