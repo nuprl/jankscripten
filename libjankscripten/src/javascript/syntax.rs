@@ -3,7 +3,7 @@
 //! based on the ressa parse but without features that are not used by any
 //! of our benchmarks and some preliminary sugars
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum BinOp {
     BinaryOp(resast::BinaryOp),
     LogicalOp(resast::LogicalOp),
@@ -13,7 +13,7 @@ pub type UnaryOp = resast::UnaryOp;
 
 pub type AssignOp = resast::AssignOp;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum UnaryAssignOp {
     PreInc,
     PreDec,
@@ -21,13 +21,13 @@ pub enum UnaryAssignOp {
     PostDec,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Num {
     Int(i32),
     Float(f64),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Lit {
     String(String),
     Regex(String, String), // TODO(arjun): The Regex is not properly parsed
@@ -54,7 +54,7 @@ impl<T: Into<String>> From<T> for Id {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum LValue {
     Id(Id),
     Dot(Expr, Id),
@@ -66,7 +66,7 @@ impl<T: Into<Id>> From<T> for LValue {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     Lit(Lit),
     Array(Vec<Expr>),
@@ -86,19 +86,19 @@ pub enum Expr {
     Seq(Vec<Expr>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct VarDecl {
     pub name: Id,
     pub named: Box<Expr>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ForInit {
     Expr(Box<Expr>),
     Decl(Vec<VarDecl>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Stmt {
     Block(Vec<Stmt>),
     Empty,

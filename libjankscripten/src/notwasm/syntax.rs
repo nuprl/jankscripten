@@ -28,6 +28,7 @@ pub enum BinaryOp {
     I32Eq,
     I32Add,
     I32Sub,
+    I32Mul,
     I32GT // signed
 }
 
@@ -64,7 +65,7 @@ pub enum Atom {
     Id(Id),
     // only negative float is unary and in JS
     //Unary(UnaryOp, Box<Expr>, Type),
-    Binary(BinaryOp, Box<Atom>, Box<Atom>, Type),
+    Binary(BinaryOp, Box<Atom>, Box<Atom>),
 }
 
 #[derive(Debug, PartialEq)]

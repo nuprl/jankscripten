@@ -205,6 +205,7 @@ impl<'a> Translate<'a> {
             N::BinaryOp::I32Add => self.out.push(I32Add),
             N::BinaryOp::I32Sub => self.out.push(I32Sub),
             N::BinaryOp::I32GT => self.out.push(I32GtS),
+            N::BinaryOp::I32Mul => self.out.push(I32Mul),
         }
     }
 
@@ -284,7 +285,7 @@ impl<'a> Translate<'a> {
                 self.out.push(I32Const(*field));
                 self.rt_call_mono("ht_get", ty);
             }
-            N::Atom::Binary(op, a, b, ty) => {
+            N::Atom::Binary(op, a, b) => {
                 self.translate_atom(a);
                 self.translate_atom(b);
                 self.translate_binop(op);

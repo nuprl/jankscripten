@@ -166,7 +166,7 @@ where
             HTGet(ea, ..) => {
                 self.walk_atom(ea, loc);
             }
-            Binary(.., ea, eb, _) => {
+            Binary(.., ea, eb) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
             }
