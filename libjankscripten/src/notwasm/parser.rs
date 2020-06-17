@@ -36,8 +36,8 @@ parser! {
         lang.reserved_op("+").with(value(BinaryOp::I32Add))
         .or(lang.reserved_op("*").with(value(BinaryOp::I32Mul)))
         .or(lang.reserved_op(">").with(value(BinaryOp::I32GT)))
-        .or(lang.reserved_op("-").with(value(BinaryOp::I32Eq)))
-        .or(lang.reserved_op("==").with(value(BinaryOp::I32Sub)))
+        .or(lang.reserved_op("-").with(value(BinaryOp::I32Sub)))
+        .or(lang.reserved_op("==").with(value(BinaryOp::I32Eq)))
     }
 }
 
