@@ -12,6 +12,7 @@ use translation::translate;
 
 pub mod syntax;
 
+pub use parser::parse;
 pub use compile::compile;
 
 #[cfg(test)]

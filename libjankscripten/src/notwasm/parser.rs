@@ -173,7 +173,6 @@ parser! {
     }
 }
 
-#[allow(unused)]
 pub fn parse(input: &str) -> Program {
     // NOTE(arjun): It would be nice to extract this language definition into
     // a function. But, I have no idea what its type should be, since the
