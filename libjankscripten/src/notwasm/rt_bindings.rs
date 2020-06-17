@@ -29,6 +29,7 @@ pub fn get_rt_bindings() -> BindMap {
     // out explicitly for now
     insert(m, "string_from_str", vec![I32, I32], String);
     insert(m, "string_len", vec![String], I32);
+    insert(m, "init", vec![], None);
     map
 }
 
@@ -51,8 +52,8 @@ fn insert_mono(
     }
 }
 
-fn insert(map: &mut BindMap, name: &str, params_tys: Vec<Type>, ret_ty: Type) {
-    map.insert(name.into(), fn_ty_(params_tys, ret_ty));
+fn insert<I: Into<Option<Type>>>(map: &mut BindMap, name: &str, params_tys: Vec<Type>, ret_ty: I) {
+    map.insert(name.into(), fn_ty_(params_tys, ret_ty.into()));
 }
 
 fn replace_if_any(replace_in: Type, replace_if: Type) -> Type {

@@ -34,7 +34,7 @@ pub fn binary_(op: BinaryOp, a: Atom, b: Atom) -> Atom {
     Atom::Binary(op, Box::new(a), Box::new(b))
 }
 pub fn plus_(a: Atom, b: Atom) -> Atom {
-    binary_(BinaryOp::I32Add, a, b, ty)
+    binary_(BinaryOp::I32Add, a, b)
 }
 pub fn gt_(a: Atom, b: Atom) -> Atom {
     binary_(BinaryOp::I32Eq, a, b)
@@ -65,8 +65,11 @@ pub fn test_program_(body: Stmt) -> Program {
     program1_(Function {
         locals: Vec::new(),
         body,
-        params_tys: Vec::new(),
-        ret_ty: Type::I32,
+        fn_type: FnType {
+            args: Vec::new(),
+            result: Some(Type::I32),
+        },
+        params: Vec::new(),
     })
 }
 pub fn id_<S: Into<String>>(a: S) -> Id {
@@ -75,6 +78,6 @@ pub fn id_<S: Into<String>>(a: S) -> Id {
 pub fn ht_ty_(a: Type) -> Type {
     Type::HT(Box::new(a))
 }
-pub fn fn_ty_(b: Vec<Type>, a: Type) -> Type {
-    Type::Fn(b, Box::new(a))
+pub fn fn_ty_<I: Into<Option<Type>>>(b: Vec<Type>, a: I) -> Type {
+    Type::Fn(b, Box::new(a.into()))
 }

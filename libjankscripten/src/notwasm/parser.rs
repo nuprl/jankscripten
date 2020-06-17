@@ -159,8 +159,21 @@ parser! {
         .skip(lang.reserved_op(":"))
         .and(type_(lang))
         .and(block(lang))
-        .map(|(((f, params_tys), ret_ty), body)|
-        (f, Function { locals: vec![], body, params_tys, ret_ty }))
+        .map(|(((f, params_tys), ret_ty), body): (((_, Vec<(Id, Type)>), _), _)| {
+            let mut args = Vec::new();
+            let mut params = Vec::new();
+            for (param, arg) in params_tys {
+                args.push(arg);
+                params.push(param);
+            }
+            // TODO(luna): support void
+            (f, Function {
+                locals: vec![],
+                body,
+                fn_type: FnType { args, result: Some(ret_ty) },
+                params
+            })
+        })
     }
 }
 
@@ -174,7 +187,8 @@ parser! {
         .map(|functions| {
             let classes = HashMap::new();
             let globals = HashMap::new();
-            Program { functions, classes, globals }
+            let data = Vec::new();
+            Program { functions, classes, globals, data }
         })
     }
 }

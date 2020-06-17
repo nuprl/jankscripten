@@ -112,7 +112,8 @@ fn binary_ops() {
 
 #[test]
 fn functions() {
-    let program = parse(r#"
+    let program = parse(
+        r#"
         function toCall() : i32 {
             return 5;
         }
@@ -121,7 +122,8 @@ fn functions() {
             var x : i32 = toCall();
             return 4 + x;
         }
-    "#);
+    "#,
+    );
     test_wasm(9, program);
 }
 
@@ -144,7 +146,8 @@ fn break_block() {
 
 #[test]
 fn big_sum() {
-    let program = parse(r#"
+    let program = parse(
+        r#"
         function main() : i32 {
             var a : i32 = 1;
             var b : i32 = 1;
@@ -158,7 +161,8 @@ fn big_sum() {
             }
             return b;
         }
-    "#);
+    "#,
+    );
     test_wasm(1597, program);
 }
 

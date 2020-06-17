@@ -86,7 +86,7 @@ pub enum Expr {
 #[derive(Debug, PartialEq)]
 pub struct FnType {
     pub args: Vec<Type>,
-    pub result: Type,
+    pub result: Option<Type>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -99,7 +99,7 @@ pub enum Type {
     HT(Box<Type>),
     Bool,
     AnyClass,
-    Fn(Vec<Type>, Box<Type>),
+    Fn(Vec<Type>, Box<Option<Type>>),
     Any,
 }
 
@@ -131,8 +131,8 @@ pub struct Function {
     // Initialized during compilation
     pub locals: Vec<Type>,
     pub body: Stmt,
-    pub ret_ty: Type,
-    pub params_tys: Vec<(Id, Type)>,
+    pub fn_type: FnType,
+    pub params: Vec<Id>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

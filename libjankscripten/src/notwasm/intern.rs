@@ -44,16 +44,22 @@ mod test {
         let func = Function {
             locals: Vec::new(),
             body: Stmt::Return(str_("steven universe")),
-            params_tys: vec![],
-            ret_ty: Type::String,
+            fn_type: FnType {
+                args: vec![],
+                result: Some(Type::String),
+            },
+            params: vec![],
         };
         let mut program = program1_(func);
         intern(&mut program);
         let indexed_func = Function {
             locals: vec![],
-            body: Stmt::Return(Atom::Lit(Lit::Interned(0, 15))),
-            params_tys: vec![],
-            ret_ty: Type::String,
+            body: Stmt::Return(Atom::Lit(Lit::Interned(16, 15))),
+            fn_type: FnType {
+                args: vec![],
+                result: Some(Type::String),
+            },
+            params: vec![],
         };
         let mut expected = program1_(indexed_func);
         expected.data = b"steven universe".to_vec();
