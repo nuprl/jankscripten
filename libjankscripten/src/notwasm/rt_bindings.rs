@@ -5,7 +5,7 @@ use Type::*;
 
 const KEY: Type = Type::I32;
 
-type BindMap = HashMap<String, Type>;
+type BindMap = HashMap<std::string::String, Type>;
 
 pub fn get_rt_bindings() -> BindMap {
     let mut map = HashMap::new();

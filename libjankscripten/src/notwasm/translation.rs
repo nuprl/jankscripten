@@ -2,6 +2,7 @@
 //!
 //! preconditions: ????
 
+use super::intern::DATA_OFFSET;
 use super::rt_bindings::get_rt_bindings;
 use super::syntax as N;
 use parity_wasm::builder::*;
@@ -67,6 +68,12 @@ pub fn translate_parity(mut program: N::Program) -> Module {
     for func in program.functions.values_mut() {
         module.push_function(translate_func(func, &rt_indexes, &type_indexes));
     }
+    // data segment
+    let module = module
+        .data()
+        .offset(I32Const(DATA_OFFSET as i32))
+        .value(program.data)
+        .build();
     for (i, mut global) in program.globals {
         // can't use functions anyway so no need to worry
         let empty = HashMap::new();

@@ -239,3 +239,15 @@ impl Atom {
         std::mem::replace(self, Atom::Lit(Lit::Bool(false)))
     }
 }
+
+impl Program {
+    /// like [Stmt::walk], but as a method on Program
+    pub fn walk(&mut self, v: &mut impl Visitor) {
+        for func in self.functions.values_mut() {
+            func.body.walk(v);
+        }
+        for global in self.globals.values_mut() {
+            global.walk(v);
+        }
+    }
+}

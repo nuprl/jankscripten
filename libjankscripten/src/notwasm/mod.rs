@@ -2,6 +2,7 @@
 mod compile;
 mod constructors;
 mod index;
+mod intern;
 mod rt_bindings;
 mod translation;
 mod walk;

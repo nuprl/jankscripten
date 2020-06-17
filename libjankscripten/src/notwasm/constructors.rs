@@ -27,8 +27,17 @@ pub fn ht_get_(a: Atom, b: Key, ty: Type) -> Atom {
 pub fn i32_(a: i32) -> Atom {
     Atom::Lit(Lit::I32(a))
 }
+pub fn str_<S: Into<String>>(a: S) -> Atom {
+    Atom::Lit(Lit::String(a.into()))
+}
 pub fn binary_(op: BinaryOp, a: Atom, b: Atom) -> Atom {
     Atom::Binary(op, Box::new(a), Box::new(b))
+}
+pub fn plus_(a: Atom, b: Atom) -> Atom {
+    binary_(BinaryOp::I32Add, a, b, ty)
+}
+pub fn gt_(a: Atom, b: Atom) -> Atom {
+    binary_(BinaryOp::I32Eq, a, b)
 }
 pub fn atom_(a: Atom) -> Expr {
     Expr::Atom(a)
@@ -41,6 +50,7 @@ pub fn program_(functions: HashMap<Id, Function>) -> Program {
         classes: HashMap::new(),
         functions,
         globals: HashMap::new(),
+        data: Vec::new(),
     }
 }
 pub fn program1_(func: Function) -> Program {

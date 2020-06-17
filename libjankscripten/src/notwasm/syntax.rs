@@ -36,8 +36,10 @@ pub enum BinaryOp {
 pub struct Program {
     pub classes: HashMap<Id, Class>,
     pub functions: HashMap<Id, Function>,
-    // Expr must be const as defined by wasm
+    /// Atom must be const as defined by wasm
     pub globals: HashMap<Id, Atom>,
+    /// no need to initialize, populated by intern
+    pub data: Vec<u8>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -58,7 +60,6 @@ pub enum Stmt {
 #[derive(Debug, PartialEq)]
 pub enum Atom {
     Lit(Lit),
-    // TODO: String instead of i32
     HTGet(Box<Atom>, Key, Type),
     // HTGet / HTSet / ClassGet / etc VS Dot / Bracket
     // TODO: classes
@@ -90,6 +91,7 @@ pub struct FnType {
 pub enum Type {
     I32,
     F64,
+    String,
     Class,
     HT(Box<Type>),
     Bool,
@@ -135,6 +137,7 @@ pub enum Lit {
     Bool(bool),
     I32(i32),
     F64(f64),
+    String(String),
 }
 
 
@@ -144,6 +147,7 @@ pub enum Lit {
     // TODO?
     //Str(String),
 }*/
+// TODO: String instead of i32
 pub type Key = i32;
 
 impl std::fmt::Display for Type {
@@ -155,6 +159,7 @@ impl std::fmt::Display for Type {
             match self {
                 I32 => "i32",
                 F64 => "f64",
+                String => "string",
                 Class => "class",
                 HT(..) => "ht",
                 Bool => "bool",
