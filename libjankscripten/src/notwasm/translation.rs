@@ -292,9 +292,8 @@ impl<'a> Translate<'a> {
         match atom {
             N::Atom::Lit(lit) => match lit {
                 N::Lit::I32(i) => self.out.push(I32Const(*i)),
-                N::Lit::Interned(addr, len) => {
+                N::Lit::Interned(addr) => {
                     self.out.push(I32Const(*addr as i32));
-                    self.out.push(I32Const(*len as i32));
                 }
                 N::Lit::String(..) => panic!("uninterned string"),
                 _ => todo!(),

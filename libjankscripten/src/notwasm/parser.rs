@@ -1,5 +1,5 @@
+use super::constructors as ctor;
 use super::syntax::*;
-use super::{constructors as ctor};
 use combine::parser;
 use combine::parser::char::{alpha_num, letter, string};
 use combine::stream::state::State;
@@ -57,6 +57,7 @@ parser! {
     {
         lit(lang).map(|l| Atom::Lit(l))
         .or(id(lang).map(|x| Atom::Id(x)))
+        .or(lang.string_literal().map(|s| ctor::str_(s)))
         .or(lang.parens(atom(lang)))
     }
 }
@@ -87,6 +88,7 @@ parser! {
     where [ I: Stream<Item = char>]
     {
         lang.reserved("i32").with(value(Type::I32))
+            .or(lang.reserved("str").with(value(Type::StrRef)))
     }
 }
 
@@ -129,7 +131,7 @@ parser! {
             .with(id(lang))
             .skip(lang.reserved_op(";"))
             .map(|l| Stmt::Break(l));
-        
+
         let while_ = lang.reserved("while")
             .with(lang.parens(atom(lang)))
             .and(block(lang))
@@ -202,8 +204,8 @@ pub fn parse(input: &str) -> Program {
             start: letter(),
             rest: alpha_num(),
             reserved: [
-                "if", "else", "true", "false", "function", "loop", "return", "i32",
-                "while"
+                "if", "else", "true", "false", "function", "loop", "return", "i32", "string",
+                "while",
             ]
             .iter()
             .map(|x| (*x).into())

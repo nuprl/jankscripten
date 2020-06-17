@@ -25,9 +25,7 @@ pub fn get_rt_bindings() -> BindMap {
         ht_ty_(Any),
         vec![Any, I32],
     );
-    // there's no easy way to type StrRef as [I32, I32] so i just write it
-    // out explicitly for now
-    insert(m, "string_from_str", vec![I32, I32], String);
+    insert(m, "string_from_str", vec![StrRef], String);
     insert(m, "string_len", vec![String], I32);
     insert(m, "init", vec![], None);
     map

@@ -141,7 +141,7 @@ pub enum Lit {
     I32(i32),
     F64(f64),
     String(String),
-    Interned(u32, u32),
+    Interned(u32),
 }
 
 //#[derive(Debug, PartialEq)]
