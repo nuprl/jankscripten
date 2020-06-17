@@ -152,7 +152,7 @@ where
                 self.walk_atom(ea, loc);
                 self.walk_atom(ec, loc);
             }
-            Atom(a, ..) => self.walk_atom(a, loc),
+            ToString(a) | Atom(a, ..) => self.walk_atom(a, loc),
         }
         self.visitor.exit_expr(expr, loc);
     }
@@ -163,7 +163,7 @@ where
         match atom {
             // 0
             Lit(..) | Id(..) => (),
-            HTGet(ea, ..) => {
+            HTGet(ea, ..) | StringLen(ea) => {
                 self.walk_atom(ea, loc);
             }
             Binary(.., ea, eb) => {

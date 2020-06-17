@@ -21,7 +21,21 @@
 
 pub type Key = i32;
 
+pub mod allocator;
 pub mod any;
 pub mod ht;
 pub mod num;
-pub mod allocator;
+pub mod string;
+
+use allocator::Heap;
+static mut HEAP: Option<Heap> = None;
+
+pub fn heap_init() {
+    unsafe {
+        HEAP = Some(Heap::new(1024));
+    }
+}
+
+fn heap() -> &'static Heap {
+    unsafe { &HEAP }.as_ref().unwrap()
+}

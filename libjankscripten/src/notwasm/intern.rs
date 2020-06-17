@@ -51,12 +51,12 @@ mod test {
         intern(&mut program);
         let indexed_func = Function {
             locals: vec![],
-            body: Stmt::Return(i32_(0)),
+            body: Stmt::Return(Atom::Lit(Lit::Interned(0, 15))),
             params_tys: vec![],
             ret_ty: Type::String,
         };
         let mut expected = program1_(indexed_func);
-        expected.data = b"steven universe\0".to_vec();
+        expected.data = b"steven universe".to_vec();
         assert_eq!(program, expected);
     }
 }

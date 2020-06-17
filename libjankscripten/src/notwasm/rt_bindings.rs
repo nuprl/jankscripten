@@ -9,21 +9,26 @@ type BindMap = HashMap<std::string::String, Type>;
 
 pub fn get_rt_bindings() -> BindMap {
     let mut map = HashMap::new();
-    insert_mono(&mut map, "ht_new", vec![], ht_ty_(I32), vec![Any, I32]);
+    let m = &mut map;
+    insert_mono(m, "ht_new", vec![], ht_ty_(I32), vec![Any, I32]);
     insert_mono(
-        &mut map,
+        m,
         "ht_get",
         vec![ht_ty_(Any), KEY],
         ht_ty_(Any),
         vec![Any, I32],
     );
     insert_mono(
-        &mut map,
+        m,
         "ht_set",
         vec![ht_ty_(Any), KEY, Any],
         ht_ty_(Any),
         vec![Any, I32],
     );
+    // there's no easy way to type StrRef as [I32, I32] so i just write it
+    // out explicitly for now
+    insert(m, "string_from_str", vec![I32, I32], String);
+    insert(m, "string_len", vec![String], I32);
     map
 }
 
@@ -44,6 +49,10 @@ fn insert_mono(
         let ret_ty = replace_if_any(ret_ty.clone(), replace_ty);
         map.insert(mono_name, fn_ty_(params_tys, ret_ty));
     }
+}
+
+fn insert(map: &mut BindMap, name: &str, params_tys: Vec<Type>, ret_ty: Type) {
+    map.insert(name.into(), fn_ty_(params_tys, ret_ty));
 }
 
 fn replace_if_any(replace_in: Type, replace_if: Type) -> Type {

@@ -1,8 +1,8 @@
 use super::compile;
+use super::parser::parse;
 use super::syntax::*;
 use std::io::Write;
 use std::process::{Command, Stdio};
-use super::parser::parse;
 
 fn test_wasm(expected: i32, program: Program) {
     let wasm = compile(program).expect("couldn't compile");
@@ -100,11 +100,13 @@ fn works_with_runtime() {
 
 #[test]
 fn binary_ops() {
-    let program = parse(r#"
+    let program = parse(
+        r#"
         function main() : i32 {
             return 5 + 7;
         }
-    "#);
+    "#,
+    );
     test_wasm(12, program);
 }
 
@@ -160,10 +162,10 @@ fn big_sum() {
     test_wasm(1597, program);
 }
 
-
 #[test]
 fn trivial_direct_call() {
-    let program = parse(r#"
+    let program = parse(
+        r#"
         function F(n : i32) : i32 {
             return n;
         }
@@ -173,7 +175,18 @@ fn trivial_direct_call() {
             var result : i32 = F(n);
             return result;
         }
-    "#);
+    "#,
+    );
 
     test_wasm(100, program);
+}
+
+#[test]
+fn strings() {
+    let body = Stmt::Block(vec![
+        Stmt::Var(id_("s"), Expr::ToString(str_("wow, thanks")), Type::String),
+        Stmt::Return(len_(get_id_("s"))),
+    ]);
+    let program = test_program_(body);
+    test_wasm(11, program);
 }

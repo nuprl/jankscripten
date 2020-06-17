@@ -9,6 +9,7 @@ mod walk;
 mod parser;
 
 use index::index;
+use intern::intern;
 use translation::translate;
 
 pub mod syntax;

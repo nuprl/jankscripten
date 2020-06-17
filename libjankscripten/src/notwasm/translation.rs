@@ -142,7 +142,6 @@ fn no_ids(ids_tys: Vec<(N::Id, N::Type)>) -> Vec<N::Type> {
     ids_tys.into_iter().map(|(_, ty)| ty).collect()
 }
 
-
 struct Translate<'a> {
     out: Vec<Instruction>,
     rt_indexes: &'a HashMap<String, u32>,
@@ -239,7 +238,7 @@ impl<'a> Translate<'a> {
                         // care of it on indirect calls
                         *i + self.rt_indexes.len() as u32
                     }
-                    _ => panic!("expected Func ID")
+                    _ => panic!("expected Func ID"),
                 };
                 self.out.push(Call(f_idx));
             }
@@ -272,6 +271,10 @@ impl<'a> Translate<'a> {
                 //     _ => panic!("id can't be function call"),
                 // }
             }
+            N::Expr::ToString(a) => {
+                self.translate_atom(a);
+                self.rt_call("string_from_str");
+            }
         }
     }
 
@@ -279,6 +282,11 @@ impl<'a> Translate<'a> {
         match atom {
             N::Atom::Lit(lit) => match lit {
                 N::Lit::I32(i) => self.out.push(I32Const(*i)),
+                N::Lit::Interned(addr, len) => {
+                    self.out.push(I32Const(*addr as i32));
+                    self.out.push(I32Const(*len as i32));
+                }
+                N::Lit::String(s) => panic!("uninterned string"),
                 _ => todo!(),
             },
             N::Atom::Id(id) => match id {
@@ -291,6 +299,10 @@ impl<'a> Translate<'a> {
                 self.translate_atom(ht);
                 self.out.push(I32Const(*field));
                 self.rt_call_mono("ht_get", ty);
+            }
+            N::Atom::StringLen(string) => {
+                self.translate_atom(string);
+                self.rt_call("string_len");
             }
             N::Atom::Binary(op, a, b) => {
                 self.translate_atom(a);

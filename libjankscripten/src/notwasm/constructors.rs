@@ -39,11 +39,14 @@ pub fn plus_(a: Atom, b: Atom) -> Atom {
 pub fn gt_(a: Atom, b: Atom) -> Atom {
     binary_(BinaryOp::I32Eq, a, b)
 }
+pub fn len_(a: Atom) -> Atom {
+    Atom::StringLen(Box::new(a))
+}
 pub fn atom_(a: Atom) -> Expr {
     Expr::Atom(a)
 }
 pub fn ht_set_(a: Atom, b: Key, c: Atom, ty: Type) -> Expr {
-    Expr::HTSet(Box::new(a), b, Box::new(c), ty)
+    Expr::HTSet(a, b, c, ty)
 }
 pub fn program_(functions: HashMap<Id, Function>) -> Program {
     Program {
