@@ -1,5 +1,5 @@
+use super::constructors as ctor;
 use super::syntax::*;
-use super::{constructors as ctor};
 use combine::parser;
 use combine::parser::char::{alpha_num, letter, string};
 use combine::stream::state::State;
@@ -57,6 +57,7 @@ parser! {
     {
         lit(lang).map(|l| Atom::Lit(l))
         .or(id(lang).map(|x| Atom::Id(x)))
+        .or(lang.string_literal().map(|s| ctor::str_(s)))
         .or(lang.parens(atom(lang)))
     }
 }
@@ -87,6 +88,7 @@ parser! {
     where [ I: Stream<Item = char>]
     {
         lang.reserved("i32").with(value(Type::I32))
+            .or(lang.reserved("str").with(value(Type::StrRef)))
     }
 }
 
@@ -129,7 +131,7 @@ parser! {
             .with(id(lang))
             .skip(lang.reserved_op(";"))
             .map(|l| Stmt::Break(l));
-        
+
         let while_ = lang.reserved("while")
             .with(lang.parens(atom(lang)))
             .and(block(lang))
@@ -159,8 +161,21 @@ parser! {
         .skip(lang.reserved_op(":"))
         .and(type_(lang))
         .and(block(lang))
-        .map(|(((f, params_tys), ret_ty), body)|
-        (f, Function { locals: vec![], body, params_tys, ret_ty }))
+        .map(|(((f, params_tys), ret_ty), body): (((_, Vec<(Id, Type)>), _), _)| {
+            let mut args = Vec::new();
+            let mut params = Vec::new();
+            for (param, arg) in params_tys {
+                args.push(arg);
+                params.push(param);
+            }
+            // TODO(luna): support void
+            (f, Function {
+                locals: vec![],
+                body,
+                fn_type: FnType { args, result: Some(ret_ty) },
+                params
+            })
+        })
     }
 }
 
@@ -174,7 +189,8 @@ parser! {
         .map(|functions| {
             let classes = HashMap::new();
             let globals = HashMap::new();
-            Program { functions, classes, globals }
+            let data = Vec::new();
+            Program { functions, classes, globals, data }
         })
     }
 }
@@ -188,8 +204,8 @@ pub fn parse(input: &str) -> Program {
             start: letter(),
             rest: alpha_num(),
             reserved: [
-                "if", "else", "true", "false", "function", "loop", "return", "i32",
-                "while"
+                "if", "else", "true", "false", "function", "loop", "return", "i32", "string",
+                "while",
             ]
             .iter()
             .map(|x| (*x).into())

@@ -21,26 +21,39 @@ pub fn label_(a: Id, b: Stmt) -> Stmt {
 pub fn get_id_<S: Into<String>>(a: S) -> Atom {
     Atom::Id(id_(a))
 }
-pub fn ht_get_(a: Atom, b: Key, ty: Type) -> Atom {
-    Atom::HTGet(Box::new(a), b, ty)
+pub fn ht_get_(a: Atom, b: Atom, ty: Type) -> Atom {
+    Atom::HTGet(Box::new(a), Box::new(b), ty)
 }
 pub fn i32_(a: i32) -> Atom {
     Atom::Lit(Lit::I32(a))
 }
+pub fn str_<S: Into<String>>(a: S) -> Atom {
+    Atom::Lit(Lit::String(a.into()))
+}
 pub fn binary_(op: BinaryOp, a: Atom, b: Atom) -> Atom {
     Atom::Binary(op, Box::new(a), Box::new(b))
+}
+pub fn plus_(a: Atom, b: Atom) -> Atom {
+    binary_(BinaryOp::I32Add, a, b)
+}
+pub fn gt_(a: Atom, b: Atom) -> Atom {
+    binary_(BinaryOp::I32Eq, a, b)
+}
+pub fn len_(a: Atom) -> Atom {
+    Atom::StringLen(Box::new(a))
 }
 pub fn atom_(a: Atom) -> Expr {
     Expr::Atom(a)
 }
-pub fn ht_set_(a: Atom, b: Key, c: Atom, ty: Type) -> Expr {
-    Expr::HTSet(Box::new(a), b, Box::new(c), ty)
+pub fn ht_set_(a: Atom, b: Atom, c: Atom, ty: Type) -> Expr {
+    Expr::HTSet(a, b, c, ty)
 }
 pub fn program_(functions: HashMap<Id, Function>) -> Program {
     Program {
         classes: HashMap::new(),
         functions,
         globals: HashMap::new(),
+        data: Vec::new(),
     }
 }
 pub fn program1_(func: Function) -> Program {
@@ -52,8 +65,11 @@ pub fn test_program_(body: Stmt) -> Program {
     program1_(Function {
         locals: Vec::new(),
         body,
-        params_tys: Vec::new(),
-        ret_ty: Type::I32,
+        fn_type: FnType {
+            args: Vec::new(),
+            result: Some(Type::I32),
+        },
+        params: Vec::new(),
     })
 }
 pub fn id_<S: Into<String>>(a: S) -> Id {
@@ -62,6 +78,6 @@ pub fn id_<S: Into<String>>(a: S) -> Id {
 pub fn ht_ty_(a: Type) -> Type {
     Type::HT(Box::new(a))
 }
-pub fn fn_ty_(b: Vec<Type>, a: Type) -> Type {
-    Type::Fn(b, Box::new(a))
+pub fn fn_ty_<I: Into<Option<Type>>>(b: Vec<Type>, a: I) -> Type {
+    Type::Fn(b, Box::new(a.into()))
 }

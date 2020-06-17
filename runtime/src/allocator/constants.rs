@@ -4,14 +4,13 @@
 /// 64-bit architecture (amd64). This ensures that the data that follows
 /// the tag is also naturally aligned.
 #[cfg(target_pointer_width = "32")]
-pub const DATA_OFFSET : usize = 1;
+pub const DATA_OFFSET: usize = 1;
 
 #[cfg(target_pointer_width = "64")]
-pub const DATA_OFFSET : usize = 2;
-
+pub const DATA_OFFSET: usize = 2;
 
 #[cfg(target_pointer_width = "64")]
-pub const ALIGNMENT : usize = 8;
+pub const ALIGNMENT: usize = 8;
 
 #[cfg(target_pointer_width = "32")]
-pub const ALIGNMENT : usize = 4;
+pub const ALIGNMENT: usize = 4;

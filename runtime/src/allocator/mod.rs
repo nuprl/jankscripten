@@ -1,40 +1,47 @@
-use std::alloc::Layout;
+//! managed allocation. most allocations should be made through [Heap]
+
 use std::alloc;
+use std::alloc::Layout;
 use std::cell::RefCell;
 use std::collections::HashMap;
-mod layout;
-mod heap_values;
 mod constants;
+mod heap_values;
+mod layout;
 
-use heap_values::*;
+pub mod heap_types;
+
 use constants::*;
+use heap_types::*;
+use heap_values::*;
 
 #[cfg(test)]
 mod tests;
 
-
+/// one global Heap should be maintained, provided by [crate::heap()]. it
+/// will be garbage collected
+///
+/// an unmanaged allocation is acceptable as long as it is known to the heap
+/// that that type needs to be dropped. there is one global heap, at
 pub struct Heap {
     buffer: *mut u8,
     size: isize,
     free_list: RefCell<FreeList>,
     tag_size: isize,
     container_sizes: HashMap<u16, usize>,
-    next_container_type: u16
+    next_container_type: u16,
 }
 
 struct Block {
     start: *mut u8,
-    size: isize
+    size: isize,
 }
 
 enum FreeList {
     Nil,
-    Block(Block, Box<FreeList>)
+    Block(Block, Box<FreeList>),
 }
 
-
 impl FreeList {
-
     pub fn new(start: *mut u8, size: isize) -> Self {
         let block = Block { start, size };
         return FreeList::Block(block, Box::new(FreeList::Nil));
@@ -50,17 +57,14 @@ impl FreeList {
                 if new_block_end < block.start {
                     let new_block = Block { start, size };
                     return FreeList::Block(new_block, Box::new(self));
-                }
-                else if new_block_end == block.start {
+                } else if new_block_end == block.start {
                     block.start = start;
                     block.size = block.size + size;
                     return self;
-                }
-                else if start == unsafe { start.add(size as usize) } {
+                } else if start == unsafe { start.add(size as usize) } {
                     block.size = block.size + size;
                     return self;
-                }
-                else {
+                } else {
                     let rest2 = std::mem::replace(rest.as_mut(), FreeList::Nil);
                     *rest.as_mut() = rest2.insert(start, size);
                     return self;
@@ -80,16 +84,16 @@ impl FreeList {
                 if size == block.size {
                     let addr = block.start;
                     let next = std::mem::replace(next.as_mut(), FreeList::Nil);
-                    std::mem::replace(self, next);
+                    *self = next;
                     return Some(addr);
-                }
-                else if size < block.size {
+                } else if size < block.size {
                     block.size = block.size - size;
                     let addr = block.start;
                     block.start = unsafe { block.start.add(size as usize) };
                     return Some(addr);
-                }
-                else /* size > block.size */ {
+                } else
+                /* size > block.size */
+                {
                     return Self::find_free_size(next.as_mut(), size);
                 }
             }
@@ -101,15 +105,21 @@ impl FreeList {
 }
 
 impl Heap {
-
-    pub fn new(size: isize) -> Self { 
+    pub fn new(size: isize) -> Self {
         let layout = Layout::from_size_align(size as usize, ALIGNMENT).unwrap();
         let buffer = unsafe { alloc::alloc_zeroed(layout) };
         let free_list = RefCell::new(FreeList::new(buffer, size));
         let tag_size = layout::layout_aligned::<Tag>(ALIGNMENT).size() as isize;
         let container_sizes = HashMap::new();
         let next_container_type = 0;
-        return Heap { buffer, size, free_list, tag_size, container_sizes, next_container_type };
+        return Heap {
+            buffer,
+            size,
+            free_list,
+            tag_size,
+            container_sizes,
+            next_container_type,
+        };
     }
 
     pub fn new_container_type(&mut self, num_elements: usize) -> u16 {
@@ -122,26 +132,38 @@ impl Heap {
     /**
      * Allocates a primitive value on the heap, and returns a reference to the
      * tag that precedes the primitive.
+     *
+     * Primitive values are defined as those with [HasTag] implemented
      */
-    pub fn alloc_i32<'a>(&'a self, value: i32) -> Option<I32Ptr<'a>> {
-        let opt_ptr = self.free_list.borrow_mut().find_free_size(self.tag_size + I32Ptr::size());
+    pub fn alloc<T: HasTag>(&self, value: T) -> Option<TypePtr<T>> {
+        self.alloc_tag(T::get_tag(), value)
+    }
+
+    fn alloc_tag<T>(&self, tag: Tag, value: T) -> Option<TypePtr<T>> {
+        let opt_ptr = self
+            .free_list
+            .borrow_mut()
+            .find_free_size(self.tag_size + TypePtr::<T>::size());
         match opt_ptr {
             None => None,
             Some(ptr) => {
+                // safety: ptr is free, can become anything
                 let tag_ptr: *mut Tag = unsafe { std::mem::transmute(ptr) };
                 let tag_ref: &mut Tag = unsafe { &mut *tag_ptr };
-                *tag_ref = Tag::i32();
-                let i32ref = I32Ptr::new(unsafe { std::mem::transmute(ptr) });
-                i32ref.write(value);
-                return Some(i32ref);
+                *tag_ref = tag;
+                let val_ref = TypePtr::<T>::new(tag_ptr, tag.type_tag, value);
+                Some(val_ref)
             }
         }
     }
 
-    pub fn alloc_container<'a>(&'a self, type_tag: u16) -> Option<ObjectPtr<'a>> {
+    pub fn alloc_container(&self, type_tag: u16) -> Option<ObjectPtr> {
         let num_elements = self.container_sizes.get(&type_tag).unwrap();
         let elements_size = Layout::array::<Option<&Tag>>(*num_elements).unwrap().size() as isize;
-        let opt_ptr = self.free_list.borrow_mut().find_free_size(self.tag_size + elements_size);
+        let opt_ptr = self
+            .free_list
+            .borrow_mut()
+            .find_free_size(self.tag_size + elements_size);
         match opt_ptr {
             None => None,
             Some(ptr) => {
@@ -159,6 +181,9 @@ impl Heap {
         }
     }
 
+    /// # Safety
+    ///
+    /// roots must be live, appropriately allocated tags
     pub unsafe fn garbage_collect(&self, roots: &[*mut Tag]) {
         self.mark_phase(roots);
         self.sweep_phase();
@@ -171,7 +196,7 @@ impl Heap {
         while current_roots.is_empty() == false {
             for root in current_roots.drain(0..) {
                 let tag = unsafe { &mut *root };
-                
+
                 if tag.marked == true {
                     continue;
                 }
@@ -181,8 +206,11 @@ impl Heap {
                     continue;
                 }
                 let class_tag = tag.class_tag; // needed since .class_tag is packed
-                let num_ptrs = *self.container_sizes.get(&class_tag).expect("unknown class tag");
-                let members_ptr : *mut *mut Tag = unsafe { data_ptr(root) };
+                let num_ptrs = *self
+                    .container_sizes
+                    .get(&class_tag)
+                    .expect("unknown class tag");
+                let members_ptr: *mut *mut Tag = unsafe { data_ptr(root) };
                 let members = unsafe { std::slice::from_raw_parts(members_ptr, num_ptrs) };
                 new_roots.extend_from_slice(members);
             }
@@ -193,14 +221,16 @@ impl Heap {
     fn sweep_phase(&self) {
         use std::borrow::BorrowMut;
         let mut free_list = self.free_list.borrow_mut();
-        
-        let borrowed_free_list : &mut FreeList = free_list.borrow_mut();
+
+        let borrowed_free_list: &mut FreeList = free_list.borrow_mut();
         let mut free_list_ptr = std::mem::replace(borrowed_free_list, FreeList::Nil);
 
-        let mut ptr : *mut u8 = self.buffer;
+        let mut ptr: *mut u8 = self.buffer;
         let heap_max = unsafe { self.buffer.add(self.size as usize) };
         while ptr < heap_max {
             let any_ptr = unsafe { AnyPtr::new(std::mem::transmute(ptr)) };
+            // drop any rust memory that may exist
+            any_ptr.final_drop();
             let tag_ref = unsafe { &mut *any_ptr.get_ptr() };
             let size = self.tag_size as usize + any_ptr.get_data_size(self);
             if tag_ref.marked == true {
@@ -210,16 +240,12 @@ impl Heap {
             }
 
             free_list_ptr = free_list_ptr.insert(ptr, size as isize);
-                    
         }
         *borrowed_free_list = free_list_ptr;
     }
-
 
     #[cfg(test)]
     pub fn raw(&self) -> &[u8] {
         return unsafe { std::slice::from_raw_parts(self.buffer, self.size as usize) };
     }
-
-
 }

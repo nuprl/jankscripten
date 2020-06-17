@@ -2,12 +2,14 @@
 mod compile;
 mod constructors;
 mod index;
+mod intern;
 mod rt_bindings;
 mod translation;
 mod walk;
 mod parser;
 
 use index::index;
+use intern::intern;
 use translation::translate;
 
 pub mod syntax;
