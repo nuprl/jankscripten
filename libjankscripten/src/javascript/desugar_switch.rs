@@ -32,7 +32,7 @@ fn name_breaks(stmts: &Stmt, name: &Id, fallthrough: &Id) -> Stmt {
 impl Visitor for SwitchToIf<'_> {
     fn exit_stmt(&mut self, stmt: &mut Stmt) {
         match stmt {
-            Stmt::Switch(expr, cases, default) => { //cases = vec<(expr, stmt)>
+            Stmt::Switch(expr, cases, default) => { // cases = vec<(expr, stmt)>
                 let name = self.ng.fresh("sw");
                 let test = expr.take();
                 let test_id = self.ng.fresh("test");
@@ -59,105 +59,34 @@ impl Visitor for SwitchToIf<'_> {
                 }
 
                 // add default case (if applicable)
-                let mut d = default.take();
+                let d = default.take();
                 match d {
                     Stmt::Block(mut dv) => {
                         for s in dv.drain(0..) {
                             v.push(s);
                         }
                     },
-                    Stmt::Empty => {},
+                    Stmt::Empty => {
+                        // no default, move along
+                    },
                     _ => {
                         panic!("Block or Empty expected");
                     }
                 }
 
-                //create labeled block w if statements/default 
+                // create labeled block w if statements/default 
                 *stmt = label_(
                     name,
                     Stmt::Block(v))
             }
-            _ => {}
+            _ => {
+                // not a switch statement, proceed as usual
+            }
         }
     }
 }
 
-pub fn simpl(program: &mut Stmt, namegen: &mut NameGen) {
+pub fn desugar_switch(program: &mut Stmt, namegen: &mut NameGen) {
     let mut v = SwitchToIf { ng: namegen };
     program.walk(&mut v);
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::javascript::testing::*;
-
-    #[test]
-    fn switchtoif_break() {
-        let prog = r#"
-            var x = 0;
-            switch(x) {
-                case 0: 
-                    x = 1;
-                    break;
-                case 1: 
-                    x = 2;
-                default: 
-                    x = 3;
-                    x = 4;
-            }
-        "#;
-        desugar_okay(prog, simpl);
-    }
-
-    #[test]
-    fn switchtoif_nobreak() {
-        let prog = r#"
-            var x = 1;
-            switch(x) {
-                case 0: 
-                    x = 1;
-                    break;
-                case 1: 
-                    x = 2;
-                default: 
-                    x = 3;
-                    x = 4;
-            }
-        "#;
-        desugar_okay(prog, simpl);
-    }
-
-    #[test]
-    fn switchtoif_latebreak() {
-        let prog = r#"
-            var x = 0;
-            switch(x) {
-                case 0: 
-                    x = 1;
-                case 1: 
-                    x = 2;
-                    break;
-                default: 
-                    x = 3;
-                    x = 4;
-            }
-        "#;
-        desugar_okay(prog, simpl);
-    }
-
-    #[test]
-    fn switchtoif_nodefault() {
-        let prog = r#"
-            var x = 2;
-            switch(x) {
-                case 0: 
-                    x = 1;
-                    break;
-                case 1: 
-                    x = 2;
-            }
-        "#;
-        desugar_okay(prog, simpl);
-    }
 }
