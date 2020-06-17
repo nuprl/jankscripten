@@ -84,18 +84,26 @@ fn fails_no_runtime() {
 }
 
 #[test]
-fn works_with_runtime() {
+fn test_string_ht() {
     let ht_type = Type::HT(Box::new(Type::I32));
     let program = test_program_(Stmt::Block(vec![
         Stmt::Var(id_("x"), Expr::HT(Type::I32), ht_type),
+        Stmt::Var(id_("key1"), Expr::ToString(str_("1")), Type::String),
+        Stmt::Var(id_("key1Eq"), Expr::ToString(str_("1")), Type::String),
+        Stmt::Var(id_("key2"), Expr::ToString(str_("2")), Type::String),
         Stmt::Var(
             id_("_"),
-            ht_set_(get_id_("x"), 0, i32_(10), Type::I32),
+            ht_set_(get_id_("x"), get_id_("key1"), i32_(1), Type::I32),
             Type::I32,
         ),
-        Stmt::Return(ht_get_(get_id_("x"), 0, Type::I32)),
+        Stmt::Var(
+            id_("_"),
+            ht_set_(get_id_("x"), get_id_("key2"), i32_(2), Type::I32),
+            Type::I32,
+        ),
+        Stmt::Return(ht_get_(get_id_("x"), get_id_("key1Eq"), Type::I32)),
     ]));
-    test_wasm(10, program);
+    test_wasm(1, program);
 }
 
 #[test]

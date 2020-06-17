@@ -254,6 +254,18 @@ impl<'a, T> DerefMut for TypePtr<'a, T> {
     }
 }
 
+impl<'a, T: std::hash::Hash> std::hash::Hash for TypePtr<'a, T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.get().hash(state)
+    }
+}
+impl<T: PartialEq> PartialEq<TypePtr<'_, T>> for TypePtr<'_, T> {
+    fn eq(&self, other: &TypePtr<'_, T>) -> bool {
+        self.get() == other.get()
+    }
+}
+impl<T: PartialEq> Eq for TypePtr<'_, T> {}
+
 /// A pointer to a `Tag::Object`.
 #[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(transparent)]

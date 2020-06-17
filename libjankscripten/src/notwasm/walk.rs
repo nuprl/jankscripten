@@ -148,8 +148,9 @@ where
             //Dot(e, ..) | Unary(.., e) => self.walk_expr(e, loc),
             //// 2xExpr
             HT(..) | CallDirect(..) | CallIndirect(..) => (),
-            HTSet(ea, _, ec, ..) => {
+            HTSet(ea, eb, ec, ..) => {
                 self.walk_atom(ea, loc);
+                self.walk_atom(eb, loc);
                 self.walk_atom(ec, loc);
             }
             ToString(a) | Atom(a, ..) => self.walk_atom(a, loc),
@@ -163,10 +164,10 @@ where
         match atom {
             // 0
             Lit(..) | Id(..) => (),
-            HTGet(ea, ..) | StringLen(ea) => {
+            StringLen(ea) => {
                 self.walk_atom(ea, loc);
             }
-            Binary(.., ea, eb) => {
+            HTGet(ea, eb, ..) | Binary(.., ea, eb) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
             }

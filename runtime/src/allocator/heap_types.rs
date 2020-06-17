@@ -18,6 +18,7 @@ pub type StringPtr<'a> = TypePtr<'a, String>;
 impl HasTag for String {
     const TYPE_TAG: TypeTag = TypeTag::String;
 }
+
 pub type HTPtr<'a, V> = TypePtr<'a, HashMap<Key, V>>;
 impl<'a> HasTag for HashMap<Key, AnyJSPtr<'a>> {
     const TYPE_TAG: TypeTag = TypeTag::HTAny;

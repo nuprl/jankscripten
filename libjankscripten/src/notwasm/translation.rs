@@ -231,7 +231,7 @@ impl<'a> Translate<'a> {
             N::Expr::HT(ty) => self.rt_call_mono("ht_new", ty),
             N::Expr::HTSet(ht, field, val, ty) => {
                 self.translate_atom(ht);
-                self.out.push(I32Const(*field));
+                self.translate_atom(field);
                 self.translate_atom(val);
                 self.rt_call_mono("ht_set", ty);
             }
@@ -307,7 +307,7 @@ impl<'a> Translate<'a> {
             },
             N::Atom::HTGet(ht, field, ty) => {
                 self.translate_atom(ht);
-                self.out.push(I32Const(*field));
+                self.translate_atom(field);
                 self.rt_call_mono("ht_get", ty);
             }
             N::Atom::StringLen(string) => {

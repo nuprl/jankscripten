@@ -45,6 +45,7 @@ pub struct Program {
 #[derive(Debug, PartialEq)]
 pub enum Stmt {
     Empty,
+    // type really only needs to be is_f64 (vs i32)
     Var(Id, Expr, Type),
     Assign(Id, Expr),
     If(Atom, Box<Stmt>, Box<Stmt>),
@@ -60,7 +61,7 @@ pub enum Stmt {
 #[derive(Debug, PartialEq)]
 pub enum Atom {
     Lit(Lit),
-    HTGet(Box<Atom>, Key, Type),
+    HTGet(Box<Atom>, Box<Atom>, Type),
     // HTGet / HTSet / ClassGet / etc VS Dot / Bracket
     // TODO: classes
     Id(Id),
@@ -74,8 +75,7 @@ pub enum Atom {
 pub enum Expr {
     //Array(Vec<Expr>, Type),
     HT(Type),
-    // TODO: String instead of i32
-    HTSet(Atom, Key, Atom, Type),
+    HTSet(Atom, Atom, Atom, Type),
     CallDirect(Id, Vec<Id>),
     CallIndirect(Id, FnType, Vec<Id>),
     //New(Id, Vec<Id>, Type),

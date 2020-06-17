@@ -21,8 +21,8 @@ pub fn label_(a: Id, b: Stmt) -> Stmt {
 pub fn get_id_<S: Into<String>>(a: S) -> Atom {
     Atom::Id(id_(a))
 }
-pub fn ht_get_(a: Atom, b: Key, ty: Type) -> Atom {
-    Atom::HTGet(Box::new(a), b, ty)
+pub fn ht_get_(a: Atom, b: Atom, ty: Type) -> Atom {
+    Atom::HTGet(Box::new(a), Box::new(b), ty)
 }
 pub fn i32_(a: i32) -> Atom {
     Atom::Lit(Lit::I32(a))
@@ -45,7 +45,7 @@ pub fn len_(a: Atom) -> Atom {
 pub fn atom_(a: Atom) -> Expr {
     Expr::Atom(a)
 }
-pub fn ht_set_(a: Atom, b: Key, c: Atom, ty: Type) -> Expr {
+pub fn ht_set_(a: Atom, b: Atom, c: Atom, ty: Type) -> Expr {
     Expr::HTSet(a, b, c, ty)
 }
 pub fn program_(functions: HashMap<Id, Function>) -> Program {

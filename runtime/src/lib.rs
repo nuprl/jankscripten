@@ -19,7 +19,7 @@
 //! - wasm_bindgen / wasm-pack is unneccessary and gets in the way since
 //!   it's all about js bindings and disallows enum structs
 
-type Key = i32;
+type Key = heap_types::StringPtr<'static>;
 
 pub mod any;
 pub mod ht;
