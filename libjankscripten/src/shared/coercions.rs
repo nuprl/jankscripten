@@ -6,5 +6,8 @@ pub enum Coercion {
     Untag(Type),
     Id(Type),
     Seq(Box<Coercion>, Box<Coercion>)
-    // TODO: fun_n
+}
+
+pub fn cseq_(c1: Coercion, c2: Coercion) -> Coercion {
+    Coercion::Seq(Box::new(c1), Box::new(c2))
 }
