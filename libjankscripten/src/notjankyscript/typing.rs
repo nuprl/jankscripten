@@ -1,5 +1,6 @@
 use super::syntax::*;
-use super::types::*;
+use crate::shared::types::Type;
+use crate::shared::coercions::Coercion;
 
 #[derive(Debug)]
 pub enum TypingError {
@@ -7,14 +8,6 @@ pub enum TypingError {
 }
 
 pub type TypingResult<T> = Result<T, TypingError>;
-
-enum Coercion {
-    Tag(Type),
-    Untag(Type),
-    Id(Type),
-    Seq(Box<Coercion>, Box<Coercion>)
-    // TODO: fun_n
-}
 
 pub struct Typing {
 

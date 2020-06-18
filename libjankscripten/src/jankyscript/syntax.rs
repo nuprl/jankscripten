@@ -1,25 +1,23 @@
-//! The source (and target) language for type inference.
-//!
-//! The JavaScript AST goes through several stages of desugaring before we
-//! produce a program in this language.
+//! The JankyScript language definition
 
-use crate::jankierscript::types::Type;
+use crate::shared::types::Type;
+use crate::shared::coercions::Coercion;
 
 #[derive(Debug)]
 pub enum BinOp {
-    Plus(Type, Type), // initialize as any
+    Plus(Type, Type),
     // TODO: others
 }
 
 #[derive(Debug)]
 pub enum UnaryOp {
-    Increment(Type) // initialize as any
+    Increment(Type),
     // TODO: others
 }
 
 #[derive(Debug)]
 pub enum AssignOp {
-    PlusEqual(Type, Type)
+    PlusEqual(Type, Type),
     // TODO: others
 }
 
@@ -29,7 +27,7 @@ pub enum Lit {
     Regex(String, String),
     Bool(bool),
     Null,
-    Num(String), // TODO(arjun): parse
+    Num(String),
     Undefined,
 }
 
@@ -63,13 +61,13 @@ pub enum Expr {
 
 #[derive(Debug)]
 pub enum Stmt {
-    Var(Id, Option<Type>, Expr), // initialize to None (recommendation is to add default behavior to constructor)
+    Var(Id, Type, Expr),
     Block(Vec<Stmt>),
     Empty,
     Assign(AssignOp, Box<LValue>, Box<Expr>),
     Call(Id, Box<Expr>, Vec<Expr>),
-    New(Id, Option<Type>, Box<Expr>, Vec<Expr>),
-    Func(Id, Option<Type>, Vec<(Id, Option<Type>)>, Box<Stmt>),
+    New(Id, Type, Box<Expr>, Vec<Expr>),
+    Func(Id, Type, Vec<(Id, Type)>, Box<Stmt>),
     If(Box<Expr>, Box<Stmt>, Box<Stmt>),
     While(Box<Expr>, Box<Stmt>),
     Label(Id, Box<Stmt>),
@@ -78,4 +76,5 @@ pub enum Stmt {
     Finally(Box<Stmt>, Box<Stmt>),
     Throw(Box<Expr>),
     Return(Box<Expr>),
+    Coercion(Coercion, Box<Expr>)
 }

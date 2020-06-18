@@ -1,5 +1,5 @@
 use super::syntax::*;
-use super::types::Type;
+use crate::shared::types::Type;
 
 // Expressions
 
