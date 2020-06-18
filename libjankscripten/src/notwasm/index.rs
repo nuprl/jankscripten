@@ -28,7 +28,7 @@ pub fn index(program: &mut Program) {
 }
 
 fn index_func(func: &mut Function, func_names: &IndexEnv) {
-    let mut vis = IndexVisitor::new(func_names, func.params_tys.clone());
+    let mut vis = IndexVisitor::new(func_names, func.params.clone(), func.fn_type.args.clone());
     func.body.walk(&mut vis);
     func.locals = vis.types;
 }
@@ -113,10 +113,10 @@ impl Visitor for IndexVisitor<'_> {
 }
 /// from wasm-experiments
 impl<'a> IndexVisitor<'a> {
-    fn new(func_names: &'a IndexEnv, params_tys: Vec<(Id, Type)>) -> Self {
+    fn new(func_names: &'a IndexEnv, params: Vec<Id>, param_tys: Vec<Type>) -> Self {
         let mut names = IndexEnv::new();
         let mut types = Vec::new();
-        for (id, ty) in params_tys {
+        for (id, ty) in params.into_iter().zip(param_tys) {
             names.insert(id, names.len() as u32);
             types.push(ty);
         }
@@ -171,16 +171,22 @@ mod test {
         let func = Function {
             locals: Vec::new(),
             body: Stmt::Return(get_id_("the_param")),
-            params_tys: vec![(id_("the_param"), Type::I32)],
-            ret_ty: Type::I32,
+            fn_type: FnType {
+                args: vec![Type::I32],
+                result: Some(Type::I32),
+            },
+            params: vec![id_("the_param")],
         };
         let mut program = program1_(func);
         index(&mut program);
         let indexed_func = Function {
             locals: vec![Type::I32],
             body: Stmt::Return(Atom::Id(Id::Index(0))),
-            params_tys: vec![(id_("the_param"), Type::I32)],
-            ret_ty: Type::I32,
+            fn_type: FnType {
+                args: vec![Type::I32],
+                result: Some(Type::I32),
+            },
+            params: vec![id_("the_param")],
         };
         let expected = program1_(indexed_func);
         assert_eq!(program, expected);

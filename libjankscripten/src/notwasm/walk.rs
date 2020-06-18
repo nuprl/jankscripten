@@ -148,11 +148,12 @@ where
             //Dot(e, ..) | Unary(.., e) => self.walk_expr(e, loc),
             //// 2xExpr
             HT(..) | CallDirect(..) | CallIndirect(..) => (),
-            HTSet(ea, _, ec, ..) => {
+            HTSet(ea, eb, ec, ..) => {
                 self.walk_atom(ea, loc);
+                self.walk_atom(eb, loc);
                 self.walk_atom(ec, loc);
             }
-            Atom(a, ..) => self.walk_atom(a, loc),
+            ToString(a) | Atom(a, ..) => self.walk_atom(a, loc),
         }
         self.visitor.exit_expr(expr, loc);
     }
@@ -163,10 +164,10 @@ where
         match atom {
             // 0
             Lit(..) | Id(..) => (),
-            HTGet(ea, ..) => {
+            StringLen(ea) => {
                 self.walk_atom(ea, loc);
             }
-            Binary(.., ea, eb) => {
+            HTGet(ea, eb, ..) | Binary(.., ea, eb) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
             }
@@ -237,5 +238,17 @@ impl Atom {
     /// especially in [Atom::walk]
     pub fn take(&mut self) -> Self {
         std::mem::replace(self, Atom::Lit(Lit::Bool(false)))
+    }
+}
+
+impl Program {
+    /// like [Stmt::walk], but as a method on Program
+    pub fn walk(&mut self, v: &mut impl Visitor) {
+        for func in self.functions.values_mut() {
+            func.body.walk(v);
+        }
+        for global in self.globals.values_mut() {
+            global.walk(v);
+        }
     }
 }

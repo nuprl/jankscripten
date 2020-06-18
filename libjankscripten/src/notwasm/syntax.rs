@@ -29,20 +29,23 @@ pub enum BinaryOp {
     I32Add,
     I32Sub,
     I32Mul,
-    I32GT // signed
+    I32GT, // signed
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Program {
     pub classes: HashMap<Id, Class>,
     pub functions: HashMap<Id, Function>,
-    // Expr must be const as defined by wasm
+    /// Atom must be const as defined by wasm
     pub globals: HashMap<Id, Atom>,
+    /// no need to initialize, populated by intern
+    pub data: Vec<u8>,
 }
 
 #[derive(Debug, PartialEq)]
 pub enum Stmt {
     Empty,
+    // type really only needs to be is_f64 (vs i32)
     Var(Id, Expr, Type),
     Assign(Id, Expr),
     If(Atom, Box<Stmt>, Box<Stmt>),
@@ -58,11 +61,11 @@ pub enum Stmt {
 #[derive(Debug, PartialEq)]
 pub enum Atom {
     Lit(Lit),
-    // TODO: String instead of i32
-    HTGet(Box<Atom>, Key, Type),
+    HTGet(Box<Atom>, Box<Atom>, Type),
     // HTGet / HTSet / ClassGet / etc VS Dot / Bracket
     // TODO: classes
     Id(Id),
+    StringLen(Box<Atom>),
     // only negative float is unary and in JS
     //Unary(UnaryOp, Box<Expr>, Type),
     Binary(BinaryOp, Box<Atom>, Box<Atom>),
@@ -72,29 +75,31 @@ pub enum Atom {
 pub enum Expr {
     //Array(Vec<Expr>, Type),
     HT(Type),
-    // TODO: String instead of i32
-    HTSet(Box<Atom>, Key, Box<Atom>, Type),
+    HTSet(Atom, Atom, Atom, Type),
     CallDirect(Id, Vec<Id>),
     CallIndirect(Id, FnType, Vec<Id>),
     //New(Id, Vec<Id>, Type),
+    ToString(Atom),
     Atom(Atom),
 }
 
 #[derive(Debug, PartialEq)]
 pub struct FnType {
     pub args: Vec<Type>,
-    pub result: Type
+    pub result: Option<Type>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Type {
     I32,
     F64,
+    String,
+    StrRef,
     Class,
     HT(Box<Type>),
     Bool,
     AnyClass,
-    Fn(Vec<Type>, Box<Type>),
+    Fn(Vec<Type>, Box<Option<Type>>),
     Any,
 }
 
@@ -126,8 +131,8 @@ pub struct Function {
     // Initialized during compilation
     pub locals: Vec<Type>,
     pub body: Stmt,
-    pub ret_ty: Type,
-    pub params_tys: Vec<(Id, Type)>,
+    pub fn_type: FnType,
+    pub params: Vec<Id>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -135,8 +140,9 @@ pub enum Lit {
     Bool(bool),
     I32(i32),
     F64(f64),
+    String(String),
+    Interned(u32),
 }
-
 
 //#[derive(Debug, PartialEq)]
 /*pub enum Key {
@@ -144,6 +150,7 @@ pub enum Lit {
     // TODO?
     //Str(String),
 }*/
+// TODO: String instead of i32
 pub type Key = i32;
 
 impl std::fmt::Display for Type {
@@ -155,6 +162,8 @@ impl std::fmt::Display for Type {
             match self {
                 I32 => "i32",
                 F64 => "f64",
+                String => "string",
+                StrRef => "str",
                 Class => "class",
                 HT(..) => "ht",
                 Bool => "bool",

@@ -9,10 +9,11 @@ function factorial(n : i32) : i32 {
 
 function main() : i32 {
     var total : i32 = 0;
-    var counter : i32 = 1;    
+    var counter : i32 = 10000000;    
     while (counter > 0) {
         var n : i32 = 10;
-        total = factorial(n);
+        var tmp : i32 = factorial(n);
+        total = total + tmp;
         counter = counter - 1;
     }
     return total;

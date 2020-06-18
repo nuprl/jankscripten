@@ -1,8 +1,8 @@
 use super::compile;
+use super::parser::parse;
 use super::syntax::*;
 use std::io::Write;
 use std::process::{Command, Stdio};
-use super::parser::parse;
 
 fn test_wasm(expected: i32, program: Program) {
     let wasm = compile(program).expect("couldn't compile");
@@ -84,33 +84,44 @@ fn fails_no_runtime() {
 }
 
 #[test]
-fn works_with_runtime() {
+fn test_string_ht() {
     let ht_type = Type::HT(Box::new(Type::I32));
     let program = test_program_(Stmt::Block(vec![
         Stmt::Var(id_("x"), Expr::HT(Type::I32), ht_type),
+        Stmt::Var(id_("key1"), Expr::ToString(str_("1")), Type::String),
+        Stmt::Var(id_("key1Eq"), Expr::ToString(str_("1")), Type::String),
+        Stmt::Var(id_("key2"), Expr::ToString(str_("2")), Type::String),
         Stmt::Var(
             id_("_"),
-            ht_set_(get_id_("x"), 0, i32_(10), Type::I32),
+            ht_set_(get_id_("x"), get_id_("key1"), i32_(1), Type::I32),
             Type::I32,
         ),
-        Stmt::Return(ht_get_(get_id_("x"), 0, Type::I32)),
+        Stmt::Var(
+            id_("_"),
+            ht_set_(get_id_("x"), get_id_("key2"), i32_(2), Type::I32),
+            Type::I32,
+        ),
+        Stmt::Return(ht_get_(get_id_("x"), get_id_("key1Eq"), Type::I32)),
     ]));
-    test_wasm(10, program);
+    test_wasm(1, program);
 }
 
 #[test]
 fn binary_ops() {
-    let program = parse(r#"
+    let program = parse(
+        r#"
         function main() : i32 {
             return 5 + 7;
         }
-    "#);
+    "#,
+    );
     test_wasm(12, program);
 }
 
 #[test]
 fn functions() {
-    let program = parse(r#"
+    let program = parse(
+        r#"
         function toCall() : i32 {
             return 5;
         }
@@ -119,7 +130,8 @@ fn functions() {
             var x : i32 = toCall();
             return 4 + x;
         }
-    "#);
+    "#,
+    );
     test_wasm(9, program);
 }
 
@@ -142,7 +154,8 @@ fn break_block() {
 
 #[test]
 fn big_sum() {
-    let program = parse(r#"
+    let program = parse(
+        r#"
         function main() : i32 {
             var a : i32 = 1;
             var b : i32 = 1;
@@ -156,14 +169,15 @@ fn big_sum() {
             }
             return b;
         }
-    "#);
+    "#,
+    );
     test_wasm(1597, program);
 }
 
-
 #[test]
 fn trivial_direct_call() {
-    let program = parse(r#"
+    let program = parse(
+        r#"
         function F(n : i32) : i32 {
             return n;
         }
@@ -173,7 +187,18 @@ fn trivial_direct_call() {
             var result : i32 = F(n);
             return result;
         }
-    "#);
+    "#,
+    );
 
     test_wasm(100, program);
+}
+
+#[test]
+fn strings() {
+    let body = Stmt::Block(vec![
+        Stmt::Var(id_("s"), Expr::ToString(str_("wow, thanks")), Type::String),
+        Stmt::Return(len_(get_id_("s"))),
+    ]);
+    let program = test_program_(body);
+    test_wasm(11, program);
 }

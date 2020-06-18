@@ -2,6 +2,7 @@
 //!
 //! preconditions: ????
 
+use super::intern::DATA_OFFSET;
 use super::rt_bindings::get_rt_bindings;
 use super::syntax as N;
 use parity_wasm::builder::*;
@@ -10,7 +11,7 @@ use parity_wasm::serialize;
 use std::collections::HashMap;
 use Instruction::*;
 
-type FuncTypeMap = HashMap<(Vec<ValueType>, ValueType), u32>;
+type FuncTypeMap = HashMap<(Vec<ValueType>, Option<ValueType>), u32>;
 
 pub fn translate(program: N::Program) -> Result<Vec<u8>, Error> {
     serialize(translate_parity(program))
@@ -24,11 +25,11 @@ pub fn translate_parity(mut program: N::Program) -> Module {
     let mut type_indexes = HashMap::new();
     for (func_i, (name, ty)) in rt_types.iter().enumerate() {
         let type_i = if let N::Type::Fn(params, ret) = ty {
-            let wasm_ty = (types_as_wasm(params), ret.as_wasm());
+            let wasm_ty = (types_as_wasm(params), option_as_wasm(&**ret));
             let i_check = module.push_signature(
                 signature()
                     .with_params(wasm_ty.0.clone())
-                    .with_return_type(Some(wasm_ty.1.clone()))
+                    .with_return_type(wasm_ty.1.clone())
                     .build_sig(),
             );
             assert_eq!(*type_indexes.entry(wasm_ty).or_insert(i_check), i_check);
@@ -54,8 +55,8 @@ pub fn translate_parity(mut program: N::Program) -> Module {
     for func in program.functions.values() {
         // has to be wasm types to dedup properly
         let func_ty = (
-            types_as_wasm(&no_ids(func.params_tys.clone())),
-            func.ret_ty.as_wasm(),
+            types_as_wasm(&func.fn_type.args.clone()),
+            option_as_wasm(&func.fn_type.result),
         );
         let next_index = type_indexes.len() as u32;
         type_indexes.entry(func_ty).or_insert(next_index);
@@ -64,9 +65,15 @@ pub fn translate_parity(mut program: N::Program) -> Module {
     // program.functions in the same order as the call to .keys in
     // super::index::index. I think this is brittle, and we should probably
     // index functions first.
-    for func in program.functions.values_mut() {
-        module.push_function(translate_func(func, &rt_indexes, &type_indexes));
+    for (name, func) in program.functions.iter_mut() {
+        module.push_function(translate_func(func, &rt_indexes, &type_indexes, name));
     }
+    // data segment
+    let module = module
+        .data()
+        .offset(I32Const(DATA_OFFSET as i32))
+        .value(program.data)
+        .build();
     for (i, mut global) in program.globals {
         // can't use functions anyway so no need to worry
         let empty = HashMap::new();
@@ -104,17 +111,24 @@ fn translate_func(
     func: &mut N::Function,
     rt_indexes: &HashMap<String, u32>,
     type_indexes: &FuncTypeMap,
+    name: &N::Id,
 ) -> FunctionDefinition {
     let out_func = function()
         .signature()
-        .with_params(types_as_wasm(&no_ids(func.params_tys.clone())))
-        .with_return_type(Some(func.ret_ty.as_wasm()))
+        .with_params(types_as_wasm(&func.fn_type.args.clone()))
+        .with_return_type(option_as_wasm(&func.fn_type.result))
         .build();
     // generate the actual code
     let mut translator = Translate::new(rt_indexes, type_indexes);
     translator.translate(&mut func.body);
     let mut insts = translator.out;
     insts.push(End);
+    // before the code, if this is main we have to call rt init()
+    if name == &N::Id::Named("main".to_string()) {
+        let mut new_insts = vec![Call(*rt_indexes.get("init").expect("no init"))];
+        new_insts.append(&mut insts);
+        insts = new_insts;
+    }
     let locals: Vec<_> = func
         .locals
         .iter()
@@ -134,7 +148,9 @@ fn types_as_wasm(types: &[N::Type]) -> Vec<ValueType> {
 fn no_ids(ids_tys: Vec<(N::Id, N::Type)>) -> Vec<N::Type> {
     ids_tys.into_iter().map(|(_, ty)| ty).collect()
 }
-
+fn option_as_wasm(ty: &Option<N::Type>) -> Option<ValueType> {
+    ty.as_ref().map(N::Type::as_wasm)
+}
 
 struct Translate<'a> {
     out: Vec<Instruction>,
@@ -215,7 +231,7 @@ impl<'a> Translate<'a> {
             N::Expr::HT(ty) => self.rt_call_mono("ht_new", ty),
             N::Expr::HTSet(ht, field, val, ty) => {
                 self.translate_atom(ht);
-                self.out.push(I32Const(*field));
+                self.translate_atom(field);
                 self.translate_atom(val);
                 self.rt_call_mono("ht_set", ty);
             }
@@ -232,7 +248,7 @@ impl<'a> Translate<'a> {
                         // care of it on indirect calls
                         *i + self.rt_indexes.len() as u32
                     }
-                    _ => panic!("expected Func ID")
+                    _ => panic!("expected Func ID"),
                 };
                 self.out.push(Call(f_idx));
             }
@@ -265,6 +281,10 @@ impl<'a> Translate<'a> {
                 //     _ => panic!("id can't be function call"),
                 // }
             }
+            N::Expr::ToString(a) => {
+                self.translate_atom(a);
+                self.rt_call("string_from_str");
+            }
         }
     }
 
@@ -272,6 +292,10 @@ impl<'a> Translate<'a> {
         match atom {
             N::Atom::Lit(lit) => match lit {
                 N::Lit::I32(i) => self.out.push(I32Const(*i)),
+                N::Lit::Interned(addr) => {
+                    self.out.push(I32Const(*addr as i32));
+                }
+                N::Lit::String(..) => panic!("uninterned string"),
                 _ => todo!(),
             },
             N::Atom::Id(id) => match id {
@@ -282,8 +306,12 @@ impl<'a> Translate<'a> {
             },
             N::Atom::HTGet(ht, field, ty) => {
                 self.translate_atom(ht);
-                self.out.push(I32Const(*field));
+                self.translate_atom(field);
                 self.rt_call_mono("ht_get", ty);
+            }
+            N::Atom::StringLen(string) => {
+                self.translate_atom(string);
+                self.rt_call("string_len");
             }
             N::Atom::Binary(op, a, b) => {
                 self.translate_atom(a);

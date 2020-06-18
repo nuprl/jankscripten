@@ -1,5 +1,5 @@
+use super::constructors as ctor;
 use super::syntax::*;
-use super::{constructors as ctor};
 use combine::parser;
 use combine::parser::char::{alpha_num, letter, string};
 use combine::stream::state::State;
@@ -36,8 +36,8 @@ parser! {
         lang.reserved_op("+").with(value(BinaryOp::I32Add))
         .or(lang.reserved_op("*").with(value(BinaryOp::I32Mul)))
         .or(lang.reserved_op(">").with(value(BinaryOp::I32GT)))
-        .or(lang.reserved_op("-").with(value(BinaryOp::I32Eq)))
-        .or(lang.reserved_op("==").with(value(BinaryOp::I32Sub)))
+        .or(lang.reserved_op("-").with(value(BinaryOp::I32Sub)))
+        .or(lang.reserved_op("==").with(value(BinaryOp::I32Eq)))
     }
 }
 
@@ -57,6 +57,7 @@ parser! {
     {
         lit(lang).map(|l| Atom::Lit(l))
         .or(id(lang).map(|x| Atom::Id(x)))
+        .or(lang.string_literal().map(|s| ctor::str_(s)))
         .or(lang.parens(atom(lang)))
     }
 }
@@ -87,6 +88,8 @@ parser! {
     where [ I: Stream<Item = char>]
     {
         lang.reserved("i32").with(value(Type::I32))
+            .or(lang.reserved("str").with(value(Type::StrRef)))
+            .or(lang.reserved("bool").with(value(Type::Bool)))
     }
 }
 
@@ -103,11 +106,18 @@ parser! {
             .skip(lang.reserved_op(";"))
             .map(|((x,t),e)| Stmt::Var(x, e, t));
 
-        let assign = id(lang)
-            .skip(lang.reserved_op("="))
-            .and(expr(lang))
-            .skip(lang.reserved_op(";"))
-            .map(|(x,e)| Stmt::Assign(x, e));
+        enum IdRhsInStmt {
+            Expr(Expr),
+            Stmt(Stmt)
+        }
+            
+        let assign_or_label = id(lang)
+           .and((lang.reserved_op("=").with(expr(lang)).skip(lang.reserved_op(";")).map(|e| IdRhsInStmt::Expr(e)))
+                .or(lang.reserved_op(":").with(block(lang)).map(|s| IdRhsInStmt::Stmt(s))))
+           .map(|(x, rhs)| match rhs {
+               IdRhsInStmt::Expr(e) => Stmt::Assign(x, e),
+               IdRhsInStmt::Stmt(s) => ctor::label_(x, s)
+           });
 
         let if_ = lang.reserved("if")
             .with(lang.parens(atom(lang)))
@@ -129,13 +139,13 @@ parser! {
             .with(id(lang))
             .skip(lang.reserved_op(";"))
             .map(|l| Stmt::Break(l));
-        
+
         let while_ = lang.reserved("while")
             .with(lang.parens(atom(lang)))
             .and(block(lang))
             .map(|(test,body)| ctor::while_(test, body));
 
-        var.or(while_).or(if_).or(return_).or(block(lang)).or(loop_).or(break_).or(assign)
+        var.or(while_).or(if_).or(return_).or(block(lang)).or(loop_).or(break_).or(assign_or_label)
     }
 }
 
@@ -159,8 +169,21 @@ parser! {
         .skip(lang.reserved_op(":"))
         .and(type_(lang))
         .and(block(lang))
-        .map(|(((f, params_tys), ret_ty), body)|
-        (f, Function { locals: vec![], body, params_tys, ret_ty }))
+        .map(|(((f, params_tys), ret_ty), body): (((_, Vec<(Id, Type)>), _), _)| {
+            let mut args = Vec::new();
+            let mut params = Vec::new();
+            for (param, arg) in params_tys {
+                args.push(arg);
+                params.push(param);
+            }
+            // TODO(luna): support void
+            (f, Function {
+                locals: vec![],
+                body,
+                fn_type: FnType { args, result: Some(ret_ty) },
+                params
+            })
+        })
     }
 }
 
@@ -174,7 +197,8 @@ parser! {
         .map(|functions| {
             let classes = HashMap::new();
             let globals = HashMap::new();
-            Program { functions, classes, globals }
+            let data = Vec::new();
+            Program { functions, classes, globals, data }
         })
     }
 }
@@ -188,8 +212,8 @@ pub fn parse(input: &str) -> Program {
             start: letter(),
             rest: alpha_num(),
             reserved: [
-                "if", "else", "true", "false", "function", "loop", "return", "i32",
-                "while"
+                "if", "else", "true", "false", "function", "loop", "return", "i32", "string",
+                "bool", "while"
             ]
             .iter()
             .map(|x| (*x).into())

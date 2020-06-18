@@ -1,3 +1,5 @@
+//! An enum that can store any type known to the runtime
+
 use crate::Key;
 use std::collections::HashMap;
 
