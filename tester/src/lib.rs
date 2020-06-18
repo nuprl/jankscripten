@@ -48,4 +48,9 @@ mod test {
         assert_eq!(rt_and_filename("tests/test_add_num.wat")?, 10);
         Ok(())
     }
+    #[test]
+    fn test_shared_data() -> Result<()> {
+        assert_eq!(rt_and_filename("tests/test_shared_data.wat")?, 4);
+        Ok(())
+    }
 }

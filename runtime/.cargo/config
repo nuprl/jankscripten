@@ -1,5 +1,2 @@
 [build]
 target = "wasm32-unknown-unknown"
-# this provides room for the jankscripten data segment
-# but i'm not sure that it actually works
-rustflags = "-C link-args=--global-base=65536"

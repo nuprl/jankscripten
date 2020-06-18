@@ -1,8 +1,7 @@
 //! translate NotWasm to wasm, using the rust runtime whenever possible
 //!
-//! preconditions: ????
+//! preconditions: [super::compile]
 
-use super::intern::DATA_OFFSET;
 use super::rt_bindings::get_rt_bindings;
 use super::syntax as N;
 use parity_wasm::builder::*;
@@ -10,6 +9,8 @@ use parity_wasm::elements::*;
 use parity_wasm::serialize;
 use std::collections::HashMap;
 use Instruction::*;
+
+const JEN_STRINGS_IDX: u32 = 0;
 
 type FuncTypeMap = HashMap<(Vec<ValueType>, Option<ValueType>), u32>;
 
@@ -69,9 +70,15 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         module.push_function(translate_func(func, &rt_indexes, &type_indexes, name));
     }
     // data segment
+    // right now there's only one global, if that changes we can refactor
+    module = module
+        .import()
+        .path("runtime", "JEN_STRINGS")
+        .with_external(External::Global(GlobalType::new(ValueType::I32, false)))
+        .build();
     let module = module
         .data()
-        .offset(I32Const(DATA_OFFSET as i32))
+        .offset(GetGlobal(JEN_STRINGS_IDX))
         .value(program.data)
         .build();
     for (i, mut global) in program.globals {
@@ -144,9 +151,6 @@ fn translate_func(
 
 fn types_as_wasm(types: &[N::Type]) -> Vec<ValueType> {
     types.iter().map(N::Type::as_wasm).collect()
-}
-fn no_ids(ids_tys: Vec<(N::Id, N::Type)>) -> Vec<N::Type> {
-    ids_tys.into_iter().map(|(_, ty)| ty).collect()
 }
 fn option_as_wasm(ty: &Option<N::Type>) -> Option<ValueType> {
     ty.as_ref().map(N::Type::as_wasm)
@@ -293,7 +297,9 @@ impl<'a> Translate<'a> {
             N::Atom::Lit(lit) => match lit {
                 N::Lit::I32(i) => self.out.push(I32Const(*i)),
                 N::Lit::Interned(addr) => {
+                    self.out.push(GetGlobal(JEN_STRINGS_IDX));
                     self.out.push(I32Const(*addr as i32));
+                    self.out.push(I32Add);
                 }
                 N::Lit::String(..) => panic!("uninterned string"),
                 _ => todo!(),
