@@ -89,6 +89,7 @@ parser! {
     {
         lang.reserved("i32").with(value(Type::I32))
             .or(lang.reserved("str").with(value(Type::StrRef)))
+            .or(lang.reserved("bool").with(value(Type::Bool)))
     }
 }
 
@@ -105,11 +106,18 @@ parser! {
             .skip(lang.reserved_op(";"))
             .map(|((x,t),e)| Stmt::Var(x, e, t));
 
-        let assign = id(lang)
-            .skip(lang.reserved_op("="))
-            .and(expr(lang))
-            .skip(lang.reserved_op(";"))
-            .map(|(x,e)| Stmt::Assign(x, e));
+        enum IdRhsInStmt {
+            Expr(Expr),
+            Stmt(Stmt)
+        }
+            
+        let assign_or_label = id(lang)
+           .and((lang.reserved_op("=").with(expr(lang)).skip(lang.reserved_op(";")).map(|e| IdRhsInStmt::Expr(e)))
+                .or(lang.reserved_op(":").with(block(lang)).map(|s| IdRhsInStmt::Stmt(s))))
+           .map(|(x, rhs)| match rhs {
+               IdRhsInStmt::Expr(e) => Stmt::Assign(x, e),
+               IdRhsInStmt::Stmt(s) => ctor::label_(x, s)
+           });
 
         let if_ = lang.reserved("if")
             .with(lang.parens(atom(lang)))
@@ -137,7 +145,7 @@ parser! {
             .and(block(lang))
             .map(|(test,body)| ctor::while_(test, body));
 
-        var.or(while_).or(if_).or(return_).or(block(lang)).or(loop_).or(break_).or(assign)
+        var.or(while_).or(if_).or(return_).or(block(lang)).or(loop_).or(break_).or(assign_or_label)
     }
 }
 
@@ -205,7 +213,7 @@ pub fn parse(input: &str) -> Program {
             rest: alpha_num(),
             reserved: [
                 "if", "else", "true", "false", "function", "loop", "return", "i32", "string",
-                "while",
+                "bool", "while"
             ]
             .iter()
             .map(|x| (*x).into())
