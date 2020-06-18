@@ -25,37 +25,51 @@ impl Typing {
         if t1 == t2 {
             self.id(t1)
         } else {
-            match (t1, t2) {
-                (Type::Ground(g1), Type::Ground(g2)) => self.coerce_ground_types(g1, g2),
-                (Type::Ground(GroundType::Any), Type::Function(args, res)) => {
-                    let tmp1 = Type::Ground(GroundType::Function(args.len()));
-                    let tmp2 = Type::Function(args.clone(), res.clone());
-                    self.coerce(Type::Ground(GroundType::Any), tmp1.clone());
-                    self.coerce(tmp1, tmp2);
-                },
-                (Type::Function(args, res), Type::Ground(GroundType::Any)) => {
-                    let tmp = Type::Ground(GroundType::Function(args.len()));
-                    self.coerce(Type::Function(args, res), tmp.clone());
-                    self.coerce(tmp, Type::Ground(GroundType::Any));
-                },
+            match (t1.is_ground(), t2.is_ground()) {
+                (true, true) => self.coerce_ground_types(t1, t2),
+                (true, false) => self.coerce_ground_and_t(t1, t2),
+                (false, true) => self.coerce_t_and_ground(t1, t2),
                 _ => unimplemented!()
             }
         }
     }
 
-    fn coerce_ground_types(&self, g1: GroundType, g2: GroundType) {
+    fn coerce_ground_types(&self, g1: Type, g2: Type) {
         match (g1, g2) {
-            (GroundType::Any, g2) => self.untag(g2),
-            (g1, GroundType::Any) => self.tag(g1),
+            (Type::Any, g2) => self.untag(g2),
+            (g1, Type::Any) => self.tag(g1),
             _ => unimplemented!()
         }
     }
 
-    fn tag(&self, g: GroundType) {
+    fn coerce_ground_and_t(&self, g: Type, t: Type) {
+        match (g, t) {
+            (Type::Any, Type::Function(args, res)) => {
+                let tmp1 = Type::ground_function(args.len());
+                let tmp2 = Type::Function(args.clone(), res.clone());
+                self.coerce(Type::Any, tmp1.clone());
+                self.coerce(tmp1, tmp2);
+            },
+            _ => unimplemented!()
+        }
+    }
+
+    fn coerce_t_and_ground(&self, t: Type, g: Type) {
+        match (t, g) {
+            (Type::Function(args, res), Type::Any) => {
+                let tmp = Type::ground_function(args.len());
+                self.coerce(Type::Function(args, res), tmp.clone());
+                self.coerce(tmp, Type::Any);
+            },
+            _ => unimplemented!()
+        }
+    }
+
+    fn tag(&self, g: Type) {
         unimplemented!()
     }
 
-    fn untag(&self, g: GroundType) {
+    fn untag(&self, g: Type) {
         unimplemented!()
     }
 
@@ -66,7 +80,7 @@ impl Typing {
     fn seq(&self, c1: Coercion, c2: Coercion) {
         unimplemented!()
     }
-
+    
     fn typing_stmt(&self, stmt: Stmt) -> TypingResult<Stmt> {
         unimplemented!()
     }
@@ -88,7 +102,7 @@ impl Typing {
 
     fn typing_lit(&self, lit: Lit) -> TypingResult<(Lit, Type)> {
         match lit {
-            Lit::Num(n) => Ok((Lit::Num(n), Type::Ground(GroundType::Float))),
+            Lit::Num(n) => Ok((Lit::Num(n), Type::Float)),
             _ => unimplemented!()
         }
     }
