@@ -1,18 +1,22 @@
-//! walk the statements / now you've made it
+//! A visitor for JavaScript ASTs.
 
 use super::syntax::*;
 use std::cell::RefCell;
 
-/// a visitor is passed to [Stmt::walk] to describe what happens when walking
+/// Statements, expressions, and other types of AST nodes have a `walk` method
+/// that receives an implementation of this `Visitor` trait.
 ///
-/// each method has a default implementation of doing nothing, so you only have to specify what you need. the way to make a Visitor to pass to [Stmt::walk] is to define a newtype:
+/// Each method in `Visitor` has a default implementation that does nothing, so
+/// you only need to define the methods that you need.
 ///
+/// To build a visitor, you need to define a type `T` that holds the visitor
+/// state, and then write `impl Visitor for T { ... }`. Note that you need
+/// to define a new type *for stateless visitors too*. For example:
+/// 
 /// ```
 /// use libjankscripten::javascript::Visitor;
-/// struct WalkOn;
-/// impl Visitor for WalkOn {
-///     // ...
-/// }
+/// struct T;
+/// impl Visitor for T { };
 /// ```
 pub trait Visitor {
     /// called before recursing on a statement
@@ -25,7 +29,7 @@ pub trait Visitor {
     fn exit_expr(&mut self, _expr: &mut Expr, _loc: &Loc) {}
 }
 
-pub struct VisitorState<'v, V> {
+struct VisitorState<'v, V> {
     visitor: &'v mut V,
 }
 
@@ -76,21 +80,32 @@ impl BlockContext {
     }
 }
 
+/// A single-level of a context.
 #[derive(Debug)]
 pub enum Context<'a> {
-    // Additional contexts can go here.
+    /// Within a block statement. The `BlockContext` type has several methods
+    /// that allow the visitor to add statements to the block.
     Block(&'a BlockContext),
-    Expr,
-    Stmt,
-    LValue,
     VarDeclRhs,
+    /// Within the context of a statement of an unknown kind.
+    Stmt,
+    /// Within the right-hand side of an assignment expression. The context
+    /// includes the assignment operator.
     AssignRhs(AssignOp),
+    /// Within the context of an expression of an unknown kind.
+    Expr,
+    /// Within the left-hand side of an assignment expression.
+    LValue,    
 }
 
 /// A data structure that represents the context of a call to a visitor.
-/// This is closely related to the `location` of a zipper:
 ///
-/// Gérard Huet. The Zipper. Journal of Functional Programming. 7(5) 1997.
+/// For example, in a call to `enter_stmt(&mut self, stmt, loc)`, if `loc`
+/// is `Loc::Node(Block(...), ...)`, then `stmt` is immediately within a a
+/// block statement.
+/// 
+/// See the `Context` type for the various kinds of contexts available.
+/// TODO(arjun): Now that this is immutable, we might as well use a `Vec`.
 #[derive(Debug)]
 pub enum Loc<'a> {
     Top,
@@ -302,24 +317,24 @@ impl Stmt {
         let mut loc = Loc::Top;
         vs.walk_stmt(self, &mut loc);
     }
-    /// replace this statement with `;` and return its old value. this is
-    /// used to gain ownership of a mutable reference, especially in [Stmt::walk]
+
+    /// Replace this statement with `;` and return its old value.
     pub fn take(&mut self) -> Self {
         std::mem::replace(self, Stmt::Empty)
     }
 }
 
 impl Expr {
-    /// like [Stmt::walk], but as a method on Expr. does the *exact*
-    /// same thing
+    /// like `Stmt::walk`, but as a method on Expr. does the *exact*
+    /// same thing.
     pub fn walk(&mut self, v: &mut impl Visitor) {
         let mut vs = VisitorState::new(v);
         let mut loc = Loc::Top;
         vs.walk_expr(self, &mut loc);
     }
-    /// replace this statement with `undefined` and return its old
-    /// value. this is used to gain ownership of a mutable reference,
-    /// especially in [Expr::walk]
+
+    /// Replace this statement with `undefined` and return its old
+    /// value.
     pub fn take(&mut self) -> Self {
         std::mem::replace(self, Expr::Lit(Lit::Undefined))
     }
