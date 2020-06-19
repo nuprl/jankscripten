@@ -145,7 +145,7 @@ fn simpl_expr<'a>(expr: Expr<'a>) -> ParseResult<S::Expr> {
             Ok(S::Expr::Array(items?))
         }
         Expr::ArrowFunc(_) => unsupported(),
-        // TODO(arjun): I have no idea what this is!
+        // NOTE(arjun): I have no idea what this is!
         Expr::ArrowParamPlaceHolder(_, _) => unsupported(),
         Expr::Assign(AssignExpr {
             operator,
@@ -248,7 +248,7 @@ fn simpl_expr<'a>(expr: Expr<'a>) -> ParseResult<S::Expr> {
             prefix,
             argument,
         }) => {
-            // TODO(arjun): I cannot think of any postfix unary operators!
+            // NOTE(arjun): I cannot think of any postfix unary operators!
             assert!(prefix == true);
             Ok(unary_(operator, simpl_expr(*argument)?))
         }
@@ -384,8 +384,10 @@ fn simpl_stmt<'a>(stmt: Stmt<'a>) -> ParseResult<S::Stmt> {
             let init = match init {
                 None => S::ForInit::Expr(Box::new(UNDEFINED_)),
                 Some(LoopInit::Expr(e)) => S::ForInit::Expr(Box::new(simpl_expr(e)?)),
-                // TODO(arjun): Do not ignore _kind
                 Some(LoopInit::Variable(_kind, decls)) => {
+                    if _kind != VarKind::Var {
+                        return unsupported_message("only var-declared variables are supported");
+                    }
                     let decls: ParseResult<Vec<_>> =
                         decls.into_iter().map(simpl_var_decl).collect();
                     S::ForInit::Decl(decls?)
@@ -511,13 +513,20 @@ fn simpl_program<'a>(program: Program<'a>) -> ParseResult<S::Stmt> {
     }
 }
 
+// TODO(arjun): Someone needs to read the ECMAScript specification to confirm
+// that the code here is legit.
 fn parse_number(s: &str) -> S::Num {
     if s.starts_with("0x") {
-        // TODO(arjun): It looks like a hex literal in JavaScript can be an
+        // It looks like a hex literal in JavaScript can be an
         // unsigned 32-bit integer. I presume we are doing the right thing by
         // casting the u32 to an i32, but I am not certain.
         return u32::from_str_radix(&s[2..], 16)
             .map(|i| S::Num::Int(i as i32))
+            // This seems silly. You can write a hex literal that
+            // is larger than the largest u32.
+            .or_else(|_err|
+                u64::from_str_radix(&s[2..], 16)
+                .map(|i| S::Num::Float(i as f64)))
             .expect(&format!("Ressa did not parse hex value correctly ({})", &s));
     }
 
@@ -528,6 +537,8 @@ fn parse_number(s: &str) -> S::Num {
         .expect(&format!("Cannot parse {} as a number", s));
 }
 
+// TODO(arjun): Someone needs to read the ECMAScript specification to confirm
+// that the code here is legit.
 fn parse_string<'a>(s: &StringLit<'a>) -> String {
     let literal_chars = match s {
         StringLit::Double(s) => s,
@@ -544,8 +555,33 @@ fn parse_string<'a>(s: &StringLit<'a>) -> String {
         match iter.next().expect("character after backslash") {
             '\'' | '"' | '\\' => buf.push(ch),
             'n' => buf.push('\n'),
-            // TODO(arjun): There are a lot more escape characters
-            ch => panic!("unexpected or unhandled escape character: {}", ch),
+            'r' => buf.push('\r'),
+            't' => buf.push('\t'),
+            'f' => buf.push('\x0C'),
+            'b' => buf.push('\x08'),
+            'v' => buf.push('\x0B'),
+            '0' => buf.push('\0'),
+            'x' => {
+                let s = format!("{}{}", iter.next().expect("first hex digit after \\x"), iter.next().expect("second hex digit after \\x"));
+                let n = u8::from_str_radix(&s, 16).expect(&format!("invalid escape \\x{} (Ressa issue)", &s));
+                buf.push(n as char);    
+            }
+            'u' => {
+                let s = format!("{}{}{}{}", 
+                    iter.next().expect("first hex digit after \\x"), 
+                    iter.next().expect("second hex digit after \\x"),
+                    iter.next().expect("third hex digit after \\x"),
+                    iter.next().expect("fourth hex digit after \\x"));
+                let n = u16::from_str_radix(&s, 16).expect(&format!("invalid escape \\u{} (Ressa issue)", &s));
+                buf.push(std::char::from_u32(n as u32).expect("invalid Unicode character from Ressa"));    
+            }
+            ch => {
+                if ch >= '0' || ch <= '9' {
+                    // These are yet another special case!
+                    panic!("unsupported escape");
+                }
+                buf.push(ch);
+            }
         }
     }
     return buf;
