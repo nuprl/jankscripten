@@ -110,13 +110,13 @@ parser! {
             Expr(Expr),
             Stmt(Stmt)
         }
-            
+
         let assign_or_label = id(lang)
            .and((lang.reserved_op("=").with(expr(lang)).skip(lang.reserved_op(";")).map(|e| IdRhsInStmt::Expr(e)))
                 .or(lang.reserved_op(":").with(block(lang)).map(|s| IdRhsInStmt::Stmt(s))))
            .map(|(x, rhs)| match rhs {
                IdRhsInStmt::Expr(e) => Stmt::Assign(x, e),
-               IdRhsInStmt::Stmt(s) => ctor::label_(x, s)
+               IdRhsInStmt::Stmt(s) => ctor::label_(x.into_name(), s)
            });
 
         let if_ = lang.reserved("if")
@@ -138,7 +138,7 @@ parser! {
         let break_ = lang.reserved("break")
             .with(id(lang))
             .skip(lang.reserved_op(";"))
-            .map(|l| Stmt::Break(l));
+            .map(|l| Stmt::Break(Label::Named(l.into_name())));
 
         let while_ = lang.reserved("while")
             .with(lang.parens(atom(lang)))

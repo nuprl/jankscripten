@@ -3,6 +3,7 @@ mod compile;
 #[allow(unused)]
 mod constructors;
 mod index;
+mod index_labels;
 mod intern;
 mod parser;
 mod rt_bindings;
@@ -10,6 +11,7 @@ mod translation;
 mod walk;
 
 use index::index;
+use index_labels::index_labels;
 use intern::intern;
 use translation::translate;
 

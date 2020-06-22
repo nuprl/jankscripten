@@ -164,9 +164,9 @@ fn break_block() {
     let body = Stmt::Block(vec![
         Stmt::Var(id_("x"), atom_(i32_(0)), Type::I32),
         label_(
-            id_("dont_do"),
+            "dont_do",
             Stmt::Block(vec![
-                Stmt::Break(id_("dont_do")),
+                Stmt::Break("dont_do".into()),
                 Stmt::Assign(id_("x"), atom_(i32_(1))),
             ]),
         ),

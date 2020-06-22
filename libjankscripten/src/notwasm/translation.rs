@@ -208,9 +208,9 @@ impl<'a> Translate<'a> {
                 self.translate(stmt);
                 self.out.push(End);
             }
-            N::Stmt::Break(id) => match id {
-                N::Id::Label(i) => self.out.push(Br(*i)),
-                _ => panic!("break non-label"),
+            N::Stmt::Break(label) => match label {
+                N::Label::Indexed(i) => self.out.push(Br(*i)),
+                _ => panic!("non-indexed label"),
             },
             N::Stmt::Return(atom) => {
                 self.translate_atom(atom);
@@ -312,7 +312,6 @@ impl<'a> Translate<'a> {
             },
             N::Atom::Id(id) => match id {
                 N::Id::Named(..) => panic!("unindexed id"),
-                N::Id::Label(..) => panic!("label as atom"),
                 N::Id::Func(id) => self.out.push(I32Const(*id as i32)),
                 N::Id::Index(id) => self.out.push(GetLocal(*id)),
             },

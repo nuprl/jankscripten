@@ -3,7 +3,6 @@
 // You can execute this example with `cargo run --example linking`
 
 use anyhow::Result;
-use std::fs::read;
 use wasmtime::*;
 use wasmtime_wasi::{Wasi, WasiCtx};
 
@@ -36,13 +35,13 @@ pub fn run_with_runtime(wasm: &[u8]) -> Result<i32> {
     Ok(run()?)
 }
 
-fn rt_and_filename(filename: &str) -> Result<i32> {
-    run_with_runtime(&read(filename).expect("no file"))
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::fs::read;
+    fn rt_and_filename(filename: &str) -> Result<i32> {
+        run_with_runtime(&read(filename).expect("no file"))
+    }
     #[test]
     fn test_add_num() -> Result<()> {
         assert_eq!(rt_and_filename("tests/test_add_num.wat")?, 10);

@@ -2,11 +2,11 @@ use super::syntax::*;
 use std::collections::HashMap;
 
 pub fn while_(test: Atom, body: Stmt) -> Stmt {
-    label_(id_("$loop"), loop_(if_(test, body, break_(id_("$loop")))))
+    label_("$loop", loop_(if_(test, body, break_("$loop"))))
 }
 
-pub fn break_(id: Id) -> Stmt {
-    Stmt::Break(id)
+pub fn break_<L: Into<Label>>(l: L) -> Stmt {
+    Stmt::Break(l.into())
 }
 
 pub fn if_(a: Atom, b: Stmt, c: Stmt) -> Stmt {
@@ -15,8 +15,8 @@ pub fn if_(a: Atom, b: Stmt, c: Stmt) -> Stmt {
 pub fn loop_(a: Stmt) -> Stmt {
     Stmt::Loop(Box::new(a))
 }
-pub fn label_(a: Id, b: Stmt) -> Stmt {
-    Stmt::Label(a, Box::new(b))
+pub fn label_<L: Into<Label>>(a: L, b: Stmt) -> Stmt {
+    Stmt::Label(a.into(), Box::new(b))
 }
 pub fn get_id_<S: Into<String>>(a: S) -> Atom {
     Atom::Id(id_(a))
@@ -42,9 +42,15 @@ pub fn plus_(a: Atom, b: Atom) -> Atom {
 pub fn gt_(a: Atom, b: Atom) -> Atom {
     binary_(BinaryOp::I32Eq, a, b)
 }
+pub fn not_(a: Atom) -> Atom {
+    // TODO(luna): this could be implemented with a UnaryOp i think
+    binary_(BinaryOp::I32Sub, i32_(1), a)
+}
 pub fn len_(a: Atom) -> Atom {
     Atom::StringLen(Box::new(a))
 }
+pub const TRUE_: Atom = Atom::Lit(Lit::Bool(true));
+pub const FALSE_: Atom = Atom::Lit(Lit::Bool(true));
 pub fn atom_(a: Atom) -> Expr {
     Expr::Atom(a)
 }
