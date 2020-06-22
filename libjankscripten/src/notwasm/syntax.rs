@@ -30,6 +30,10 @@ pub enum BinaryOp {
     I32Sub,
     I32Mul,
     I32GT, // signed
+    I32Ge, // signed
+    I32Le, // signed
+    I32And,
+    I32Or,
 }
 
 #[derive(Debug, PartialEq)]
@@ -50,12 +54,15 @@ pub enum Stmt {
     Assign(Id, Expr),
     If(Atom, Box<Stmt>, Box<Stmt>),
     Loop(Box<Stmt>),
-    // TODO: indexes for labels too
-    Label(Id, Box<Stmt>),
-    Break(Id),
+    Label(Label, Box<Stmt>),
+    Break(Label),
     // Break value as return?
     Return(Atom),
     Block(Vec<Stmt>),
+    Trap,
+    /// these don't exist in NotWasm, only GotoWasm. if you try to [translate]
+    /// a goto, it will panic
+    Goto(Label),
 }
 
 #[derive(Debug, PartialEq)]
@@ -112,16 +119,34 @@ pub enum Id {
     Index(u32),
     // functions are indexed separately than locals
     Func(u32),
-    // labels are indexed by depth above statement
-    Label(u32),
 }
 impl Id {
     pub fn index(&self) -> u32 {
-        use Id::*;
         match self {
-            Index(i) => *i,
-            _ => panic!("non-indexed or non-local id"),
+            Id::Index(i) => *i,
+            _ => panic!("non-indexed or non-local id: {:?}", self),
         }
+    }
+    pub fn into_name(self) -> String {
+        if let Id::Named(s) = self {
+            s
+        } else {
+            panic!("it's not a name")
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
+pub enum Label {
+    Named(String),
+    /// labels are indexed by depth above statement
+    Indexed(u32),
+    /// in GotoWasm applications are labeled, but they shouldn't make it out
+    App(i32),
+}
+impl<S: Into<String>> From<S> for Label {
+    fn from(s: S) -> Self {
+        Self::Named(s.into())
     }
 }
 

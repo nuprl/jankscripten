@@ -208,13 +208,21 @@ impl<'a> Translate<'a> {
                 self.translate(stmt);
                 self.out.push(End);
             }
-            N::Stmt::Break(id) => match id {
-                N::Id::Label(i) => self.out.push(Br(*i)),
-                _ => panic!("break non-label"),
+            N::Stmt::Break(label) => match label {
+                N::Label::Indexed(i) => self.out.push(Br(*i)),
+                _ => panic!("non-indexed label"),
             },
             N::Stmt::Return(atom) => {
                 self.translate_atom(atom);
                 self.out.push(Return);
+            }
+            N::Stmt::Trap => {
+                self.out.push(Unreachable);
+            }
+            N::Stmt::Goto(..) => {
+                panic!(
+                    "this should be NotWasm, not GotoWasm. did you run elim_gotos? did it work?"
+                );
             }
         }
     }
@@ -225,7 +233,11 @@ impl<'a> Translate<'a> {
             N::BinaryOp::I32Add => self.out.push(I32Add),
             N::BinaryOp::I32Sub => self.out.push(I32Sub),
             N::BinaryOp::I32GT => self.out.push(I32GtS),
+            N::BinaryOp::I32Ge => self.out.push(I32GeS),
+            N::BinaryOp::I32Le => self.out.push(I32LeS),
             N::BinaryOp::I32Mul => self.out.push(I32Mul),
+            N::BinaryOp::I32And => self.out.push(I32And),
+            N::BinaryOp::I32Or => self.out.push(I32Or),
         }
     }
 
@@ -308,11 +320,11 @@ impl<'a> Translate<'a> {
                     self.out.push(I32Add);
                 }
                 N::Lit::String(..) => panic!("uninterned string"),
+                N::Lit::Bool(b) => self.out.push(I32Const(*b as i32)),
                 _ => todo!(),
             },
             N::Atom::Id(id) => match id {
                 N::Id::Named(..) => panic!("unindexed id"),
-                N::Id::Label(..) => panic!("label as atom"),
                 N::Id::Func(id) => self.out.push(I32Const(*id as i32)),
                 N::Id::Index(id) => self.out.push(GetLocal(*id)),
             },
