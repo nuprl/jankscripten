@@ -101,7 +101,7 @@ where
         // recurse
         match stmt {
             // 0
-            Empty | Break(..) => (),
+            Empty | Break(..) | Goto(..) | Trap => (),
             // 1xStmt
             Label(.., a) | Loop(a) => self.walk_stmt(a, loc),
             // 1x[Stmt]

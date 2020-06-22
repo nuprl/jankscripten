@@ -213,7 +213,7 @@ pub fn parse(input: &str) -> Program {
             rest: alpha_num(),
             reserved: [
                 "if", "else", "true", "false", "function", "loop", "return", "i32", "string",
-                "bool", "while"
+                "bool", "while",
             ]
             .iter()
             .map(|x| (*x).into())

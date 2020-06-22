@@ -55,6 +55,10 @@ pub enum Stmt {
     // Break value as return?
     Return(Atom),
     Block(Vec<Stmt>),
+    Trap,
+    /// these don't exist in NotWasm, only GotoWasm. if you try to [translate]
+    /// a goto, it will panic
+    Goto(Label),
 }
 
 #[derive(Debug, PartialEq)]

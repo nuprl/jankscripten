@@ -216,6 +216,14 @@ impl<'a> Translate<'a> {
                 self.translate_atom(atom);
                 self.out.push(Return);
             }
+            N::Stmt::Trap => {
+                self.out.push(Unreachable);
+            }
+            N::Stmt::Goto(..) => {
+                panic!(
+                    "this should be NotWasm, not GotoWasm. did you run elim_gotos? did it work?"
+                );
+            }
         }
     }
 

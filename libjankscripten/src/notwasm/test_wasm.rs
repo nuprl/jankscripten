@@ -35,6 +35,7 @@ fn test_wasm(expected: i32, program: Program) {
     }
     let mut run = Command::new("cargo")
         .arg("run")
+        .arg("-q")
         .current_dir("../tester/")
         // avoids needing tmp file which is test threading mess
         .stdin(Stdio::piped())
