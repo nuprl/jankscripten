@@ -30,7 +30,7 @@ impl Visitor for InternVisitor {
                     let pos = self.data.len() as u32;
                     *old_lit = Lit::Interned(pos);
                     let length = bytes.len() as u32;
-                    let mut length_bytes: [u8; 4] = unsafe { std::mem::transmute(length.to_le()) };
+                    let length_bytes: [u8; 4] = unsafe { std::mem::transmute(length.to_le()) };
                     self.data.extend_from_slice(&length_bytes);
                     self.data.append(&mut bytes);
                     let in_memory_length = length + 4;

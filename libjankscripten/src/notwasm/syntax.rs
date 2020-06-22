@@ -30,6 +30,10 @@ pub enum BinaryOp {
     I32Sub,
     I32Mul,
     I32GT, // signed
+    I32Ge, // signed
+    I32Le, // signed
+    I32And,
+    I32Or,
 }
 
 #[derive(Debug, PartialEq)]
@@ -120,7 +124,7 @@ impl Id {
     pub fn index(&self) -> u32 {
         match self {
             Id::Index(i) => *i,
-            _ => panic!("non-indexed or non-local id"),
+            _ => panic!("non-indexed or non-local id: {:?}", self),
         }
     }
     pub fn into_name(self) -> String {

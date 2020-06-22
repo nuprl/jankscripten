@@ -1,7 +1,4 @@
 //! Label all function applications with a label variant for elim_gotos
-//!
-//! Postconditions:
-//! - running index_labels on this might(?) mess it up
 
 use super::constructors::*;
 use super::syntax::*;

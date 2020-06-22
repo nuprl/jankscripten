@@ -233,7 +233,11 @@ impl<'a> Translate<'a> {
             N::BinaryOp::I32Add => self.out.push(I32Add),
             N::BinaryOp::I32Sub => self.out.push(I32Sub),
             N::BinaryOp::I32GT => self.out.push(I32GtS),
+            N::BinaryOp::I32Ge => self.out.push(I32GeS),
+            N::BinaryOp::I32Le => self.out.push(I32LeS),
             N::BinaryOp::I32Mul => self.out.push(I32Mul),
+            N::BinaryOp::I32And => self.out.push(I32And),
+            N::BinaryOp::I32Or => self.out.push(I32Or),
         }
     }
 
@@ -316,6 +320,7 @@ impl<'a> Translate<'a> {
                     self.out.push(I32Add);
                 }
                 N::Lit::String(..) => panic!("uninterned string"),
+                N::Lit::Bool(b) => self.out.push(I32Const(*b as i32)),
                 _ => todo!(),
             },
             N::Atom::Id(id) => match id {

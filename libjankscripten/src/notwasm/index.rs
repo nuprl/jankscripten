@@ -40,8 +40,6 @@ struct IndexVisitor<'a> {
     names: IndexEnv,
     /// should be given the map of function names to indexes
     func_names: &'a IndexEnv,
-    /// index = rev_indexes.len() - rev_index - 1
-    rev_indexes: IndexEnv,
 }
 impl Visitor for IndexVisitor<'_> {
     fn enter_stmt(&mut self, stmt: &mut Stmt) {
@@ -87,7 +85,6 @@ impl<'a> IndexVisitor<'a> {
             types,
             names,
             func_names,
-            rev_indexes: HashMap::new(),
         }
     }
     /// become aware of a new id, and replace it with a new index
