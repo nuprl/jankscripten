@@ -18,6 +18,10 @@ pub type StringPtr<'a> = TypePtr<'a, String>;
 impl HasTag for String {
     const TYPE_TAG: TypeTag = TypeTag::String;
 }
+pub type AnyJSPtr<'a> = TypePtr<'a, Any>;
+impl HasTag for Any {
+    const TYPE_TAG: TypeTag = TypeTag::Any;
+}
 
 pub type HTPtr<'a, V> = TypePtr<'a, HashMap<Key, V>>;
 impl<'a> HasTag for HashMap<Key, AnyJSPtr<'a>> {
@@ -26,7 +30,11 @@ impl<'a> HasTag for HashMap<Key, AnyJSPtr<'a>> {
 impl HasTag for HashMap<Key, i32> {
     const TYPE_TAG: TypeTag = TypeTag::HTI32;
 }
-pub type AnyJSPtr<'a> = TypePtr<'a, Any>;
-impl HasTag for Any {
-    const TYPE_TAG: TypeTag = TypeTag::Any;
+
+pub type ArrayPtr<'a, V> = TypePtr<'a, Vec<V>>;
+impl<'a> HasTag for Vec<AnyJSPtr<'a>> {
+    const TYPE_TAG: TypeTag = TypeTag::ArrayAny;
+}
+impl HasTag for Vec<i32> {
+    const TYPE_TAG: TypeTag = TypeTag::ArrayI32;
 }

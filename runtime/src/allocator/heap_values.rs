@@ -46,6 +46,8 @@ pub enum TypeTag {
     String,
     HTAny,
     HTI32,
+    ArrayAny,
+    ArrayI32,
     Any,
     // The value inside the tag is the address where the array of pointers
     // begins, for this object.
@@ -95,6 +97,8 @@ pub enum HeapRefView<'a> {
     String(StringPtr<'a>),
     HTAny(HTPtr<'a, Any>),
     HTI32(HTPtr<'a, i32>),
+    ArrayAny(ArrayPtr<'a, Any>),
+    ArrayI32(ArrayPtr<'a, i32>),
     Any(AnyJSPtr<'a>),
     Object(ObjectPtr<'a>),
 }
@@ -107,6 +111,8 @@ impl<'a> HeapRefView<'a> {
             Self::String(val) => val,
             Self::HTAny(val) => val,
             Self::HTI32(val) => val,
+            Self::ArrayAny(val) => val,
+            Self::ArrayI32(val) => val,
             Self::Any(val) => val,
             Self::Object(val) => val,
         }
@@ -148,6 +154,12 @@ impl<'a> AnyPtr<'a> {
             }
             TypeTag::HTI32 => {
                 HeapRefView::HTI32(unsafe { HTPtr::<i32>::new_tag_unchecked(self.ptr) })
+            }
+            TypeTag::ArrayAny => {
+                HeapRefView::ArrayAny(unsafe { ArrayPtr::<Any>::new_tag_unchecked(self.ptr) })
+            }
+            TypeTag::ArrayI32 => {
+                HeapRefView::ArrayI32(unsafe { ArrayPtr::<i32>::new_tag_unchecked(self.ptr) })
             }
             TypeTag::Any => HeapRefView::Any(unsafe { AnyJSPtr::new_tag_unchecked(self.ptr) }),
             TypeTag::Object => HeapRefView::Object(unsafe { ObjectPtr::new(self.ptr) }),

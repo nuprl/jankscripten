@@ -2,9 +2,8 @@
 
 use super::{
     heap,
-    heap_types::{AnyJSPtr, HTPtr, HasTag},
+    heap_types::{AnyJSPtr, HTPtr},
 };
-use crate::any::Any;
 use crate::Key;
 use std::collections::HashMap;
 

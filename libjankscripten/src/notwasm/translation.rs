@@ -233,11 +233,17 @@ impl<'a> Translate<'a> {
         match expr {
             N::Expr::Atom(atom) => self.translate_atom(atom),
             N::Expr::HT(ty) => self.rt_call_mono("ht_new", ty),
+            N::Expr::Array(ty) => self.rt_call_mono("array_new", ty),
             N::Expr::HTSet(ht, field, val, ty) => {
                 self.translate_atom(ht);
                 self.translate_atom(field);
                 self.translate_atom(val);
                 self.rt_call_mono("ht_set", ty);
+            }
+            N::Expr::Push(array, val, ty) => {
+                self.translate_atom(array);
+                self.translate_atom(val);
+                self.rt_call_mono("array_push", ty);
             }
             N::Expr::CallDirect(f, args) => {
                 for arg in args {
@@ -314,6 +320,11 @@ impl<'a> Translate<'a> {
                 self.translate_atom(ht);
                 self.translate_atom(field);
                 self.rt_call_mono("ht_get", ty);
+            }
+            N::Atom::Index(ht, index, ty) => {
+                self.translate_atom(ht);
+                self.translate_atom(index);
+                self.rt_call_mono("array_index", ty);
             }
             N::Atom::StringLen(string) => {
                 self.translate_atom(string);

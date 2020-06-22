@@ -62,6 +62,7 @@ pub enum Stmt {
 pub enum Atom {
     Lit(Lit),
     HTGet(Box<Atom>, Box<Atom>, Type),
+    Index(Box<Atom>, Box<Atom>, Type),
     // HTGet / HTSet / ClassGet / etc VS Dot / Bracket
     // TODO: classes
     Id(Id),
@@ -73,8 +74,9 @@ pub enum Atom {
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
-    //Array(Vec<Expr>, Type),
     HT(Type),
+    Array(Type),
+    Push(Atom, Atom, Type),
     HTSet(Atom, Atom, Atom, Type),
     CallDirect(Id, Vec<Id>),
     CallIndirect(Id, FnType, Vec<Id>),
@@ -97,6 +99,7 @@ pub enum Type {
     StrRef,
     Class,
     HT(Box<Type>),
+    Array(Box<Type>),
     Bool,
     AnyClass,
     Fn(Vec<Type>, Box<Option<Type>>),
@@ -166,6 +169,7 @@ impl std::fmt::Display for Type {
                 StrRef => "str",
                 Class => "class",
                 HT(..) => "ht",
+                Array(..) => "array",
                 Bool => "bool",
                 AnyClass => "anyclass",
                 Fn(..) => "fn",

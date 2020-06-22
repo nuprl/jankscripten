@@ -22,6 +22,7 @@
 type Key = heap_types::StringPtr<'static>;
 
 pub mod any;
+pub mod array;
 pub mod ht;
 pub mod num;
 pub mod string;

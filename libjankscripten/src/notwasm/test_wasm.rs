@@ -107,6 +107,30 @@ fn test_string_ht() {
 }
 
 #[test]
+fn array_push_index() {
+    let program = test_program_(Stmt::Block(vec![
+        Stmt::Var(id_("x"), Expr::Array(Type::I32), array_ty_(Type::I32)),
+        Stmt::Var(
+            id_("_"),
+            Expr::Push(get_id_("x"), i32_(135), Type::I32),
+            Type::I32,
+        ),
+        Stmt::Var(
+            id_("_"),
+            Expr::Push(get_id_("x"), i32_(7), Type::I32),
+            Type::I32,
+        ),
+        Stmt::Var(
+            id_("_"),
+            Expr::Push(get_id_("x"), i32_(98), Type::I32),
+            Type::I32,
+        ),
+        Stmt::Return(index_(get_id_("x"), i32_(2), Type::I32)),
+    ]));
+    test_wasm(98, program);
+}
+
+#[test]
 fn binary_ops() {
     let program = parse(
         r#"

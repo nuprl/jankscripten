@@ -24,6 +24,9 @@ pub fn get_id_<S: Into<String>>(a: S) -> Atom {
 pub fn ht_get_(a: Atom, b: Atom, ty: Type) -> Atom {
     Atom::HTGet(Box::new(a), Box::new(b), ty)
 }
+pub fn index_(a: Atom, b: Atom, ty: Type) -> Atom {
+    Atom::Index(Box::new(a), Box::new(b), ty)
+}
 pub fn i32_(a: i32) -> Atom {
     Atom::Lit(Lit::I32(a))
 }
@@ -77,6 +80,9 @@ pub fn id_<S: Into<String>>(a: S) -> Id {
 }
 pub fn ht_ty_(a: Type) -> Type {
     Type::HT(Box::new(a))
+}
+pub fn array_ty_(a: Type) -> Type {
+    Type::Array(Box::new(a))
 }
 pub fn fn_ty_<I: Into<Option<Type>>>(b: Vec<Type>, a: I) -> Type {
     Type::Fn(b, Box::new(a.into()))

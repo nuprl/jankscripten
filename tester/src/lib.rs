@@ -18,9 +18,9 @@ pub fn run_with_runtime(wasm: &[u8]) -> Result<i32> {
     wasi.add_to_linker(&mut linker)?;
 
     // Load and compile our two modules
-    let main_mod = Module::new(&store, wasm)?;
+    let main_mod = Module::new(&engine, wasm)?;
     let runtime = Module::from_file(
-        &store,
+        &engine,
         "../target/wasm32-unknown-unknown/debug/runtime.wasm",
     )?;
 
