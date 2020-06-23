@@ -57,7 +57,7 @@ pub enum TypeTag {
 /// Every pointer into the heap points to a tag, thus we could build an API
 /// where every function consumes and produces `*mut Tag`-typed values. However,
 /// it would be really easy to make mistakes. Instead, our API has a Rust type
-/// for each variant of `Tag`. Moreover, each Rust type impements the
+/// for each variant of `Tag`. Moreover, each Rust type implements the
 /// `HeapPtr` trait, to get low-level access to the heap, which is needed to
 /// actually manipulate heap values.
 pub trait HeapPtr {
@@ -68,13 +68,12 @@ pub trait HeapPtr {
     /// this is not Drop::drop, don't call it unless you're the GC
     ///
     /// drops any data on the unmanaged heap. default implementation does
-    /// nothing, because most structures ideally shouldn't allocate on the
+    /// nothing, because most structures do not allocate on the
     /// rust heap
-    fn final_drop(&self) {}
+    fn final_drop(&self) { }
 }
 
-/// Returns a pointer to the data that follows the tag. Note that the size of
-/// the tag may be smaller than a machine word.
+/// Returns a pointer to the data that follows the tag.
 pub unsafe fn data_ptr<T>(tag_ptr: *mut Tag) -> *mut T {
     return std::mem::transmute(tag_ptr.add(DATA_OFFSET));
 }
@@ -89,7 +88,7 @@ pub struct AnyPtr<'a> {
     _phantom: PhantomData<&'a ()>,
 }
 
-/// We can safely turn a `HeapRef` into a more specific type of pointer using
+/// We can safely turn an `AnyPtr` into a more specific type of pointer using
 /// the `view` method, which produces a `HeapRefView`.
 #[derive(Clone, Copy)]
 pub enum HeapRefView<'a> {
@@ -183,8 +182,7 @@ impl<'a> HeapPtr for AnyPtr<'a> {
 #[repr(transparent)]
 pub struct TypePtr<'a, T> {
     ptr: *mut Tag,
-    _phantom: PhantomData<&'a ()>,
-    _drop: PhantomData<T>,
+    _phantom: PhantomData<&'a T>,
 }
 // these are necessary because if T is not clone/copy, derive will try not
 // to let it clone/copy, but this is a pointer and should copy
@@ -193,7 +191,6 @@ impl<'a, T> Clone for TypePtr<'a, T> {
         TypePtr {
             ptr: self.ptr,
             _phantom: PhantomData,
-            _drop: PhantomData,
         }
     }
 }
@@ -224,7 +221,6 @@ impl<'a, T> TypePtr<'a, T> {
         TypePtr {
             ptr,
             _phantom: PhantomData,
-            _drop: PhantomData,
         }
     }
     // safety: data_ptr must be initialized with write
