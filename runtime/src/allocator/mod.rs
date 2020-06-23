@@ -17,11 +17,8 @@ use heap_values::*;
 #[cfg(test)]
 mod tests;
 
-/// one global Heap should be maintained, provided by [crate::heap()]. it
-/// will be garbage collected
-///
-/// an unmanaged allocation is acceptable as long as it is known to the heap
-/// that that type needs to be dropped. there is one global heap, at
+/// When running a program, we have a single global Heap ([crate::heap()]).
+/// However, during testing, we create several heaps.
 pub struct Heap {
     buffer: *mut u8,
     size: isize,
