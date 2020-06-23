@@ -477,7 +477,7 @@ mod test {
     #[test]
     fn for_loop() {
         parse_pretty_parse(
-            "for (let i = 0, y = 5; y < 5; ++x) {
+            "for (var i = 0, y = 5; y < 5; ++x) {
     console.log(i);
 }",
         );
