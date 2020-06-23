@@ -26,8 +26,12 @@ pub struct Heap {
     tag_size: isize,
     container_sizes: HashMap<u16, usize>,
     next_container_type: u16,
+    /// We initialize this to the empty stack. Before calling [Heap::gc()], the
+    /// shadow stack must contain all GC roots.
+    shadow_stack: RefCell<Vec<Vec<*mut Tag>>>
 }
 
+#[derive(Debug)]
 struct Block {
     start: *mut u8,
     size: isize,
@@ -51,17 +55,36 @@ impl FreeList {
             }
             FreeList::Block(block, rest) => {
                 let new_block_end = unsafe { start.add(size as usize) };
+                let this_block_end = unsafe { block.start.add(block.size as usize) };
                 if new_block_end < block.start {
+                    // +-----------+------------+-------+
+                    // | new block | used space | block |
+                    // +-----------+------------+-------+
                     let new_block = Block { start, size };
                     return FreeList::Block(new_block, Box::new(self));
                 } else if new_block_end == block.start {
+                    // +-----------+-------+
+                    // | new block | block |
+                    // +-----------+-------+
                     block.start = start;
                     block.size = block.size + size;
                     return self;
                 } else if start == unsafe { start.add(size as usize) } {
+                    // +-------+-----------+
+                    // | block | new block |
+                    // +-------+-----------+
                     block.size = block.size + size;
                     return self;
-                } else {
+                }
+                else if start == block.start && size == block.size {
+                    // This can happen, because this is the world's worst
+                    // mark and sweep collector.
+                    return self;
+                }
+                else {
+                    // +-------+-----------------------------+-----------+
+                    // | block | mix of used and free blocks | new block |
+                    // +-------+-----------------------------+-----------+
                     let rest2 = std::mem::replace(rest.as_mut(), FreeList::Nil);
                     *rest.as_mut() = rest2.insert(start, size);
                     return self;
@@ -109,6 +132,7 @@ impl Heap {
         let tag_size = layout::layout_aligned::<Tag>(ALIGNMENT).size() as isize;
         let container_sizes = HashMap::new();
         let next_container_type = 0;
+        let shadow_stack = RefCell::default();
         return Heap {
             buffer,
             size,
@@ -116,6 +140,7 @@ impl Heap {
             tag_size,
             container_sizes,
             next_container_type,
+            shadow_stack,
         };
     }
 
@@ -178,16 +203,30 @@ impl Heap {
         }
     }
 
+    #[allow(unused)] // remove after we extern
+    pub fn push_shadow_frame(&self, frame: &[*mut Tag]) {
+        let mut shadow_stack = self.shadow_stack.borrow_mut();
+        shadow_stack.push(Vec::from(frame));
+    }
+
+    #[allow(unused)] // remove after we extern
+    pub fn pop_shadow_frame(&self, frame: &[*mut Tag]) {
+        let mut shadow_stack = self.shadow_stack.borrow_mut();
+        shadow_stack.push(Vec::from(frame));
+    }
+
     /// # Safety
     ///
     /// roots must be live, appropriately allocated tags
-    pub unsafe fn garbage_collect(&self, roots: &[*mut Tag]) {
+    #[allow(unused)] // remove after we extern
+    pub unsafe fn gc(&self) {
+        let roots = self.shadow_stack.borrow().iter().flatten().map(|refptr| *refptr).collect::<Vec<*mut Tag>>();
         self.mark_phase(roots);
         self.sweep_phase();
     }
 
-    fn mark_phase(&self, roots: &[*mut Tag]) {
-        let mut current_roots = roots.to_vec();
+    fn mark_phase(&self, roots: Vec<*mut Tag>) {
+        let mut current_roots = roots;
         let mut new_roots = Vec::<*mut Tag>::new();
 
         while current_roots.is_empty() == false {
@@ -235,8 +274,9 @@ impl Heap {
                 ptr = unsafe { ptr.add(size) };
                 continue;
             }
-
+            
             free_list_ptr = free_list_ptr.insert(ptr, size as isize);
+            ptr = unsafe { ptr.add(size) };
         }
         *borrowed_free_list = free_list_ptr;
     }
