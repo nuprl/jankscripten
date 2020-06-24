@@ -55,7 +55,6 @@ impl FreeList {
             }
             FreeList::Block(block, rest) => {
                 let new_block_end = unsafe { start.add(size as usize) };
-                let this_block_end = unsafe { block.start.add(block.size as usize) };
                 if new_block_end < block.start {
                     // +-----------+------------+-------+
                     // | new block | used space | block |
@@ -144,6 +143,7 @@ impl Heap {
         };
     }
 
+    #[allow(unused)] // remove after we extern
     pub fn new_container_type(&mut self, num_elements: usize) -> u16 {
         let type_tag = self.next_container_type;
         self.next_container_type += 1;
@@ -179,6 +179,7 @@ impl Heap {
         }
     }
 
+    #[allow(unused)] // remove after we extern
     pub fn alloc_container(&self, type_tag: u16) -> Option<ObjectPtr> {
         let num_elements = self.container_sizes.get(&type_tag).unwrap();
         let elements_size = Layout::array::<Option<&Tag>>(*num_elements).unwrap().size() as isize;
