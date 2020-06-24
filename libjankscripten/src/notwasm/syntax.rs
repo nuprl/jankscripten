@@ -139,8 +139,6 @@ impl Id {
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
 pub enum Label {
     Named(String),
-    /// labels are indexed by depth above statement
-    Indexed(u32),
     /// in GotoWasm applications are labeled, but they shouldn't make it out
     App(i32),
 }

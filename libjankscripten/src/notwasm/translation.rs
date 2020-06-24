@@ -161,6 +161,25 @@ struct Translate<'a> {
     rt_indexes: &'a HashMap<String, u32>,
     type_indexes: &'a FuncTypeMap,
 }
+
+/// We use TranslateLabel and LabelEnv compile the named labels and breaks of
+/// NotWasm to WebAssembly. In WebAssembly, blocks are not named, and break
+/// statements refer to blocks using de Brujin indices (i.e., index zero for the
+/// innermost block. The Translate::translate method takes a LabelEnv (a vector)
+/// as anauxiliary argument. When recurring into a named NotWasm block, we push
+/// a `TranslateLabel::Label` that holds the block's name on the LabelEnv, and
+/// to compile a `break l` statement to WebAssembly, we scan the LabelEnv for
+/// the index of `TranslateLabel::Label(l)`. When the compiler introduces an
+/// unnamed WebAssembly block, it pushes a `TranslateLabel::Unused` onto the
+/// `LabelEnv`, which ensures that indices shift correctly.
+#[derive(Clone, PartialEq)]
+enum TranslateLabel {
+    Unused,
+    Label(N::Label)
+}
+
+type LabelEnv = im_rc::Vector<TranslateLabel>;
+
 impl<'a> Translate<'a> {
     fn new(rt_indexes: &'a HashMap<String, u32>, type_indexes: &'a FuncTypeMap) -> Self {
         Self {
@@ -170,16 +189,21 @@ impl<'a> Translate<'a> {
         }
     }
 
+    fn translate(&mut self, stmt: &mut N::Stmt) {
+        let labels: LabelEnv = LabelEnv::default();
+        self.translate_rec(&labels, stmt);
+    }
+
     // We are not using a visitor, since we have to perform an operation on every
     // give of statement and expression. Thus, the visitor wouldn't give us much.
-    fn translate(&mut self, stmt: &mut N::Stmt) {
+    pub(self) fn translate_rec(&mut self, labels: &LabelEnv, stmt: &mut N::Stmt) {
         match stmt {
             N::Stmt::Empty => (),
             N::Stmt::Block(ss) => {
                 // don't surround in an actual block, those are only useful
                 // when labeled
                 for s in ss {
-                    self.translate(s);
+                    self.translate_rec(labels, s);
                 }
             }
             N::Stmt::Assign(id, expr) | N::Stmt::Var(id, expr, _) => {
@@ -190,27 +214,34 @@ impl<'a> Translate<'a> {
             N::Stmt::If(cond, conseq, alt) => {
                 self.translate_atom(cond);
                 self.out.push(If(BlockType::NoResult));
-                self.translate(conseq);
+                let mut labels1 = labels.clone();
+                labels1.push_front(TranslateLabel::Unused);
+                self.translate_rec(&labels1, conseq);
                 self.out.push(Else);
-                self.translate(alt);
+                self.translate_rec(&labels1, alt);
                 self.out.push(End);
             }
             N::Stmt::Loop(body) => {
                 // breaks should be handled by surrounding label already
                 self.out.push(Loop(BlockType::NoResult));
-                self.translate(body);
+                let mut labels1 = labels.clone();
+                labels1.push_front(TranslateLabel::Unused);
+                self.translate_rec(&labels1, body);
                 // loop doesn't automatically continue, don't ask me why
                 self.out.push(Br(0));
                 self.out.push(End);
             }
-            N::Stmt::Label(.., stmt) => {
+            N::Stmt::Label(x, stmt) => {
                 self.out.push(Block(BlockType::NoResult));
-                self.translate(stmt);
+                let mut labels1 = labels.clone();
+                labels1.push_front(TranslateLabel::Label(x.clone()));
+                self.translate_rec(&labels1, stmt);
                 self.out.push(End);
             }
-            N::Stmt::Break(label) => match label {
-                N::Label::Indexed(i) => self.out.push(Br(*i)),
-                _ => panic!("non-indexed label"),
+            N::Stmt::Break(label) => {
+                let l = TranslateLabel::Label(label.clone());
+                let i = labels.index_of(&l).expect(&format!("unbound label {:?}", label));
+                self.out.push(Br(i as u32));
             },
             N::Stmt::Return(atom) => {
                 self.translate_atom(atom);
