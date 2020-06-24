@@ -3,16 +3,27 @@ use super::parser::parse;
 use super::syntax::*;
 use std::io::Write;
 use std::process::{Command, Stdio};
+use std::sync::Once;
+
+static COMPILE_RUNTIME: Once = Once::new();
 
 fn test_wasm(expected: i32, program: Program) {
     let wasm = compile(program).expect("couldn't compile");
-    // build runtime
-    Command::new("cargo")
-        .arg("build")
-        .arg("--target=wasm32-unknown-unknown")
-        .current_dir("../runtime/")
-        .status()
-        .expect("failed to build runtime");
+    // NOTE(arjun): It is temption to make the runtime system a dev-dependency
+    // in Cargo.toml. However, I do not believe that will work. I assume that
+    // dev-dependencies are compiled with the same target as the primary crate.
+    // However, we need the runtime system to target WebAssembly and this crate
+    // to target native.
+    COMPILE_RUNTIME.call_once(|| {
+        // build runtime
+        Command::new("cargo")
+            .arg("build")
+            .arg("--target=wasm32-unknown-unknown")
+            .current_dir("../runtime/")
+            .status()
+            .expect("failed to build runtime");
+    });
+
     // output to stdout for debugging
     let wat = Command::new("wasm2wat")
         .arg("-")
@@ -33,10 +44,7 @@ fn test_wasm(expected: i32, program: Program) {
     } else {
         println!("warning: no wasm2wat for debugging");
     }
-    let mut run = Command::new("cargo")
-        .arg("run")
-        .arg("-q")
-        .current_dir("../tester/")
+    let mut run = Command::new("../target/debug/tester")
         // avoids needing tmp file which is test threading mess
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
