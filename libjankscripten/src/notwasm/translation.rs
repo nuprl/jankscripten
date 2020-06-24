@@ -62,13 +62,6 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         let next_index = type_indexes.len() as u32;
         type_indexes.entry(func_ty).or_insert(next_index);
     }
-    // NOTE(arjun): I believe that this loop relies on Rust traversing
-    // program.functions in the same order as the call to .keys in
-    // super::index::index. I think this is brittle, and we should probably
-    // index functions first.
-    for (name, func) in program.functions.iter_mut() {
-        module.push_function(translate_func(func, &rt_indexes, &type_indexes, name));
-    }
     // data segment
     // right now there's only one global, if that changes we can refactor
     module = module
@@ -103,7 +96,14 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         }
         table_build = table_build.with_element(notwasm_index as u32, vec![wasm_index]);
     }
-    let module = table_build.build();
+    // NOTE(arjun): I believe that this loop relies on Rust traversing
+    // program.functions in the same order as the call to .keys in
+    // super::index::index. I think this is brittle, and we should probably
+    // index functions first.
+    let mut module = table_build.build();
+    for (name, func) in program.functions.iter_mut() {
+        module.push_function(translate_func(func, &rt_indexes, &type_indexes, name));
+    }
     // export main
     let module = module
         .export()
@@ -120,11 +120,6 @@ fn translate_func(
     type_indexes: &FuncTypeMap,
     name: &N::Id,
 ) -> FunctionDefinition {
-    let out_func = function()
-        .signature()
-        .with_params(types_as_wasm(&func.fn_type.args.clone()))
-        .with_return_type(option_as_wasm(&func.fn_type.result))
-        .build();
     // generate the actual code
     let mut translator = Translate::new(rt_indexes, type_indexes);
     translator.translate(&mut func.body);
@@ -141,7 +136,11 @@ fn translate_func(
         .iter()
         .map(|t| Local::new(1, t.as_wasm()))
         .collect();
-    out_func
+    function()
+        .signature()
+        .with_params(types_as_wasm(&func.fn_type.args))
+        .with_return_type(option_as_wasm(&func.fn_type.result))
+        .build()
         .body()
         .with_instructions(Instructions::new(insts))
         .with_locals(locals)
