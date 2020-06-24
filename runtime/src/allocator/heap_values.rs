@@ -202,7 +202,7 @@ impl<'a, T> HeapPtr for TypePtr<'a, T> {
     }
 
     fn get_data_size(&self, _heap: &Heap) -> usize {
-        std::mem::size_of::<T>()
+        return layout::layout_aligned::<T>(ALIGNMENT).size();
     }
 
     fn final_drop(&self) {
