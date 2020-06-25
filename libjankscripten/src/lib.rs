@@ -2,7 +2,7 @@
 
 pub mod javascript;
 pub mod shared;
-pub mod notjankyscript;
+pub mod jankierscript;
 pub mod jankyscript;
 pub mod notwasm;
 

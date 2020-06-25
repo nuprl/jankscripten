@@ -16,7 +16,8 @@ pub struct Typing {
 impl Typing {
     fn coerce(&self, t1: Type, t2: Type) -> Coercion {
         if t1 == t2 {
-            vec!(Coercion::Id(t1))
+            unimplemented!();
+            //vec!(Coercion::Id(t1))
         } else {
             match (t1.is_ground(), t2.is_ground()) {
                 (true, true) => self.coerce_ground_types(t1, t2),
