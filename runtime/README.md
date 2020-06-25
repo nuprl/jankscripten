@@ -1,16 +1,12 @@
-# To build
+# jankscripten runtime system
+
+We have configured this crate to build a WebAssembly library and run tests
+using WebAssembly and Node.
+
+To build and run, you need to install the following dependencies (duplicated
+from the main README):
 
 ```
-cargo build --target wasm32-unknown-unknown
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli
 ```
-
-# To test on Wasm
-
-```
-cargo install wasm-bindgen-cli # just need to do this once
-cargo test --target wasm32-unknown-unknown
-```
-
-note that output goes to [../target] because the super crate owns this one
-
-more details on writing the runtime at [src/lib.rs] or `cargo doc --open`

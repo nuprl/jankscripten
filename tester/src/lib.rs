@@ -3,7 +3,6 @@
 // You can execute this example with `cargo run --example linking`
 
 use anyhow::Result;
-use std::fs::read;
 use wasmtime::*;
 use wasmtime_wasi::{Wasi, WasiCtx};
 
@@ -18,9 +17,9 @@ pub fn run_with_runtime(wasm: &[u8]) -> Result<i32> {
     wasi.add_to_linker(&mut linker)?;
 
     // Load and compile our two modules
-    let main_mod = Module::new(&store, wasm)?;
+    let main_mod = Module::new(&engine, wasm)?;
     let runtime = Module::from_file(
-        &store,
+        &engine,
         "../target/wasm32-unknown-unknown/debug/runtime.wasm",
     )?;
 
@@ -36,16 +35,21 @@ pub fn run_with_runtime(wasm: &[u8]) -> Result<i32> {
     Ok(run()?)
 }
 
-fn rt_and_filename(filename: &str) -> Result<i32> {
-    run_with_runtime(&read(filename).expect("no file"))
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::fs::read;
+    fn rt_and_filename(filename: &str) -> Result<i32> {
+        run_with_runtime(&read(filename).expect("no file"))
+    }
     #[test]
     fn test_add_num() -> Result<()> {
         assert_eq!(rt_and_filename("tests/test_add_num.wat")?, 10);
+        Ok(())
+    }
+    #[test]
+    fn test_shared_data() -> Result<()> {
+        assert_eq!(rt_and_filename("tests/test_shared_data.wat")?, 4);
         Ok(())
     }
 }

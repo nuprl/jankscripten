@@ -22,6 +22,7 @@
 type Key = heap_types::StringPtr<'static>;
 
 pub mod any;
+pub mod array;
 pub mod ht;
 pub mod num;
 pub mod string;
@@ -31,6 +32,9 @@ use allocator::*;
 use any::Any;
 
 static mut HEAP: Option<Heap> = None;
+
+#[no_mangle]
+pub static JEN_STRINGS: &[u8] = &[0; 65536];
 
 /// needs to be called before most other code. it initializes the managed heap
 #[no_mangle]

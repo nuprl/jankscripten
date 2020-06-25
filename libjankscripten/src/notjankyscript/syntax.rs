@@ -18,12 +18,6 @@ pub enum UnaryOp {
 }
 
 #[derive(Debug)]
-pub enum AssignOp {
-    PlusEqual(Type, Type)
-    // TODO: others
-}
-
-#[derive(Debug)]
 pub enum Lit {
     String(String),
     Regex(String, String),
@@ -59,17 +53,27 @@ pub enum Expr {
     Bracket(Box<Expr>, Box<Expr>),
     Unary(UnaryOp, Box<Expr>),
     Binary(BinOp, Box<Expr>, Box<Expr>),
+    Call(Box<Expr>, Vec<Expr>),
+    New(Option<Type>, Box<Expr>, Vec<Expr>),
+    Func(Option<Type>, Vec<(Id, Option<Type>)>, Box<Stmt>),
 }
+
+// function F(x) { }
+// var F = function (x) { }
+
+// in JS... JS::Stmt::Expr(JS::Expr::Dot(...))
+// careful with assign, unaryassign, seq
+
+// make a custom rust error
+// if we encounter the case above in the translation, something is wrong
+// throw a rust error
 
 #[derive(Debug)]
 pub enum Stmt {
     Var(Id, Option<Type>, Expr), // initialize to None (recommendation is to add default behavior to constructor)
     Block(Vec<Stmt>),
     Empty,
-    Assign(AssignOp, Box<LValue>, Box<Expr>),
-    Call(Id, Box<Expr>, Vec<Expr>),
-    New(Id, Option<Type>, Box<Expr>, Vec<Expr>),
-    Func(Id, Option<Type>, Vec<(Id, Option<Type>)>, Box<Stmt>),
+    Assign(Box<LValue>, Box<Expr>),
     If(Box<Expr>, Box<Stmt>, Box<Stmt>),
     While(Box<Expr>, Box<Stmt>),
     Label(Id, Box<Stmt>),

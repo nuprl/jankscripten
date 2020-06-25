@@ -13,6 +13,24 @@ fn allocs() {
     assert!(heap.alloc(12).is_none());
 }
 
+
+#[test]
+#[wasm_bindgen_test]
+fn trivial_gc() {
+    let heap = Heap::new((ALIGNMENT * 4) as isize);
+    let x = heap.alloc(32).expect("first allocation failed");
+    assert_eq!(*x.get(), 32, "first value was not written to the heap correctly");
+    let y = heap.alloc(64).expect("second allocation failed");
+    assert_eq!(*y.get(), 64, "second value was not written to the heap correctly");
+    assert_eq!(*x.get(), 32, "second allocation corrupted the first value on the heap");
+    assert!(heap.alloc(12).is_none(), "third allocation should fail due to lack of space");
+    heap.push_shadow_frame(&[x.get_ptr()]);
+    unsafe { heap.gc() };
+    let z = heap.alloc(128).expect("GC failed to free enough memory");
+    assert_eq!(*z.get(), 128, "allocation should succeed after GC");
+    assert_eq!(*x.get(), 32, "allocation after GC corrupted the first value on the heap");
+}
+
 #[test]
 #[wasm_bindgen_test]
 fn update_prims() {

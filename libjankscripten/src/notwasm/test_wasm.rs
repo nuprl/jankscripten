@@ -3,16 +3,27 @@ use super::parser::parse;
 use super::syntax::*;
 use std::io::Write;
 use std::process::{Command, Stdio};
+use std::sync::Once;
+
+static COMPILE_RUNTIME: Once = Once::new();
 
 fn test_wasm(expected: i32, program: Program) {
     let wasm = compile(program).expect("couldn't compile");
-    // build runtime
-    Command::new("cargo")
-        .arg("build")
-        .arg("--target=wasm32-unknown-unknown")
-        .current_dir("../runtime/")
-        .status()
-        .expect("failed to build runtime");
+    // NOTE(arjun): It is temption to make the runtime system a dev-dependency
+    // in Cargo.toml. However, I do not believe that will work. I assume that
+    // dev-dependencies are compiled with the same target as the primary crate.
+    // However, we need the runtime system to target WebAssembly and this crate
+    // to target native.
+    COMPILE_RUNTIME.call_once(|| {
+        // build runtime
+        Command::new("cargo")
+            .arg("build")
+            .arg("--target=wasm32-unknown-unknown")
+            .current_dir("../runtime/")
+            .status()
+            .expect("failed to build runtime");
+    });
+
     // output to stdout for debugging
     let wat = Command::new("wasm2wat")
         .arg("-")
@@ -33,9 +44,7 @@ fn test_wasm(expected: i32, program: Program) {
     } else {
         println!("warning: no wasm2wat for debugging");
     }
-    let mut run = Command::new("cargo")
-        .arg("run")
-        .current_dir("../tester/")
+    let mut run = Command::new("../target/debug/tester")
         // avoids needing tmp file which is test threading mess
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -107,6 +116,30 @@ fn test_string_ht() {
 }
 
 #[test]
+fn array_push_index() {
+    let program = test_program_(Stmt::Block(vec![
+        Stmt::Var(id_("x"), Expr::Array(Type::I32), array_ty_(Type::I32)),
+        Stmt::Var(
+            id_("_"),
+            Expr::Push(get_id_("x"), i32_(135), Type::I32),
+            Type::I32,
+        ),
+        Stmt::Var(
+            id_("_"),
+            Expr::Push(get_id_("x"), i32_(7), Type::I32),
+            Type::I32,
+        ),
+        Stmt::Var(
+            id_("_"),
+            Expr::Push(get_id_("x"), i32_(98), Type::I32),
+            Type::I32,
+        ),
+        Stmt::Return(index_(get_id_("x"), i32_(2), Type::I32)),
+    ]));
+    test_wasm(98, program);
+}
+
+#[test]
 fn binary_ops() {
     let program = parse(
         r#"
@@ -140,9 +173,9 @@ fn break_block() {
     let body = Stmt::Block(vec![
         Stmt::Var(id_("x"), atom_(i32_(0)), Type::I32),
         label_(
-            id_("dont_do"),
+            "dont_do",
             Stmt::Block(vec![
-                Stmt::Break(id_("dont_do")),
+                Stmt::Break("dont_do".into()),
                 Stmt::Assign(id_("x"), atom_(i32_(1))),
             ]),
         ),
@@ -191,6 +224,23 @@ fn trivial_direct_call() {
     );
 
     test_wasm(100, program);
+}
+
+#[test]
+fn goto_skips_stuff() {
+    let skip_to_here = func_i32_(Stmt::Return(i32_(7)));
+    let main_body = Stmt::Block(vec![
+        // hopefully it stays 5
+        Stmt::Var(id_("x"), atom_(i32_(5)), Type::I32),
+        Stmt::Goto(Label::App(0)),
+        // this is the part we wanna skip
+        Stmt::Assign(id_("x"), atom_(i32_(2))),
+        // goto goes here
+        Stmt::Var(id_("_"), Expr::CallDirect(id_("other"), vec![]), Type::I32),
+        Stmt::Return(get_id_("x")),
+    ]);
+    let program = program2_(func_i32_(main_body), skip_to_here);
+    test_wasm(5, program);
 }
 
 #[test]

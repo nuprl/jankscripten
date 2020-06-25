@@ -16,13 +16,10 @@ use std::{slice, str};
 pub unsafe extern "C" fn string_from_str(from: *const u32) -> StringPtr<'static> {
     // can't use String::from_raw_parts because data for that needs to be
     // known to the allocator
-    let str_ref: &str = unsafe {
-        // safety:
-        let len = u32::from_le(*from) as usize;
-        let ptr = from.add(1) as *const u8;
-        let slice = slice::from_raw_parts(ptr, len);
-        str::from_utf8(slice).expect("not utf8")
-    };
+    let len = u32::from_le(*from) as usize;
+    let ptr = from.add(1) as *const u8;
+    let slice = slice::from_raw_parts(ptr, len);
+    let str_ref: &str = str::from_utf8(slice).expect("not utf8");
     heap().alloc(String::from(str_ref)).unwrap()
 }
 

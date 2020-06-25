@@ -1,8 +1,7 @@
 //! translate NotWasm to wasm, using the rust runtime whenever possible
 //!
-//! preconditions: ????
+//! preconditions: [super::compile]
 
-use super::intern::DATA_OFFSET;
 use super::rt_bindings::get_rt_bindings;
 use super::syntax as N;
 use parity_wasm::builder::*;
@@ -10,6 +9,8 @@ use parity_wasm::elements::*;
 use parity_wasm::serialize;
 use std::collections::HashMap;
 use Instruction::*;
+
+const JEN_STRINGS_IDX: u32 = 0;
 
 type FuncTypeMap = HashMap<(Vec<ValueType>, Option<ValueType>), u32>;
 
@@ -69,9 +70,15 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         module.push_function(translate_func(func, &rt_indexes, &type_indexes, name));
     }
     // data segment
+    // right now there's only one global, if that changes we can refactor
+    module = module
+        .import()
+        .path("runtime", "JEN_STRINGS")
+        .with_external(External::Global(GlobalType::new(ValueType::I32, false)))
+        .build();
     let module = module
         .data()
-        .offset(I32Const(DATA_OFFSET as i32))
+        .offset(GetGlobal(JEN_STRINGS_IDX))
         .value(program.data)
         .build();
     for (i, mut global) in program.globals {
@@ -145,9 +152,6 @@ fn translate_func(
 fn types_as_wasm(types: &[N::Type]) -> Vec<ValueType> {
     types.iter().map(N::Type::as_wasm).collect()
 }
-fn no_ids(ids_tys: Vec<(N::Id, N::Type)>) -> Vec<N::Type> {
-    ids_tys.into_iter().map(|(_, ty)| ty).collect()
-}
 fn option_as_wasm(ty: &Option<N::Type>) -> Option<ValueType> {
     ty.as_ref().map(N::Type::as_wasm)
 }
@@ -157,6 +161,25 @@ struct Translate<'a> {
     rt_indexes: &'a HashMap<String, u32>,
     type_indexes: &'a FuncTypeMap,
 }
+
+/// We use TranslateLabel and LabelEnv compile the named labels and breaks of
+/// NotWasm to WebAssembly. In WebAssembly, blocks are not named, and break
+/// statements refer to blocks using de Brujin indices (i.e., index zero for the
+/// innermost block. The Translate::translate method takes a LabelEnv (a vector)
+/// as anauxiliary argument. When recurring into a named NotWasm block, we push
+/// a `TranslateLabel::Label` that holds the block's name on the LabelEnv, and
+/// to compile a `break l` statement to WebAssembly, we scan the LabelEnv for
+/// the index of `TranslateLabel::Label(l)`. When the compiler introduces an
+/// unnamed WebAssembly block, it pushes a `TranslateLabel::Unused` onto the
+/// `LabelEnv`, which ensures that indices shift correctly.
+#[derive(Clone, PartialEq)]
+enum TranslateLabel {
+    Unused,
+    Label(N::Label)
+}
+
+type LabelEnv = im_rc::Vector<TranslateLabel>;
+
 impl<'a> Translate<'a> {
     fn new(rt_indexes: &'a HashMap<String, u32>, type_indexes: &'a FuncTypeMap) -> Self {
         Self {
@@ -166,16 +189,21 @@ impl<'a> Translate<'a> {
         }
     }
 
+    fn translate(&mut self, stmt: &mut N::Stmt) {
+        let labels: LabelEnv = LabelEnv::default();
+        self.translate_rec(&labels, stmt);
+    }
+
     // We are not using a visitor, since we have to perform an operation on every
     // give of statement and expression. Thus, the visitor wouldn't give us much.
-    fn translate(&mut self, stmt: &mut N::Stmt) {
+    pub(self) fn translate_rec(&mut self, labels: &LabelEnv, stmt: &mut N::Stmt) {
         match stmt {
             N::Stmt::Empty => (),
             N::Stmt::Block(ss) => {
                 // don't surround in an actual block, those are only useful
                 // when labeled
                 for s in ss {
-                    self.translate(s);
+                    self.translate_rec(labels, s);
                 }
             }
             N::Stmt::Assign(id, expr) | N::Stmt::Var(id, expr, _) => {
@@ -186,31 +214,46 @@ impl<'a> Translate<'a> {
             N::Stmt::If(cond, conseq, alt) => {
                 self.translate_atom(cond);
                 self.out.push(If(BlockType::NoResult));
-                self.translate(conseq);
+                let mut labels1 = labels.clone();
+                labels1.push_front(TranslateLabel::Unused);
+                self.translate_rec(&labels1, conseq);
                 self.out.push(Else);
-                self.translate(alt);
+                self.translate_rec(&labels1, alt);
                 self.out.push(End);
             }
             N::Stmt::Loop(body) => {
                 // breaks should be handled by surrounding label already
                 self.out.push(Loop(BlockType::NoResult));
-                self.translate(body);
+                let mut labels1 = labels.clone();
+                labels1.push_front(TranslateLabel::Unused);
+                self.translate_rec(&labels1, body);
                 // loop doesn't automatically continue, don't ask me why
                 self.out.push(Br(0));
                 self.out.push(End);
             }
-            N::Stmt::Label(.., stmt) => {
+            N::Stmt::Label(x, stmt) => {
                 self.out.push(Block(BlockType::NoResult));
-                self.translate(stmt);
+                let mut labels1 = labels.clone();
+                labels1.push_front(TranslateLabel::Label(x.clone()));
+                self.translate_rec(&labels1, stmt);
                 self.out.push(End);
             }
-            N::Stmt::Break(id) => match id {
-                N::Id::Label(i) => self.out.push(Br(*i)),
-                _ => panic!("break non-label"),
+            N::Stmt::Break(label) => {
+                let l = TranslateLabel::Label(label.clone());
+                let i = labels.index_of(&l).expect(&format!("unbound label {:?}", label));
+                self.out.push(Br(i as u32));
             },
             N::Stmt::Return(atom) => {
                 self.translate_atom(atom);
                 self.out.push(Return);
+            }
+            N::Stmt::Trap => {
+                self.out.push(Unreachable);
+            }
+            N::Stmt::Goto(..) => {
+                panic!(
+                    "this should be NotWasm, not GotoWasm. did you run elim_gotos? did it work?"
+                );
             }
         }
     }
@@ -221,7 +264,11 @@ impl<'a> Translate<'a> {
             N::BinaryOp::I32Add => self.out.push(I32Add),
             N::BinaryOp::I32Sub => self.out.push(I32Sub),
             N::BinaryOp::I32GT => self.out.push(I32GtS),
+            N::BinaryOp::I32Ge => self.out.push(I32GeS),
+            N::BinaryOp::I32Le => self.out.push(I32LeS),
             N::BinaryOp::I32Mul => self.out.push(I32Mul),
+            N::BinaryOp::I32And => self.out.push(I32And),
+            N::BinaryOp::I32Or => self.out.push(I32Or),
         }
     }
 
@@ -229,11 +276,17 @@ impl<'a> Translate<'a> {
         match expr {
             N::Expr::Atom(atom) => self.translate_atom(atom),
             N::Expr::HT(ty) => self.rt_call_mono("ht_new", ty),
+            N::Expr::Array(ty) => self.rt_call_mono("array_new", ty),
             N::Expr::HTSet(ht, field, val, ty) => {
                 self.translate_atom(ht);
                 self.translate_atom(field);
                 self.translate_atom(val);
                 self.rt_call_mono("ht_set", ty);
+            }
+            N::Expr::Push(array, val, ty) => {
+                self.translate_atom(array);
+                self.translate_atom(val);
+                self.rt_call_mono("array_push", ty);
             }
             N::Expr::CallDirect(f, args) => {
                 for arg in args {
@@ -293,14 +346,16 @@ impl<'a> Translate<'a> {
             N::Atom::Lit(lit) => match lit {
                 N::Lit::I32(i) => self.out.push(I32Const(*i)),
                 N::Lit::Interned(addr) => {
+                    self.out.push(GetGlobal(JEN_STRINGS_IDX));
                     self.out.push(I32Const(*addr as i32));
+                    self.out.push(I32Add);
                 }
                 N::Lit::String(..) => panic!("uninterned string"),
+                N::Lit::Bool(b) => self.out.push(I32Const(*b as i32)),
                 _ => todo!(),
             },
             N::Atom::Id(id) => match id {
                 N::Id::Named(..) => panic!("unindexed id"),
-                N::Id::Label(..) => panic!("label as atom"),
                 N::Id::Func(id) => self.out.push(I32Const(*id as i32)),
                 N::Id::Index(id) => self.out.push(GetLocal(*id)),
             },
@@ -308,6 +363,11 @@ impl<'a> Translate<'a> {
                 self.translate_atom(ht);
                 self.translate_atom(field);
                 self.rt_call_mono("ht_get", ty);
+            }
+            N::Atom::Index(ht, index, ty) => {
+                self.translate_atom(ht);
+                self.translate_atom(index);
+                self.rt_call_mono("array_index", ty);
             }
             N::Atom::StringLen(string) => {
                 self.translate_atom(string);

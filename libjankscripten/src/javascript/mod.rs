@@ -1,14 +1,15 @@
-//! the AST, transformations, and utils for compiling javascript to jankyscript
+//! A toolkit for working with JavaScript, including parsing, pretty-printing,
+//! and desugaring.
 
 pub mod constructors;
-pub mod desugar;
-pub mod desugar_logical;
-pub mod desugar_loops;
-pub mod desugar_switch;
-pub mod desugar_updates;
-pub mod desugar_function_applications;
+mod desugar;
+mod desugar_logical;
+mod desugar_loops;
+mod desugar_switch;
+mod desugar_updates;
+mod desugar_function_applications;
 pub mod name_gen;
-pub mod parser;
+mod parser;
 pub mod syntax;
 pub mod walk;
 

@@ -10,8 +10,6 @@
 use super::syntax::*;
 use super::walk::*;
 
-pub const DATA_OFFSET: u32 = 16;
-
 pub fn intern(program: &mut Program) {
     let mut vis = InternVisitor::default();
     program.walk(&mut vis);
@@ -29,10 +27,10 @@ impl Visitor for InternVisitor {
                 let lit = std::mem::replace(old_lit, Lit::I32(0));
                 if let Lit::String(s) = lit {
                     let mut bytes = s.into_bytes();
-                    let pos = DATA_OFFSET + self.data.len() as u32;
+                    let pos = self.data.len() as u32;
                     *old_lit = Lit::Interned(pos);
                     let length = bytes.len() as u32;
-                    let mut length_bytes: [u8; 4] = unsafe { std::mem::transmute(length.to_le()) };
+                    let length_bytes: [u8; 4] = unsafe { std::mem::transmute(length.to_le()) };
                     self.data.extend_from_slice(&length_bytes);
                     self.data.append(&mut bytes);
                     let in_memory_length = length + 4;
@@ -73,8 +71,9 @@ mod test {
         let indexed_func = Function {
             locals: vec![],
             body: Stmt::Block(vec![
-                Stmt::Var(id_("a"), atom_(Atom::Lit(Lit::Interned(16))), Type::StrRef),
-                Stmt::Var(id_("b"), atom_(Atom::Lit(Lit::Interned(28))), Type::StrRef),
+                Stmt::Var(id_("a"), atom_(Atom::Lit(Lit::Interned(0))), Type::StrRef),
+                // 4(len) + 6 -> 10 ->(align) -> 12
+                Stmt::Var(id_("b"), atom_(Atom::Lit(Lit::Interned(12))), Type::StrRef),
                 Stmt::Return(i32_(0)),
             ]),
             fn_type: FnType {

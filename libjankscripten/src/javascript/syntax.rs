@@ -1,7 +1,7 @@
-//! defines the javascript AST
-//!
-//! based on the ressa parse but without features that are not used by any
-//! of our benchmarks and some preliminary sugars
+//! A simplified AST for JavaScript.
+//! 
+//! This AST supports most of ECMAScript-262, 3rd edition, but excludes some
+//! annoying features, such as `with`.
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum BinOp {
@@ -48,6 +48,7 @@ pub enum Id {
     Named(String),
     Generated(&'static str, usize),
 }
+
 impl<T: Into<String>> From<T> for Id {
     fn from(i: T) -> Self {
         Id::Named(i.into())
@@ -60,6 +61,7 @@ pub enum LValue {
     Dot(Expr, Id),
     Bracket(Expr, Expr),
 }
+
 impl<T: Into<Id>> From<T> for LValue {
     fn from(i: T) -> Self {
         LValue::Id(i.into())
@@ -108,7 +110,8 @@ pub enum Stmt {
     While(Box<Expr>, Box<Stmt>),
     DoWhile(Box<Stmt>, Box<Expr>),
     For(ForInit, Box<Expr>, Box<Expr>, Box<Stmt>),
-    /// true = declare variable, false = assign to existing
+    /// `ForIn(true, x, ..)` indicates `for (var x ...`.
+    /// `ForIn(true, x, ..)` indicates `for (x ...`.
     ForIn(bool, Id, Box<Expr>, Box<Stmt>),
     Label(Id, Box<Stmt>),
     Break(Option<Id>),

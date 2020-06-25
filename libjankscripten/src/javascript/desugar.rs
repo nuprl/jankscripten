@@ -380,8 +380,8 @@ mod test {
     #[test]
     fn desugar_stopify_for_labels() {
         let program = "
-            let i = 0;
-            l: for (let j = 0; j < 10; j++) {
+            var i = 0;
+            l: for (var j = 0; j < 10; j++) {
                 if (j % 2 === 0) {
                     i++;
                     do {

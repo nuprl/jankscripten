@@ -11,14 +11,14 @@ struct Compile {
 }
 
 #[derive(Clap)]
-struct Run {
+struct Parse {
     input: String
 }
 
 #[derive(Clap)]
 enum SubCommand {
     Compile(Compile),
-    Run(Run)
+    Parse(Parse)
 }
 
 #[derive(Clap)]
@@ -49,6 +49,18 @@ fn read_file(path: &Path) -> String {
     }
 }
 
+fn expect_extension(p: &Path) -> &str {
+    match p.extension() {
+        None => {
+            eprintln!("Input filename does not have an extension.");
+            process::exit(1);
+        }
+        Some(ext) => {
+            ext.to_str().expect("filename extension is not UTF-8")
+        }
+    }
+}
+
 fn compile_notwasm(input: &str, output: &Path) {
     use libjankscripten::notwasm;
     let wasm = notwasm::compile(notwasm::parse(input)).expect("compile error");
@@ -57,37 +69,42 @@ fn compile_notwasm(input: &str, output: &Path) {
 
 fn compile(opts: Compile) {
     let input_path = Path::new(&opts.input);
-    match input_path.extension() {
-        None => {
-            eprintln!("Input filename does not have an extension.");
-            process::exit(1);
+    let ext = expect_extension(input_path);
+    match ext {
+        "notwasm" => {
+            let output_path = make_output_filename(&opts.output, input_path, "wasm");
+            let input = read_file(input_path);
+            compile_notwasm(&input, output_path.as_path());
         }
-        Some(ext) => {
-            let ext = ext.to_str().expect("filename extension is not UTF-8");
-            match ext {
-                "notwasm" => {
-                    let output_path = make_output_filename(&opts.output, input_path, "wasm");
-                    let input = read_file(input_path);
-                    compile_notwasm(&input, output_path.as_path());
-                }
-                _ => {
-                    eprintln!("Unsupported extension: .{}", ext);
-                    process::exit(1);
-                }
-            }
+        _ => {
+            eprintln!("Unsupported extension: .{}", ext);
+            process::exit(1);
         }
     }
 }
 
-fn run(opts: Run) {
-    // TODO(arjun): Should we call tester, or just fold it into this binary?
-    unimplemented!();
+fn parse(opts: Parse) {
+    let input_path = Path::new(&opts.input);
+    let ext = expect_extension(input_path);
+    match ext {
+        "js" => {
+            let input = read_file(input_path);
+            if let Err(err) = libjankscripten::javascript::parse(&input) {
+                eprintln!("{}:\n{}", opts.input, err);
+                process::exit(1);
+            }
+        }
+        _ => {
+            eprintln!("Unsupported extension: .{}", ext);
+            process::exit(1);
+        }
+    }
 }
 
 fn main() {
     let opts = Opts::parse();
     match opts.subcmd {
         SubCommand::Compile(opts) => compile(opts),
-        SubCommand::Run(opts) => run(opts)
+        SubCommand::Parse(opts) => parse(opts)
     }
 }

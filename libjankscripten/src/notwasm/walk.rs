@@ -101,7 +101,7 @@ where
         // recurse
         match stmt {
             // 0
-            Empty | Break(..) => (),
+            Empty | Break(..) | Goto(..) | Trap => (),
             // 1xStmt
             Label(.., a) | Loop(a) => self.walk_stmt(a, loc),
             // 1x[Stmt]
@@ -147,11 +147,15 @@ where
             //// 1xExpr
             //Dot(e, ..) | Unary(.., e) => self.walk_expr(e, loc),
             //// 2xExpr
-            HT(..) | CallDirect(..) | CallIndirect(..) => (),
+            HT(..) | Array(..) | CallDirect(..) | CallIndirect(..) => (),
             HTSet(ea, eb, ec, ..) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
                 self.walk_atom(ec, loc);
+            }
+            Push(ea, eb, ..) => {
+                self.walk_atom(ea, loc);
+                self.walk_atom(eb, loc);
             }
             ToString(a) | Atom(a, ..) => self.walk_atom(a, loc),
         }
@@ -167,7 +171,7 @@ where
             StringLen(ea) => {
                 self.walk_atom(ea, loc);
             }
-            HTGet(ea, eb, ..) | Binary(.., ea, eb) => {
+            HTGet(ea, eb, ..) | Binary(.., ea, eb) | Index(ea, eb, ..) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
             }
@@ -217,12 +221,6 @@ impl Expr {
         let mut vs = VisitorState::new(v);
         let mut loc = Loc::Top;
         vs.walk_expr(self, &mut loc);
-    }
-    /// replace this expression with `HT` and return its old
-    /// value. this is used to gain ownership of a mutable reference,
-    /// especially in [Expr::walk]
-    pub fn take(&mut self) -> Self {
-        std::mem::replace(self, Expr::HT(Type::AnyClass))
     }
 }
 
