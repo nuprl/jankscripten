@@ -19,12 +19,14 @@ pub fn translate(program: N::Program) -> Result<Vec<u8>, Error> {
     serialize(translate_parity(program))
 }
 
+type IdEnv = im_rc::HashMap<N::Id, IdIndex>;
+
 pub fn translate_parity(mut program: N::Program) -> Module {
 
     // The initial environment maps functions names to their indices.
-    let mut env = Env::default(); 
+    let mut global_env = IdEnv::default();
     for (index, (name, _)) in program.functions.iter().enumerate() {
-        env.ids.insert(name.clone(), IdIndex::Fun(index.try_into().expect("too many functions")));
+        global_env.insert(name.clone(), IdIndex::Fun(index.try_into().expect("too many functions")));
     }
 
     let mut module = module();
@@ -82,12 +84,12 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         .offset(GetGlobal(JEN_STRINGS_IDX))
         .value(program.data)
         .build();
-    for (i, mut global) in program.globals {
+    for (_i, mut global) in program.globals {
         // can't use functions anyway so no need to worry
         let empty = HashMap::new();
         let empty2 = HashMap::new();
-        let mut visitor = Translate::new(&empty, &empty2);
-        visitor.translate_atom(&env, &mut global);
+        let mut visitor = Translate::new(&empty, &empty2, &global_env);
+        visitor.translate_atom(&mut global);
         let mut insts = visitor.out;
         insts.push(End);
         // TODO: do a global
@@ -106,7 +108,7 @@ pub fn translate_parity(mut program: N::Program) -> Module {
     }
     let mut module = table_build.build();
     for (name, func) in program.functions.iter_mut() {
-        module.push_function(translate_func(func, &env, &rt_indexes, &type_indexes, name));
+        module.push_function(translate_func(func, &global_env, &rt_indexes, &type_indexes, name));
     }
     // export main
     let module = module
@@ -120,20 +122,21 @@ pub fn translate_parity(mut program: N::Program) -> Module {
 
 fn translate_func(
     func: &mut N::Function,
-    env: &Env,
+    id_env: &IdEnv,
     rt_indexes: &HashMap<String, u32>,
     type_indexes: &FuncTypeMap,
     name: &N::Id,
 ) -> FunctionDefinition {
-    let mut translator = Translate::new(rt_indexes, type_indexes);
+    let mut translator = Translate::new(rt_indexes, type_indexes, id_env);
 
     // Add indices for parameters
-    let mut env = env.clone();
     for (arg_name, arg_typ) in func.params.iter().zip(func.fn_type.args.iter()) {
         let index = translator.next_id;
         translator.next_id += 1;
-        env.ids.insert(arg_name.clone(), IdIndex::Local(index, arg_typ.clone()));
+        translator.id_env.insert(arg_name.clone(), IdIndex::Local(index, arg_typ.clone()));
     }
+
+    let mut env = Env::default();
 
     // generate the actual code
     translator.translate_rec(&mut env, &mut func.body);
@@ -175,24 +178,20 @@ struct Translate<'a> {
     type_indexes: &'a FuncTypeMap,
     locals: Vec<ValueType>,
     next_id: u32,
+    id_env: IdEnv,
 }
 
 #[derive(Clone, PartialEq, Default, Debug)]
 struct Env {
     labels: im_rc::Vector<TranslateLabel>,
-    ids: im_rc::HashMap<N::Id, IdIndex>,
 }
 
-impl Env {
-
-    pub fn index_of_id(&self, id: &N::Id) -> u32 {
-        match self.ids.get(id).expect(&format!("unbound identifier {:?}", id)) {
-            IdIndex::Local(index, _) => *index,
-            IdIndex::Fun(_) => panic!("expected local variable")
-        }
+fn index_of_id(env: &IdEnv, id: &N::Id) -> u32 {
+    match env.get(id).expect(&format!("unbound identifier {:?}", id)) {
+        IdIndex::Local(index, _) => *index,
+        IdIndex::Fun(_) => panic!("expected local variable")
     }
 }
-
 
 /// We use `TranslateLabel` to compile the named labels and breaks of NotWasm
 /// to WebAssembly. In WebAssembly, blocks are not named, and break statements
@@ -220,12 +219,13 @@ enum IdIndex {
 }
 
 impl<'a> Translate<'a> {
-    fn new(rt_indexes: &'a HashMap<String, u32>, type_indexes: &'a FuncTypeMap) -> Self {
+    fn new(rt_indexes: &'a HashMap<String, u32>, type_indexes: &'a FuncTypeMap, id_env: &IdEnv) -> Self {
         Self {
             out: Vec::new(),
             rt_indexes,
             type_indexes,
             next_id: 0,
+            id_env: id_env.clone(),
             locals: Vec::new()
         }
     }
@@ -239,42 +239,39 @@ impl<'a> Translate<'a> {
     // the environment of its successor. (The alternative would be to have
     // `translate_rec` return a new environment.) However, we have to take care
     // to clone `env` when we enter a new block scope.
-    pub(self) fn translate_rec(&mut self, env: &mut Env, stmt: &mut N::Stmt) {
+    pub(self) fn translate_rec(&mut self, env: &Env, stmt: &mut N::Stmt) {
         match stmt {
             N::Stmt::Empty => (),
             N::Stmt::Block(ss) => {
                 // don't surround in an actual block, those are only useful
                 // when labeled
-                let mut inner_env = env.clone();
                 for s in ss {
-                    self.translate_rec(&mut inner_env, s);
+                    self.translate_rec(env, s);
                 }
             }
             N::Stmt::Var(id, expr, typ) => {
                 // Binds variable in env after compiling expr (prevents
                 // circularity).
-                self.translate_expr(env, expr);
+                self.translate_expr(expr);
                 let index = self.next_id;
                 self.next_id += 1;
                 self.locals.push(typ.as_wasm());
-                env.ids.insert(id.clone(), IdIndex::Local(index, typ.clone()));
+                self.id_env.insert(id.clone(), IdIndex::Local(index, typ.clone()));
                 self.out.push(SetLocal(index));
             }
             N::Stmt::Assign(id, expr) => {
                 // place value on stack
-                self.translate_expr(env, expr);
-                self.out.push(SetLocal(env.index_of_id(id)));
+                self.translate_expr(expr);
+                self.out.push(SetLocal(index_of_id(&self.id_env, id)));
             }
             N::Stmt::If(cond, conseq, alt) => {
-                self.translate_atom(env, cond);
+                self.translate_atom(cond);
                 self.out.push(If(BlockType::NoResult));
                 let mut env1 = env.clone();
                 env1.labels.push_front(TranslateLabel::Unused);
-                self.translate_rec(&mut env1, conseq);
+                self.translate_rec(&env1, conseq);
                 self.out.push(Else);
-                let mut env2 = env.clone();
-                env2.labels.push_front(TranslateLabel::Unused);
-                self.translate_rec(&mut env2, alt);
+                self.translate_rec(&env1, alt);
                 self.out.push(End);
             }
             N::Stmt::Loop(body) => {
@@ -282,7 +279,7 @@ impl<'a> Translate<'a> {
                 self.out.push(Loop(BlockType::NoResult));
                 let mut env1 = env.clone();
                 env1.labels.push_front(TranslateLabel::Unused);
-                self.translate_rec(&mut env1, body);
+                self.translate_rec(&env1, body);
                 // loop doesn't automatically continue, don't ask me why
                 self.out.push(Br(0));
                 self.out.push(End);
@@ -303,7 +300,7 @@ impl<'a> Translate<'a> {
                 self.out.push(Br(i as u32));
             },
             N::Stmt::Return(atom) => {
-                self.translate_atom(env, atom);
+                self.translate_atom(atom);
                 self.out.push(Return);
             }
             N::Stmt::Trap => {
@@ -331,27 +328,27 @@ impl<'a> Translate<'a> {
         }
     }
 
-    fn translate_expr(&mut self, env: &Env, expr: &mut N::Expr) {
+    fn translate_expr(&mut self, expr: &mut N::Expr) {
         match expr {
-            N::Expr::Atom(atom) => self.translate_atom(env, atom),
+            N::Expr::Atom(atom) => self.translate_atom(atom),
             N::Expr::HT(ty) => self.rt_call_mono("ht_new", ty),
             N::Expr::Array(ty) => self.rt_call_mono("array_new", ty),
             N::Expr::HTSet(ht, field, val, ty) => {
-                self.translate_atom(env, ht);
-                self.translate_atom(env, field);
-                self.translate_atom(env, val);
+                self.translate_atom(ht);
+                self.translate_atom(field);
+                self.translate_atom(val);
                 self.rt_call_mono("ht_set", ty);
             }
             N::Expr::Push(array, val, ty) => {
-                self.translate_atom(env, array);
-                self.translate_atom(env, val);
+                self.translate_atom(array);
+                self.translate_atom(val);
                 self.rt_call_mono("array_push", ty);
             }
             N::Expr::Call(f, args) => {
                 for arg in args {
-                    self.out.push(GetLocal(env.index_of_id(arg)));
+                    self.out.push(GetLocal(index_of_id(&self.id_env, arg)));
                 }
-                match env.ids.get(f) {
+                match self.id_env.get(f) {
                     Some(IdIndex::Fun(i)) => {
                         // this one's a little weird. we index in notwasm
                         // by 0 = first user function. but wasm indexes by 0 =
@@ -380,13 +377,13 @@ impl<'a> Translate<'a> {
             }
 
             N::Expr::ToString(a) => {
-                self.translate_atom(env, a);
+                self.translate_atom(a);
                 self.rt_call("string_from_str");
             }
         }
     }
 
-    fn translate_atom(&mut self, env: &Env, atom: &mut N::Atom) {
+    fn translate_atom(&mut self, atom: &mut N::Atom) {
         match atom {
             N::Atom::Lit(lit) => match lit {
                 N::Lit::I32(i) => self.out.push(I32Const(*i)),
@@ -399,27 +396,27 @@ impl<'a> Translate<'a> {
                 N::Lit::Bool(b) => self.out.push(I32Const(*b as i32)),
                 _ => todo!(),
             },
-            N::Atom::Id(id) => match env.ids.get(id).expect(&format!("unbound identifier {:?} {:?}", id, env)) {
+            N::Atom::Id(id) => match self.id_env.get(id).expect(&format!("unbound identifier {:?}", id)) {
                 IdIndex::Local(n, _) => self.out.push(GetLocal(*n)),
                 IdIndex::Fun(n) => self.out.push(I32Const(*n as i32)),
             },
             N::Atom::HTGet(ht, field, ty) => {
-                self.translate_atom(env, ht);
-                self.translate_atom(env, field);
+                self.translate_atom(ht);
+                self.translate_atom(field);
                 self.rt_call_mono("ht_get", ty);
             }
             N::Atom::Index(ht, index, ty) => {
-                self.translate_atom(env, ht);
-                self.translate_atom(env, index);
+                self.translate_atom(ht);
+                self.translate_atom(index);
                 self.rt_call_mono("array_index", ty);
             }
             N::Atom::StringLen(string) => {
-                self.translate_atom(env, string);
+                self.translate_atom(string);
                 self.rt_call("string_len");
             }
             N::Atom::Binary(op, a, b) => {
-                self.translate_atom(env, a);
-                self.translate_atom(env, b);
+                self.translate_atom(a);
+                self.translate_atom(b);
                 self.translate_binop(op);
             }
         }

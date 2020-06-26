@@ -49,9 +49,9 @@ impl Visitor for GotoVisitor {
                         not_(get_id_("inGoto")),
                         eq_(get_id_("gotoTarget"), i32_(*n)),
                     ),
-                    Block(vec![Assign(id_("inGoto"), atom_(FALSE_)), stmt.take()]),
+                    Block(vec![Assign(id_("inGoto"), atom_(FALSE_)), call.take()]),
                     Empty,
-                )
+                );
             }
             Var(..) | Assign(..) if !is_call(stmt) => {
                 *stmt = if_(get_id_("inGoto"), Empty, stmt.take())
