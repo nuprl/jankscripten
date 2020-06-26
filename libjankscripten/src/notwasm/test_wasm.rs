@@ -227,6 +227,26 @@ fn trivial_direct_call() {
 }
 
 #[test]
+fn trivial_indirect_call() {
+    let program = parse(
+        r#"
+        function F(n : i32) : i32 {
+            return n + 1;
+        }
+
+        function main() : i32 {
+            var G : (i32) -> i32 = F;
+            var n : i32 = 102;
+            var result : i32 = G(n);
+            return result;
+        }
+    "#,
+    );
+
+    test_wasm(103, program);
+}
+
+#[test]
 fn goto_skips_stuff() {
     let skip_to_here = func_i32_(Stmt::Return(i32_(7)));
     let main_body = Stmt::Block(vec![
@@ -236,7 +256,7 @@ fn goto_skips_stuff() {
         // this is the part we wanna skip
         Stmt::Assign(id_("x"), atom_(i32_(2))),
         // goto goes here
-        Stmt::Var(id_("_"), Expr::CallDirect(id_("other"), vec![]), Type::I32),
+        Stmt::Var(id_("_"), Expr::Call(id_("other"), vec![]), Type::I32),
         Stmt::Return(get_id_("x")),
     ]);
     let program = program2_(func_i32_(main_body), skip_to_here);

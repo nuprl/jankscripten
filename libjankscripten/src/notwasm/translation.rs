@@ -347,7 +347,7 @@ impl<'a> Translate<'a> {
                 self.translate_atom(env, val);
                 self.rt_call_mono("array_push", ty);
             }
-            N::Expr::CallDirect(f, args) => {
+            N::Expr::Call(f, args) => {
                 for arg in args {
                     self.out.push(GetLocal(env.index_of_id(arg)));
                 }
@@ -360,38 +360,25 @@ impl<'a> Translate<'a> {
                         // care of it on indirect calls
                         self.out.push(Call(i + self.rt_indexes.len() as u32));
                     }
+                    Some(IdIndex::Local(i, t)) => {
+                        self.out.push(GetLocal(*i));
+                        let (params_tys, ret_ty) = match t {
+                            N::Type::Fn(param_tys, ret_ty) => match &*ret_ty.as_ref() {
+                                Some(ret_ty) => (types_as_wasm(param_tys), Some(ret_ty.as_wasm())),
+                                None => (types_as_wasm(param_tys), None)
+                            },
+                            _ => panic!("identifier {:?} is not function-typed", f)
+                        };
+                        let ty_index = self
+                            .type_indexes
+                            .get(&(params_tys, ret_ty))
+                            .expect("function type was not indexed");
+                        self.out.push(CallIndirect(*ty_index, 0));
+                    }
                     _ => panic!("expected Func ID"),
                 };
             }
-            N::Expr::CallIndirect(func, f_typ, args) => {
-                // for arg in args {
-                //     self.out.push(GetLocal(arg.index()));
-                // }
-                panic!("Indirect calls");
-                // match func {
-                //     N::Id::Index(i) => {
-                //         self.out.push(GetLocal(*i));
-                //         let index = if let Some(i) = self
-                //             .type_indexes
-                //             .get(&(types_as_wasm(params_tys), ret_ty.as_wasm()))
-                //         {
-                //             *i
-                //         } else {
-                //             panic!("unknown function type");
-                //         };
-                //         self.out.push(CallIndirect(index, 0));
-                //     }
-                //     N::Id::Func(i) => {
-                //         // this one's a little weird. we index in notwasm
-                //         // by 0 = first user function. but wasm indexes by 0 =
-                //         // first rt function. se we have to offset. but only
-                //         // on direct calls, because our function table takes
-                //         // care of it on indirect calls
-                //         self.out.push(Call(*i + self.rt_indexes.len() as u32));
-                //     }
-                //     _ => panic!("id can't be function call"),
-                // }
-            }
+
             N::Expr::ToString(a) => {
                 self.translate_atom(env, a);
                 self.rt_call("string_from_str");

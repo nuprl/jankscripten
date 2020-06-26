@@ -81,10 +81,8 @@ impl Visitor for GotoVisitor {
 fn is_call(stmt: &Stmt) -> bool {
     use Stmt::*;
     match stmt {
-        Assign(_, Expr::CallDirect(..))
-        | Assign(_, Expr::CallIndirect(..))
-        | Var(_, Expr::CallDirect(..), _)
-        | Var(_, Expr::CallIndirect(..), _) => true,
+        Assign(_, Expr::Call(..))
+        | Var(_, Expr::Call(..), _) => true,
         _ => false,
     }
 }
