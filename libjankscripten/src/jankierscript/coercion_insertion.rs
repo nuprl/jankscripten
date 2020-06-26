@@ -1,6 +1,8 @@
 use super::syntax::*;
 use crate::shared::types::Type;
 use crate::shared::coercions::*;
+use crate::jankyscript::constructors as Janky_;
+use crate::jankyscript::syntax as Janky;
 
 #[derive(Debug)]
 pub enum TypingError {
@@ -16,8 +18,7 @@ pub struct Typing {
 impl Typing {
     fn coerce(&self, t1: Type, t2: Type) -> Coercion {
         if t1 == t2 {
-            unimplemented!();
-            //vec!(Coercion::Id(t1))
+            Coercion::Id(t1)
         } else {
             match (t1.is_ground(), t2.is_ground()) {
                 (true, true) => self.coerce_ground_types(t1, t2),
@@ -57,28 +58,31 @@ impl Typing {
         }
     }
     
-    fn insert_coercions_stmt(&self, stmt: Stmt) -> TypingResult<Stmt> {
+    fn insert_coercions_stmt(&self, stmt: Stmt) -> TypingResult<Janky::Stmt> {
         unimplemented!()
     }
 
-    fn insert_coercions_expr(&self, expr: Expr) -> TypingResult<(Expr, Type)> {
+    fn insert_coercions_expr(&self, expr: Expr) -> TypingResult<(Janky::Expr, Type)> {
         match expr {
             Expr::Lit(l) => {
                 let (l, t) = self.insert_coercions_lit(l)?;
-                Ok((Expr::Lit(l), t))
+                Ok((Janky_::lit_(l), t))
             },
             Expr::Binary(op, e1, e2) => {
                 let (e1, t1) = self.insert_coercions_expr(*e1)?;
                 let (e2, t2) = self.insert_coercions_expr(*e2)?;
-                unimplemented!()
+                match (t1, t2) {
+                    (Type::Float, Type::Float) => Ok((Janky_::binary_(Janky::BinOp::PlusFloatFloat, e1, e2), Type::Float)),
+                    _ => unimplemented!()
+                }
             },
             _ => unimplemented!()
         }
     }
 
-    fn insert_coercions_lit(&self, lit: Lit) -> TypingResult<(Lit, Type)> {
+    fn insert_coercions_lit(&self, lit: Lit) -> TypingResult<(Janky::Lit, Type)> {
         match lit {
-            Lit::Num(n) => Ok((Lit::Num(n), Type::Float)),
+            Lit::Num(n) => Ok((Janky_::num_(&n), Type::Float)),
             _ => unimplemented!()
         }
     }

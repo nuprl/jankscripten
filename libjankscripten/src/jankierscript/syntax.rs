@@ -8,17 +8,13 @@ use crate::shared::types::Type;
 #[derive(Debug)]
 pub enum BinOp {
     Plus,
-    PlusNumNum,
-    PlusStringNum,
-    PlusStringString
     // TODO: others
 }
 
 #[derive(Debug)]
 pub enum UnaryOp {
-    IncrementAny,
-    IncrementNum
-    // TODO: others
+    Increment,
+    Decrement
 }
 
 #[derive(Debug)]

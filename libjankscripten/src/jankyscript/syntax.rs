@@ -1,23 +1,19 @@
-//! The JankyScript language definition
+//! The JankierScript language
 
 use crate::shared::types::Type;
 use crate::shared::coercions::Coercion;
 
 #[derive(Debug)]
 pub enum BinOp {
-    Plus(Type, Type),
+    Plus,
+    PlusFloatFloat,
     // TODO: others
 }
 
 #[derive(Debug)]
 pub enum UnaryOp {
-    Increment(Type),
-    // TODO: others
-}
-
-#[derive(Debug)]
-pub enum AssignOp {
-    PlusEqual(Type, Type),
+    IncrementAny,
+    IncrementNum
     // TODO: others
 }
 
@@ -27,7 +23,7 @@ pub enum Lit {
     Regex(String, String),
     Bool(bool),
     Null,
-    Num(String),
+    Num(String), // TODO(arjun): parse
     Undefined,
 }
 
@@ -57,17 +53,18 @@ pub enum Expr {
     Bracket(Box<Expr>, Box<Expr>),
     Unary(UnaryOp, Box<Expr>),
     Binary(BinOp, Box<Expr>, Box<Expr>),
+    Call(Box<Expr>, Vec<Expr>),
+    New(Type, Box<Expr>, Vec<Expr>),
+    Func(Type, Vec<(Id, Type)>, Box<Stmt>),
+    Coercion(Coercion, Box<Expr>)
 }
 
 #[derive(Debug)]
 pub enum Stmt {
-    Var(Id, Type, Expr),
+    Var(Id, Type, Expr), // initialize to None (recommendation is to add default behavior to constructor)
     Block(Vec<Stmt>),
     Empty,
-    Assign(AssignOp, Box<LValue>, Box<Expr>),
-    Call(Id, Box<Expr>, Vec<Expr>),
-    New(Id, Type, Box<Expr>, Vec<Expr>),
-    Func(Id, Type, Vec<(Id, Type)>, Box<Stmt>),
+    Assign(Box<LValue>, Box<Expr>),
     If(Box<Expr>, Box<Stmt>, Box<Stmt>),
     While(Box<Expr>, Box<Stmt>),
     Label(Id, Box<Stmt>),
@@ -76,5 +73,4 @@ pub enum Stmt {
     Finally(Box<Stmt>, Box<Stmt>),
     Throw(Box<Expr>),
     Return(Box<Expr>),
-    Coercion(Coercion, Box<Expr>)
 }
