@@ -120,10 +120,8 @@ pub enum Id {
 impl Id {
 
     pub fn into_name(self) -> String {
-        if let Id::Named(s) = self {
-            s
-        } else {
-            panic!("it's not a name")
+        match self {
+            Id::Named(s) => s
         }
     }
 }
