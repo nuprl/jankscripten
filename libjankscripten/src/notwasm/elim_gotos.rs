@@ -43,11 +43,11 @@ impl Visitor for GotoVisitor {
             Label(Lbl::App(n), call) if is_call(call) => {
                 *stmt = if_(
                     // i think bor/band is fine because these are all
-                    // already-computed booleans (expect eq) but it could be
+                    // already-computed booleans (except eq) but it could be
                     // improved if we wanted to hand-lower the or/ands
                     bor_(
                         not_(get_id_("inGoto")),
-                        band_(get_id_("inGoto"), eq_(get_id_("gotoTarget"), i32_(*n))),
+                        eq_(get_id_("gotoTarget"), i32_(*n)),
                     ),
                     Block(vec![Assign(id_("inGoto"), atom_(FALSE_)), stmt.take()]),
                     Empty,
@@ -57,21 +57,22 @@ impl Visitor for GotoVisitor {
                 *stmt = if_(get_id_("inGoto"), Empty, stmt.take())
             }
             If(cond, cons, alt) => {
-                let normal = band_(not_(get_id_("inGoto")), cond.take());
-                let bounds = bounds(cons);
-                let cond = if let Some((lo, hi)) = bounds {
-                    let if_goto = band_(
-                        gte_(get_id_("inGoto"), i32_(lo)),
-                        lte_(get_id_("inGoto"), i32_(hi)),
-                    );
-                    let in_goto_case = band_(get_id_("inGoto"), if_goto);
-                    bor_(normal, in_goto_case)
-                } else {
-                    normal
-                };
-                *stmt = if_(cond, cons.take(), alt.take())
+                let cons_cond = bounds_check_if(cons, cond.take());
+                let alt_cond = bounds_check(alt);
+                *stmt = if_(
+                    cons_cond,
+                    cons.take(),
+                    if_(alt_cond, alt.take(), Stmt::Empty),
+                )
             }
-            Label(..) => (),
+            Loop(body) => {
+                let cond = bounds_check(body);
+                *stmt = if_(cond, stmt.take(), Stmt::Empty)
+            }
+            // the rest fall into ~3 groups
+            // - could not be advanced past to trigger GC (ie Return)
+            // - need no special handling (ie Block)
+            // - covered logically by other cases (ie Var/Assign if !is_call)
             _ => (),
         }
     }
@@ -86,6 +87,24 @@ fn is_call(stmt: &Stmt) -> bool {
         | Var(_, Expr::CallIndirect(..), _) => true,
         _ => false,
     }
+}
+fn bounds_check_maybe_if(body: &mut Stmt, alt_check: Atom) -> Atom {
+    if let Some((lo, hi)) = bounds(body) {
+        let if_goto = band_(
+            gte_(get_id_("gotoTarget"), i32_(lo)),
+            lte_(get_id_("gotoTarget"), i32_(hi)),
+        );
+        let in_goto_case = band_(get_id_("inGoto"), if_goto);
+        bor_(alt_check, in_goto_case)
+    } else {
+        alt_check
+    }
+}
+fn bounds_check_if(body: &mut Stmt, not_goto_check: Atom) -> Atom {
+    bounds_check_maybe_if(body, band_(not_goto_check, not_(get_id_("inGoto"))))
+}
+fn bounds_check(body: &mut Stmt) -> Atom {
+    bounds_check_maybe_if(body, not_(get_id_("inGoto")))
 }
 
 /// since labels are ordered, we can define n belongs to L as min <= n <= max
