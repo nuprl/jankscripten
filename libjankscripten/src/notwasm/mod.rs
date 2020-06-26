@@ -2,7 +2,6 @@
 mod compile;
 #[allow(dead_code)]
 mod constructors;
-mod index;
 mod intern;
 mod parser;
 mod rt_bindings;
@@ -12,7 +11,6 @@ mod walk;
 mod elim_gotos;
 mod label_apps;
 
-use index::index;
 use intern::intern;
 use translation::translate;
 

@@ -8,6 +8,7 @@ use parity_wasm::builder::*;
 use parity_wasm::elements::*;
 use parity_wasm::serialize;
 use std::collections::HashMap;
+use std::convert::TryInto;
 use Instruction::*;
 
 const JEN_STRINGS_IDX: u32 = 0;
@@ -19,6 +20,13 @@ pub fn translate(program: N::Program) -> Result<Vec<u8>, Error> {
 }
 
 pub fn translate_parity(mut program: N::Program) -> Module {
+
+    // The initial environment maps functions names to their indices.
+    let mut env = Env::default(); 
+    for (index, (name, _)) in program.functions.iter().enumerate() {
+        env.ids.insert(name.clone(), IdIndex::Fun(index.try_into().expect("too many functions")));
+    }
+
     let mut module = module();
     let rt_types = get_rt_bindings();
     let mut rt_indexes = HashMap::new();
@@ -79,7 +87,7 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         let empty = HashMap::new();
         let empty2 = HashMap::new();
         let mut visitor = Translate::new(&empty, &empty2);
-        visitor.translate_atom(&mut global);
+        visitor.translate_atom(&env, &mut global);
         let mut insts = visitor.out;
         insts.push(End);
         // TODO: do a global
@@ -96,13 +104,9 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         }
         table_build = table_build.with_element(notwasm_index as u32, vec![wasm_index]);
     }
-    // NOTE(arjun): I believe that this loop relies on Rust traversing
-    // program.functions in the same order as the call to .keys in
-    // super::index::index. I think this is brittle, and we should probably
-    // index functions first.
     let mut module = table_build.build();
     for (name, func) in program.functions.iter_mut() {
-        module.push_function(translate_func(func, &rt_indexes, &type_indexes, name));
+        module.push_function(translate_func(func, &env, &rt_indexes, &type_indexes, name));
     }
     // export main
     let module = module
@@ -116,13 +120,23 @@ pub fn translate_parity(mut program: N::Program) -> Module {
 
 fn translate_func(
     func: &mut N::Function,
+    env: &Env,
     rt_indexes: &HashMap<String, u32>,
     type_indexes: &FuncTypeMap,
     name: &N::Id,
 ) -> FunctionDefinition {
-    // generate the actual code
     let mut translator = Translate::new(rt_indexes, type_indexes);
-    translator.translate(&mut func.body);
+
+    // Add indices for parameters
+    let mut env = env.clone();
+    for (arg_name, arg_typ) in func.params.iter().zip(func.fn_type.args.iter()) {
+        let index = translator.next_id;
+        translator.next_id += 1;
+        env.ids.insert(arg_name.clone(), IdIndex::Local(index, arg_typ.clone()));
+    }
+
+    // generate the actual code
+    translator.translate_rec(&mut env, &mut func.body);
     let mut insts = translator.out;
     insts.push(End);
     // before the code, if this is main we have to call rt init()
@@ -131,10 +145,10 @@ fn translate_func(
         new_insts.append(&mut insts);
         insts = new_insts;
     }
-    let locals: Vec<_> = func
+    let locals: Vec<_> = translator
         .locals
-        .iter()
-        .map(|t| Local::new(1, t.as_wasm()))
+        .into_iter()
+        .map(|t| Local::new(1, t))
         .collect();
     function()
         .signature()
@@ -159,25 +173,51 @@ struct Translate<'a> {
     out: Vec<Instruction>,
     rt_indexes: &'a HashMap<String, u32>,
     type_indexes: &'a FuncTypeMap,
+    locals: Vec<ValueType>,
+    next_id: u32,
 }
 
-/// We use TranslateLabel and LabelEnv compile the named labels and breaks of
-/// NotWasm to WebAssembly. In WebAssembly, blocks are not named, and break
-/// statements refer to blocks using de Brujin indices (i.e., index zero for the
-/// innermost block. The Translate::translate method takes a LabelEnv (a vector)
-/// as anauxiliary argument. When recurring into a named NotWasm block, we push
-/// a `TranslateLabel::Label` that holds the block's name on the LabelEnv, and
-/// to compile a `break l` statement to WebAssembly, we scan the LabelEnv for
+#[derive(Clone, PartialEq, Default, Debug)]
+struct Env {
+    labels: im_rc::Vector<TranslateLabel>,
+    ids: im_rc::HashMap<N::Id, IdIndex>,
+}
+
+impl Env {
+
+    pub fn index_of_id(&self, id: &N::Id) -> u32 {
+        match self.ids.get(id).expect(&format!("unbound identifier {:?}", id)) {
+            IdIndex::Local(index, _) => *index,
+            IdIndex::Fun(_) => panic!("expected local variable")
+        }
+    }
+}
+
+
+/// We use `TranslateLabel` to compile the named labels and breaks of NotWasm
+/// to WebAssembly. In WebAssembly, blocks are not named, and break statements
+/// refer to blocks using de Brujin indices (i.e., index zero for the innermost
+/// block.  When recurring into a named NotWasm block, we add a 
+/// `TranslateLabel::Label` that holds the block's name on to the environment.
+/// To compile a `break l` statement to WebAssembly, we scan the labels for
 /// the index of `TranslateLabel::Label(l)`. When the compiler introduces an
 /// unnamed WebAssembly block, it pushes a `TranslateLabel::Unused` onto the
 /// `LabelEnv`, which ensures that indices shift correctly.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 enum TranslateLabel {
     Unused,
     Label(N::Label)
 }
 
-type LabelEnv = im_rc::Vector<TranslateLabel>;
+/// We use `IdIndex` to resolve identifiers that appear in a NotWasm program
+/// while compiling to WebAssembly. Before compiling the body of a function, we
+/// populate an `IdEnv` to map each function name `f` to its index `n`
+/// (`IdIndex::Fun(n)`). 
+#[derive(Clone, PartialEq, Debug)]
+enum IdIndex {
+    Local(u32, N::Type),
+    Fun(u32)
+}
 
 impl<'a> Translate<'a> {
     fn new(rt_indexes: &'a HashMap<String, u32>, type_indexes: &'a FuncTypeMap) -> Self {
@@ -185,65 +225,85 @@ impl<'a> Translate<'a> {
             out: Vec::new(),
             rt_indexes,
             type_indexes,
+            next_id: 0,
+            locals: Vec::new()
         }
-    }
-
-    fn translate(&mut self, stmt: &mut N::Stmt) {
-        let labels: LabelEnv = LabelEnv::default();
-        self.translate_rec(&labels, stmt);
     }
 
     // We are not using a visitor, since we have to perform an operation on every
     // give of statement and expression. Thus, the visitor wouldn't give us much.
-    pub(self) fn translate_rec(&mut self, labels: &LabelEnv, stmt: &mut N::Stmt) {
+    //
+    // The `translate_rec` function receives a mutable reference to `Env`, which
+    // allows it to introduce new variable declarations. This makes block
+    // statements easier to compile, since each statement in a block can alter
+    // the environment of its successor. (The alternative would be to have
+    // `translate_rec` return a new environment.) However, we have to take care
+    // to clone `env` when we enter a new block scope.
+    pub(self) fn translate_rec(&mut self, env: &mut Env, stmt: &mut N::Stmt) {
         match stmt {
             N::Stmt::Empty => (),
             N::Stmt::Block(ss) => {
                 // don't surround in an actual block, those are only useful
                 // when labeled
+                let mut inner_env = env.clone();
                 for s in ss {
-                    self.translate_rec(labels, s);
+                    self.translate_rec(&mut inner_env, s);
                 }
             }
-            N::Stmt::Assign(id, expr) | N::Stmt::Var(id, expr, _) => {
+            N::Stmt::Var(id, expr, typ) => {
+                // Binds variable in env after compiling expr (prevents
+                // circularity).
+                self.translate_expr(env, expr);
+                let index = self.next_id;
+                self.next_id += 1;
+                self.locals.push(typ.as_wasm());
+                env.ids.insert(id.clone(), IdIndex::Local(index, typ.clone()));
+                self.out.push(SetLocal(index));
+            }
+            N::Stmt::Assign(id, expr) => {
                 // place value on stack
-                self.translate_expr(expr);
-                self.out.push(SetLocal(id.index()));
+                self.translate_expr(env, expr);
+                self.out.push(SetLocal(env.index_of_id(id)));
             }
             N::Stmt::If(cond, conseq, alt) => {
-                self.translate_atom(cond);
+                self.translate_atom(env, cond);
                 self.out.push(If(BlockType::NoResult));
-                let mut labels1 = labels.clone();
-                labels1.push_front(TranslateLabel::Unused);
-                self.translate_rec(&labels1, conseq);
+                let mut env1 = env.clone();
+                env1.labels.push_front(TranslateLabel::Unused);
+                self.translate_rec(&mut env1, conseq);
                 self.out.push(Else);
-                self.translate_rec(&labels1, alt);
+                let mut env2 = env.clone();
+                env2.labels.push_front(TranslateLabel::Unused);
+                self.translate_rec(&mut env2, alt);
                 self.out.push(End);
             }
             N::Stmt::Loop(body) => {
                 // breaks should be handled by surrounding label already
                 self.out.push(Loop(BlockType::NoResult));
-                let mut labels1 = labels.clone();
-                labels1.push_front(TranslateLabel::Unused);
-                self.translate_rec(&labels1, body);
+                let mut env1 = env.clone();
+                env1.labels.push_front(TranslateLabel::Unused);
+                self.translate_rec(&mut env1, body);
                 // loop doesn't automatically continue, don't ask me why
                 self.out.push(Br(0));
                 self.out.push(End);
             }
             N::Stmt::Label(x, stmt) => {
+                if let N::Label::App(_) = x {
+                    panic!("Label::App was not elimineted by elim_gotos");
+                }
                 self.out.push(Block(BlockType::NoResult));
-                let mut labels1 = labels.clone();
-                labels1.push_front(TranslateLabel::Label(x.clone()));
-                self.translate_rec(&labels1, stmt);
+                let mut env1 = env.clone();
+                env1.labels.push_front(TranslateLabel::Label(x.clone()));
+                self.translate_rec(&mut env1, stmt);
                 self.out.push(End);
             }
             N::Stmt::Break(label) => {
                 let l = TranslateLabel::Label(label.clone());
-                let i = labels.index_of(&l).expect(&format!("unbound label {:?}", label));
+                let i = env.labels.index_of(&l).expect(&format!("unbound label {:?}", label));
                 self.out.push(Br(i as u32));
             },
             N::Stmt::Return(atom) => {
-                self.translate_atom(atom);
+                self.translate_atom(env, atom);
                 self.out.push(Return);
             }
             N::Stmt::Trap => {
@@ -271,43 +331,42 @@ impl<'a> Translate<'a> {
         }
     }
 
-    fn translate_expr(&mut self, expr: &mut N::Expr) {
+    fn translate_expr(&mut self, env: &Env, expr: &mut N::Expr) {
         match expr {
-            N::Expr::Atom(atom) => self.translate_atom(atom),
+            N::Expr::Atom(atom) => self.translate_atom(env, atom),
             N::Expr::HT(ty) => self.rt_call_mono("ht_new", ty),
             N::Expr::Array(ty) => self.rt_call_mono("array_new", ty),
             N::Expr::HTSet(ht, field, val, ty) => {
-                self.translate_atom(ht);
-                self.translate_atom(field);
-                self.translate_atom(val);
+                self.translate_atom(env, ht);
+                self.translate_atom(env, field);
+                self.translate_atom(env, val);
                 self.rt_call_mono("ht_set", ty);
             }
             N::Expr::Push(array, val, ty) => {
-                self.translate_atom(array);
-                self.translate_atom(val);
+                self.translate_atom(env, array);
+                self.translate_atom(env, val);
                 self.rt_call_mono("array_push", ty);
             }
             N::Expr::CallDirect(f, args) => {
                 for arg in args {
-                    self.out.push(GetLocal(arg.index()));
+                    self.out.push(GetLocal(env.index_of_id(arg)));
                 }
-                let f_idx = match f {
-                    N::Id::Func(i) => {
+                match env.ids.get(f) {
+                    Some(IdIndex::Fun(i)) => {
                         // this one's a little weird. we index in notwasm
                         // by 0 = first user function. but wasm indexes by 0 =
                         // first rt function. se we have to offset. but only
                         // on direct calls, because our function table takes
                         // care of it on indirect calls
-                        *i + self.rt_indexes.len() as u32
+                        self.out.push(Call(i + self.rt_indexes.len() as u32));
                     }
                     _ => panic!("expected Func ID"),
                 };
-                self.out.push(Call(f_idx));
             }
             N::Expr::CallIndirect(func, f_typ, args) => {
-                for arg in args {
-                    self.out.push(GetLocal(arg.index()));
-                }
+                // for arg in args {
+                //     self.out.push(GetLocal(arg.index()));
+                // }
                 panic!("Indirect calls");
                 // match func {
                 //     N::Id::Index(i) => {
@@ -334,13 +393,13 @@ impl<'a> Translate<'a> {
                 // }
             }
             N::Expr::ToString(a) => {
-                self.translate_atom(a);
+                self.translate_atom(env, a);
                 self.rt_call("string_from_str");
             }
         }
     }
 
-    fn translate_atom(&mut self, atom: &mut N::Atom) {
+    fn translate_atom(&mut self, env: &Env, atom: &mut N::Atom) {
         match atom {
             N::Atom::Lit(lit) => match lit {
                 N::Lit::I32(i) => self.out.push(I32Const(*i)),
@@ -353,28 +412,27 @@ impl<'a> Translate<'a> {
                 N::Lit::Bool(b) => self.out.push(I32Const(*b as i32)),
                 _ => todo!(),
             },
-            N::Atom::Id(id) => match id {
-                N::Id::Named(..) => panic!("unindexed id"),
-                N::Id::Func(id) => self.out.push(I32Const(*id as i32)),
-                N::Id::Index(id) => self.out.push(GetLocal(*id)),
+            N::Atom::Id(id) => match env.ids.get(id).expect(&format!("unbound identifier {:?} {:?}", id, env)) {
+                IdIndex::Local(n, _) => self.out.push(GetLocal(*n)),
+                IdIndex::Fun(n) => self.out.push(I32Const(*n as i32)),
             },
             N::Atom::HTGet(ht, field, ty) => {
-                self.translate_atom(ht);
-                self.translate_atom(field);
+                self.translate_atom(env, ht);
+                self.translate_atom(env, field);
                 self.rt_call_mono("ht_get", ty);
             }
             N::Atom::Index(ht, index, ty) => {
-                self.translate_atom(ht);
-                self.translate_atom(index);
+                self.translate_atom(env, ht);
+                self.translate_atom(env, index);
                 self.rt_call_mono("array_index", ty);
             }
             N::Atom::StringLen(string) => {
-                self.translate_atom(string);
+                self.translate_atom(env, string);
                 self.rt_call("string_len");
             }
             N::Atom::Binary(op, a, b) => {
-                self.translate_atom(a);
-                self.translate_atom(b);
+                self.translate_atom(env, a);
+                self.translate_atom(env, b);
                 self.translate_binop(op);
             }
         }

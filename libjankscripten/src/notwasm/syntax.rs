@@ -116,17 +116,10 @@ pub enum Type {
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
 pub enum Id {
     Named(String),
-    Index(u32),
-    // functions are indexed separately than locals
-    Func(u32),
 }
+
 impl Id {
-    pub fn index(&self) -> u32 {
-        match self {
-            Id::Index(i) => *i,
-            _ => panic!("non-indexed or non-local id: {:?}", self),
-        }
-    }
+
     pub fn into_name(self) -> String {
         if let Id::Named(s) = self {
             s
@@ -154,8 +147,6 @@ pub struct Class;
 
 #[derive(Debug, PartialEq)]
 pub struct Function {
-    // Initialized during compilation
-    pub locals: Vec<Type>,
     pub body: Stmt,
     pub fn_type: FnType,
     pub params: Vec<Id>,

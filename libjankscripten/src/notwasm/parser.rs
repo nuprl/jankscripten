@@ -178,7 +178,6 @@ parser! {
             }
             // TODO(luna): support void
             (f, Function {
-                locals: vec![],
                 body,
                 fn_type: FnType { args, result: Some(ret_ty) },
                 params

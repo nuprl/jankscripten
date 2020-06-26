@@ -69,7 +69,6 @@ mod test {
         );
         intern(&mut program);
         let indexed_func = Function {
-            locals: vec![],
             body: Stmt::Block(vec![
                 Stmt::Var(id_("a"), atom_(Atom::Lit(Lit::Interned(0))), Type::StrRef),
                 // 4(len) + 6 -> 10 ->(align) -> 12
