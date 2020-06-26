@@ -1,4 +1,4 @@
 #![allow(unused)]
 mod syntax;
 pub mod constructors;
-pub mod typing;
+pub mod coercion_insertion;
