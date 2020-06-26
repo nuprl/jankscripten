@@ -3,7 +3,6 @@ mod compile;
 #[allow(dead_code)]
 mod constructors;
 mod index;
-mod index_labels;
 mod intern;
 mod parser;
 mod rt_bindings;
@@ -14,7 +13,6 @@ mod elim_gotos;
 mod label_apps;
 
 use index::index;
-use index_labels::index_labels;
 use intern::intern;
 use translation::translate;
 
