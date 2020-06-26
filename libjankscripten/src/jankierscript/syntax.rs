@@ -54,8 +54,8 @@ pub enum Expr {
     Unary(UnaryOp, Box<Expr>),
     Binary(BinOp, Box<Expr>, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
-    New(Option<Type>, Box<Expr>, Vec<Expr>),
-    Func(Option<Type>, Vec<(Id, Option<Type>)>, Box<Stmt>),
+    New(Type, Box<Expr>, Vec<Expr>),
+    Func(Type, Vec<(Id, Type)>, Box<Stmt>),
 }
 
 // function F(x) { }
@@ -70,7 +70,7 @@ pub enum Expr {
 
 #[derive(Debug)]
 pub enum Stmt {
-    Var(Id, Option<Type>, Expr), // initialize to None (recommendation is to add default behavior to constructor)
+    Var(Id, Type, Expr), // initialize to None (recommendation is to add default behavior to constructor)
     Block(Vec<Stmt>),
     Empty,
     Assign(Box<LValue>, Box<Expr>),
