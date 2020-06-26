@@ -242,6 +242,41 @@ fn goto_skips_stuff() {
     let program = program2_(func_i32_(main_body), skip_to_here);
     test_wasm(5, program);
 }
+#[test]
+fn goto_skips_loop() {
+    let skip_to_here = func_i32_(Stmt::Return(i32_(7)));
+    let main_body = Stmt::Block(vec![
+        // hopefully it stays 5
+        Stmt::Var(id_("x"), atom_(i32_(5)), Type::I32),
+        Stmt::Goto(Label::App(0)),
+        // this is the part we wanna skip
+        loop_(Stmt::Empty),
+        // goto goes here
+        Stmt::Var(id_("_"), Expr::CallDirect(id_("other"), vec![]), Type::I32),
+        Stmt::Return(get_id_("x")),
+    ]);
+    let program = program2_(func_i32_(main_body), skip_to_here);
+    test_wasm(5, program);
+}
+#[test]
+fn goto_enters_if() {
+    let skip_to_here = func_i32_(Stmt::Return(i32_(7)));
+    let main_body = Stmt::Block(vec![
+        // hopefully it stays 5
+        Stmt::Var(id_("x"), atom_(i32_(5)), Type::I32),
+        Stmt::Goto(Label::App(0)),
+        if_(
+            TRUE_,
+            // this is the part we wanna skip
+            Stmt::Assign(id_("x"), atom_(i32_(2))),
+            // goto goes here
+            Stmt::Var(id_("_"), Expr::CallDirect(id_("other"), vec![]), Type::I32),
+        ),
+        Stmt::Return(get_id_("x")),
+    ]);
+    let program = program2_(func_i32_(main_body), skip_to_here);
+    test_wasm(5, program);
+}
 
 #[test]
 fn strings() {
