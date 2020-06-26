@@ -696,14 +696,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jankyp"
-version = "0.1.0"
-dependencies = [
- "clap",
- "libjankscripten",
-]
-
-[[package]]
 name = "jobserver"
 version = "0.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"

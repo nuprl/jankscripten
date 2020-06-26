@@ -2,7 +2,6 @@
 members = [
     "libjankscripten",
     "jankscripten",
-    "jankyp",
     "runtime",
     "tester"
 ]
