@@ -7,13 +7,17 @@ use crate::jankierscript::types::Type;
 
 #[derive(Debug)]
 pub enum BinOp {
-    Plus(Type, Type), // initialize as any
+    Plus,
+    PlusNumNum,
+    PlusStringNum,
+    PlusStringString
     // TODO: others
 }
 
 #[derive(Debug)]
 pub enum UnaryOp {
-    Increment(Type) // initialize as any
+    IncrementAny,
+    IncrementNum
     // TODO: others
 }
 
