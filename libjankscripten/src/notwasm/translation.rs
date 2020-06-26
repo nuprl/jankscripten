@@ -369,6 +369,11 @@ impl<'a> Translate<'a> {
             N::BinaryOp::F64Div => self.out.push(F64Div),
         }
     }
+    fn translate_unop(&mut self, op: &N::UnaryOp) {
+        match op {
+            N::UnaryOp::Sqrt => self.out.push(F64Sqrt),
+        }
+    }
 
     fn translate_expr(&mut self, expr: &mut N::Expr) {
         match expr {
@@ -437,7 +442,6 @@ impl<'a> Translate<'a> {
                 }
                 N::Lit::String(..) => panic!("uninterned string"),
                 N::Lit::Bool(b) => self.out.push(I32Const(*b as i32)),
-                _ => todo!(),
             },
             N::Atom::Id(id) => self.get_id(id),
             N::Atom::HTGet(ht, field, ty) => {
@@ -450,6 +454,10 @@ impl<'a> Translate<'a> {
                 self.translate_atom(index);
                 self.rt_call_mono("array_index", ty);
             }
+            N::Atom::ArrayLen(array, ty) => {
+                self.translate_atom(array);
+                self.rt_call_mono("array_len", ty);
+            }
             N::Atom::StringLen(string) => {
                 self.translate_atom(string);
                 self.rt_call("string_len");
@@ -458,6 +466,10 @@ impl<'a> Translate<'a> {
                 self.translate_atom(a);
                 self.translate_atom(b);
                 self.translate_binop(op);
+            }
+            N::Atom::Unary(op, a) => {
+                self.translate_atom(a);
+                self.translate_unop(op);
             }
         }
     }

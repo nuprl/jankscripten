@@ -40,6 +40,13 @@ pub fn get_rt_bindings() -> BindMap {
         Any, // new length
         vec![Any, I32],
     );
+    insert_mono(
+        m,
+        "array_len",
+        vec![array_ty_(Any)],
+        I32, // new length
+        vec![Any, I32],
+    );
     insert(m, "string_from_str", vec![StrRef], String);
     insert(m, "string_len", vec![String], I32);
     insert(m, "init", vec![], None);

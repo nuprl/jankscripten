@@ -321,3 +321,15 @@ fn globals() {
     );
     test_wasm(5, program);
 }
+
+#[test]
+fn simple_prec() {
+    let program = parse(
+        "
+        function main(): i32 {
+            return 5 + 2 * 3 + 2;
+        }
+        ",
+    );
+    test_wasm(13, program);
+}

@@ -41,6 +41,11 @@ pub enum BinaryOp {
     F64Div,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum UnaryOp {
+    Sqrt,
+}
+
 #[derive(Debug, PartialEq)]
 pub struct Program {
     pub classes: HashMap<Id, Class>,
@@ -75,12 +80,12 @@ pub enum Atom {
     Lit(Lit),
     HTGet(Box<Atom>, Box<Atom>, Type),
     Index(Box<Atom>, Box<Atom>, Type),
+    ArrayLen(Box<Atom>, Type),
     // HTGet / HTSet / ClassGet / etc VS Dot / Bracket
     // TODO: classes
     Id(Id),
     StringLen(Box<Atom>),
-    // only negative float is unary and in JS
-    //Unary(UnaryOp, Box<Expr>, Type),
+    Unary(UnaryOp, Box<Atom>),
     Binary(BinaryOp, Box<Atom>, Box<Atom>),
 }
 
