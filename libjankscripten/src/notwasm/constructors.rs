@@ -93,7 +93,6 @@ pub fn test_program_(body: Stmt) -> Program {
 }
 pub fn func_i32_(body: Stmt) -> Function {
     Function {
-        locals: Vec::new(),
         body,
         fn_type: FnType {
             args: Vec::new(),
