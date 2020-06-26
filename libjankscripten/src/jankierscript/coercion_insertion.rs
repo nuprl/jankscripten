@@ -73,6 +73,11 @@ impl Typing {
                 let (e2, t2) = self.insert_coercions_expr(*e2)?;
                 match (t1, t2) {
                     (Type::Float, Type::Float) => Ok((Janky_::binary_(Janky::BinOp::PlusFloatFloat, e1, e2), Type::Float)),
+                    (Type::Any, Type::Any) => {
+                        let e1 = Janky_::coercion_(self.coerce(Type::Any, Type::Float), e1);
+                        let e2 = Janky_::coercion_(self.coerce(Type::Any, Type::Float), e2);
+                        Ok((Janky_::binary_(Janky::BinOp::Plus, e1, e2), Type::Any))
+                    },
                     _ => unimplemented!()
                 }
             },

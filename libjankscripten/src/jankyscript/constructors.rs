@@ -1,4 +1,5 @@
 use super::syntax::*;
+use crate::shared::coercions::Coercion;
 
 // Lit
 
@@ -14,4 +15,8 @@ pub fn lit_(l: Lit) -> Expr {
 
 pub fn binary_(op: BinOp, e1: Expr, e2: Expr) -> Expr {
     Expr::Binary(op, Box::new(e1), Box::new(e2))
+}
+
+pub fn coercion_(c: Coercion, e: Expr) -> Expr {
+    Expr::Coercion(c, Box::new(e))
 }
