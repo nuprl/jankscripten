@@ -76,7 +76,7 @@ parser! {
             .or(binop(lang).and(atom(lang)).map(|(op, e)| AfterId::Op(op, e)))))
         .map(|(f, opt_args)| match opt_args {
             None => Expr::Atom(Atom::Id(f)),
-            Some(AfterId::Args(args)) => Expr::CallDirect(f, args),
+            Some(AfterId::Args(args)) => Expr::Call(f, args),
             Some(AfterId::Op(op, e)) => Expr::Atom(Atom::Binary(op, Box::new(Atom::Id(f)), Box::new(e)))
         })
         .or(atom(lang).map(|a| Expr::Atom(a)))
@@ -90,6 +90,10 @@ parser! {
         lang.reserved("i32").with(value(Type::I32))
             .or(lang.reserved("str").with(value(Type::StrRef)))
             .or(lang.reserved("bool").with(value(Type::Bool)))
+            .or(lang.parens(sep_by(type_(lang), lang.reserved_op(",")))
+                .skip(lang.reserved_op("->"))
+                .and(type_(lang))
+                .map(|(args, result)| Type::Fn(args, Box::new(Some(result)))))
     }
 }
 

@@ -17,10 +17,8 @@ impl Visitor for LabelAppsVisitor {
     fn exit_stmt(&mut self, stmt: &mut Stmt) {
         use Stmt::*;
         match stmt {
-            Assign(_, Expr::CallDirect(..))
-            | Assign(_, Expr::CallIndirect(..))
-            | Var(_, Expr::CallDirect(..), _)
-            | Var(_, Expr::CallIndirect(..), _) => {
+            Assign(_, Expr::Call(..))
+            | Var(_, Expr::Call(..), _) => {
                 *stmt = label_(super::syntax::Label::App(self.n), stmt.take());
                 self.n += 1;
             }
@@ -47,11 +45,11 @@ mod test {
         let expected_body = Stmt::Block(vec![
             label_(
                 Label::App(0),
-                Stmt::Var(id_("x"), Expr::CallDirect(id_("aCall"), vec![]), Type::I32),
+                Stmt::Var(id_("x"), Expr::Call(id_("aCall"), vec![]), Type::I32),
             ),
             label_(
                 Label::App(1),
-                Stmt::Assign(id_("x"), Expr::CallDirect(id_("callTwo"), vec![])),
+                Stmt::Assign(id_("x"), Expr::Call(id_("callTwo"), vec![])),
             ),
         ]);
         let expected = test_program_(expected_body);
