@@ -246,7 +246,7 @@ fn trivial_indirect_call() {
     test_wasm(103, program);
 }
 
-#[test]
+#[ignore]
 fn goto_skips_stuff() {
     let skip_to_here = func_i32_(Stmt::Return(i32_(7)));
     let main_body = Stmt::Block(vec![
