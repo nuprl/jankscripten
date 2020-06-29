@@ -425,7 +425,7 @@ impl<'a> Translate<'a> {
 
             N::Expr::ToString(a) => {
                 self.translate_atom(a);
-                self.rt_call("string_from_str");
+                self.rt_call("string_from_ptr");
             }
         }
     }

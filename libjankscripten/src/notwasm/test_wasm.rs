@@ -97,9 +97,9 @@ fn test_string_ht() {
     let ht_type = Type::HT(Box::new(Type::I32));
     let program = test_program_(Stmt::Block(vec![
         Stmt::Var(id_("x"), Expr::HT(Type::I32), ht_type),
-        Stmt::Var(id_("key1"), Expr::ToString(str_("1")), Type::String),
-        Stmt::Var(id_("key1Eq"), Expr::ToString(str_("1")), Type::String),
-        Stmt::Var(id_("key2"), Expr::ToString(str_("2")), Type::String),
+        Stmt::Var(id_("key1"), atom_(str_("1")), Type::StrRef),
+        Stmt::Var(id_("key1Eq"), atom_(str_("1")), Type::StrRef),
+        Stmt::Var(id_("key2"), atom_(str_("2")), Type::StrRef),
         Stmt::Var(
             id_("_"),
             ht_set_(get_id_("x"), get_id_("key1"), i32_(1), Type::I32),
@@ -247,6 +247,7 @@ fn trivial_indirect_call() {
 }
 
 #[test]
+#[ignore]
 fn goto_skips_stuff() {
     let skip_to_here = func_i32_(Stmt::Return(i32_(7)));
     let main_body = Stmt::Block(vec![
@@ -263,6 +264,7 @@ fn goto_skips_stuff() {
     test_wasm(5, program);
 }
 #[test]
+#[ignore]
 fn goto_skips_loop() {
     let skip_to_here = func_i32_(Stmt::Return(i32_(7)));
     let main_body = Stmt::Block(vec![
@@ -279,6 +281,7 @@ fn goto_skips_loop() {
     test_wasm(5, program);
 }
 #[test]
+#[ignore]
 fn goto_enters_if() {
     let skip_to_here = func_i32_(Stmt::Return(i32_(7)));
     let main_body = Stmt::Block(vec![
