@@ -7,6 +7,6 @@ fn main() {
     let mut stdin = std::io::stdin();
     let mut wasm = vec![];
     stdin.read_to_end(&mut wasm).expect("couldn't read stdin");
-    let val = run_with_runtime(&wasm).expect("running failed");
+    let val: i32 = run_with_runtime(&wasm).expect("running failed");
     println!("{}", val);
 }

@@ -3,27 +3,27 @@ use super::syntax::Type;
 use std::collections::HashMap;
 use Type::*;
 
-const KEY: Type = Type::I32;
+const KEY: Type = Type::String;
 
 type BindMap = HashMap<std::string::String, Type>;
 
 pub fn get_rt_bindings() -> BindMap {
     let mut map = HashMap::new();
     let m = &mut map;
-    insert_mono(m, "ht_new", vec![], ht_ty_(I32), vec![Any, I32]);
+    insert_mono(m, "ht_new", vec![], ht_ty_(Any), vec![Any, I32, F64]);
     insert_mono(
         m,
         "ht_get",
         vec![ht_ty_(Any), KEY],
-        ht_ty_(Any),
-        vec![Any, I32],
+        Any,
+        vec![Any, I32, F64],
     );
     insert_mono(
         m,
         "ht_set",
         vec![ht_ty_(Any), KEY, Any],
-        ht_ty_(Any),
-        vec![Any, I32],
+        Any,
+        vec![Any, I32, F64],
     );
     insert_mono(m, "array_new", vec![], ht_ty_(I32), vec![Any, I32]);
     insert_mono(

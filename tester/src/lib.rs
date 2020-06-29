@@ -6,7 +6,7 @@ use anyhow::Result;
 use wasmtime::*;
 use wasmtime_wasi::{Wasi, WasiCtx};
 
-pub fn run_with_runtime(wasm: &[u8]) -> Result<i32> {
+pub fn run_with_runtime<T: WasmTy>(wasm: &[u8]) -> Result<T> {
     let engine = Engine::new(Config::new().debug_info(true));
     let store = Store::new(&engine);
 
@@ -31,7 +31,7 @@ pub fn run_with_runtime(wasm: &[u8]) -> Result<i32> {
     // And with that we can perform the final link and the execute the module.
     let main_mod = linker.instantiate(&main_mod)?;
     let run = main_mod.get_func("main").unwrap();
-    let run = run.get0::<i32>()?;
+    let run = run.get0::<T>()?;
     Ok(run()?)
 }
 

@@ -1,24 +1,24 @@
+use clap::Clap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
-use clap::Clap;
 
 #[derive(Clap)]
 struct Compile {
     #[clap(short, long)]
     output: Option<String>,
-    input: String
+    input: String,
 }
 
 #[derive(Clap)]
 struct Parse {
-    input: String
+    input: String,
 }
 
 #[derive(Clap)]
 enum SubCommand {
     Compile(Compile),
-    Parse(Parse)
+    Parse(Parse),
 }
 
 #[derive(Clap)]
@@ -30,12 +30,11 @@ struct Opts {
 fn make_output_filename(
     opt_output: &Option<String>,
     input_path: &Path,
-    default_extension: &str) -> PathBuf {
+    default_extension: &str,
+) -> PathBuf {
     match opt_output {
         Some(name) => PathBuf::from(name),
-        None => {
-            input_path.with_extension(default_extension)
-        }
+        None => input_path.with_extension(default_extension),
     }
 }
 
@@ -45,7 +44,7 @@ fn read_file(path: &Path) -> String {
             eprintln!("Error reading from {}\n{}", path.to_string_lossy(), err);
             process::exit(1);
         }
-        Ok(s) => s
+        Ok(s) => s,
     }
 }
 
@@ -55,15 +54,15 @@ fn expect_extension(p: &Path) -> &str {
             eprintln!("Input filename does not have an extension.");
             process::exit(1);
         }
-        Some(ext) => {
-            ext.to_str().expect("filename extension is not UTF-8")
-        }
+        Some(ext) => ext.to_str().expect("filename extension is not UTF-8"),
     }
 }
 
 fn compile_notwasm(input: &str, output: &Path) {
     use libjankscripten::notwasm;
-    let wasm = notwasm::compile(notwasm::parse(input)).expect("compile error");
+    let parsed = notwasm::parse(input);
+    println!("{:#?}", parsed);
+    let wasm = notwasm::compile(parsed).expect("compile error");
     fs::write(output, wasm).expect("writing file");
 }
 
@@ -105,6 +104,6 @@ fn main() {
     let opts = Opts::parse();
     match opts.subcmd {
         SubCommand::Compile(opts) => compile(opts),
-        SubCommand::Parse(opts) => parse(opts)
+        SubCommand::Parse(opts) => parse(opts),
     }
 }

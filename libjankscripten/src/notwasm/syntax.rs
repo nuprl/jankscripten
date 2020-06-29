@@ -30,10 +30,15 @@ pub enum BinaryOp {
     I32Sub,
     I32Mul,
     I32GT, // signed
+    I32LT, // signed
     I32Ge, // signed
     I32Le, // signed
     I32And,
     I32Or,
+    F64Add,
+    F64Sub,
+    F64Mul,
+    F64Div,
 }
 
 #[derive(Debug, PartialEq)]

@@ -357,11 +357,16 @@ impl<'a> Translate<'a> {
             N::BinaryOp::I32Add => self.out.push(I32Add),
             N::BinaryOp::I32Sub => self.out.push(I32Sub),
             N::BinaryOp::I32GT => self.out.push(I32GtS),
+            N::BinaryOp::I32LT => self.out.push(I32LtS),
             N::BinaryOp::I32Ge => self.out.push(I32GeS),
             N::BinaryOp::I32Le => self.out.push(I32LeS),
             N::BinaryOp::I32Mul => self.out.push(I32Mul),
             N::BinaryOp::I32And => self.out.push(I32And),
             N::BinaryOp::I32Or => self.out.push(I32Or),
+            N::BinaryOp::F64Add => self.out.push(F64Add),
+            N::BinaryOp::F64Sub => self.out.push(F64Sub),
+            N::BinaryOp::F64Mul => self.out.push(F64Mul),
+            N::BinaryOp::F64Div => self.out.push(F64Div),
         }
     }
 
@@ -424,6 +429,7 @@ impl<'a> Translate<'a> {
         match atom {
             N::Atom::Lit(lit) => match lit {
                 N::Lit::I32(i) => self.out.push(I32Const(*i)),
+                N::Lit::F64(f) => self.out.push(F64Const(unsafe { std::mem::transmute(*f) })),
                 N::Lit::Interned(addr) => {
                     self.out.push(GetGlobal(JNKS_STRINGS_IDX));
                     self.out.push(I32Const(*addr as i32));
