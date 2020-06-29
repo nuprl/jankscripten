@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use Instruction::*;
 
-const JEN_STRINGS_IDX: u32 = 0;
+const JNKS_STRINGS_IDX: u32 = 0;
 
 type FuncTypeMap = HashMap<(Vec<ValueType>, Option<ValueType>), u32>;
 
@@ -22,11 +22,13 @@ pub fn translate(program: N::Program) -> Result<Vec<u8>, Error> {
 type IdEnv = im_rc::HashMap<N::Id, IdIndex>;
 
 pub fn translate_parity(mut program: N::Program) -> Module {
-
     // The initial environment maps functions names to their indices.
     let mut global_env = IdEnv::default();
     for (index, (name, _)) in program.functions.iter().enumerate() {
-        global_env.insert(name.clone(), IdIndex::Fun(index.try_into().expect("too many functions")));
+        global_env.insert(
+            name.clone(),
+            IdIndex::Fun(index.try_into().expect("too many functions")),
+        );
     }
 
     let mut module = module();
@@ -76,12 +78,12 @@ pub fn translate_parity(mut program: N::Program) -> Module {
     // right now there's only one global, if that changes we can refactor
     module = module
         .import()
-        .path("runtime", "JEN_STRINGS")
+        .path("runtime", "JNKS_STRINGS")
         .with_external(External::Global(GlobalType::new(ValueType::I32, false)))
         .build();
     let module = module
         .data()
-        .offset(GetGlobal(JEN_STRINGS_IDX))
+        .offset(GetGlobal(JNKS_STRINGS_IDX))
         .value(program.data)
         .build();
     for (_i, mut global) in program.globals {
@@ -108,7 +110,13 @@ pub fn translate_parity(mut program: N::Program) -> Module {
     }
     let mut module = table_build.build();
     for (name, func) in program.functions.iter_mut() {
-        module.push_function(translate_func(func, &global_env, &rt_indexes, &type_indexes, name));
+        module.push_function(translate_func(
+            func,
+            &global_env,
+            &rt_indexes,
+            &type_indexes,
+            name,
+        ));
     }
     // export main
     let module = module
@@ -133,7 +141,9 @@ fn translate_func(
     for (arg_name, arg_typ) in func.params.iter().zip(func.fn_type.args.iter()) {
         let index = translator.next_id;
         translator.next_id += 1;
-        translator.id_env.insert(arg_name.clone(), IdIndex::Local(index, arg_typ.clone()));
+        translator
+            .id_env
+            .insert(arg_name.clone(), IdIndex::Local(index, arg_typ.clone()));
     }
 
     let mut env = Env::default();
@@ -189,14 +199,14 @@ struct Env {
 fn index_of_id(env: &IdEnv, id: &N::Id) -> u32 {
     match env.get(id).expect(&format!("unbound identifier {:?}", id)) {
         IdIndex::Local(index, _) => *index,
-        IdIndex::Fun(_) => panic!("expected local variable")
+        IdIndex::Fun(_) => panic!("expected local variable"),
     }
 }
 
 /// We use `TranslateLabel` to compile the named labels and breaks of NotWasm
 /// to WebAssembly. In WebAssembly, blocks are not named, and break statements
 /// refer to blocks using de Brujin indices (i.e., index zero for the innermost
-/// block.  When recurring into a named NotWasm block, we add a 
+/// block.  When recurring into a named NotWasm block, we add a
 /// `TranslateLabel::Label` that holds the block's name on to the environment.
 /// To compile a `break l` statement to WebAssembly, we scan the labels for
 /// the index of `TranslateLabel::Label(l)`. When the compiler introduces an
@@ -205,28 +215,32 @@ fn index_of_id(env: &IdEnv, id: &N::Id) -> u32 {
 #[derive(Clone, PartialEq, Debug)]
 enum TranslateLabel {
     Unused,
-    Label(N::Label)
+    Label(N::Label),
 }
 
 /// We use `IdIndex` to resolve identifiers that appear in a NotWasm program
 /// while compiling to WebAssembly. Before compiling the body of a function, we
 /// populate an `IdEnv` to map each function name `f` to its index `n`
-/// (`IdIndex::Fun(n)`). 
+/// (`IdIndex::Fun(n)`).
 #[derive(Clone, PartialEq, Debug)]
 enum IdIndex {
     Local(u32, N::Type),
-    Fun(u32)
+    Fun(u32),
 }
 
 impl<'a> Translate<'a> {
-    fn new(rt_indexes: &'a HashMap<String, u32>, type_indexes: &'a FuncTypeMap, id_env: &IdEnv) -> Self {
+    fn new(
+        rt_indexes: &'a HashMap<String, u32>,
+        type_indexes: &'a FuncTypeMap,
+        id_env: &IdEnv,
+    ) -> Self {
         Self {
             out: Vec::new(),
             rt_indexes,
             type_indexes,
             next_id: 0,
             id_env: id_env.clone(),
-            locals: Vec::new()
+            locals: Vec::new(),
         }
     }
 
@@ -256,7 +270,8 @@ impl<'a> Translate<'a> {
                 let index = self.next_id;
                 self.next_id += 1;
                 self.locals.push(typ.as_wasm());
-                self.id_env.insert(id.clone(), IdIndex::Local(index, typ.clone()));
+                self.id_env
+                    .insert(id.clone(), IdIndex::Local(index, typ.clone()));
                 self.out.push(SetLocal(index));
             }
             N::Stmt::Assign(id, expr) => {
@@ -296,9 +311,12 @@ impl<'a> Translate<'a> {
             }
             N::Stmt::Break(label) => {
                 let l = TranslateLabel::Label(label.clone());
-                let i = env.labels.index_of(&l).expect(&format!("unbound label {:?}", label));
+                let i = env
+                    .labels
+                    .index_of(&l)
+                    .expect(&format!("unbound label {:?}", label));
                 self.out.push(Br(i as u32));
-            },
+            }
             N::Stmt::Return(atom) => {
                 self.translate_atom(atom);
                 self.out.push(Return);
@@ -362,9 +380,9 @@ impl<'a> Translate<'a> {
                         let (params_tys, ret_ty) = match t {
                             N::Type::Fn(param_tys, ret_ty) => match &*ret_ty.as_ref() {
                                 Some(ret_ty) => (types_as_wasm(param_tys), Some(ret_ty.as_wasm())),
-                                None => (types_as_wasm(param_tys), None)
+                                None => (types_as_wasm(param_tys), None),
                             },
-                            _ => panic!("identifier {:?} is not function-typed", f)
+                            _ => panic!("identifier {:?} is not function-typed", f),
                         };
                         let ty_index = self
                             .type_indexes
@@ -388,7 +406,7 @@ impl<'a> Translate<'a> {
             N::Atom::Lit(lit) => match lit {
                 N::Lit::I32(i) => self.out.push(I32Const(*i)),
                 N::Lit::Interned(addr) => {
-                    self.out.push(GetGlobal(JEN_STRINGS_IDX));
+                    self.out.push(GetGlobal(JNKS_STRINGS_IDX));
                     self.out.push(I32Const(*addr as i32));
                     self.out.push(I32Add);
                 }
@@ -396,7 +414,11 @@ impl<'a> Translate<'a> {
                 N::Lit::Bool(b) => self.out.push(I32Const(*b as i32)),
                 _ => todo!(),
             },
-            N::Atom::Id(id) => match self.id_env.get(id).expect(&format!("unbound identifier {:?}", id)) {
+            N::Atom::Id(id) => match self
+                .id_env
+                .get(id)
+                .expect(&format!("unbound identifier {:?}", id))
+            {
                 IdIndex::Local(n, _) => self.out.push(GetLocal(*n)),
                 IdIndex::Fun(n) => self.out.push(I32Const(*n as i32)),
             },

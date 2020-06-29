@@ -23,7 +23,10 @@ impl Stmt {
                 .append(D::line())
                 .append(D::text("}")),
             Empty => D::text(";"),
-            Expr(e) => D::text("(").append(e.to_doc()).append(D::text(")")).append(D::text(";")),
+            Expr(e) => D::text("(")
+                .append(e.to_doc())
+                .append(D::text(")"))
+                .append(D::text(";")),
             If(cond, then, other) => D::text("if (")
                 .append(cond.to_doc())
                 // TODO(luna):
@@ -231,7 +234,7 @@ impl Id {
     pub fn to_doc(&self) -> D<()> {
         match self {
             Self::Named(name) => D::text(name),
-            Self::Generated(name, i) => D::text("$jen_")
+            Self::Generated(name, i) => D::text("$jnks_")
                 .append(D::text(*name))
                 .append(D::text("_"))
                 .append(D::as_string(i)),
@@ -387,7 +390,7 @@ mod test {
         assert_eq!(original_ast, pretty_ast);
     }
     fn parse_pretty_parse_expr(js_code: &str) {
-        let modified = &format!("let $jen_expr = {};", js_code);
+        let modified = &format!("let $jnks_expr = {};", js_code);
         println!("program string:\n{}", modified);
         // we wrap the expr in a leading statement so the parser doesn't choke
         // parser chokes on some standalone expressions
@@ -495,23 +498,28 @@ mod test {
 
     #[test]
     fn seq_parenthesization() {
-        parse_pretty_parse_expr(r#"
+        parse_pretty_parse_expr(
+            r#"
             x ? (y, z) : w
-        "#);
+        "#,
+        );
     }
 
     #[test]
     fn add_multiply_parenthesization() {
-        parse_pretty_parse_expr(r#"
+        parse_pretty_parse_expr(
+            r#"
             (x + y) * z
-        "#);
+        "#,
+        );
     }
 
     #[test]
     fn top_level_application() {
-        parse_pretty_parse(r#"
+        parse_pretty_parse(
+            r#"
             (function() { }());
-        "#);
+        "#,
+        );
     }
-
 }

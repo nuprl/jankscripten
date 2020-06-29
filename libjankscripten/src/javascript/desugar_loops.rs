@@ -88,28 +88,28 @@ impl Visitor for LabelLoops<'_> {
             // Some(unwrap) ensures we get our label
             Break(None) => {
                 // precondition we have a labeled loop
-                //     $jen_break_0: while (true) {
+                //     $break_0: while (true) {
                 //         break;
                 //     }
                 // and the top of the stack reflects that label
-                //     breaks_stack = [.., "$jen_break_0"]
+                //     breaks_stack = [.., "$break_0"]
                 // end result:
-                //     break $jen_break_0;
+                //     break $break_0;
                 *node = Break(Some(
                     self.breaks_stack.last().expect("no close break").clone(),
                 ))
             }
             Continue(None) => {
                 // precondition we have a labeled loop and labeled body
-                //     $jen_break_0: while (true) $jen_cont_0: {
+                //     $break_0: while (true) $cont_0: {
                 //         continue;
                 //     }
                 // the top of the stack reflects the break
-                //     breaks_stack = [.., $jen_break_0]
+                //     breaks_stack = [.., $break_0]
                 // and the map maps that to the equivalent continue
-                //     breaks_for_conts = { .., $jen_break_0 => $jen_cont_0 }
+                //     breaks_for_conts = { .., $break_0 => $cont_0 }
                 // end result:
-                //     continue $jen_cont_0;
+                //     continue $cont_0;
                 *node = Break(Some(
                     self.breaks_for_conts
                         .get(self.breaks_stack.last().expect("no break label"))
@@ -119,15 +119,15 @@ impl Visitor for LabelLoops<'_> {
             }
             Continue(Some(other)) => {
                 // precondition we have a labeled loop and labeled body
-                //     my_loop: while (true) $jen_cont_0: {
+                //     my_loop: while (true) $cont_0: {
                 //         continue my_loop;
                 //     }
                 // the top of the stack reflects the break
                 //     breaks_stack = [.., my_loop]
                 // and the map maps that to the equivalent continue
-                //     breaks_for_conts = { .., my_loop => $jen_cont_0 }
+                //     breaks_for_conts = { .., my_loop => $cont_0 }
                 // end result:
-                //     continue $jen_cont_0;
+                //     continue $cont_0;
                 *node = Break(Some(
                     self.breaks_for_conts
                         .get(other)

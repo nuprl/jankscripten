@@ -1,6 +1,6 @@
 //! provides a few useful functions for testing using v8 and pretty-printing
 
-use crate::javascript as jen;
+use crate::javascript as js;
 use rusty_v8::*;
 use std::sync::Once;
 
@@ -12,7 +12,7 @@ const WIDTH: usize = 80;
 /// original block versus the second. only works with blocks because of the
 /// nature of "result" / "value" as understood by V8
 // mostly copied from rusty_v8 crate-level docs
-pub fn expect_same(original: &jen::Stmt, modified: &jen::Stmt) {
+pub fn expect_same(original: &js::Stmt, modified: &js::Stmt) {
     START.call_once(|| {
         // initializing multiple times is not just a performance problem it causes a panic
         let platform = new_default_platform().unwrap();
@@ -61,34 +61,34 @@ pub fn expect_same(original: &jen::Stmt, modified: &jen::Stmt) {
 
 /// execute the program, then desugar it using `f` and execute it again. assert
 /// that the results are equal
-pub fn desugar_okay(program: &str, f: fn(&mut jen::Stmt, &mut jen::NameGen)) {
-    let original = jen::parse(program.clone()).expect("unparsible original program");
-    let mut ng = jen::NameGen::default();
-    let mut desugar = jen::parse(program).unwrap();
+pub fn desugar_okay(program: &str, f: fn(&mut js::Stmt, &mut js::NameGen)) {
+    let original = js::parse(program.clone()).expect("unparsible original program");
+    let mut ng = js::NameGen::default();
+    let mut desugar = js::parse(program).unwrap();
     f(&mut desugar, &mut ng);
     expect_same(&original, &desugar);
 }
 
 mod testing_tests {
-    use super::{desugar_okay, expect_same, jen};
+    use super::{desugar_okay, expect_same, js};
     #[test]
     #[should_panic]
     fn fails_on_different() {
         expect_same(
-            &jen::parse("var x = 10; x").unwrap(),
-            &jen::parse("var x = 15; x").unwrap(),
+            &js::parse("var x = 10; x").unwrap(),
+            &js::parse("var x = 15; x").unwrap(),
         );
     }
     #[test]
     fn succeeds_on_same() {
         expect_same(
-            &jen::parse("var x = 10; x").unwrap(),
-            &jen::parse("var x = 10; x").unwrap(),
+            &js::parse("var x = 10; x").unwrap(),
+            &js::parse("var x = 10; x").unwrap(),
         );
     }
 
-    fn fake_desugar_fn(stmt: &mut jen::Stmt, _: &mut jen::NameGen) {
-        *stmt = jen::parse("var x = 10; x").unwrap();
+    fn fake_desugar_fn(stmt: &mut js::Stmt, _: &mut js::NameGen) {
+        *stmt = js::parse("var x = 10; x").unwrap();
     }
     #[test]
     #[should_panic]
