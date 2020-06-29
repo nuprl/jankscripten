@@ -19,7 +19,7 @@
 //! - wasm_bindgen / wasm-pack is unneccessary and gets in the way since
 //!   it's all about js bindings and disallows enum structs
 
-type Key = heap_types::StringPtr<'static>;
+type Key = StrPtr;
 
 pub mod any;
 pub mod array;
@@ -30,6 +30,7 @@ pub mod string;
 mod allocator;
 use allocator::*;
 use any::Any;
+use string::StrPtr;
 
 static mut HEAP: Option<Heap> = None;
 

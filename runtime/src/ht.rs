@@ -56,3 +56,24 @@ pub extern "C" fn ht_set_i32(ht: HTPtr<i32>, field: Key, value: i32) -> i32 {
 pub extern "C" fn ht_set_f64(ht: HTPtr<f64>, field: Key, value: f64) -> f64 {
     ht_set_generic(ht, field, value)
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::init;
+    use crate::string::str_as_ptr;
+    use wasm_bindgen_test::wasm_bindgen_test;
+    #[test]
+    #[wasm_bindgen_test]
+    fn string_keys() {
+        init();
+        let k1 = str_as_ptr("key_1");
+        let k2 = str_as_ptr("key_2");
+        let ht = ht_new_i32();
+        ht_set_i32(ht, k1, 3);
+        ht_set_i32(ht, k2, 2);
+        ht_set_i32(ht, k1, 1);
+        assert_eq!(ht_get_i32(ht, k2), 2);
+        assert_eq!(ht_get_i32(ht, k1), 1);
+    }
+}

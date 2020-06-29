@@ -47,7 +47,7 @@ pub fn get_rt_bindings() -> BindMap {
         I32, // new length
         vec![Any, I32],
     );
-    insert(m, "string_from_str", vec![StrRef], String);
+    insert(m, "string_from_ptr", vec![StrRef], String);
     insert(m, "string_len", vec![String], I32);
     insert(m, "init", vec![], None);
     map
