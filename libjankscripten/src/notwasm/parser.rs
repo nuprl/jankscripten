@@ -4,7 +4,8 @@ use combine::parser;
 use combine::parser::char::{alpha_num, letter, string};
 use combine::stream::state::State;
 use combine::stream::Stream;
-use combine::{chainl1, eof, many, optional, satisfy, sep_by, value, Parser};
+use combine::token;
+use combine::{attempt, choice, eof, many, optional, satisfy, sep_by, value, Parser};
 use combine_language::{Identifier, LanguageDef, LanguageEnv};
 use std::collections::HashMap;
 
@@ -14,9 +15,11 @@ parser! {
     fn lit['a, 'b, I](lang: &'b Lang<'a, I>)(I) -> Lit
     where [I: Stream<Item = char>]
     {
-        lang.integer().map(|n| Lit::I32(n as i32))
+        attempt(lang.float().skip(lang.symbol("f")).map(|n| Lit::F64(n)))
+        .or(lang.integer().map(|n| Lit::I32(n as i32)))
         .or(lang.reserved("true").with(value(Lit::Bool(true))))
         .or(lang.reserved("false").with(value(Lit::Bool(false))))
+        .or(lang.string_literal().map(|s| Lit::String(s)))
 
     }
 }
@@ -25,19 +28,51 @@ parser! {
     fn id['a, 'b, I](lang: &'b Lang<'a, I>)(I) -> Id
     where [I: Stream<Item = char>]
     {
-        lang.identifier().map(|x| Id::Named(x.to_string()))
+        // $IDENT is allowed in js and used in JankyScript
+        optional(token('$')).and(lang.identifier()).map(|(dollar, x)|
+            Id::Named(if dollar.is_some() {
+                format!("{}{}", '$', x)
+            } else {
+                x.to_string()
+            })
+        )
     }
 }
 
 parser! {
-    fn binop['a, 'b, I](lang: &'b Lang<'a, I>)(I) -> BinaryOp
+    fn binop_prec_mul['a, 'b, I](lang: &'b Lang<'a, I>)(I) -> BinaryOp
+    where [I: Stream<Item = char>]
+    {
+        lang.reserved_op("*").with(value(BinaryOp::I32Mul))
+        .or(lang.reserved_op("*.").with(value(BinaryOp::F64Mul)))
+        .or(lang.reserved_op("/.").with(value(BinaryOp::F64Div)))
+    }
+}
+parser! {
+    fn binop_prec_add['a, 'b, I](lang: &'b Lang<'a, I>)(I) -> BinaryOp
     where [I: Stream<Item = char>]
     {
         lang.reserved_op("+").with(value(BinaryOp::I32Add))
-        .or(lang.reserved_op("*").with(value(BinaryOp::I32Mul)))
         .or(lang.reserved_op(">").with(value(BinaryOp::I32GT)))
+        .or(lang.reserved_op("<").with(value(BinaryOp::I32LT)))
         .or(lang.reserved_op("-").with(value(BinaryOp::I32Sub)))
         .or(lang.reserved_op("==").with(value(BinaryOp::I32Eq)))
+        .or(lang.reserved_op("+.").with(value(BinaryOp::F64Add)))
+        .or(lang.reserved_op("-.").with(value(BinaryOp::F64Sub)))
+    }
+}
+
+parser! {
+    fn product['a, 'b, I](lang: &'b Lang<'a, I>)(I) -> Atom
+    where [I: Stream<Item = char>]
+    {
+        atom_item(lang)
+            .and(optional(binop_prec_mul(lang)
+                .and(product(lang))))
+            .map(|(lhs, maybe_op_rhs)| match maybe_op_rhs {
+                Some((op, rhs)) => ctor::binary_(op, lhs, rhs),
+                None => lhs,
+            })
     }
 }
 
@@ -45,9 +80,13 @@ parser! {
     fn atom['a, 'b, I](lang: &'b Lang<'a, I>)(I) -> Atom
     where [I: Stream<Item = char>]
     {
-        chainl1(
-            atom_item(lang),
-            binop(lang).map(|op| move |lhs, rhs| Atom::Binary(op, Box::new(lhs), Box::new(rhs))))
+        product(lang)
+            .and(optional(binop_prec_add(lang)
+                .and(atom(lang))))
+            .map(|(lhs, maybe_op_rhs)| match maybe_op_rhs {
+                Some((op, rhs)) => ctor::binary_(op, lhs, rhs),
+                None => lhs,
+            })
     }
 }
 
@@ -55,30 +94,57 @@ parser! {
     fn atom_item['a, 'b, I](lang: &'b Lang<'a, I>)(I) -> Atom
     where [I: Stream<Item = char>]
     {
-        lit(lang).map(|l| Atom::Lit(l))
-        .or(id(lang).map(|x| Atom::Id(x)))
-        .or(lang.string_literal().map(|s| ctor::str_(s)))
+        lang.reserved("sqrt").with(lang.parens(atom(lang)))
+            .map(|a| ctor::sqrt_(a))
+        .or(lit(lang).map(|l| Atom::Lit(l)))
+        .or(attempt(id(lang)
+            .skip(lang.reserved_op("."))
+            .and(id(lang))
+            .skip(lang.reserved_op(":"))
+            .and(type_(lang))
+            .map(|((x, field), ty)| if field == ctor::id_("length") {
+                ctor::array_len_(Atom::Id(x), ty)
+            } else {
+                ctor::ht_get_(
+                    Atom::Id(x),
+                    ctor::str_(field.into_name()),
+                    ty
+                )
+            }))
+        )
+        .or(attempt(id(lang)
+            .skip(lang.reserved_op("["))
+            .and(atom(lang))
+            .skip(lang.reserved_op("]"))
+            .skip(lang.reserved_op(":"))
+            .and(type_(lang))
+            .map(|((array, index), ty)| ctor::index_(
+                Atom::Id(array),
+                index,
+                ty
+            )))
+        )
+        .or(id(lang).map(|i| Atom::Id(i)))
         .or(lang.parens(atom(lang)))
     }
-}
-
-enum AfterId {
-    Args(Vec<Id>),
-    Op(BinaryOp, Atom),
 }
 
 parser! {
     fn expr['a, 'b, I](lang: &'b Lang<'a, I>)(I) ->  Expr
     where [ I: Stream<Item = char>]
     {
-        id(lang)
-        .and(optional(lang.parens(sep_by(id(lang), lang.reserved_op(","))).map(|args| AfterId::Args(args))
-            .or(binop(lang).and(atom(lang)).map(|(op, e)| AfterId::Op(op, e)))))
-        .map(|(f, opt_args)| match opt_args {
-            None => Expr::Atom(Atom::Id(f)),
-            Some(AfterId::Args(args)) => Expr::Call(f, args),
-            Some(AfterId::Op(op, e)) => Expr::Atom(Atom::Binary(op, Box::new(Atom::Id(f)), Box::new(e)))
-        })
+        attempt(type_(lang).skip(lang.reserved_op("[]")).map(|ty| Expr::Array(ty)))
+        .or(type_(lang).skip(lang.reserved_op("{}")).map(|ty| Expr::HT(ty)))
+        .or(lang.reserved("arrayPush")
+            .with(lang.parens(atom(lang).skip(lang.reserved_op(",")).and(atom(lang))))
+            .skip(lang.reserved_op(":"))
+            .and(type_(lang))
+            .map(|((array, member), ty)| Expr::Push(array, member, ty)))
+        .or(lang.reserved("sqrt").with(lang.parens(atom(lang)))
+            .map(|a| Expr::Atom(ctor::sqrt_(a))))
+        .or(attempt(id(lang)
+            .and(lang.parens(sep_by(id(lang), lang.reserved_op(","))))
+            .map(|(f, args)| Expr::Call(f, args))))
         .or(atom(lang).map(|a| Expr::Atom(a)))
     }
 }
@@ -94,6 +160,9 @@ parser! {
                 .skip(lang.reserved_op("->"))
                 .and(type_(lang))
                 .map(|(args, result)| Type::Fn(args, Box::new(Some(result)))))
+            .or(lang.reserved("f64").with(value(Type::F64)))
+            .or(lang.reserved("HT").with(lang.parens(type_(lang))).map(|t| ctor::ht_ty_(t)))
+            .or(lang.reserved("Array").with(lang.parens(type_(lang))).map(|t| ctor::array_ty_(t)))
     }
 }
 
@@ -115,13 +184,32 @@ parser! {
             Stmt(Stmt)
         }
 
-        let assign_or_label = id(lang)
+        let assign_or_label = attempt(id(lang)
            .and((lang.reserved_op("=").with(expr(lang)).skip(lang.reserved_op(";")).map(|e| IdRhsInStmt::Expr(e)))
                 .or(lang.reserved_op(":").with(block(lang)).map(|s| IdRhsInStmt::Stmt(s))))
            .map(|(x, rhs)| match rhs {
                IdRhsInStmt::Expr(e) => Stmt::Assign(x, e),
                IdRhsInStmt::Stmt(s) => ctor::label_(x.into_name(), s)
-           });
+           }));
+
+        let ht_set = id(lang)
+            .skip(lang.reserved_op("."))
+            .and(id(lang))
+            .skip(lang.reserved_op(":"))
+            .and(type_(lang))
+            .skip(lang.reserved_op("="))
+            .and(atom(lang))
+            .skip(lang.reserved_op(";"))
+            .map(|(((ht, field), ty), atom)| Stmt::Var(
+                ctor::id_("_"),
+                ctor::ht_set_(
+                    Atom::Id(ht),
+                    ctor::str_(field.into_name()),
+                    atom,
+                    ty.clone(),
+                ),
+                ty,
+            ));
 
         let if_ = lang.reserved("if")
             .with(lang.parens(atom(lang)))
@@ -149,7 +237,17 @@ parser! {
             .and(block(lang))
             .map(|(test,body)| ctor::while_(test, body));
 
-        var.or(while_).or(if_).or(return_).or(block(lang)).or(loop_).or(break_).or(assign_or_label)
+        choice((
+            var,
+            while_,
+            if_,
+            return_,
+            block(lang),
+            loop_,
+            break_,
+            assign_or_label,
+            ht_set
+        ))
     }
 }
 
@@ -159,6 +257,29 @@ parser! {
     {
         lang.braces(many(stmt(lang)))
             .map(|ss| Stmt::Block(ss))
+    }
+}
+
+parser! {
+    fn global['a, 'b, I](lang: &'b Lang<'a,I>)(I) -> (Id, Global)
+    where [I: Stream<Item = char>]
+    {
+        lang.reserved("const")
+            .or(lang.reserved("var"))
+            .and(id(lang))
+            .skip(lang.reserved_op(":"))
+            .and(type_(lang))
+            .skip(lang.reserved_op("="))
+            .and(atom(lang))
+            .skip(lang.reserved_op(";"))
+            .map(|(((const_or_var, name), ty), atom)| (
+                name,
+                Global {
+                    is_mut: const_or_var == "var",
+                    ty,
+                    atom,
+                }
+            ))
     }
 }
 
@@ -195,11 +316,11 @@ parser! {
     where [I: Stream<Item = char>]
     {
         lang.white_space()
-        .with(many::<HashMap<_, _>, _>(function(lang)))
+        .with(many::<HashMap<_, _>, _>(global(lang)))
+        .and(many::<HashMap<_, _>, _>(function(lang)))
         .skip(eof())
-        .map(|functions| {
+        .map(|(globals, functions)| {
             let classes = HashMap::new();
-            let globals = HashMap::new();
             let data = Vec::new();
             Program { functions, classes, globals, data }
         })
@@ -212,11 +333,26 @@ pub fn parse(input: &str) -> Program {
     // input type is not &str, but a "stream" (defined in the combine library).
     let lang = LanguageEnv::new(LanguageDef {
         ident: Identifier {
-            start: letter(),
-            rest: alpha_num(),
+            start: letter().or(token('$')).or(token('_')),
+            rest: alpha_num().or(token('_')),
             reserved: [
-                "if", "else", "true", "false", "function", "loop", "return", "i32", "string",
-                "bool", "while",
+                "if",
+                "else",
+                "true",
+                "false",
+                "function",
+                "loop",
+                "return",
+                "i32",
+                "string",
+                "bool",
+                "while",
+                "f64",
+                "HT",
+                "Array",
+                "const",
+                "var",
+                "arrayPush",
             ]
             .iter()
             .map(|x| (*x).into())
@@ -226,9 +362,14 @@ pub fn parse(input: &str) -> Program {
         // not bothered to understand it. But, it ought to define a pattern that
         // matches operators. Our operators are quite straightforward.
         op: Identifier {
-            start: satisfy(|c| "+-*/".chars().any(|x| x == c)),
-            rest: satisfy(|c| "+-*/".chars().any(|x| x == c)),
-            reserved: ["+", "-", "*", "/"].iter().map(|x| (*x).into()).collect(),
+            start: satisfy(|c| "+-*/[{:.<,".chars().any(|x| x == c)),
+            rest: satisfy(|c| "]}.".chars().any(|x| x == c)),
+            reserved: [
+                "+", "-", "*", "/", "[]", "{}", ":", ".", "*.", "/.", "+.", "-.", "<", ",",
+            ]
+            .iter()
+            .map(|x| (*x).into())
+            .collect(),
         },
         comment_start: string("/*").map(|_| ()),
         comment_end: string("*/").map(|_| ()),

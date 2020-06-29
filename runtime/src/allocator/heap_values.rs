@@ -46,6 +46,7 @@ pub enum TypeTag {
     String,
     HTAny,
     HTI32,
+    HTF64,
     ArrayAny,
     ArrayI32,
     Any,
@@ -70,7 +71,7 @@ pub trait HeapPtr {
     /// drops any data on the unmanaged heap. default implementation does
     /// nothing, because most structures do not allocate on the
     /// rust heap
-    fn final_drop(&self) { }
+    fn final_drop(&self) {}
 }
 
 /// Returns a pointer to the data that follows the tag.
@@ -96,6 +97,7 @@ pub enum HeapRefView<'a> {
     String(StringPtr<'a>),
     HTAny(HTPtr<'a, Any>),
     HTI32(HTPtr<'a, i32>),
+    HTF64(HTPtr<'a, f64>),
     ArrayAny(ArrayPtr<'a, Any>),
     ArrayI32(ArrayPtr<'a, i32>),
     Any(AnyJSPtr<'a>),
@@ -110,6 +112,7 @@ impl<'a> HeapRefView<'a> {
             Self::String(val) => val,
             Self::HTAny(val) => val,
             Self::HTI32(val) => val,
+            Self::HTF64(val) => val,
             Self::ArrayAny(val) => val,
             Self::ArrayI32(val) => val,
             Self::Any(val) => val,
@@ -153,6 +156,9 @@ impl<'a> AnyPtr<'a> {
             }
             TypeTag::HTI32 => {
                 HeapRefView::HTI32(unsafe { HTPtr::<i32>::new_tag_unchecked(self.ptr) })
+            }
+            TypeTag::HTF64 => {
+                HeapRefView::HTF64(unsafe { HTPtr::<f64>::new_tag_unchecked(self.ptr) })
             }
             TypeTag::ArrayAny => {
                 HeapRefView::ArrayAny(unsafe { ArrayPtr::<Any>::new_tag_unchecked(self.ptr) })

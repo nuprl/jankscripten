@@ -30,10 +30,20 @@ pub enum BinaryOp {
     I32Sub,
     I32Mul,
     I32GT, // signed
+    I32LT, // signed
     I32Ge, // signed
     I32Le, // signed
     I32And,
     I32Or,
+    F64Add,
+    F64Sub,
+    F64Mul,
+    F64Div,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum UnaryOp {
+    Sqrt,
 }
 
 #[derive(Debug, PartialEq)]
@@ -41,7 +51,7 @@ pub struct Program {
     pub classes: HashMap<Id, Class>,
     pub functions: HashMap<Id, Function>,
     /// Atom must be const as defined by wasm
-    pub globals: HashMap<Id, Atom>,
+    pub globals: HashMap<Id, Global>,
     /// no need to initialize, populated by intern
     pub data: Vec<u8>,
 }
@@ -70,12 +80,12 @@ pub enum Atom {
     Lit(Lit),
     HTGet(Box<Atom>, Box<Atom>, Type),
     Index(Box<Atom>, Box<Atom>, Type),
+    ArrayLen(Box<Atom>, Type),
     // HTGet / HTSet / ClassGet / etc VS Dot / Bracket
     // TODO: classes
     Id(Id),
     StringLen(Box<Atom>),
-    // only negative float is unary and in JS
-    //Unary(UnaryOp, Box<Expr>, Type),
+    Unary(UnaryOp, Box<Atom>),
     Binary(BinaryOp, Box<Atom>, Box<Atom>),
 }
 
@@ -118,10 +128,9 @@ pub enum Id {
 }
 
 impl Id {
-
     pub fn into_name(self) -> String {
         match self {
-            Id::Named(s) => s
+            Id::Named(s) => s,
         }
     }
 }
@@ -147,6 +156,16 @@ pub struct Function {
     pub body: Stmt,
     pub fn_type: FnType,
     pub params: Vec<Id>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Global {
+    pub is_mut: bool,
+    pub ty: Type,
+    /// restricted to a const expression.
+    /// also, parity_wasm restricts it to one instruction (this is not a
+    /// wasm restriction and could theoretically be fixed)
+    pub atom: Atom,
 }
 
 #[derive(Clone, Debug, PartialEq)]

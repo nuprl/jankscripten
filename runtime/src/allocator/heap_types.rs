@@ -30,6 +30,9 @@ impl<'a> HasTag for HashMap<Key, AnyJSPtr<'a>> {
 impl HasTag for HashMap<Key, i32> {
     const TYPE_TAG: TypeTag = TypeTag::HTI32;
 }
+impl HasTag for HashMap<Key, f64> {
+    const TYPE_TAG: TypeTag = TypeTag::HTF64;
+}
 
 pub type ArrayPtr<'a, V> = TypePtr<'a, Vec<V>>;
 impl<'a> HasTag for Vec<AnyJSPtr<'a>> {

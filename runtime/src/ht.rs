@@ -15,6 +15,10 @@ pub extern "C" fn ht_new_any<'a>() -> HTPtr<'a, AnyJSPtr<'a>> {
 pub extern "C" fn ht_new_i32<'a>() -> HTPtr<'a, i32> {
     heap().alloc(HashMap::new()).unwrap()
 }
+#[no_mangle]
+pub extern "C" fn ht_new_f64<'a>() -> HTPtr<'a, f64> {
+    heap().alloc(HashMap::new()).unwrap()
+}
 
 fn ht_get_generic<T: Clone>(ht: HTPtr<T>, field: Key) -> T {
     HashMap::get(&ht, &field).unwrap().clone()
@@ -25,6 +29,10 @@ pub extern "C" fn ht_get_any<'a>(ht: HTPtr<'a, AnyJSPtr<'a>>, field: Key) -> Any
 }
 #[no_mangle]
 pub extern "C" fn ht_get_i32(ht: HTPtr<i32>, field: Key) -> i32 {
+    ht_get_generic(ht, field)
+}
+#[no_mangle]
+pub extern "C" fn ht_get_f64(ht: HTPtr<f64>, field: Key) -> f64 {
     ht_get_generic(ht, field)
 }
 
@@ -43,4 +51,29 @@ pub extern "C" fn ht_set_any<'a>(
 #[no_mangle]
 pub extern "C" fn ht_set_i32(ht: HTPtr<i32>, field: Key, value: i32) -> i32 {
     ht_set_generic(ht, field, value)
+}
+#[no_mangle]
+pub extern "C" fn ht_set_f64(ht: HTPtr<f64>, field: Key, value: f64) -> f64 {
+    ht_set_generic(ht, field, value)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::init;
+    use crate::string::str_as_ptr;
+    use wasm_bindgen_test::wasm_bindgen_test;
+    #[test]
+    #[wasm_bindgen_test]
+    fn string_keys() {
+        init();
+        let k1 = str_as_ptr("key_1");
+        let k2 = str_as_ptr("key_2");
+        let ht = ht_new_i32();
+        ht_set_i32(ht, k1, 3);
+        ht_set_i32(ht, k2, 2);
+        ht_set_i32(ht, k1, 1);
+        assert_eq!(ht_get_i32(ht, k2), 2);
+        assert_eq!(ht_get_i32(ht, k1), 1);
+    }
 }

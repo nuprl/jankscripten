@@ -168,7 +168,7 @@ where
         match atom {
             // 0
             Lit(..) | Id(..) => (),
-            StringLen(ea) => {
+            StringLen(ea) | ArrayLen(ea, ..) | Unary(.., ea) => {
                 self.walk_atom(ea, loc);
             }
             HTGet(ea, eb, ..) | Binary(.., ea, eb) | Index(ea, eb, ..) => {
@@ -246,7 +246,7 @@ impl Program {
             func.body.walk(v);
         }
         for global in self.globals.values_mut() {
-            global.walk(v);
+            global.atom.walk(v);
         }
     }
 }

@@ -29,6 +29,18 @@ pub extern "C" fn array_index_i32(array: ArrayPtr<i32>, index: i32) -> i32 {
     array_index_generic(array, index)
 }
 
+fn array_len_generic<T>(array: ArrayPtr<T>) -> i32 {
+    array.len() as i32
+}
+#[no_mangle]
+pub extern "C" fn array_len_any<'a>(array: ArrayPtr<'a, AnyJSPtr<'a>>) -> i32 {
+    array_len_generic(array)
+}
+#[no_mangle]
+pub extern "C" fn array_len_i32<'a>(array: ArrayPtr<'a, i32>) -> i32 {
+    array_len_generic(array)
+}
+
 fn array_push_generic<'a, T>(mut array: ArrayPtr<'a, T>, value: T) -> i32 {
     array.push(value);
     array.len() as i32
