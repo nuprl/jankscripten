@@ -15,6 +15,9 @@ const runtimePath = path.normalize(path.join(path.dirname(process.argv[1]),
     '../target/wasm32-unknown-unknown/debug/runtime.wasm'));
 
 async function main(filename) {
+    if (filename === '-') {
+        filename = process.stdin.fd;
+    }
     const programBuf = fs.readFileSync(filename);
     const runtimeBuf = fs.readFileSync(runtimePath);
     const runtimeModule = await WebAssembly.compile(runtimeBuf);
