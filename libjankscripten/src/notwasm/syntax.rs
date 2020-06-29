@@ -41,7 +41,7 @@ pub struct Program {
     pub classes: HashMap<Id, Class>,
     pub functions: HashMap<Id, Function>,
     /// Atom must be const as defined by wasm
-    pub globals: HashMap<Id, Atom>,
+    pub globals: HashMap<Id, Global>,
     /// no need to initialize, populated by intern
     pub data: Vec<u8>,
 }
@@ -118,10 +118,9 @@ pub enum Id {
 }
 
 impl Id {
-
     pub fn into_name(self) -> String {
         match self {
-            Id::Named(s) => s
+            Id::Named(s) => s,
         }
     }
 }
@@ -147,6 +146,16 @@ pub struct Function {
     pub body: Stmt,
     pub fn_type: FnType,
     pub params: Vec<Id>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Global {
+    pub is_mut: bool,
+    pub ty: Type,
+    /// restricted to a const expression.
+    /// also, parity_wasm restricts it to one instruction (this is not a
+    /// wasm restriction and could theoretically be fixed)
+    pub atom: Atom,
 }
 
 #[derive(Clone, Debug, PartialEq)]

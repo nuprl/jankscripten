@@ -307,3 +307,17 @@ fn strings() {
     let program = test_program_(body);
     test_wasm(11, program);
 }
+
+#[test]
+fn globals() {
+    let mut program = test_program_(Stmt::Return(get_id_("MY_GLOBAL")));
+    program.globals.insert(
+        id_("MY_GLOBAL"),
+        Global {
+            is_mut: false,
+            ty: Type::I32,
+            atom: i32_(5),
+        },
+    );
+    test_wasm(5, program);
+}

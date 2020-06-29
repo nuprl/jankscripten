@@ -246,7 +246,7 @@ impl Program {
             func.body.walk(v);
         }
         for global in self.globals.values_mut() {
-            global.walk(v);
+            global.atom.walk(v);
         }
     }
 }

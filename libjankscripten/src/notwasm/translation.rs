@@ -30,6 +30,9 @@ pub fn translate_parity(mut program: N::Program) -> Module {
             IdIndex::Fun(index.try_into().expect("too many functions")),
         );
     }
+    for (i, name) in program.globals.keys().enumerate() {
+        global_env.insert(name.clone(), IdIndex::Global(i as u32));
+    }
 
     let mut module = module();
     let rt_types = get_rt_bindings();
@@ -81,20 +84,34 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         .path("runtime", "JNKS_STRINGS")
         .with_external(External::Global(GlobalType::new(ValueType::I32, false)))
         .build();
-    let module = module
+    let mut module = module
         .data()
         .offset(GetGlobal(JNKS_STRINGS_IDX))
         .value(program.data)
         .build();
-    for (_i, mut global) in program.globals {
+    for global in program.globals.values_mut() {
         // can't use functions anyway so no need to worry
         let empty = HashMap::new();
         let empty2 = HashMap::new();
         let mut visitor = Translate::new(&empty, &empty2, &global_env);
-        visitor.translate_atom(&mut global);
+        visitor.translate_atom(&mut global.atom);
         let mut insts = visitor.out;
-        insts.push(End);
-        // TODO: do a global
+        assert_eq!(
+            insts.len(),
+            1,
+            "
+            parity_wasm unneccessarily restricts init_expr to len=1,
+            so we're dealing with that for now i guess"
+        );
+        let restricted = insts.pop().unwrap();
+        let mut partial_global = module
+            .global()
+            .with_type(global.ty.as_wasm())
+            .init_expr(restricted);
+        if global.is_mut {
+            partial_global = partial_global.mutable();
+        }
+        module = partial_global.build();
     }
     // fsr we need an identity table to call indirect
     let mut table_build = module.table().with_min(program.functions.len() as u32);
@@ -196,13 +213,6 @@ struct Env {
     labels: im_rc::Vector<TranslateLabel>,
 }
 
-fn index_of_id(env: &IdEnv, id: &N::Id) -> u32 {
-    match env.get(id).expect(&format!("unbound identifier {:?}", id)) {
-        IdIndex::Local(index, _) => *index,
-        IdIndex::Fun(_) => panic!("expected local variable"),
-    }
-}
-
 /// We use `TranslateLabel` to compile the named labels and breaks of NotWasm
 /// to WebAssembly. In WebAssembly, blocks are not named, and break statements
 /// refer to blocks using de Brujin indices (i.e., index zero for the innermost
@@ -225,6 +235,7 @@ enum TranslateLabel {
 #[derive(Clone, PartialEq, Debug)]
 enum IdIndex {
     Local(u32, N::Type),
+    Global(u32),
     Fun(u32),
 }
 
@@ -275,9 +286,17 @@ impl<'a> Translate<'a> {
                 self.out.push(SetLocal(index));
             }
             N::Stmt::Assign(id, expr) => {
-                // place value on stack
                 self.translate_expr(expr);
-                self.out.push(SetLocal(index_of_id(&self.id_env, id)));
+                match self
+                    .id_env
+                    .get(id)
+                    .expect(&format!("unbound identifier {:?}", id))
+                {
+                    IdIndex::Local(n, _) => self.out.push(SetLocal(*n)),
+                    // +1 for JNKS_STRINGS
+                    IdIndex::Global(n) => self.out.push(SetGlobal(*n + 1)),
+                    IdIndex::Fun(..) => panic!("cannot set function"),
+                }
             }
             N::Stmt::If(cond, conseq, alt) => {
                 self.translate_atom(cond);
@@ -364,7 +383,7 @@ impl<'a> Translate<'a> {
             }
             N::Expr::Call(f, args) => {
                 for arg in args {
-                    self.out.push(GetLocal(index_of_id(&self.id_env, arg)));
+                    self.get_id(arg);
                 }
                 match self.id_env.get(f) {
                     Some(IdIndex::Fun(i)) => {
@@ -414,14 +433,7 @@ impl<'a> Translate<'a> {
                 N::Lit::Bool(b) => self.out.push(I32Const(*b as i32)),
                 _ => todo!(),
             },
-            N::Atom::Id(id) => match self
-                .id_env
-                .get(id)
-                .expect(&format!("unbound identifier {:?}", id))
-            {
-                IdIndex::Local(n, _) => self.out.push(GetLocal(*n)),
-                IdIndex::Fun(n) => self.out.push(I32Const(*n as i32)),
-            },
+            N::Atom::Id(id) => self.get_id(id),
             N::Atom::HTGet(ht, field, ty) => {
                 self.translate_atom(ht);
                 self.translate_atom(field);
@@ -454,6 +466,19 @@ impl<'a> Translate<'a> {
     /// conventions: `name_type`, with type given by [N::Type::fmt]
     fn rt_call_mono(&mut self, name: &str, ty: &N::Type) {
         self.rt_call(&format!("{}_{}", name, ty));
+    }
+
+    fn get_id(&mut self, id: &N::Id) {
+        match self
+            .id_env
+            .get(id)
+            .expect(&format!("unbound identifier {:?}", id))
+        {
+            IdIndex::Local(n, _) => self.out.push(GetLocal(*n)),
+            // +1 for JNKS_STRINGS
+            IdIndex::Global(n) => self.out.push(GetGlobal(*n + 1)),
+            IdIndex::Fun(n) => self.out.push(I32Const(*n as i32)),
+        }
     }
 }
 
