@@ -17,6 +17,23 @@ Building
 cargo build
 ```
 
+Running
+=======
+
+To compile `filename.ext` to WebAssembly:
+
+```
+./bin/jankscripten compile filename.ext
+```
+
+*NOTE:* The CLI tool only supports NotWasm files at the moment.
+
+To run a compiled WebAssembly program with the jankscripten runtime:
+
+```
+./bin/run-node filename.wasm
+```
+
 Testing
 =======
 
@@ -24,3 +41,15 @@ Testing
 cargo test
 (cd runtime && cargo test) # Runs tests using WebAssembly
 ```
+
+Debugging
+=========
+
+To debug or profile a compiled WebAssembly program:
+
+```
+node --inspect-brk bin/run FILENAME.wasm
+```
+
+See the Node [Debugging Guide](https://nodejs.org/en/docs/guides/debugging-getting-started/)
+for more information.

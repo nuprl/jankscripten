@@ -44,7 +44,8 @@ fn test_wasm(expected: i32, program: Program) {
     } else {
         println!("warning: no wasm2wat for debugging");
     }
-    let mut run = Command::new("../target/debug/tester")
+    let mut run = Command::new("../bin/run-node")
+        .arg("-")
         // avoids needing tmp file which is test threading mess
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
