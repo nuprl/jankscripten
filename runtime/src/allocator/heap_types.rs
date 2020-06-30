@@ -1,3 +1,4 @@
+pub use super::class::ClassPtr;
 use super::TypePtr;
 use super::{Tag, TypeTag};
 use crate::{Any, Key};

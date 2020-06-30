@@ -4,6 +4,7 @@ use std::alloc;
 use std::alloc::Layout;
 use std::cell::RefCell;
 use std::collections::HashMap;
+mod class;
 mod constants;
 mod heap_values;
 mod layout;
@@ -28,7 +29,7 @@ pub struct Heap {
     next_container_type: u16,
     /// We initialize this to the empty stack. Before calling [Heap::gc()], the
     /// shadow stack must contain all GC roots.
-    shadow_stack: RefCell<Vec<Vec<*mut Tag>>>
+    shadow_stack: RefCell<Vec<Vec<*mut Tag>>>,
 }
 
 #[derive(Debug)]
@@ -74,13 +75,11 @@ impl FreeList {
                     // +-------+-----------+
                     block.size = block.size + size;
                     return self;
-                }
-                else if start == block.start && size == block.size {
+                } else if start == block.start && size == block.size {
                     // This can happen, because this is the world's worst
                     // mark and sweep collector.
                     return self;
-                }
-                else {
+                } else {
                     // +-------+-----------------------------+-----------+
                     // | block | mix of used and free blocks | new block |
                     // +-------+-----------------------------+-----------+
@@ -180,7 +179,7 @@ impl Heap {
     }
 
     #[allow(unused)] // remove after we extern
-    pub fn alloc_container(&self, type_tag: u16) -> Option<ObjectPtr> {
+    pub fn alloc_container(&self, type_tag: u16) -> Option<ClassPtr> {
         let num_elements = self.container_sizes.get(&type_tag).unwrap();
         let elements_size = Layout::array::<Option<&Tag>>(*num_elements).unwrap().size() as isize;
         let opt_ptr = self
@@ -199,7 +198,7 @@ impl Heap {
                 for ptr in values_slice.iter_mut() {
                     *ptr = None;
                 }
-                return Some(unsafe { ObjectPtr::new(tag_ptr) });
+                return Some(unsafe { ClassPtr::new(tag_ptr) });
             }
         }
     }
@@ -221,7 +220,13 @@ impl Heap {
     /// roots must be live, appropriately allocated tags
     #[allow(unused)] // remove after we extern
     pub unsafe fn gc(&self) {
-        let roots = self.shadow_stack.borrow().iter().flatten().map(|refptr| *refptr).collect::<Vec<*mut Tag>>();
+        let roots = self
+            .shadow_stack
+            .borrow()
+            .iter()
+            .flatten()
+            .map(|refptr| *refptr)
+            .collect::<Vec<*mut Tag>>();
         self.mark_phase(roots);
         self.sweep_phase();
     }
@@ -239,7 +244,7 @@ impl Heap {
                 }
                 tag.marked = true;
 
-                if tag.type_tag != TypeTag::Object {
+                if tag.type_tag != TypeTag::Class {
                     continue;
                 }
                 let class_tag = tag.class_tag; // needed since .class_tag is packed
@@ -275,7 +280,7 @@ impl Heap {
                 ptr = unsafe { ptr.add(size) };
                 continue;
             }
-            
+
             free_list_ptr = free_list_ptr.insert(ptr, size as isize);
             ptr = unsafe { ptr.add(size) };
         }

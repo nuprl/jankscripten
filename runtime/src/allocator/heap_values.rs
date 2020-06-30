@@ -33,7 +33,7 @@ impl Tag {
     pub fn object(class_tag: u16) -> Self {
         Tag {
             marked: false,
-            type_tag: TypeTag::Object,
+            type_tag: TypeTag::Class,
             class_tag,
         }
     }
@@ -52,7 +52,7 @@ pub enum TypeTag {
     Any,
     // The value inside the tag is the address where the array of pointers
     // begins, for this object.
-    Object,
+    Class,
 }
 
 /// Every pointer into the heap points to a tag, thus we could build an API
@@ -101,7 +101,7 @@ pub enum HeapRefView<'a> {
     ArrayAny(ArrayPtr<'a, Any>),
     ArrayI32(ArrayPtr<'a, i32>),
     Any(AnyJSPtr<'a>),
-    Object(ObjectPtr<'a>),
+    Class(ClassPtr<'a>),
 }
 impl<'a> HeapRefView<'a> {
     /// Return a less specific `HeapPtr` that points to the same heap value,
@@ -116,7 +116,7 @@ impl<'a> HeapRefView<'a> {
             Self::ArrayAny(val) => val,
             Self::ArrayI32(val) => val,
             Self::Any(val) => val,
-            Self::Object(val) => val,
+            Self::Class(val) => val,
         }
     }
 }
@@ -167,7 +167,7 @@ impl<'a> AnyPtr<'a> {
                 HeapRefView::ArrayI32(unsafe { ArrayPtr::<i32>::new_tag_unchecked(self.ptr) })
             }
             TypeTag::Any => HeapRefView::Any(unsafe { AnyJSPtr::new_tag_unchecked(self.ptr) }),
-            TypeTag::Object => HeapRefView::Object(unsafe { ObjectPtr::new(self.ptr) }),
+            TypeTag::Class => HeapRefView::Class(unsafe { ClassPtr::new(self.ptr) }),
         }
     }
 }
@@ -279,70 +279,6 @@ impl<T: PartialEq> PartialEq<TypePtr<'_, T>> for TypePtr<'_, T> {
     }
 }
 impl<T: PartialEq> Eq for TypePtr<'_, T> {}
-
-/// A pointer to a `Tag::Object`.
-#[derive(Debug, PartialEq, Clone, Copy)]
-#[repr(transparent)]
-pub struct ObjectPtr<'a> {
-    ptr: *mut Tag,
-    _phantom: PhantomData<&'a ()>,
-}
-
-impl<'a> HeapPtr for ObjectPtr<'a> {
-    fn get_ptr(&self) -> *mut Tag {
-        return self.ptr;
-    }
-
-    fn get_data_size(&self, heap: &Heap) -> usize {
-        let tag = unsafe { self.ptr.read() };
-        let class_tag = tag.class_tag;
-        let num_elements = heap.container_sizes.get(&class_tag).unwrap();
-        return num_elements * ALIGNMENT;
-    }
-}
-
-impl<'a> ObjectPtr<'a> {
-    /// This function is unsafe, because (1) we do not check that the class_tag
-    /// is valid, and (2) we assume that `ptr` is valid.
-    pub unsafe fn new(ptr: *mut Tag) -> Self {
-        assert_eq!(ptr.read().type_tag, TypeTag::Object);
-        return ObjectPtr {
-            ptr,
-            _phantom: PhantomData,
-        };
-    }
-
-    pub fn class_tag(&self) -> u16 {
-        let tag = unsafe { self.ptr.read() };
-        assert_eq!(tag.type_tag, TypeTag::Object);
-        return tag.class_tag;
-    }
-
-    pub fn read_at(&self, heap: &'a Heap, index: usize) -> Option<AnyPtr<'a>> {
-        let type_tag = self.class_tag();
-        let len = *heap.container_sizes.get(&type_tag).unwrap();
-        assert!(index < len);
-        let values: *mut *mut Tag = unsafe { std::mem::transmute(self.ptr.add(DATA_OFFSET)) };
-        let ptr = unsafe { &mut *values.add(index) };
-
-        let ptr2 = *ptr;
-        if ptr2.is_null() {
-            return None;
-        }
-        return Some(unsafe { AnyPtr::new(ptr2) });
-    }
-
-    pub fn write_at<P: HeapPtr>(&self, heap: &'a Heap, index: usize, value: P) {
-        let type_tag = self.class_tag();
-        let len = *heap.container_sizes.get(&type_tag).unwrap();
-        assert!(index < len);
-        let values: *mut *mut Tag = unsafe { std::mem::transmute(self.ptr.add(DATA_OFFSET)) };
-        let ptr = unsafe { values.add(index) };
-        unsafe {
-            ptr.write(value.get_ptr());
-        }
-    }
-}
 
 impl Tag {
     /**
