@@ -1,4 +1,4 @@
-pub use super::class::ClassPtr;
+pub use super::object_ptr::ObjectPtr;
 use super::TypePtr;
 use super::{Tag, TypeTag};
 use crate::{Any, Key};

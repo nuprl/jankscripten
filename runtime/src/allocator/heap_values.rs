@@ -101,7 +101,7 @@ pub enum HeapRefView<'a> {
     ArrayAny(ArrayPtr<'a, Any>),
     ArrayI32(ArrayPtr<'a, i32>),
     Any(AnyJSPtr<'a>),
-    Class(ClassPtr<'a>),
+    Class(ObjectPtr<'a>),
 }
 impl<'a> HeapRefView<'a> {
     /// Return a less specific `HeapPtr` that points to the same heap value,
@@ -167,7 +167,7 @@ impl<'a> AnyPtr<'a> {
                 HeapRefView::ArrayI32(unsafe { ArrayPtr::<i32>::new_tag_unchecked(self.ptr) })
             }
             TypeTag::Any => HeapRefView::Any(unsafe { AnyJSPtr::new_tag_unchecked(self.ptr) }),
-            TypeTag::Class => HeapRefView::Class(unsafe { ClassPtr::new(self.ptr) }),
+            TypeTag::Class => HeapRefView::Class(unsafe { ObjectPtr::new(self.ptr) }),
         }
     }
 }

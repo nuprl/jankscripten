@@ -1,10 +1,18 @@
+//! The global classes with their offsets, transitions, and sizes
+//!
+//! Some terminology:
+//! - Class => A set of offsets and transitions
+//! - ClassList => The singe global list of classes, associated with a heap
+//! - Object => An instance of a class, allocated on the heap with space
+//!   for every field but they may not be occupied
+
 use crate::string::StrPtr;
 
 pub struct ClassList {
     /// a HashMap to look up our class is obviously a non-starter when
     /// classes are meant to optimize HashMap lookup
     /// next class type is simply classes.len
-    classes: Vec<ClassDef>,
+    classes: Vec<Class>,
 }
 
 impl ClassList {
@@ -13,15 +21,15 @@ impl ClassList {
             classes: Vec::new(),
         }
     }
-    pub fn new_container_type(&mut self, class: ClassDef) -> u16 {
+    pub fn new_class_type(&mut self, class: Class) -> u16 {
         let type_tag = self.classes.len() as u16;
         self.classes.push(class);
         type_tag
     }
-    pub fn get_container_size(&self, container_type: u16) -> usize {
+    pub fn get_class_size(&self, container_type: u16) -> usize {
         self.get_class(container_type).size
     }
-    pub fn get_class(&self, class_tag: u16) -> &ClassDef {
+    pub fn get_class(&self, class_tag: u16) -> &Class {
         &self.classes.get(class_tag as usize).unwrap()
     }
     /// look up transitions, if none is relevant make one, and return new
@@ -33,19 +41,19 @@ impl ClassList {
             Some(tag) => tag,
             None => {
                 let new_class = class.branch(name, new_tag);
-                self.new_container_type(new_class)
+                self.new_class_type(new_class)
             }
         }
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct ClassDef {
+pub struct Class {
     pub size: usize,
     offsets: Vec<(StrPtr, usize)>,
     transitions: Vec<(StrPtr, u16)>,
 }
-impl ClassDef {
+impl Class {
     /// this is the very base class
     #[allow(unused)]
     pub fn new() -> Self {

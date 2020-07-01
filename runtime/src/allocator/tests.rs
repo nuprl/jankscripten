@@ -1,4 +1,4 @@
-use super::class_list::ClassDef;
+use super::class_list::Class;
 use super::*;
 use crate::string::str_as_ptr;
 use wasm_bindgen_test::*;
@@ -70,7 +70,7 @@ fn alloc_container1() {
     let empty_type = heap
         .classes
         .borrow_mut()
-        .new_container_type(ClassDef::new());
+        .new_class_type(Class::new());
     let one_type = heap
         .classes
         .borrow_mut()
@@ -80,7 +80,7 @@ fn alloc_container1() {
         .borrow_mut()
         .transition(one_type, str_as_ptr("y"));
     heap.alloc(32).expect("first alloc");
-    let container = heap.alloc_container(type_tag).expect("second alloc");
+    let container = heap.alloc_class(type_tag).expect("second alloc");
     assert_eq!(container.read_at(&heap, 0), None);
     assert_eq!(container.read_at(&heap, 1), None);
 }
@@ -92,9 +92,9 @@ fn insert_object() {
     let empty_type = heap
         .classes
         .borrow_mut()
-        .new_container_type(ClassDef::new());
+        .new_class_type(Class::new());
     let x = heap.alloc(32).expect("first alloc");
-    let empty = heap.alloc_container(empty_type).expect("second alloc");
+    let empty = heap.alloc_class(empty_type).expect("second alloc");
     let with_x = empty
         .insert(&heap, str_as_ptr("x"), x)
         .expect("couldn't allocate again");
@@ -110,7 +110,7 @@ fn alloc_container2() {
     let empty_type = heap
         .classes
         .borrow_mut()
-        .new_container_type(ClassDef::new());
+        .new_class_type(Class::new());
     let one_type = heap
         .classes
         .borrow_mut()
@@ -119,7 +119,7 @@ fn alloc_container2() {
         .classes
         .borrow_mut()
         .transition(one_type, str_as_ptr("y"));
-    let container = heap.alloc_container(type_tag).expect("second alloc");
+    let container = heap.alloc_class(type_tag).expect("second alloc");
     let mut x = heap.alloc(200).expect("second alloc");
     container.write_at(&heap, 0, x);
     *x.get_mut() = 100;
@@ -136,7 +136,7 @@ fn alloc_container3() {
     let empty_type = heap
         .classes
         .borrow_mut()
-        .new_container_type(ClassDef::new());
+        .new_class_type(Class::new());
     let one_type = heap
         .classes
         .borrow_mut()
@@ -145,7 +145,7 @@ fn alloc_container3() {
         .classes
         .borrow_mut()
         .transition(one_type, str_as_ptr("y"));
-    let container = heap.alloc_container(type_tag).expect("second alloc");
+    let container = heap.alloc_class(type_tag).expect("second alloc");
     let mut x = heap.alloc(200).expect("second alloc");
     container.write_at(&heap, 1, x);
     *x.get_mut() = 100;

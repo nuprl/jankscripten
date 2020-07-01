@@ -3,11 +3,11 @@
 use std::alloc;
 use std::alloc::Layout;
 use std::cell::RefCell;
-mod class;
 mod class_list;
 mod constants;
 mod heap_values;
 mod layout;
+mod object_ptr;
 
 pub mod heap_types;
 
@@ -169,8 +169,8 @@ impl Heap {
     }
 
     #[allow(unused)] // remove after we extern
-    pub fn alloc_container(&self, type_tag: u16) -> Option<ClassPtr> {
-        let num_elements = self.get_container_size(type_tag);
+    pub fn alloc_class(&self, type_tag: u16) -> Option<ObjectPtr> {
+        let num_elements = self.get_class_size(type_tag);
         let elements_size = Layout::array::<Option<&Tag>>(num_elements).unwrap().size() as isize;
         let opt_ptr = self
             .free_list
@@ -188,13 +188,13 @@ impl Heap {
                 for ptr in values_slice.iter_mut() {
                     *ptr = None;
                 }
-                return Some(unsafe { ClassPtr::new(tag_ptr) });
+                return Some(unsafe { ObjectPtr::new(tag_ptr) });
             }
         }
     }
 
-    pub fn get_container_size(&self, class_tag: u16) -> usize {
-        self.classes.borrow().get_container_size(class_tag)
+    pub fn get_class_size(&self, class_tag: u16) -> usize {
+        self.classes.borrow().get_class_size(class_tag)
     }
 
     #[allow(unused)] // remove after we extern
@@ -242,7 +242,7 @@ impl Heap {
                     continue;
                 }
                 let class_tag = tag.class_tag; // needed since .class_tag is packed
-                let num_ptrs = self.get_container_size(class_tag);
+                let num_ptrs = self.get_class_size(class_tag);
                 let members_ptr: *mut *mut Tag = unsafe { data_ptr(root) };
                 let members = unsafe { std::slice::from_raw_parts(members_ptr, num_ptrs) };
                 new_roots.extend_from_slice(members);
