@@ -96,6 +96,8 @@ parser! {
     {
         lang.reserved("sqrt").with(lang.parens(atom(lang)))
             .map(|a| ctor::sqrt_(a))
+        .or(lang.reserved("strlen").with(lang.parens(atom(lang)))
+            .map(|a| ctor::len_(a)))
         .or(lit(lang).map(|l| Atom::Lit(l)))
         .or(attempt(id(lang)
             .skip(lang.reserved_op("."))
@@ -353,6 +355,7 @@ pub fn parse(input: &str) -> Program {
                 "const",
                 "var",
                 "arrayPush",
+                "strlen",
             ]
             .iter()
             .map(|x| (*x).into())

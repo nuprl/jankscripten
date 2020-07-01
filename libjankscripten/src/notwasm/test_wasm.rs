@@ -337,3 +337,18 @@ fn simple_prec() {
     );
     test_wasm(13, program);
 }
+
+#[test]
+fn identical_interned_string_identity() {
+    let program = parse(r#"
+        function main(): i32 {
+            var s1 : str = "Calvin Coolidge";
+            var s2 : str = "Calvin Coolidge";
+            // NOTE(arjun): I consider this a bit of a hack. I'm relying on the
+            // fact that a string value is represented as a pointer, and a
+            // pointer is a 32-bit integer in Wasm. We would be better off
+            // adding a strict pointer-equality operator.
+            return s1 == s2; 
+        }"#);
+    test_wasm(1, program);
+}

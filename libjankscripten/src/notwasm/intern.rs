@@ -19,6 +19,8 @@ pub fn intern(program: &mut Program) {
 #[derive(Default)]
 struct InternVisitor {
     data: Vec<u8>,
+    /// Helps avoid interning the same static string multiple times.
+    already_interned: std::collections::HashMap<String, u32>
 }
 impl Visitor for InternVisitor {
     fn exit_atom(&mut self, atom: &mut Atom, _loc: &mut Loc) {
@@ -26,8 +28,18 @@ impl Visitor for InternVisitor {
             Atom::Lit(old_lit @ Lit::String(_)) => {
                 let lit = std::mem::replace(old_lit, Lit::I32(0));
                 if let Lit::String(s) = lit {
-                    let mut bytes = s.into_bytes();
+                    if let Some(offset) = self.already_interned.get(&s) {
+                        // We have seen this string before, so no need to
+                        // reallocate.
+                        *old_lit = Lit::Interned(*offset);
+                        return;
+                    }
                     let pos = self.data.len() as u32;
+
+                    // Cache the offset, so that the interned string can be
+                    // reused. 
+                    self.already_interned.insert(s.clone(), pos);
+                    let mut bytes = s.into_bytes();
                     *old_lit = Lit::Interned(pos);
                     let length = bytes.len() as u32;
                     let length_bytes: [u8; 4] = unsafe { std::mem::transmute(length.to_le()) };
