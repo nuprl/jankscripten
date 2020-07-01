@@ -121,10 +121,10 @@ fn objects() {
         r#"
         function main(): f64 {
             var obj: AnyClass = {};
-            obj.x: f64 = 3.;
-            obj.y: f64 = 2.;
-            obj.x: f64 = 1.;
-            obj.z: f64 = 3.;
+            obj.x: f64 = 3f;
+            obj.y: f64 = 2f;
+            obj.x: f64 = 1f;
+            obj.z: f64 = 3f;
             return obj.x: f64;
         }
         "#,

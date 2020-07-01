@@ -7,35 +7,19 @@ use std::marker::PhantomData;
 #[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(transparent)]
 pub struct ObjectPtr<'a> {
-    ptr: *mut Object,
+    /// double-pointer for editing when it moves. TODO: figure out how this
+    /// relates to the GC
+    ptr: *mut Tag,
     _phantom: PhantomData<&'a ()>,
-}
-
-/// this describes the layout of the memory an ClassPtr points to
-#[repr(C)]
-struct Object {
-    /// 1
-    tag: Tag,
-    /// 3
-    offsets: Vec<(StrPtr, u32)>,
-    /// 3
-    transitions: Vec<(StrPtr, u32)>,
-    /// 1 x n
-    ///
-    /// ```
-    /// let offset = offsets.linear_search(field_name);
-    /// class.fields.add(offset)
-    /// ```
-    fields: *mut Tag,
 }
 
 impl<'a> HeapPtr for ObjectPtr<'a> {
     fn get_ptr(&self) -> *mut Tag {
-        return self.ptr as *mut Tag;
+        return self.ptr;
     }
 
     fn get_data_size(&self, heap: &Heap) -> usize {
-        let tag = unsafe { (*self.ptr).tag };
+        let tag = unsafe { *self.ptr };
         let class_tag = tag.class_tag;
         let num_elements = heap.get_class_size(class_tag);
         return num_elements * ALIGNMENT;
@@ -48,13 +32,13 @@ impl<'a> ObjectPtr<'a> {
     pub unsafe fn new(ptr: *mut Tag) -> Self {
         assert_eq!((*ptr).type_tag, TypeTag::Class);
         ObjectPtr {
-            ptr: ptr as *mut Object,
+            ptr,
             _phantom: PhantomData,
         }
     }
 
     pub fn class_tag(&self) -> u16 {
-        let tag = unsafe { (*self.ptr).tag };
+        let tag = unsafe { *self.ptr };
         assert_eq!(tag.type_tag, TypeTag::Class);
         tag.class_tag
     }
@@ -63,7 +47,7 @@ impl<'a> ObjectPtr<'a> {
         let type_tag = self.class_tag();
         let len = heap.get_class_size(type_tag);
         assert!(index < len);
-        let values = unsafe { &mut (*self.ptr).fields as *mut *mut Tag };
+        let values = unsafe { self.ptr.add(1) as *mut *mut Tag };
         let ptr = unsafe { *values.add(index) };
 
         if ptr.is_null() {
@@ -77,7 +61,7 @@ impl<'a> ObjectPtr<'a> {
         let type_tag = self.class_tag();
         let len = heap.get_class_size(type_tag);
         assert!(index < len);
-        let values = unsafe { &mut (*self.ptr).fields as *mut *mut Tag };
+        let values = unsafe { self.ptr.add(1) as *mut *mut Tag };
         let ptr = unsafe { values.add(index) };
         unsafe {
             ptr.write(value.get_ptr());
@@ -89,15 +73,19 @@ impl<'a> ObjectPtr<'a> {
     /// TODO: updating this pointer in particular isn't enough. i think we
     /// have to have a double-pointer situation
     /// (ObjectPtr -> ArrayPtr -> [u8; n])
-    pub fn insert<P: HeapPtr>(self, heap: &'a Heap, name: StrPtr, value: P) -> Option<Self> {
-        let data = unsafe { &*self.ptr };
-        let class_tag = data.tag.class_tag;
+    pub fn insert<P: HeapPtr + Copy>(
+        &mut self,
+        heap: &'a Heap,
+        name: StrPtr,
+        value: P,
+    ) -> Option<P> {
+        let class_tag = self.class_tag();
         let mut classes = heap.classes.borrow_mut();
         let class = classes.get_class(class_tag);
         match class.lookup(name) {
             Some(offset) => {
                 self.write_at(heap, offset, value);
-                Some(self)
+                Some(value)
             }
             None => {
                 let size = class.size;
@@ -111,14 +99,16 @@ impl<'a> ObjectPtr<'a> {
                     }
                 }
                 new_object.write_at(heap, size, value);
-                Some(new_object)
+                println!("{:?} >", unsafe { &*new_object.ptr });
+                *self = new_object;
+                println!("{:?} <", unsafe { &*self.ptr });
+                Some(value)
             }
         }
     }
 
     pub fn get(&self, heap: &'a Heap, name: StrPtr) -> Option<AnyPtr<'a>> {
-        let data = unsafe { &*self.ptr };
-        let class_tag = data.tag.class_tag;
+        let class_tag = self.class_tag();
         let classes = heap.classes.borrow();
         let class = classes.get_class(class_tag);
         let offset = class.lookup(name)?;

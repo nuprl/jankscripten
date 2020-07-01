@@ -398,6 +398,8 @@ impl<'a> Translate<'a> {
                 // only runs on any
                 self.rt_call_mono("any", ty);
                 self.rt_call("object_set");
+                // back it back out lol
+                self.rt_call_mono("any_to", ty);
             }
             N::Expr::ObjectEmpty => {
                 self.rt_call("object_empty");

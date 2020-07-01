@@ -12,7 +12,7 @@ pub extern "C" fn object_empty<'a>() -> ObjectPtr<'a> {
 
 #[no_mangle]
 pub extern "C" fn object_set<'a>(
-    object: ObjectPtr<'a>,
+    mut object: ObjectPtr<'a>,
     field: StrPtr,
     value: AnyJSPtr<'a>,
 ) -> AnyJSPtr<'a> {

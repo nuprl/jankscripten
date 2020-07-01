@@ -67,10 +67,7 @@ fn update_prims() {
 #[wasm_bindgen_test]
 fn alloc_container1() {
     let heap = Heap::new(64);
-    let empty_type = heap
-        .classes
-        .borrow_mut()
-        .new_class_type(Class::new());
+    let empty_type = heap.classes.borrow_mut().new_class_type(Class::new());
     let one_type = heap
         .classes
         .borrow_mut()
@@ -89,16 +86,15 @@ fn alloc_container1() {
 #[wasm_bindgen_test]
 fn insert_object() {
     let heap = Heap::new(64);
-    let empty_type = heap
-        .classes
-        .borrow_mut()
-        .new_class_type(Class::new());
+    let empty_type = heap.classes.borrow_mut().new_class_type(Class::new());
     let x = heap.alloc(32).expect("first alloc");
-    let empty = heap.alloc_object(empty_type).expect("second alloc");
-    let with_x = empty
-        .insert(&heap, str_as_ptr("x"), x)
-        .expect("couldn't allocate again");
-    match with_x.read_at(&heap, 0).expect("no 0").view() {
+    let mut obj = heap.alloc_object(empty_type).expect("second alloc");
+    assert_eq!(
+        *obj.insert(&heap, str_as_ptr("x"), x)
+            .expect("couldn't allocate again"),
+        32
+    );
+    match obj.get(&heap, str_as_ptr("x")).expect("no x").view() {
         HeapRefView::I32(i) => assert_eq!(*i, 32),
         _ => panic!("not an int"),
     }
@@ -107,10 +103,7 @@ fn insert_object() {
 #[test]
 fn alloc_container2() {
     let heap = Heap::new(40);
-    let empty_type = heap
-        .classes
-        .borrow_mut()
-        .new_class_type(Class::new());
+    let empty_type = heap.classes.borrow_mut().new_class_type(Class::new());
     let one_type = heap
         .classes
         .borrow_mut()
@@ -133,10 +126,7 @@ fn alloc_container2() {
 #[test]
 fn alloc_container3() {
     let heap = Heap::new(40);
-    let empty_type = heap
-        .classes
-        .borrow_mut()
-        .new_class_type(Class::new());
+    let empty_type = heap.classes.borrow_mut().new_class_type(Class::new());
     let one_type = heap
         .classes
         .borrow_mut()
