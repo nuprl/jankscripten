@@ -41,7 +41,5 @@ fn type_check_stmts(stmts: Vec<Stmt>, env: Env) -> TypeCheckingResult {
 }
 
 fn type_check_expr(expr: Expr, env: Env) -> TypeCheckingResult {
-    match expr {
-        Expr::Lit(l) => 
-    }
+    unimplemented!()
 }

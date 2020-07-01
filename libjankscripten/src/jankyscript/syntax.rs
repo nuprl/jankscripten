@@ -1,20 +1,20 @@
-//! The source (and target) language for type inference.
-//!
-//! The JavaScript AST goes through several stages of desugaring before we
-//! produce a program in this language.
+//! The JankierScript language
 
 use crate::shared::types::Type;
+use crate::shared::coercions::Coercion;
 
 #[derive(Debug)]
 pub enum BinOp {
     Plus,
+    PlusFloatFloat,
     // TODO: others
 }
 
 #[derive(Debug)]
 pub enum UnaryOp {
-    Increment,
-    Decrement
+    IncrementAny,
+    IncrementNum
+    // TODO: others
 }
 
 #[derive(Debug)]
@@ -56,17 +56,8 @@ pub enum Expr {
     Call(Box<Expr>, Vec<Expr>),
     New(Type, Box<Expr>, Vec<Expr>),
     Func(Type, Vec<(Id, Type)>, Box<Stmt>),
+    Coercion(Coercion, Box<Expr>)
 }
-
-// function F(x) { }
-// var F = function (x) { }
-
-// in JS... JS::Stmt::Expr(JS::Expr::Dot(...))
-// careful with assign, unaryassign, seq
-
-// make a custom rust error
-// if we encounter the case above in the translation, something is wrong
-// throw a rust error
 
 #[derive(Debug)]
 pub enum Stmt {
