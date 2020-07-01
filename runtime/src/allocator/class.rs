@@ -13,6 +13,7 @@ pub struct ClassPtr<'a> {
 }
 
 /// this describes the layout of the memory an ClassPtr points to
+#[repr(C)]
 struct Class {
     /// 1
     tag: Tag,
@@ -37,7 +38,7 @@ impl<'a> HeapPtr for ClassPtr<'a> {
     fn get_data_size(&self, heap: &Heap) -> usize {
         let tag = unsafe { (*self.ptr).tag };
         let class_tag = tag.class_tag;
-        let num_elements = heap.container_sizes.get(&class_tag).unwrap();
+        let num_elements = heap.classes.get_container_size(&class_tag);
         return num_elements * ALIGNMENT;
     }
 }
@@ -61,7 +62,7 @@ impl<'a> ClassPtr<'a> {
 
     pub fn read_at(&self, heap: &'a Heap, index: usize) -> Option<AnyPtr<'a>> {
         let type_tag = self.class_tag();
-        let len = *heap.container_sizes.get(&type_tag).unwrap();
+        let len = heap.classes.get_container_size(&type_tag);
         assert!(index < len);
         let values = unsafe { &mut (*self.ptr).fields as *mut *mut Tag };
         let ptr = unsafe { *values.add(index) };
@@ -75,7 +76,7 @@ impl<'a> ClassPtr<'a> {
 
     pub fn write_at<P: HeapPtr>(&self, heap: &'a Heap, index: usize, value: P) {
         let type_tag = self.class_tag();
-        let len = *heap.container_sizes.get(&type_tag).unwrap();
+        let len = heap.classes.get_container_size(&type_tag);
         assert!(index < len);
         let values = unsafe { &mut (*self.ptr).fields as *mut *mut Tag };
         let ptr = unsafe { values.add(index) };

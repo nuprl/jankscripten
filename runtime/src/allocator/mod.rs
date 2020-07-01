@@ -5,12 +5,14 @@ use std::alloc::Layout;
 use std::cell::RefCell;
 use std::collections::HashMap;
 mod class;
+mod class_list;
 mod constants;
 mod heap_values;
 mod layout;
 
 pub mod heap_types;
 
+use class_list::ClassList;
 use constants::*;
 use heap_types::*;
 use heap_values::*;
@@ -25,8 +27,7 @@ pub struct Heap {
     size: isize,
     free_list: RefCell<FreeList>,
     tag_size: isize,
-    container_sizes: HashMap<u16, usize>,
-    next_container_type: u16,
+    pub classes: ClassList,
     /// We initialize this to the empty stack. Before calling [Heap::gc()], the
     /// shadow stack must contain all GC roots.
     shadow_stack: RefCell<Vec<Vec<*mut Tag>>>,
@@ -128,26 +129,16 @@ impl Heap {
         let buffer = unsafe { alloc::alloc_zeroed(layout) };
         let free_list = RefCell::new(FreeList::new(buffer, size));
         let tag_size = layout::layout_aligned::<Tag>(ALIGNMENT).size() as isize;
-        let container_sizes = HashMap::new();
-        let next_container_type = 0;
+        let classes = ClassList::new();
         let shadow_stack = RefCell::default();
         return Heap {
             buffer,
             size,
             free_list,
             tag_size,
-            container_sizes,
-            next_container_type,
+            classes,
             shadow_stack,
         };
-    }
-
-    #[allow(unused)] // remove after we extern
-    pub fn new_container_type(&mut self, num_elements: usize) -> u16 {
-        let type_tag = self.next_container_type;
-        self.next_container_type += 1;
-        self.container_sizes.insert(type_tag, num_elements);
-        return type_tag;
     }
 
     /**
@@ -180,8 +171,8 @@ impl Heap {
 
     #[allow(unused)] // remove after we extern
     pub fn alloc_container(&self, type_tag: u16) -> Option<ClassPtr> {
-        let num_elements = self.container_sizes.get(&type_tag).unwrap();
-        let elements_size = Layout::array::<Option<&Tag>>(*num_elements).unwrap().size() as isize;
+        let num_elements = self.classes.get_container_size(&type_tag);
+        let elements_size = Layout::array::<Option<&Tag>>(num_elements).unwrap().size() as isize;
         let opt_ptr = self
             .free_list
             .borrow_mut()
@@ -194,7 +185,7 @@ impl Heap {
                 unsafe {
                     tag_ptr.write(Tag::object(type_tag));
                 }
-                let values_slice = unsafe { tag_ref.slice_ref::<Option<&mut Tag>>(*num_elements) };
+                let values_slice = unsafe { tag_ref.slice_ref::<Option<&mut Tag>>(num_elements) };
                 for ptr in values_slice.iter_mut() {
                     *ptr = None;
                 }
@@ -248,10 +239,7 @@ impl Heap {
                     continue;
                 }
                 let class_tag = tag.class_tag; // needed since .class_tag is packed
-                let num_ptrs = *self
-                    .container_sizes
-                    .get(&class_tag)
-                    .expect("unknown class tag");
+                let num_ptrs = self.classes.get_container_size(&class_tag);
                 let members_ptr: *mut *mut Tag = unsafe { data_ptr(root) };
                 let members = unsafe { std::slice::from_raw_parts(members_ptr, num_ptrs) };
                 new_roots.extend_from_slice(members);

@@ -1,4 +1,6 @@
+use super::class_list::ClassDef;
 use super::*;
+use crate::string::str_as_ptr;
 use wasm_bindgen_test::*;
 
 #[test]
@@ -13,22 +15,40 @@ fn allocs() {
     assert!(heap.alloc(12).is_none());
 }
 
-
 #[test]
 #[wasm_bindgen_test]
 fn trivial_gc() {
     let heap = Heap::new((ALIGNMENT * 4) as isize);
     let x = heap.alloc(32).expect("first allocation failed");
-    assert_eq!(*x.get(), 32, "first value was not written to the heap correctly");
+    assert_eq!(
+        *x.get(),
+        32,
+        "first value was not written to the heap correctly"
+    );
     let y = heap.alloc(64).expect("second allocation failed");
-    assert_eq!(*y.get(), 64, "second value was not written to the heap correctly");
-    assert_eq!(*x.get(), 32, "second allocation corrupted the first value on the heap");
-    assert!(heap.alloc(12).is_none(), "third allocation should fail due to lack of space");
+    assert_eq!(
+        *y.get(),
+        64,
+        "second value was not written to the heap correctly"
+    );
+    assert_eq!(
+        *x.get(),
+        32,
+        "second allocation corrupted the first value on the heap"
+    );
+    assert!(
+        heap.alloc(12).is_none(),
+        "third allocation should fail due to lack of space"
+    );
     heap.push_shadow_frame(&[x.get_ptr()]);
     unsafe { heap.gc() };
     let z = heap.alloc(128).expect("GC failed to free enough memory");
     assert_eq!(*z.get(), 128, "allocation should succeed after GC");
-    assert_eq!(*x.get(), 32, "allocation after GC corrupted the first value on the heap");
+    assert_eq!(
+        *x.get(),
+        32,
+        "allocation after GC corrupted the first value on the heap"
+    );
 }
 
 #[test]
@@ -47,7 +67,10 @@ fn update_prims() {
 #[wasm_bindgen_test]
 fn alloc_container1() {
     let mut heap = Heap::new(64);
-    let type_tag = heap.new_container_type(2);
+    let empty_type = heap.classes.new_container_type(ClassDef::new());
+    let one_type = heap.classes.transition(empty_type, str_as_ptr("x"));
+    let type_tag = heap.classes.transition(one_type, str_as_ptr("y"));
+    println!("{}", type_tag);
     heap.alloc(32).expect("first alloc");
     let container = heap.alloc_container(type_tag).expect("second alloc");
     assert_eq!(container.read_at(&heap, 0), None);
@@ -57,7 +80,9 @@ fn alloc_container1() {
 #[test]
 fn alloc_container2() {
     let mut heap = Heap::new(40);
-    let type_tag = heap.new_container_type(2);
+    let empty_type = heap.classes.new_container_type(ClassDef::new());
+    let one_type = heap.classes.transition(empty_type, str_as_ptr("x"));
+    let type_tag = heap.classes.transition(one_type, str_as_ptr("y"));
     let container = heap.alloc_container(type_tag).expect("second alloc");
     let mut x = heap.alloc(200).expect("second alloc");
     container.write_at(&heap, 0, x);
@@ -72,7 +97,9 @@ fn alloc_container2() {
 #[test]
 fn alloc_container3() {
     let mut heap = Heap::new(40);
-    let type_tag = heap.new_container_type(2);
+    let empty_type = heap.classes.new_container_type(ClassDef::new());
+    let one_type = heap.classes.transition(empty_type, str_as_ptr("x"));
+    let type_tag = heap.classes.transition(one_type, str_as_ptr("y"));
     let container = heap.alloc_container(type_tag).expect("second alloc");
     let mut x = heap.alloc(200).expect("second alloc");
     container.write_at(&heap, 1, x);
