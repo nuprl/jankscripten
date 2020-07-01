@@ -132,23 +132,8 @@ where
         use Expr::*;
         self.visitor.enter_expr(expr, loc);
         match expr {
-            // 1x[Expr]
-            //Array(es) => {
-            //    for e in es {
-            //        self.walk_expr(e, loc);
-            //    }
-            //}
-            //// 1x[(_, Expr)]
-            //Object(ks_es) => {
-            //    for (_, e) in ks_es {
-            //        self.walk_expr(e, loc);
-            //    }
-            //}
-            //// 1xExpr
-            //Dot(e, ..) | Unary(.., e) => self.walk_expr(e, loc),
-            //// 2xExpr
-            HT(..) | Array(..) | Call(..)  => (),
-            HTSet(ea, eb, ec, ..) => {
+            ObjectEmpty | HT(..) | Array(..) | Call(..) => (),
+            HTSet(ea, eb, ec, ..) | ObjectSet(ea, eb, ec, ..) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
                 self.walk_atom(ec, loc);
@@ -157,7 +142,7 @@ where
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
             }
-            ToString(a) | Atom(a, ..) => self.walk_atom(a, loc),
+            ToString(a) | ToAny(a, ..) | Atom(a, ..) => self.walk_atom(a, loc),
         }
         self.visitor.exit_expr(expr, loc);
     }
@@ -171,7 +156,7 @@ where
             StringLen(ea) | ArrayLen(ea, ..) | Unary(.., ea) => {
                 self.walk_atom(ea, loc);
             }
-            HTGet(ea, eb, ..) | Binary(.., ea, eb) | Index(ea, eb, ..) => {
+            HTGet(ea, eb, ..) | ObjectGet(ea, eb, ..) | Binary(.., ea, eb) | Index(ea, eb, ..) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
             }

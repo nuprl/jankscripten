@@ -89,7 +89,6 @@ impl<'a> ObjectPtr<'a> {
     /// TODO: updating this pointer in particular isn't enough. i think we
     /// have to have a double-pointer situation
     /// (ObjectPtr -> ArrayPtr -> [u8; n])
-    #[allow(unused)] // remove after we extern
     pub fn insert<P: HeapPtr>(self, heap: &'a Heap, name: StrPtr, value: P) -> Option<Self> {
         let data = unsafe { &*self.ptr };
         let class_tag = data.tag.class_tag;
@@ -105,7 +104,7 @@ impl<'a> ObjectPtr<'a> {
                 drop(class);
                 let new_tag = classes.transition(class_tag, name);
                 drop(classes);
-                let new_object = heap.alloc_class(new_tag)?;
+                let new_object = heap.alloc_object(new_tag)?;
                 for i in 0..size {
                     if let Some(val) = self.read_at(heap, i) {
                         new_object.write_at(heap, i, val);
@@ -115,5 +114,14 @@ impl<'a> ObjectPtr<'a> {
                 Some(new_object)
             }
         }
+    }
+
+    pub fn get(&self, heap: &'a Heap, name: StrPtr) -> Option<AnyPtr<'a>> {
+        let data = unsafe { &*self.ptr };
+        let class_tag = data.tag.class_tag;
+        let classes = heap.classes.borrow();
+        let class = classes.get_class(class_tag);
+        let offset = class.lookup(name)?;
+        self.read_at(heap, offset)
     }
 }

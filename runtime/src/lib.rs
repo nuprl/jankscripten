@@ -25,6 +25,7 @@ pub mod any;
 pub mod array;
 pub mod ht;
 pub mod num;
+pub mod object;
 pub mod string;
 
 mod allocator;

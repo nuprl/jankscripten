@@ -5,7 +5,6 @@ use super::constants::*;
 use super::heap_types::*;
 use super::layout;
 use super::*;
-use crate::Any;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
@@ -95,10 +94,10 @@ pub struct AnyPtr<'a> {
 pub enum HeapRefView<'a> {
     I32(I32Ptr<'a>),
     String(StringPtr<'a>),
-    HTAny(HTPtr<'a, Any>),
+    HTAny(HTPtr<'a, AnyJSPtr<'a>>),
     HTI32(HTPtr<'a, i32>),
     HTF64(HTPtr<'a, f64>),
-    ArrayAny(ArrayPtr<'a, Any>),
+    ArrayAny(ArrayPtr<'a, AnyJSPtr<'a>>),
     ArrayI32(ArrayPtr<'a, i32>),
     Any(AnyJSPtr<'a>),
     Class(ObjectPtr<'a>),
@@ -152,7 +151,7 @@ impl<'a> AnyPtr<'a> {
                 HeapRefView::String(unsafe { StringPtr::new_tag_unchecked(self.ptr) })
             }
             TypeTag::HTAny => {
-                HeapRefView::HTAny(unsafe { HTPtr::<Any>::new_tag_unchecked(self.ptr) })
+                HeapRefView::HTAny(unsafe { HTPtr::<AnyJSPtr<'a>>::new_tag_unchecked(self.ptr) })
             }
             TypeTag::HTI32 => {
                 HeapRefView::HTI32(unsafe { HTPtr::<i32>::new_tag_unchecked(self.ptr) })
@@ -160,9 +159,9 @@ impl<'a> AnyPtr<'a> {
             TypeTag::HTF64 => {
                 HeapRefView::HTF64(unsafe { HTPtr::<f64>::new_tag_unchecked(self.ptr) })
             }
-            TypeTag::ArrayAny => {
-                HeapRefView::ArrayAny(unsafe { ArrayPtr::<Any>::new_tag_unchecked(self.ptr) })
-            }
+            TypeTag::ArrayAny => HeapRefView::ArrayAny(unsafe {
+                ArrayPtr::<AnyJSPtr<'a>>::new_tag_unchecked(self.ptr)
+            }),
             TypeTag::ArrayI32 => {
                 HeapRefView::ArrayI32(unsafe { ArrayPtr::<i32>::new_tag_unchecked(self.ptr) })
             }

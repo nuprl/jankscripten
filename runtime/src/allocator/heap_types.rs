@@ -19,8 +19,8 @@ pub type StringPtr<'a> = TypePtr<'a, String>;
 impl HasTag for String {
     const TYPE_TAG: TypeTag = TypeTag::String;
 }
-pub type AnyJSPtr<'a> = TypePtr<'a, Any>;
-impl HasTag for Any {
+pub type AnyJSPtr<'a> = TypePtr<'a, Any<'a>>;
+impl<'a> HasTag for Any<'a> {
     const TYPE_TAG: TypeTag = TypeTag::Any;
 }
 

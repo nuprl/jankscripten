@@ -18,7 +18,8 @@ pub struct ClassList {
 impl ClassList {
     pub fn new() -> Self {
         Self {
-            classes: Vec::new(),
+            // initialize with empty object
+            classes: vec![Class::new()],
         }
     }
     pub fn new_class_type(&mut self, class: Class) -> u16 {

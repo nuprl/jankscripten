@@ -10,6 +10,7 @@ mod layout;
 mod object_ptr;
 
 pub mod heap_types;
+pub use heap_values::HeapRefView;
 
 use class_list::ClassList;
 use constants::*;
@@ -169,7 +170,7 @@ impl Heap {
     }
 
     #[allow(unused)] // remove after we extern
-    pub fn alloc_class(&self, type_tag: u16) -> Option<ObjectPtr> {
+    pub fn alloc_object(&self, type_tag: u16) -> Option<ObjectPtr> {
         let num_elements = self.get_class_size(type_tag);
         let elements_size = Layout::array::<Option<&Tag>>(num_elements).unwrap().size() as isize;
         let opt_ptr = self

@@ -24,6 +24,9 @@ pub fn get_id_<S: Into<String>>(a: S) -> Atom {
 pub fn ht_get_(a: Atom, b: Atom, ty: Type) -> Atom {
     Atom::HTGet(Box::new(a), Box::new(b), ty)
 }
+pub fn object_get_(a: Atom, b: Atom, ty: Type) -> Atom {
+    Atom::ObjectGet(Box::new(a), Box::new(b), ty)
+}
 pub fn index_(a: Atom, b: Atom, ty: Type) -> Atom {
     Atom::Index(Box::new(a), Box::new(b), ty)
 }

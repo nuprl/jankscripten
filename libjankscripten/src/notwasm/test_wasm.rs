@@ -105,10 +105,27 @@ fn test_ht() {
         r#"
         function main(): f64 {
             var x: HT(f64) = f64{};
-            x.one: f64 = 1f;
-            x.two: f64 = 2f;
-            x.three: f64 = 3f;
-            return x.one: f64;
+            x:one: f64 = 1f;
+            x:two: f64 = 2f;
+            x:three: f64 = 3f;
+            return x:one: f64;
+        }
+        "#,
+    );
+    test_wasm(1., program);
+}
+
+#[test]
+fn objects() {
+    let program = parse(
+        r#"
+        function main(): f64 {
+            var obj: AnyClass = {};
+            obj.x: f64 = 3.;
+            obj.y: f64 = 2.;
+            obj.x: f64 = 1.;
+            obj.z: f64 = 3.;
+            return obj.x: f64;
         }
         "#,
     );

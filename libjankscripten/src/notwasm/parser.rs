@@ -104,6 +104,19 @@ parser! {
             .and(id(lang))
             .skip(lang.reserved_op(":"))
             .and(type_(lang))
+            .map(|((x, field), ty)|
+                ctor::object_get_(
+                    Atom::Id(x),
+                    ctor::str_(field.into_name()),
+                    ty
+                )
+            ))
+        )
+        .or(attempt(id(lang)
+            .skip(lang.reserved_op(":"))
+            .and(id(lang))
+            .skip(lang.reserved_op(":"))
+            .and(type_(lang))
             .map(|((x, field), ty)| if field == ctor::id_("length") {
                 ctor::array_len_(Atom::Id(x), ty)
             } else {
@@ -137,6 +150,7 @@ parser! {
     {
         attempt(type_(lang).skip(lang.reserved_op("[]")).map(|ty| Expr::Array(ty)))
         .or(type_(lang).skip(lang.reserved_op("{}")).map(|ty| Expr::HT(ty)))
+        .or(lang.reserved_op("{}").map(|_| Expr::ObjectEmpty))
         .or(lang.reserved("arrayPush")
             .with(lang.parens(atom(lang).skip(lang.reserved_op(",")).and(atom(lang))))
             .skip(lang.reserved_op(":"))
@@ -163,6 +177,7 @@ parser! {
                 .and(type_(lang))
                 .map(|(args, result)| Type::Fn(args, Box::new(Some(result)))))
             .or(lang.reserved("f64").with(value(Type::F64)))
+            .or(lang.reserved("AnyClass").with(value(Type::AnyClass)))
             .or(lang.reserved("HT").with(lang.parens(type_(lang))).map(|t| ctor::ht_ty_(t)))
             .or(lang.reserved("Array").with(lang.parens(type_(lang))).map(|t| ctor::array_ty_(t)))
     }
@@ -194,7 +209,7 @@ parser! {
                IdRhsInStmt::Stmt(s) => ctor::label_(x.into_name(), s)
            }));
 
-        let ht_set = id(lang)
+        let object_set = id(lang)
             .skip(lang.reserved_op("."))
             .and(id(lang))
             .skip(lang.reserved_op(":"))
@@ -204,7 +219,7 @@ parser! {
             .skip(lang.reserved_op(";"))
             .map(|(((ht, field), ty), atom)| Stmt::Var(
                 ctor::id_("_"),
-                ctor::ht_set_(
+                Expr::ObjectSet(
                     Atom::Id(ht),
                     ctor::str_(field.into_name()),
                     atom,
@@ -212,6 +227,25 @@ parser! {
                 ),
                 ty,
             ));
+
+        let ht_set = attempt(id(lang)
+            .skip(lang.reserved_op(":"))
+            .and(id(lang))
+            .skip(lang.reserved_op(":"))
+            .and(type_(lang))
+            .skip(lang.reserved_op("="))
+            .and(atom(lang))
+            .skip(lang.reserved_op(";"))
+            .map(|(((ht, field), ty), atom)| Stmt::Var(
+                ctor::id_("_"),
+                Expr::HTSet(
+                    Atom::Id(ht),
+                    ctor::str_(field.into_name()),
+                    atom,
+                    ty.clone(),
+                ),
+                ty,
+            )));
 
         let if_ = lang.reserved("if")
             .with(lang.parens(atom(lang)))
@@ -248,7 +282,8 @@ parser! {
             loop_,
             break_,
             assign_or_label,
-            ht_set
+            ht_set,
+            object_set
         ))
     }
 }

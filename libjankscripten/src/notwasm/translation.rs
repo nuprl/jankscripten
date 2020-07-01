@@ -391,6 +391,17 @@ impl<'a> Translate<'a> {
                 self.translate_atom(val);
                 self.rt_call_mono("ht_set", ty);
             }
+            N::Expr::ObjectSet(obj, field, val, ty) => {
+                self.translate_atom(obj);
+                self.translate_atom(field);
+                self.translate_atom(val);
+                // only runs on any
+                self.rt_call_mono("any", ty);
+                self.rt_call("object_set");
+            }
+            N::Expr::ObjectEmpty => {
+                self.rt_call("object_empty");
+            }
             N::Expr::Push(array, val, ty) => {
                 self.translate_atom(array);
                 self.translate_atom(val);
@@ -427,10 +438,13 @@ impl<'a> Translate<'a> {
                     _ => panic!("expected Func ID"),
                 };
             }
-
             N::Expr::ToString(a) => {
                 self.translate_atom(a);
                 self.rt_call("string_from_ptr");
+            }
+            N::Expr::ToAny(a, ty) => {
+                self.translate_atom(a);
+                self.rt_call_mono("any", ty);
             }
         }
     }
@@ -453,6 +467,13 @@ impl<'a> Translate<'a> {
                 self.translate_atom(ht);
                 self.translate_atom(field);
                 self.rt_call_mono("ht_get", ty);
+            }
+            N::Atom::ObjectGet(obj, field, ty) => {
+                self.translate_atom(obj);
+                self.translate_atom(field);
+                // only runs on any
+                self.rt_call("object_get");
+                self.rt_call_mono("any_to", ty);
             }
             N::Atom::Index(ht, index, ty) => {
                 self.translate_atom(ht);
