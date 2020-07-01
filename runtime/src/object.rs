@@ -15,14 +15,19 @@ pub extern "C" fn object_set<'a>(
     mut object: ObjectPtr<'a>,
     field: StrPtr,
     value: AnyJSPtr<'a>,
+    cache: &mut isize,
 ) -> AnyJSPtr<'a> {
-    object.insert(heap(), field, value);
+    object.insert(heap(), field, value, cache);
     value
 }
 
 #[no_mangle]
-pub extern "C" fn object_get<'a>(object: ObjectPtr<'a>, field: StrPtr) -> AnyJSPtr<'a> {
-    match object.get(heap(), field).unwrap().view() {
+pub extern "C" fn object_get<'a>(
+    object: ObjectPtr<'a>,
+    field: StrPtr,
+    cache: &mut isize,
+) -> AnyJSPtr<'a> {
+    match object.get(heap(), field, cache).unwrap().view() {
         HeapRefView::Any(p) => p,
         _ => panic!("not an any. TODO: might want to use AnyPtr as Any"),
     }

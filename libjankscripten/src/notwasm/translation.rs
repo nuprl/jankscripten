@@ -397,6 +397,7 @@ impl<'a> Translate<'a> {
                 self.translate_atom(val);
                 // only runs on any
                 self.rt_call_mono("any", ty);
+                self.data_cache();
                 self.rt_call("object_set");
                 // back it back out lol
                 self.rt_call_mono("any_to", ty);
@@ -473,6 +474,7 @@ impl<'a> Translate<'a> {
             N::Atom::ObjectGet(obj, field, ty) => {
                 self.translate_atom(obj);
                 self.translate_atom(field);
+                self.data_cache();
                 // only runs on any
                 self.rt_call("object_get");
                 self.rt_call_mono("any_to", ty);
@@ -532,9 +534,9 @@ impl<'a> Translate<'a> {
         self.out.push(GetGlobal(JNKS_STRINGS_IDX));
         self.out.push(I32Const(self.data.len() as i32));
         self.out.push(I32Add);
-        // push it out by the pointer length in nulls
-        // allocs(4) | ptr(4)
-        self.data.extend(&[0; 8]);
+        // -1 is our placeholder
+        self.data
+            .extend(&unsafe { std::mem::transmute::<_, [u8; 4]>((-1i32).to_le()) });
     }
 }
 

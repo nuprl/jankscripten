@@ -51,7 +51,11 @@ impl From<StrPtr> for &str {
 }
 impl PartialEq for StrPtr {
     fn eq(&self, other: &StrPtr) -> bool {
-        str_from_ptr(*self) == str_from_ptr(*other)
+        if self.ptr == other.ptr {
+            true
+        } else {
+            str_from_ptr(*self) == str_from_ptr(*other)
+        }
     }
 }
 impl std::hash::Hash for StrPtr {

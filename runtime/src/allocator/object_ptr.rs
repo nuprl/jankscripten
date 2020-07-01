@@ -1,4 +1,5 @@
 use super::super::StrPtr;
+use super::constants::DATA_OFFSET;
 use super::heap_values::*;
 use super::{Heap, ALIGNMENT};
 use std::marker::PhantomData;
@@ -52,17 +53,15 @@ impl<'a> ObjectDataPtr<'a> {
 
     pub fn class_tag(&self) -> u16 {
         let tag = unsafe { *self.ptr };
-        assert_eq!(tag.type_tag, TypeTag::Class);
+        debug_assert_eq!(tag.type_tag, TypeTag::Class);
         tag.class_tag
     }
 
     pub fn read_at(&self, heap: &'a Heap, index: usize) -> Option<AnyPtr<'a>> {
-        let type_tag = self.class_tag();
-        let len = heap.get_class_size(type_tag);
-        assert!(index < len);
-        let values = unsafe { self.ptr.add(1) as *mut *mut Tag };
+        println!("{:?}", self.ptr);
+        debug_assert!(index < heap.get_class_size(self.class_tag()));
+        let values = unsafe { self.ptr.add(DATA_OFFSET) as *mut *mut Tag };
         let ptr = unsafe { *values.add(index) };
-
         if ptr.is_null() {
             None
         } else {
@@ -71,10 +70,8 @@ impl<'a> ObjectDataPtr<'a> {
     }
 
     pub fn write_at<P: HeapPtr>(&self, heap: &'a Heap, index: usize, value: P) {
-        let type_tag = self.class_tag();
-        let len = heap.get_class_size(type_tag);
-        assert!(index < len);
-        let values = unsafe { self.ptr.add(1) as *mut *mut Tag };
+        debug_assert!(index < heap.get_class_size(self.class_tag()));
+        let values = unsafe { self.ptr.add(DATA_OFFSET) as *mut *mut Tag };
         let ptr = unsafe { values.add(index) };
         unsafe {
             ptr.write(value.get_ptr());
@@ -84,11 +81,17 @@ impl<'a> ObjectDataPtr<'a> {
     /// if name is found, write to it. if not, transition, clone, write, and
     /// return new pointer. this should be called by ObjectPtr only
     #[must_use]
-    fn insert<P: HeapPtr + Copy>(self, heap: &'a Heap, name: StrPtr, value: P) -> Option<Self> {
+    fn insert<P: HeapPtr + Copy>(
+        self,
+        heap: &'a Heap,
+        name: StrPtr,
+        value: P,
+        cache: &mut isize,
+    ) -> Option<Self> {
         let class_tag = self.class_tag();
         let mut classes = heap.classes.borrow_mut();
         let class = classes.get_class(class_tag);
-        match class.lookup(name) {
+        match class.lookup(name, cache) {
             Some(offset) => {
                 drop(class);
                 drop(classes);
@@ -112,11 +115,11 @@ impl<'a> ObjectDataPtr<'a> {
         }
     }
 
-    pub fn get(&self, heap: &'a Heap, name: StrPtr) -> Option<AnyPtr<'a>> {
+    pub fn get(&self, heap: &'a Heap, name: StrPtr, cache: &mut isize) -> Option<AnyPtr<'a>> {
         let class_tag = self.class_tag();
         let classes = heap.classes.borrow();
         let class = classes.get_class(class_tag);
-        let offset = class.lookup(name)?;
+        let offset = class.lookup(name, cache)?;
         self.read_at(heap, offset)
     }
 }
@@ -138,22 +141,23 @@ impl<'a> ObjectPtr<'a> {
         heap: &'a Heap,
         name: StrPtr,
         value: P,
+        cache: &mut isize,
     ) -> Option<P> {
         let data = &mut **self;
-        let new = data.insert(heap, name, value)?;
-        unsafe { *(self.ptr.add(1) as *mut ObjectDataPtr) = new };
+        let new = data.insert(heap, name, value, cache)?;
+        unsafe { *(self.ptr.add(DATA_OFFSET) as *mut ObjectDataPtr) = new };
         Some(value)
     }
 }
 impl<'a> Deref for ObjectPtr<'a> {
     type Target = ObjectDataPtr<'a>;
     fn deref(&self) -> &Self::Target {
-        unsafe { &*(self.ptr.add(1) as *const ObjectDataPtr) }
+        unsafe { &*(self.ptr.add(DATA_OFFSET) as *const ObjectDataPtr) }
     }
 }
 impl<'a> DerefMut for ObjectPtr<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { &mut *(self.ptr.add(1) as *mut ObjectDataPtr) }
+        unsafe { &mut *(self.ptr.add(DATA_OFFSET) as *mut ObjectDataPtr) }
     }
 }
 impl<'a> HeapPtr for ObjectPtr<'a> {
@@ -161,6 +165,6 @@ impl<'a> HeapPtr for ObjectPtr<'a> {
         self.ptr
     }
     fn get_data_size(&self, _heap: &Heap) -> usize {
-        4
+        ALIGNMENT
     }
 }

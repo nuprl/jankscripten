@@ -64,11 +64,21 @@ impl Class {
             transitions: Vec::new(),
         }
     }
-    pub fn lookup(&self, name: StrPtr) -> Option<usize> {
-        self.offsets
-            .iter()
-            .find(|(offset_name, _)| offset_name == &name)
-            .map(|(_, index)| *index)
+    pub fn lookup(&self, name: StrPtr, cache: &mut isize) -> Option<usize> {
+        if *cache != -1 {
+            // TODO: this works for static indexes, but we have to check
+            // that index is correct and fall back when dynamic is used. there
+            // should be a flag or two functions or something
+            Some(*cache as usize)
+        } else {
+            self.offsets
+                .iter()
+                .find(|(offset_name, _)| offset_name == &name)
+                .map(|(_, index)| {
+                    *cache = *index as isize;
+                    *index
+                })
+        }
     }
     fn lookup_transition(&self, name: StrPtr) -> Option<u16> {
         self.transitions

@@ -67,18 +67,25 @@ fn update_prims() {
 #[wasm_bindgen_test]
 fn alloc_container1() {
     let heap = Heap::new(64);
+    println!("1");
     let empty_type = heap.classes.borrow_mut().new_class_type(Class::new());
+    println!("2");
     let one_type = heap
         .classes
         .borrow_mut()
         .transition(empty_type, str_as_ptr("x"));
+    println!("3");
     let type_tag = heap
         .classes
         .borrow_mut()
         .transition(one_type, str_as_ptr("y"));
+    println!("4");
     heap.alloc(32).expect("first alloc");
+    println!("5");
     let container = heap.alloc_object(type_tag).expect("second alloc");
+    println!("6");
     assert_eq!(container.read_at(&heap, 0), None);
+    println!("7");
     assert_eq!(container.read_at(&heap, 1), None);
 }
 
@@ -89,12 +96,30 @@ fn insert_object() {
     let empty_type = heap.classes.borrow_mut().new_class_type(Class::new());
     let x = heap.alloc(32).expect("first alloc");
     let mut obj = heap.alloc_object(empty_type).expect("second alloc");
+    let mut cache = -1;
     assert_eq!(
-        *obj.insert(&heap, str_as_ptr("x"), x)
+        *obj.insert(&heap, str_as_ptr("x"), x, &mut cache)
             .expect("couldn't allocate again"),
         32
     );
-    match obj.get(&heap, str_as_ptr("x")).expect("no x").view() {
+    assert_eq!(
+        *obj.insert(&heap, str_as_ptr("x"), x, &mut cache)
+            .expect("couldn't find cached offset"),
+        32
+    );
+    match obj
+        .get(&heap, str_as_ptr("x"), &mut cache)
+        .expect("no x")
+        .view()
+    {
+        HeapRefView::I32(i) => assert_eq!(*i, 32),
+        _ => panic!("not an int"),
+    }
+    match obj
+        .get(&heap, str_as_ptr("x"), &mut -1)
+        .expect("no x")
+        .view()
+    {
         HeapRefView::I32(i) => assert_eq!(*i, 32),
         _ => panic!("not an int"),
     }
@@ -102,7 +127,7 @@ fn insert_object() {
 
 #[test]
 fn alloc_container2() {
-    let heap = Heap::new(40);
+    let heap = Heap::new(64);
     let empty_type = heap.classes.borrow_mut().new_class_type(Class::new());
     let one_type = heap
         .classes
@@ -125,7 +150,7 @@ fn alloc_container2() {
 
 #[test]
 fn alloc_container3() {
-    let heap = Heap::new(40);
+    let heap = Heap::new(64);
     let empty_type = heap.classes.borrow_mut().new_class_type(Class::new());
     let one_type = heap
         .classes
