@@ -1,5 +1,4 @@
 use super::super::StrPtr;
-use super::constants::*;
 use super::heap_values::*;
 use super::{Heap, ALIGNMENT};
 use std::marker::PhantomData;
@@ -38,7 +37,7 @@ impl<'a> HeapPtr for ClassPtr<'a> {
     fn get_data_size(&self, heap: &Heap) -> usize {
         let tag = unsafe { (*self.ptr).tag };
         let class_tag = tag.class_tag;
-        let num_elements = heap.classes.get_container_size(&class_tag);
+        let num_elements = heap.get_container_size(class_tag);
         return num_elements * ALIGNMENT;
     }
 }
@@ -62,7 +61,7 @@ impl<'a> ClassPtr<'a> {
 
     pub fn read_at(&self, heap: &'a Heap, index: usize) -> Option<AnyPtr<'a>> {
         let type_tag = self.class_tag();
-        let len = heap.classes.get_container_size(&type_tag);
+        let len = heap.get_container_size(type_tag);
         assert!(index < len);
         let values = unsafe { &mut (*self.ptr).fields as *mut *mut Tag };
         let ptr = unsafe { *values.add(index) };
@@ -76,12 +75,45 @@ impl<'a> ClassPtr<'a> {
 
     pub fn write_at<P: HeapPtr>(&self, heap: &'a Heap, index: usize, value: P) {
         let type_tag = self.class_tag();
-        let len = heap.classes.get_container_size(&type_tag);
+        let len = heap.get_container_size(type_tag);
         assert!(index < len);
         let values = unsafe { &mut (*self.ptr).fields as *mut *mut Tag };
         let ptr = unsafe { values.add(index) };
         unsafe {
             ptr.write(value.get_ptr());
+        }
+    }
+
+    /// if name is found, write to it. if not, transition, clone, write, and
+    /// update pointer
+    /// TODO: updating this pointer in particular isn't enough. i think we
+    /// have to have a double-pointer situation
+    /// (ObjectPtr -> ArrayPtr -> [u8; n])
+    #[allow(unused)] // remove after we extern
+    pub fn insert<P: HeapPtr>(self, heap: &'a Heap, name: StrPtr, value: P) -> Option<Self> {
+        let data = unsafe { &*self.ptr };
+        let class_tag = data.tag.class_tag;
+        let mut classes = heap.classes.borrow_mut();
+        let class = classes.get_class(class_tag);
+        match class.lookup(name) {
+            Some(offset) => {
+                self.write_at(heap, offset, value);
+                Some(self)
+            }
+            None => {
+                let size = class.size;
+                drop(class);
+                let new_tag = classes.transition(class_tag, name);
+                drop(classes);
+                let new_object = heap.alloc_container(new_tag)?;
+                for i in 0..size {
+                    if let Some(val) = self.read_at(heap, i) {
+                        new_object.write_at(heap, i, val);
+                    }
+                }
+                new_object.write_at(heap, size, value);
+                Some(new_object)
+            }
         }
     }
 }

@@ -66,11 +66,19 @@ fn update_prims() {
 #[test]
 #[wasm_bindgen_test]
 fn alloc_container1() {
-    let mut heap = Heap::new(64);
-    let empty_type = heap.classes.new_container_type(ClassDef::new());
-    let one_type = heap.classes.transition(empty_type, str_as_ptr("x"));
-    let type_tag = heap.classes.transition(one_type, str_as_ptr("y"));
-    println!("{}", type_tag);
+    let heap = Heap::new(64);
+    let empty_type = heap
+        .classes
+        .borrow_mut()
+        .new_container_type(ClassDef::new());
+    let one_type = heap
+        .classes
+        .borrow_mut()
+        .transition(empty_type, str_as_ptr("x"));
+    let type_tag = heap
+        .classes
+        .borrow_mut()
+        .transition(one_type, str_as_ptr("y"));
     heap.alloc(32).expect("first alloc");
     let container = heap.alloc_container(type_tag).expect("second alloc");
     assert_eq!(container.read_at(&heap, 0), None);
@@ -78,11 +86,39 @@ fn alloc_container1() {
 }
 
 #[test]
+#[wasm_bindgen_test]
+fn insert_object() {
+    let heap = Heap::new(64);
+    let empty_type = heap
+        .classes
+        .borrow_mut()
+        .new_container_type(ClassDef::new());
+    let x = heap.alloc(32).expect("first alloc");
+    let empty = heap.alloc_container(empty_type).expect("second alloc");
+    let with_x = empty
+        .insert(&heap, str_as_ptr("x"), x)
+        .expect("couldn't allocate again");
+    match with_x.read_at(&heap, 0).expect("no 0").view() {
+        HeapRefView::I32(i) => assert_eq!(*i, 32),
+        _ => panic!("not an int"),
+    }
+}
+
+#[test]
 fn alloc_container2() {
-    let mut heap = Heap::new(40);
-    let empty_type = heap.classes.new_container_type(ClassDef::new());
-    let one_type = heap.classes.transition(empty_type, str_as_ptr("x"));
-    let type_tag = heap.classes.transition(one_type, str_as_ptr("y"));
+    let heap = Heap::new(40);
+    let empty_type = heap
+        .classes
+        .borrow_mut()
+        .new_container_type(ClassDef::new());
+    let one_type = heap
+        .classes
+        .borrow_mut()
+        .transition(empty_type, str_as_ptr("x"));
+    let type_tag = heap
+        .classes
+        .borrow_mut()
+        .transition(one_type, str_as_ptr("y"));
     let container = heap.alloc_container(type_tag).expect("second alloc");
     let mut x = heap.alloc(200).expect("second alloc");
     container.write_at(&heap, 0, x);
@@ -96,10 +132,19 @@ fn alloc_container2() {
 
 #[test]
 fn alloc_container3() {
-    let mut heap = Heap::new(40);
-    let empty_type = heap.classes.new_container_type(ClassDef::new());
-    let one_type = heap.classes.transition(empty_type, str_as_ptr("x"));
-    let type_tag = heap.classes.transition(one_type, str_as_ptr("y"));
+    let heap = Heap::new(40);
+    let empty_type = heap
+        .classes
+        .borrow_mut()
+        .new_container_type(ClassDef::new());
+    let one_type = heap
+        .classes
+        .borrow_mut()
+        .transition(empty_type, str_as_ptr("x"));
+    let type_tag = heap
+        .classes
+        .borrow_mut()
+        .transition(one_type, str_as_ptr("y"));
     let container = heap.alloc_container(type_tag).expect("second alloc");
     let mut x = heap.alloc(200).expect("second alloc");
     container.write_at(&heap, 1, x);

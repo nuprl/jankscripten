@@ -1,49 +1,72 @@
 use crate::string::StrPtr;
-use std::collections::HashMap;
 
 pub struct ClassList {
-    classes: HashMap<u16, ClassDef>,
-    next_class_type: u16,
+    /// a HashMap to look up our class is obviously a non-starter when
+    /// classes are meant to optimize HashMap lookup
+    /// next class type is simply classes.len
+    classes: Vec<ClassDef>,
 }
 
 impl ClassList {
     pub fn new() -> Self {
         Self {
-            classes: HashMap::new(),
-            next_class_type: 0,
+            classes: Vec::new(),
         }
     }
     pub fn new_container_type(&mut self, class: ClassDef) -> u16 {
-        let type_tag = self.next_class_type;
-        self.next_class_type += 1;
-        self.classes.insert(type_tag, class);
-        return type_tag;
+        let type_tag = self.classes.len() as u16;
+        self.classes.push(class);
+        type_tag
     }
-    pub fn get_container_size(&self, container_type: &u16) -> usize {
-        self.classes[container_type].size
+    pub fn get_container_size(&self, container_type: u16) -> usize {
+        self.get_class(container_type).size
     }
+    pub fn get_class(&self, class_tag: u16) -> &ClassDef {
+        &self.classes.get(class_tag as usize).unwrap()
+    }
+    /// look up transitions, if none is relevant make one, and return new
+    /// class tag
     pub fn transition(&mut self, class_tag: u16, name: StrPtr) -> u16 {
-        // create a new class
-        let class = self.classes.get_mut(&class_tag).unwrap();
-        let new_class = class.branch(name, self.next_class_type);
-        self.new_container_type(new_class)
+        let new_tag = self.classes.len() as u16;
+        let class = &mut self.classes[class_tag as usize];
+        match class.lookup_transition(name) {
+            Some(tag) => tag,
+            None => {
+                let new_class = class.branch(name, new_tag);
+                self.new_container_type(new_class)
+            }
+        }
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct ClassDef {
-    size: usize,
+    pub size: usize,
     offsets: Vec<(StrPtr, usize)>,
     transitions: Vec<(StrPtr, u16)>,
 }
 impl ClassDef {
     /// this is the very base class
+    #[allow(unused)]
     pub fn new() -> Self {
         Self {
             size: 0,
             offsets: Vec::new(),
             transitions: Vec::new(),
         }
+    }
+    pub fn lookup(&self, name: StrPtr) -> Option<usize> {
+        self.offsets
+            .iter()
+            .find(|(offset_name, _)| offset_name == &name)
+            .map(|(_, index)| *index)
+    }
+    fn lookup_transition(&self, name: StrPtr) -> Option<u16> {
+        self.transitions
+            .iter()
+            // TODO: might need to match types
+            .find(|(trans_name, _)| trans_name == &name)
+            .map(|(_, index)| *index)
     }
     fn branch(&mut self, name: StrPtr, new_tag: u16) -> Self {
         self.transitions.push((name, new_tag));
