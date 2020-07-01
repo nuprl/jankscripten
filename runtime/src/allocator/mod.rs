@@ -171,6 +171,15 @@ impl Heap {
 
     #[allow(unused)] // remove after we extern
     pub fn alloc_object(&self, type_tag: u16) -> Option<ObjectPtr> {
+        let object_data = self.alloc_object_data(type_tag)?;
+        Some(unsafe {
+            ObjectPtr::new(
+                self.alloc_tag(Tag::with_type(TypeTag::ObjectPtrPtr), object_data)?
+                    .get_ptr(),
+            )
+        })
+    }
+    fn alloc_object_data(&self, type_tag: u16) -> Option<ObjectDataPtr> {
         let num_elements = self.get_class_size(type_tag);
         let elements_size = Layout::array::<Option<&Tag>>(num_elements).unwrap().size() as isize;
         let opt_ptr = self
@@ -189,7 +198,7 @@ impl Heap {
                 for ptr in values_slice.iter_mut() {
                     *ptr = None;
                 }
-                return Some(unsafe { ObjectPtr::new(tag_ptr) });
+                return Some(unsafe { ObjectDataPtr::new(tag_ptr) });
             }
         }
     }

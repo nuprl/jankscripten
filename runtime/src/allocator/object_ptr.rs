@@ -2,18 +2,31 @@ use super::super::StrPtr;
 use super::heap_values::*;
 use super::{Heap, ALIGNMENT};
 use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 
-/// A managed pointer to a `Class`
+/// A managed pointer to a `ObjectDataPtr`. this level of indirection is
+/// needed to update objects when reallocated
+///
+/// This looks like this:
+/// Tag(1) | pointer to ObjectDataPtr(1)
 #[derive(Debug, PartialEq, Clone, Copy)]
-#[repr(transparent)]
 pub struct ObjectPtr<'a> {
-    /// double-pointer for editing when it moves. TODO: figure out how this
-    /// relates to the GC
     ptr: *mut Tag,
     _phantom: PhantomData<&'a ()>,
 }
 
-impl<'a> HeapPtr for ObjectPtr<'a> {
+/// A managed pointer to an Object, specified by a Class
+///
+/// It looks like this:
+/// Tag(1) | field(1) | field(1) | ...
+#[derive(Debug, PartialEq, Clone, Copy)]
+#[repr(transparent)]
+pub struct ObjectDataPtr<'a> {
+    ptr: *mut Tag,
+    _phantom: PhantomData<&'a ()>,
+}
+
+impl<'a> HeapPtr for ObjectDataPtr<'a> {
     fn get_ptr(&self) -> *mut Tag {
         return self.ptr;
     }
@@ -26,12 +39,12 @@ impl<'a> HeapPtr for ObjectPtr<'a> {
     }
 }
 
-impl<'a> ObjectPtr<'a> {
+impl<'a> ObjectDataPtr<'a> {
     /// This function is unsafe, because (1) we do not check that the class_tag
     /// is valid, and (2) we assume that `ptr` is valid.
     pub unsafe fn new(ptr: *mut Tag) -> Self {
         assert_eq!((*ptr).type_tag, TypeTag::Class);
-        ObjectPtr {
+        ObjectDataPtr {
             ptr,
             _phantom: PhantomData,
         }
@@ -69,40 +82,32 @@ impl<'a> ObjectPtr<'a> {
     }
 
     /// if name is found, write to it. if not, transition, clone, write, and
-    /// update pointer
-    /// TODO: updating this pointer in particular isn't enough. i think we
-    /// have to have a double-pointer situation
-    /// (ObjectPtr -> ArrayPtr -> [u8; n])
-    pub fn insert<P: HeapPtr + Copy>(
-        &mut self,
-        heap: &'a Heap,
-        name: StrPtr,
-        value: P,
-    ) -> Option<P> {
+    /// return new pointer. this should be called by ObjectPtr only
+    #[must_use]
+    fn insert<P: HeapPtr + Copy>(self, heap: &'a Heap, name: StrPtr, value: P) -> Option<Self> {
         let class_tag = self.class_tag();
         let mut classes = heap.classes.borrow_mut();
         let class = classes.get_class(class_tag);
         match class.lookup(name) {
             Some(offset) => {
+                drop(class);
+                drop(classes);
                 self.write_at(heap, offset, value);
-                Some(value)
+                Some(self)
             }
             None => {
                 let size = class.size;
                 drop(class);
                 let new_tag = classes.transition(class_tag, name);
                 drop(classes);
-                let new_object = heap.alloc_object(new_tag)?;
+                let new_object = heap.alloc_object_data(new_tag)?;
                 for i in 0..size {
                     if let Some(val) = self.read_at(heap, i) {
                         new_object.write_at(heap, i, val);
                     }
                 }
                 new_object.write_at(heap, size, value);
-                println!("{:?} >", unsafe { &*new_object.ptr });
-                *self = new_object;
-                println!("{:?} <", unsafe { &*self.ptr });
-                Some(value)
+                Some(new_object)
             }
         }
     }
@@ -113,5 +118,49 @@ impl<'a> ObjectPtr<'a> {
         let class = classes.get_class(class_tag);
         let offset = class.lookup(name)?;
         self.read_at(heap, offset)
+    }
+}
+
+impl<'a> ObjectPtr<'a> {
+    pub unsafe fn new(ptr: *mut Tag) -> Self {
+        Self {
+            ptr,
+            _phantom: PhantomData,
+        }
+    }
+    /// if name is found, write to it. if not, transition, clone, write, and
+    /// update pointer
+    /// TODO: updating this pointer in particular isn't enough. i think we
+    /// have to have a double-pointer situation
+    /// (ObjectPtr -> ArrayPtr -> [u8; n])
+    pub fn insert<P: HeapPtr + Copy>(
+        &mut self,
+        heap: &'a Heap,
+        name: StrPtr,
+        value: P,
+    ) -> Option<P> {
+        let data = &mut **self;
+        let new = data.insert(heap, name, value)?;
+        unsafe { *(self.ptr.add(1) as *mut ObjectDataPtr) = new };
+        Some(value)
+    }
+}
+impl<'a> Deref for ObjectPtr<'a> {
+    type Target = ObjectDataPtr<'a>;
+    fn deref(&self) -> &Self::Target {
+        unsafe { &*(self.ptr.add(1) as *const ObjectDataPtr) }
+    }
+}
+impl<'a> DerefMut for ObjectPtr<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { &mut *(self.ptr.add(1) as *mut ObjectDataPtr) }
+    }
+}
+impl<'a> HeapPtr for ObjectPtr<'a> {
+    fn get_ptr(&self) -> *mut Tag {
+        self.ptr
+    }
+    fn get_data_size(&self, _heap: &Heap) -> usize {
+        4
     }
 }

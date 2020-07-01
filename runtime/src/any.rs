@@ -26,3 +26,16 @@ pub extern "C" fn any_to_f64<'a>(val: AnyJSPtr<'a>) -> f64 {
         panic!("unwrap incorrect type f64");
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::init;
+    use wasm_bindgen_test::wasm_bindgen_test;
+    #[test]
+    #[wasm_bindgen_test]
+    fn in_and_out() {
+        init();
+        assert_eq!(any_to_f64(any_f64(5.)), 5.);
+    }
+}

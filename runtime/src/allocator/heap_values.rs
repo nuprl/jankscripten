@@ -52,6 +52,7 @@ pub enum TypeTag {
     // The value inside the tag is the address where the array of pointers
     // begins, for this object.
     Class,
+    ObjectPtrPtr,
 }
 
 /// Every pointer into the heap points to a tag, thus we could build an API
@@ -100,7 +101,8 @@ pub enum HeapRefView<'a> {
     ArrayAny(ArrayPtr<'a, AnyJSPtr<'a>>),
     ArrayI32(ArrayPtr<'a, i32>),
     Any(AnyJSPtr<'a>),
-    Class(ObjectPtr<'a>),
+    Class(ObjectDataPtr<'a>),
+    ObjectPtrPtr(ObjectPtr<'a>),
 }
 impl<'a> HeapRefView<'a> {
     /// Return a less specific `HeapPtr` that points to the same heap value,
@@ -116,11 +118,10 @@ impl<'a> HeapRefView<'a> {
             Self::ArrayI32(val) => val,
             Self::Any(val) => val,
             Self::Class(val) => val,
+            Self::ObjectPtrPtr(val) => val,
         }
     }
 }
-// TODO(luna): this could be better achieved by Deref if i can figure out
-// the darn lifetimes
 impl<'a> HeapPtr for HeapRefView<'a> {
     fn get_ptr(&self) -> *mut Tag {
         self.heap_ptr().get_ptr()
@@ -166,7 +167,8 @@ impl<'a> AnyPtr<'a> {
                 HeapRefView::ArrayI32(unsafe { ArrayPtr::<i32>::new_tag_unchecked(self.ptr) })
             }
             TypeTag::Any => HeapRefView::Any(unsafe { AnyJSPtr::new_tag_unchecked(self.ptr) }),
-            TypeTag::Class => HeapRefView::Class(unsafe { ObjectPtr::new(self.ptr) }),
+            TypeTag::Class => HeapRefView::Class(unsafe { ObjectDataPtr::new(self.ptr) }),
+            TypeTag::ObjectPtrPtr => HeapRefView::ObjectPtrPtr(unsafe { ObjectPtr::new(self.ptr) }),
         }
     }
 }
@@ -222,7 +224,7 @@ impl<'a, T> TypePtr<'a, T> {
 
     // safety: Tag must match T, value must be immediately initialized
     // with write
-    unsafe fn new_tag_unchecked(ptr: *mut Tag) -> Self {
+    pub unsafe fn new_tag_unchecked(ptr: *mut Tag) -> Self {
         TypePtr {
             ptr,
             _phantom: PhantomData,
