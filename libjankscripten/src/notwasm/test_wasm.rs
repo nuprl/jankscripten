@@ -1,13 +1,19 @@
 use super::compile;
 use super::parser::parse;
 use super::syntax::*;
+use std::fmt::Debug;
 use std::io::Write;
 use std::process::{Command, Stdio};
+use std::str::FromStr;
 use std::sync::Once;
 
 static COMPILE_RUNTIME: Once = Once::new();
 
-fn test_wasm(expected: i32, program: Program) {
+fn test_wasm<T>(expected: T, program: Program)
+where
+    T: Debug + FromStr + PartialEq,
+    <T as FromStr>::Err: Debug,
+{
     let wasm = compile(program).expect("couldn't compile");
     // NOTE(arjun): It is temption to make the runtime system a dev-dependency
     // in Cargo.toml. However, I do not believe that will work. I assume that
@@ -67,7 +73,7 @@ fn test_wasm(expected: i32, program: Program) {
     assert_eq!(
         expected,
         // exclude trailing newline
-        out_str.trim_end().parse::<i32>().expect("non number"),
+        out_str.trim_end().parse::<T>().expect("non number"),
     );
 }
 
@@ -94,26 +100,19 @@ fn fails_no_runtime() {
 }
 
 #[test]
-fn test_string_ht() {
-    let ht_type = Type::HT(Box::new(Type::I32));
-    let program = test_program_(Stmt::Block(vec![
-        Stmt::Var(id_("x"), Expr::HT(Type::I32), ht_type),
-        Stmt::Var(id_("key1"), atom_(str_("1")), Type::StrRef),
-        Stmt::Var(id_("key1Eq"), atom_(str_("1")), Type::StrRef),
-        Stmt::Var(id_("key2"), atom_(str_("2")), Type::StrRef),
-        Stmt::Var(
-            id_("_"),
-            ht_set_(get_id_("x"), get_id_("key1"), i32_(1), Type::I32),
-            Type::I32,
-        ),
-        Stmt::Var(
-            id_("_"),
-            ht_set_(get_id_("x"), get_id_("key2"), i32_(2), Type::I32),
-            Type::I32,
-        ),
-        Stmt::Return(ht_get_(get_id_("x"), get_id_("key1Eq"), Type::I32)),
-    ]));
-    test_wasm(1, program);
+fn test_ht() {
+    let program = parse(
+        r#"
+        function main(): f64 {
+            var x: HT(f64) = f64{};
+            x.one: f64 = 1f;
+            x.two: f64 = 2f;
+            x.three: f64 = 3f;
+            return x.one: f64;
+        }
+        "#,
+    );
+    test_wasm(1., program);
 }
 
 #[test]

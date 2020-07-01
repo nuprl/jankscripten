@@ -35,7 +35,7 @@ use string::StrPtr;
 static mut HEAP: Option<Heap> = None;
 
 #[no_mangle]
-pub static JNKS_STRINGS: &[u8] = &[0; 65536];
+pub static JNKS_STRINGS: [u8; 65536] = [0; 65536];
 
 /// needs to be called before most other code. it initializes the managed heap
 #[no_mangle]

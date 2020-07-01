@@ -84,16 +84,11 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         .path("runtime", "JNKS_STRINGS")
         .with_external(External::Global(GlobalType::new(ValueType::I32, false)))
         .build();
-    let mut module = module
-        .data()
-        .offset(GetGlobal(JNKS_STRINGS_IDX))
-        .value(program.data)
-        .build();
     for global in program.globals.values_mut() {
         // can't use functions anyway so no need to worry
         let empty = HashMap::new();
         let empty2 = HashMap::new();
-        let mut visitor = Translate::new(&empty, &empty2, &global_env);
+        let mut visitor = Translate::new(&empty, &empty2, &global_env, &mut program.data);
         visitor.translate_atom(&mut global.atom);
         let mut insts = visitor.out;
         assert_eq!(
@@ -133,8 +128,14 @@ pub fn translate_parity(mut program: N::Program) -> Module {
             &rt_indexes,
             &type_indexes,
             name,
+            &mut program.data,
         ));
     }
+    let module = module
+        .data()
+        .offset(GetGlobal(JNKS_STRINGS_IDX))
+        .value(program.data)
+        .build();
     // export main
     let module = module
         .export()
@@ -151,8 +152,9 @@ fn translate_func(
     rt_indexes: &HashMap<String, u32>,
     type_indexes: &FuncTypeMap,
     name: &N::Id,
+    data: &mut Vec<u8>,
 ) -> FunctionDefinition {
-    let mut translator = Translate::new(rt_indexes, type_indexes, id_env);
+    let mut translator = Translate::new(rt_indexes, type_indexes, id_env, data);
 
     // Add indices for parameters
     for (arg_name, arg_typ) in func.params.iter().zip(func.fn_type.args.iter()) {
@@ -203,6 +205,7 @@ struct Translate<'a> {
     out: Vec<Instruction>,
     rt_indexes: &'a HashMap<String, u32>,
     type_indexes: &'a FuncTypeMap,
+    data: &'a mut Vec<u8>,
     locals: Vec<ValueType>,
     next_id: u32,
     id_env: IdEnv,
@@ -244,6 +247,7 @@ impl<'a> Translate<'a> {
         rt_indexes: &'a HashMap<String, u32>,
         type_indexes: &'a FuncTypeMap,
         id_env: &IdEnv,
+        data: &'a mut Vec<u8>,
     ) -> Self {
         Self {
             out: Vec::new(),
@@ -252,6 +256,7 @@ impl<'a> Translate<'a> {
             next_id: 0,
             id_env: id_env.clone(),
             locals: Vec::new(),
+            data,
         }
     }
 
@@ -497,6 +502,16 @@ impl<'a> Translate<'a> {
             IdIndex::Global(n) => self.out.push(GetGlobal(*n + 1)),
             IdIndex::Fun(n) => self.out.push(I32Const(*n as i32)),
         }
+    }
+
+    fn data_cache(&mut self) {
+        // the end of the data segment is the new cache
+        self.out.push(GetGlobal(JNKS_STRINGS_IDX));
+        self.out.push(I32Const(self.data.len() as i32));
+        self.out.push(I32Add);
+        // push it out by the pointer length in nulls
+        // allocs(4) | ptr(4)
+        self.data.extend(&[0; 8]);
     }
 }
 

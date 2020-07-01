@@ -246,7 +246,7 @@ impl<'a, T> TypePtr<'a, T> {
     }
     /// write data, dropping old data. if you're not the allocator, this is
     /// what you want
-    pub fn get_mut(&mut self) -> &mut T {
+    pub fn get_mut(&mut self) -> &'a mut T {
         unsafe { &mut *data_ptr(self.ptr) }
     }
     /// write data without dropping old rust-owned data. this should only

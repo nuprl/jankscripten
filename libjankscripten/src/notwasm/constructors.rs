@@ -33,6 +33,9 @@ pub fn array_len_(a: Atom, ty: Type) -> Atom {
 pub fn i32_(a: i32) -> Atom {
     Atom::Lit(Lit::I32(a))
 }
+pub fn f64_(a: f64) -> Atom {
+    Atom::Lit(Lit::F64(a))
+}
 pub fn str_<S: Into<String>>(a: S) -> Atom {
     Atom::Lit(Lit::String(a.into()))
 }
