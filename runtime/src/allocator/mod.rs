@@ -1,15 +1,19 @@
 //! managed allocation. most allocations should be made through [Heap]
 
+use crate::any::Any;
 use std::alloc;
 use std::alloc::Layout;
 use std::cell::RefCell;
-use std::collections::HashMap;
+mod class_list;
 mod constants;
 mod heap_values;
 mod layout;
+mod object_ptr;
 
 pub mod heap_types;
+pub use heap_values::HeapRefView;
 
+use class_list::ClassList;
 use constants::*;
 use heap_types::*;
 use heap_values::*;
@@ -24,11 +28,10 @@ pub struct Heap {
     size: isize,
     free_list: RefCell<FreeList>,
     tag_size: isize,
-    container_sizes: HashMap<u16, usize>,
-    next_container_type: u16,
+    pub classes: RefCell<ClassList>,
     /// We initialize this to the empty stack. Before calling [Heap::gc()], the
     /// shadow stack must contain all GC roots.
-    shadow_stack: RefCell<Vec<Vec<*mut Tag>>>
+    shadow_stack: RefCell<Vec<Vec<*mut Tag>>>,
 }
 
 #[derive(Debug)]
@@ -74,13 +77,11 @@ impl FreeList {
                     // +-------+-----------+
                     block.size = block.size + size;
                     return self;
-                }
-                else if start == block.start && size == block.size {
+                } else if start == block.start && size == block.size {
                     // This can happen, because this is the world's worst
                     // mark and sweep collector.
                     return self;
-                }
-                else {
+                } else {
                     // +-------+-----------------------------+-----------+
                     // | block | mix of used and free blocks | new block |
                     // +-------+-----------------------------+-----------+
@@ -129,26 +130,16 @@ impl Heap {
         let buffer = unsafe { alloc::alloc_zeroed(layout) };
         let free_list = RefCell::new(FreeList::new(buffer, size));
         let tag_size = layout::layout_aligned::<Tag>(ALIGNMENT).size() as isize;
-        let container_sizes = HashMap::new();
-        let next_container_type = 0;
+        let classes = RefCell::new(ClassList::new());
         let shadow_stack = RefCell::default();
         return Heap {
             buffer,
             size,
             free_list,
             tag_size,
-            container_sizes,
-            next_container_type,
+            classes,
             shadow_stack,
         };
-    }
-
-    #[allow(unused)] // remove after we extern
-    pub fn new_container_type(&mut self, num_elements: usize) -> u16 {
-        let type_tag = self.next_container_type;
-        self.next_container_type += 1;
-        self.container_sizes.insert(type_tag, num_elements);
-        return type_tag;
     }
 
     /**
@@ -180,9 +171,18 @@ impl Heap {
     }
 
     #[allow(unused)] // remove after we extern
-    pub fn alloc_container(&self, type_tag: u16) -> Option<ObjectPtr> {
-        let num_elements = self.container_sizes.get(&type_tag).unwrap();
-        let elements_size = Layout::array::<Option<&Tag>>(*num_elements).unwrap().size() as isize;
+    pub fn alloc_object(&self, type_tag: u16) -> Option<ObjectPtr> {
+        let object_data = self.alloc_object_data(type_tag)?;
+        Some(unsafe {
+            ObjectPtr::new(
+                self.alloc_tag(Tag::with_type(TypeTag::ObjectPtrPtr), object_data)?
+                    .get_ptr(),
+            )
+        })
+    }
+    fn alloc_object_data(&self, type_tag: u16) -> Option<ObjectDataPtr> {
+        let num_elements = self.get_class_size(type_tag);
+        let elements_size = self.object_data_size(type_tag) as isize;
         let opt_ptr = self
             .free_list
             .borrow_mut()
@@ -195,13 +195,22 @@ impl Heap {
                 unsafe {
                     tag_ptr.write(Tag::object(type_tag));
                 }
-                let values_slice = unsafe { tag_ref.slice_ref::<Option<&mut Tag>>(*num_elements) };
-                for ptr in values_slice.iter_mut() {
-                    *ptr = None;
+                let values_slice = unsafe { tag_ref.slice_ref::<Option<Any>>(num_elements) };
+                for opt_any in values_slice.iter_mut() {
+                    *opt_any = None;
                 }
-                return Some(unsafe { ObjectPtr::new(tag_ptr) });
+                return Some(unsafe { ObjectDataPtr::new(tag_ptr) });
             }
         }
+    }
+
+    pub fn object_data_size(&self, type_tag: u16) -> usize {
+        let num_elements = self.get_class_size(type_tag);
+        Layout::array::<Option<Any>>(num_elements).unwrap().size()
+    }
+
+    pub fn get_class_size(&self, class_tag: u16) -> usize {
+        self.classes.borrow().get_class_size(class_tag)
     }
 
     #[allow(unused)] // remove after we extern
@@ -221,7 +230,13 @@ impl Heap {
     /// roots must be live, appropriately allocated tags
     #[allow(unused)] // remove after we extern
     pub unsafe fn gc(&self) {
-        let roots = self.shadow_stack.borrow().iter().flatten().map(|refptr| *refptr).collect::<Vec<*mut Tag>>();
+        let roots = self
+            .shadow_stack
+            .borrow()
+            .iter()
+            .flatten()
+            .map(|refptr| *refptr)
+            .collect::<Vec<*mut Tag>>();
         self.mark_phase(roots);
         self.sweep_phase();
     }
@@ -239,17 +254,21 @@ impl Heap {
                 }
                 tag.marked = true;
 
-                if tag.type_tag != TypeTag::Object {
+                if tag.type_tag != TypeTag::Class {
                     continue;
                 }
                 let class_tag = tag.class_tag; // needed since .class_tag is packed
-                let num_ptrs = *self
-                    .container_sizes
-                    .get(&class_tag)
-                    .expect("unknown class tag");
-                let members_ptr: *mut *mut Tag = unsafe { data_ptr(root) };
+                let num_ptrs = self.get_class_size(class_tag);
+                let members_ptr: *mut Any = unsafe { data_ptr(root) };
                 let members = unsafe { std::slice::from_raw_parts(members_ptr, num_ptrs) };
-                new_roots.extend_from_slice(members);
+                for member in members {
+                    new_roots.push(match member {
+                        Any::AnyHT(ptr) => ptr.get_ptr(),
+                        Any::I32HT(ptr) => ptr.get_ptr(),
+                        Any::Any(ptr) => ptr.get_ptr(),
+                        Any::F64(..) | Any::I32(..) | Any::Bool(..) => continue,
+                    });
+                }
             }
             std::mem::swap(&mut current_roots, &mut new_roots);
         }
@@ -275,7 +294,7 @@ impl Heap {
                 ptr = unsafe { ptr.add(size) };
                 continue;
             }
-            
+
             free_list_ptr = free_list_ptr.insert(ptr, size as isize);
             ptr = unsafe { ptr.add(size) };
         }

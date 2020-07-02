@@ -24,6 +24,9 @@ pub fn get_id_<S: Into<String>>(a: S) -> Atom {
 pub fn ht_get_(a: Atom, b: Atom, ty: Type) -> Atom {
     Atom::HTGet(Box::new(a), Box::new(b), ty)
 }
+pub fn object_get_(a: Atom, b: Atom, ty: Type) -> Atom {
+    Atom::ObjectGet(Box::new(a), Box::new(b), ty)
+}
 pub fn index_(a: Atom, b: Atom, ty: Type) -> Atom {
     Atom::Index(Box::new(a), Box::new(b), ty)
 }
@@ -32,6 +35,9 @@ pub fn array_len_(a: Atom, ty: Type) -> Atom {
 }
 pub fn i32_(a: i32) -> Atom {
     Atom::Lit(Lit::I32(a))
+}
+pub fn f64_(a: f64) -> Atom {
+    Atom::Lit(Lit::F64(a))
 }
 pub fn str_<S: Into<String>>(a: S) -> Atom {
     Atom::Lit(Lit::String(a.into()))

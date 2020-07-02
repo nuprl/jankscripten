@@ -1,4 +1,6 @@
+use super::class_list::Class;
 use super::*;
+use crate::string::str_as_ptr;
 use wasm_bindgen_test::*;
 
 #[test]
@@ -13,22 +15,40 @@ fn allocs() {
     assert!(heap.alloc(12).is_none());
 }
 
-
 #[test]
 #[wasm_bindgen_test]
 fn trivial_gc() {
     let heap = Heap::new((ALIGNMENT * 4) as isize);
     let x = heap.alloc(32).expect("first allocation failed");
-    assert_eq!(*x.get(), 32, "first value was not written to the heap correctly");
+    assert_eq!(
+        *x.get(),
+        32,
+        "first value was not written to the heap correctly"
+    );
     let y = heap.alloc(64).expect("second allocation failed");
-    assert_eq!(*y.get(), 64, "second value was not written to the heap correctly");
-    assert_eq!(*x.get(), 32, "second allocation corrupted the first value on the heap");
-    assert!(heap.alloc(12).is_none(), "third allocation should fail due to lack of space");
+    assert_eq!(
+        *y.get(),
+        64,
+        "second value was not written to the heap correctly"
+    );
+    assert_eq!(
+        *x.get(),
+        32,
+        "second allocation corrupted the first value on the heap"
+    );
+    assert!(
+        heap.alloc(12).is_none(),
+        "third allocation should fail due to lack of space"
+    );
     heap.push_shadow_frame(&[x.get_ptr()]);
     unsafe { heap.gc() };
     let z = heap.alloc(128).expect("GC failed to free enough memory");
     assert_eq!(*z.get(), 128, "allocation should succeed after GC");
-    assert_eq!(*x.get(), 32, "allocation after GC corrupted the first value on the heap");
+    assert_eq!(
+        *x.get(),
+        32,
+        "allocation after GC corrupted the first value on the heap"
+    );
 }
 
 #[test]
@@ -46,40 +66,68 @@ fn update_prims() {
 #[test]
 #[wasm_bindgen_test]
 fn alloc_container1() {
-    let mut heap = Heap::new(64);
-    let type_tag = heap.new_container_type(2);
+    let heap = Heap::new(128);
+    let empty_type = heap.classes.borrow_mut().new_class_type(Class::new());
+    let one_type = heap
+        .classes
+        .borrow_mut()
+        .transition(empty_type, str_as_ptr("x"));
+    let type_tag = heap
+        .classes
+        .borrow_mut()
+        .transition(one_type, str_as_ptr("y"));
     heap.alloc(32).expect("first alloc");
-    let container = heap.alloc_container(type_tag).expect("second alloc");
+    let container = heap.alloc_object(type_tag).expect("second alloc");
     assert_eq!(container.read_at(&heap, 0), None);
     assert_eq!(container.read_at(&heap, 1), None);
 }
 
 #[test]
-fn alloc_container2() {
-    let mut heap = Heap::new(40);
-    let type_tag = heap.new_container_type(2);
-    let container = heap.alloc_container(type_tag).expect("second alloc");
-    let mut x = heap.alloc(200).expect("second alloc");
-    container.write_at(&heap, 0, x);
-    *x.get_mut() = 100;
-    let elt = container.read_at(&heap, 0).expect("read");
-    match elt.view() {
-        HeapRefView::I32(prim) => assert_eq!(100, *prim.get()),
-        _ => assert!(false),
+#[wasm_bindgen_test]
+fn insert_object() {
+    let heap = Heap::new(128);
+    let empty_type = heap.classes.borrow_mut().new_class_type(Class::new());
+    let mut obj = heap.alloc_object(empty_type).expect("second alloc");
+    let mut cache = -1;
+    assert_eq!(
+        obj.insert(&heap, str_as_ptr("x"), Any::I32(32), &mut cache)
+            .expect("couldn't allocate again"),
+        Any::I32(32)
+    );
+    assert_eq!(
+        obj.insert(&heap, str_as_ptr("x"), Any::I32(32), &mut cache)
+            .expect("couldn't find cached offset"),
+        Any::I32(32)
+    );
+    match obj.get(&heap, str_as_ptr("x"), &mut cache).expect("no x") {
+        Any::I32(i) => assert_eq!(i, 32),
+        _ => panic!("not an int"),
+    }
+    match obj.get(&heap, str_as_ptr("x"), &mut -1).expect("no x") {
+        Any::I32(i) => assert_eq!(i, 32),
+        _ => panic!("not an int"),
     }
 }
 
 #[test]
-fn alloc_container3() {
-    let mut heap = Heap::new(40);
-    let type_tag = heap.new_container_type(2);
-    let container = heap.alloc_container(type_tag).expect("second alloc");
-    let mut x = heap.alloc(200).expect("second alloc");
-    container.write_at(&heap, 1, x);
-    *x.get_mut() = 100;
-    let elt = container.read_at(&heap, 1).expect("read");
-    match elt.view() {
-        HeapRefView::I32(prim) => assert_eq!(100, *prim.get()),
+fn alloc_container2() {
+    let heap = Heap::new(128);
+    let empty_type = heap.classes.borrow_mut().new_class_type(Class::new());
+    let one_type = heap
+        .classes
+        .borrow_mut()
+        .transition(empty_type, str_as_ptr("x"));
+    let type_tag = heap
+        .classes
+        .borrow_mut()
+        .transition(one_type, str_as_ptr("y"));
+    let container = heap.alloc_object(type_tag).expect("second alloc");
+    let mut x = heap.alloc(Any::I32(200)).expect("second alloc");
+    container.write_at(&heap, 0, Any::Any(x));
+    *x.get_mut() = Any::I32(100);
+    let elt = container.read_at(&heap, 0).expect("read");
+    match elt {
+        Any::Any(prim) => assert_eq!(&Any::I32(100), prim.get()),
         _ => assert!(false),
     }
 }

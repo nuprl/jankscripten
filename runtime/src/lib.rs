@@ -25,6 +25,7 @@ pub mod any;
 pub mod array;
 pub mod ht;
 pub mod num;
+pub mod object;
 pub mod string;
 
 mod allocator;
@@ -35,13 +36,13 @@ use string::StrPtr;
 static mut HEAP: Option<Heap> = None;
 
 #[no_mangle]
-pub static JNKS_STRINGS: &[u8] = &[0; 65536];
+pub static JNKS_STRINGS: [u8; 65536] = [0; 65536];
 
 /// needs to be called before most other code. it initializes the managed heap
 #[no_mangle]
 pub extern "C" fn init() {
     unsafe {
-        HEAP = Some(Heap::new(1024));
+        HEAP = Some(Heap::new(268435456));
     }
 }
 

@@ -18,7 +18,7 @@ pub extern "C" fn string_from_ptr(from: StrPtr) -> StringPtr<'static> {
 /// # Panics
 ///
 /// if from is not utf8
-fn str_from_ptr<'a>(from: StrPtr) -> &'a str {
+pub fn str_from_ptr<'a>(from: StrPtr) -> &'a str {
     // safety: StrPtr::new being unsafe guarantees that StrPtr must be
     // well-formed
     let slice = unsafe {
@@ -44,9 +44,18 @@ impl From<StrPtr> for *const u32 {
         ptr.ptr
     }
 }
+impl From<StrPtr> for &str {
+    fn from(ptr: StrPtr) -> &'static str {
+        str_from_ptr(ptr)
+    }
+}
 impl PartialEq for StrPtr {
     fn eq(&self, other: &StrPtr) -> bool {
-        str_from_ptr(*self) == str_from_ptr(*other)
+        if self.ptr == other.ptr {
+            true
+        } else {
+            str_from_ptr(*self) == str_from_ptr(*other)
+        }
     }
 }
 impl std::hash::Hash for StrPtr {
@@ -63,11 +72,16 @@ impl StrPtr {
     unsafe fn new(ptr: *const u32) -> Self {
         Self { ptr }
     }
-    fn ptr(&self) -> *const u32 {
+    pub fn ptr(&self) -> *const u32 {
         self.ptr
     }
 }
 impl std::fmt::Debug for StrPtr {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", str_from_ptr(*self))
+    }
+}
+impl std::fmt::Display for StrPtr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", str_from_ptr(*self))
     }

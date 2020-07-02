@@ -79,9 +79,9 @@ pub enum Stmt {
 pub enum Atom {
     Lit(Lit),
     HTGet(Box<Atom>, Box<Atom>, Type),
+    ObjectGet(Box<Atom>, Box<Atom>, Type),
     Index(Box<Atom>, Box<Atom>, Type),
     ArrayLen(Box<Atom>, Type),
-    // HTGet / HTSet / ClassGet / etc VS Dot / Bracket
     // TODO: classes
     Id(Id),
     StringLen(Box<Atom>),
@@ -96,8 +96,11 @@ pub enum Expr {
     Push(Atom, Atom, Type),
     HTSet(Atom, Atom, Atom, Type),
     Call(Id, Vec<Id>),
-    //New(Id, Vec<Id>, Type),
+    ObjectEmpty,
+    /// ObjectSet(obj, field_name, value, typ) is obj.field_name: typ = value;
+    ObjectSet(Atom, Atom, Atom, Type),
     ToString(Atom),
+    ToAny(Atom, Type),
     Atom(Atom),
 }
 
