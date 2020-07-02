@@ -2,6 +2,7 @@ use super::super::StrPtr;
 use super::constants::DATA_OFFSET;
 use super::heap_values::*;
 use super::{Heap, ALIGNMENT};
+use crate::any::Any;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
@@ -11,6 +12,7 @@ use std::ops::{Deref, DerefMut};
 /// This looks like this:
 /// Tag(1) | pointer to ObjectDataPtr(1)
 #[derive(Debug, PartialEq, Clone, Copy)]
+#[repr(transparent)]
 pub struct ObjectPtr<'a> {
     ptr: *mut Tag,
     _phantom: PhantomData<&'a ()>,
@@ -19,7 +21,7 @@ pub struct ObjectPtr<'a> {
 /// A managed pointer to an Object, specified by a Class
 ///
 /// It looks like this:
-/// Tag(1) | field(1) | field(1) | ...
+/// Tag(4/8) | field(12/16) | field(12/16) | ...
 #[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(transparent)]
 pub struct ObjectDataPtr<'a> {
@@ -33,10 +35,7 @@ impl<'a> HeapPtr for ObjectDataPtr<'a> {
     }
 
     fn get_data_size(&self, heap: &Heap) -> usize {
-        let tag = unsafe { *self.ptr };
-        let class_tag = tag.class_tag;
-        let num_elements = heap.get_class_size(class_tag);
-        return num_elements * ALIGNMENT;
+        heap.object_data_size(self.class_tag())
     }
 }
 
@@ -57,37 +56,26 @@ impl<'a> ObjectDataPtr<'a> {
         tag.class_tag
     }
 
-    pub fn read_at(&self, heap: &'a Heap, index: usize) -> Option<AnyPtr<'a>> {
-        println!("{:?}", self.ptr);
+    pub fn read_at(&self, heap: &'a Heap, index: usize) -> Option<Any<'a>> {
         debug_assert!(index < heap.get_class_size(self.class_tag()));
-        let values = unsafe { self.ptr.add(DATA_OFFSET) as *mut *mut Tag };
-        let ptr = unsafe { *values.add(index) };
-        if ptr.is_null() {
-            None
-        } else {
-            Some(unsafe { AnyPtr::new(ptr) })
-        }
+        debug_assert!(unsafe { *self.ptr }.type_tag == TypeTag::Class);
+        let values = unsafe { self.ptr.add(DATA_OFFSET) as *mut Option<Any> };
+        unsafe { *values.add(index) }
     }
 
-    pub fn write_at<P: HeapPtr>(&self, heap: &'a Heap, index: usize, value: P) {
+    pub fn write_at(&self, heap: &'a Heap, index: usize, value: Any) {
         debug_assert!(index < heap.get_class_size(self.class_tag()));
-        let values = unsafe { self.ptr.add(DATA_OFFSET) as *mut *mut Tag };
+        let values = unsafe { self.ptr.add(DATA_OFFSET) as *mut Option<Any> };
         let ptr = unsafe { values.add(index) };
         unsafe {
-            ptr.write(value.get_ptr());
+            *ptr = Some(value);
         }
     }
 
     /// if name is found, write to it. if not, transition, clone, write, and
     /// return new pointer. this should be called by ObjectPtr only
     #[must_use]
-    fn insert<P: HeapPtr + Copy>(
-        self,
-        heap: &'a Heap,
-        name: StrPtr,
-        value: P,
-        cache: &mut isize,
-    ) -> Option<Self> {
+    fn insert(self, heap: &'a Heap, name: StrPtr, value: Any, cache: &mut isize) -> Option<Self> {
         let class_tag = self.class_tag();
         let mut classes = heap.classes.borrow_mut();
         let class = classes.get_class(class_tag);
@@ -115,7 +103,7 @@ impl<'a> ObjectDataPtr<'a> {
         }
     }
 
-    pub fn get(&self, heap: &'a Heap, name: StrPtr, cache: &mut isize) -> Option<AnyPtr<'a>> {
+    pub fn get(&self, heap: &'a Heap, name: StrPtr, cache: &mut isize) -> Option<Any<'a>> {
         let class_tag = self.class_tag();
         let classes = heap.classes.borrow();
         let class = classes.get_class(class_tag);
@@ -136,13 +124,13 @@ impl<'a> ObjectPtr<'a> {
     /// TODO: updating this pointer in particular isn't enough. i think we
     /// have to have a double-pointer situation
     /// (ObjectPtr -> ArrayPtr -> [u8; n])
-    pub fn insert<P: HeapPtr + Copy>(
+    pub fn insert(
         &mut self,
         heap: &'a Heap,
         name: StrPtr,
-        value: P,
+        value: Any<'a>,
         cache: &mut isize,
-    ) -> Option<P> {
+    ) -> Option<Any> {
         let data = &mut **self;
         let new = data.insert(heap, name, value, cache)?;
         unsafe { *(self.ptr.add(DATA_OFFSET) as *mut ObjectDataPtr) = new };

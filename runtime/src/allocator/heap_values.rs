@@ -289,7 +289,7 @@ impl Tag {
      */
     pub unsafe fn slice_ref<U>(&mut self, len: usize) -> &mut [U] {
         let self_ptr = self as *mut Tag;
-        let data_ptr: *mut U = std::mem::transmute(self_ptr.add(1));
+        let data_ptr: *mut U = std::mem::transmute(self_ptr.add(DATA_OFFSET));
         return std::slice::from_raw_parts_mut(data_ptr, len);
     }
 }

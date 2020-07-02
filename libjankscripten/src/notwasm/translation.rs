@@ -395,12 +395,8 @@ impl<'a> Translate<'a> {
                 self.translate_atom(obj);
                 self.translate_atom(field);
                 self.translate_atom(val);
-                // only runs on any
-                self.rt_call_mono("any", ty);
                 self.data_cache();
-                self.rt_call("object_set");
-                // back it back out lol
-                self.rt_call_mono("any_to", ty);
+                self.rt_call_mono("object_set", ty);
             }
             N::Expr::ObjectEmpty => {
                 self.rt_call("object_empty");
@@ -475,9 +471,7 @@ impl<'a> Translate<'a> {
                 self.translate_atom(obj);
                 self.translate_atom(field);
                 self.data_cache();
-                // only runs on any
-                self.rt_call("object_get");
-                self.rt_call_mono("any_to", ty);
+                self.rt_call_mono("object_get", ty);
             }
             N::Atom::Index(ht, index, ty) => {
                 self.translate_atom(ht);

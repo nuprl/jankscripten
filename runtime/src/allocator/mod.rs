@@ -1,5 +1,6 @@
 //! managed allocation. most allocations should be made through [Heap]
 
+use crate::any::Any;
 use std::alloc;
 use std::alloc::Layout;
 use std::cell::RefCell;
@@ -181,7 +182,7 @@ impl Heap {
     }
     fn alloc_object_data(&self, type_tag: u16) -> Option<ObjectDataPtr> {
         let num_elements = self.get_class_size(type_tag);
-        let elements_size = Layout::array::<Option<&Tag>>(num_elements).unwrap().size() as isize;
+        let elements_size = self.object_data_size(type_tag) as isize;
         let opt_ptr = self
             .free_list
             .borrow_mut()
@@ -194,13 +195,18 @@ impl Heap {
                 unsafe {
                     tag_ptr.write(Tag::object(type_tag));
                 }
-                let values_slice = unsafe { tag_ref.slice_ref::<Option<&mut Tag>>(num_elements) };
-                for ptr in values_slice.iter_mut() {
-                    *ptr = None;
+                let values_slice = unsafe { tag_ref.slice_ref::<Option<Any>>(num_elements) };
+                for opt_any in values_slice.iter_mut() {
+                    *opt_any = None;
                 }
                 return Some(unsafe { ObjectDataPtr::new(tag_ptr) });
             }
         }
+    }
+
+    pub fn object_data_size(&self, type_tag: u16) -> usize {
+        let num_elements = self.get_class_size(type_tag);
+        Layout::array::<Option<Any>>(num_elements).unwrap().size()
     }
 
     pub fn get_class_size(&self, class_tag: u16) -> usize {
@@ -253,9 +259,16 @@ impl Heap {
                 }
                 let class_tag = tag.class_tag; // needed since .class_tag is packed
                 let num_ptrs = self.get_class_size(class_tag);
-                let members_ptr: *mut *mut Tag = unsafe { data_ptr(root) };
+                let members_ptr: *mut Any = unsafe { data_ptr(root) };
                 let members = unsafe { std::slice::from_raw_parts(members_ptr, num_ptrs) };
-                new_roots.extend_from_slice(members);
+                for member in members {
+                    new_roots.push(match member {
+                        Any::AnyHT(ptr) => ptr.get_ptr(),
+                        Any::I32HT(ptr) => ptr.get_ptr(),
+                        Any::Any(ptr) => ptr.get_ptr(),
+                        Any::F64(..) | Any::I32(..) | Any::Bool(..) => continue,
+                    });
+                }
             }
             std::mem::swap(&mut current_roots, &mut new_roots);
         }

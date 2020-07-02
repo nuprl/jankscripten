@@ -97,6 +97,7 @@ pub enum Expr {
     HTSet(Atom, Atom, Atom, Type),
     Call(Id, Vec<Id>),
     ObjectEmpty,
+    /// ObjectSet(obj, field_name, value, typ) is obj.field_name: typ = value;
     ObjectSet(Atom, Atom, Atom, Type),
     ToString(Atom),
     ToAny(Atom, Type),

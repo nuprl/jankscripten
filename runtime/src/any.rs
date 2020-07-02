@@ -4,13 +4,14 @@ use crate::heap;
 use crate::heap_types::*;
 
 /// should not be used directly, all anys will be on the heap. use AnyJSPtr
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Any<'a> {
     I32(i32),
     F64(f64),
     Bool(bool),
     AnyHT(HTPtr<'a, AnyJSPtr<'a>>),
     I32HT(HTPtr<'a, i32>),
+    Any(AnyJSPtr<'a>),
 }
 
 #[no_mangle]
