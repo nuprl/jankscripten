@@ -115,7 +115,7 @@ where
                 block_cxt.apply_patches(ss);
             }
             // 1xExpr
-            Assign(.., a) | Var(.., a, _) => self.walk_expr(a, loc),
+            Assign(.., a) | Var(.., a, _) | Store(.., a) => self.walk_expr(a, loc),
             // 1xAtom
             Return(a) => self.walk_atom(a, loc),
             // 1xExpr, 2xStmt
@@ -152,7 +152,7 @@ where
         self.visitor.enter_atom(atom, loc);
         match atom {
             // 0
-            Lit(..) | Id(..) => (),
+            Lit(..) | Id(..) | GetAddr(..) | Deref(..) => (),
             StringLen(ea) | ArrayLen(ea, ..) | Unary(.., ea) => {
                 self.walk_atom(ea, loc);
             }

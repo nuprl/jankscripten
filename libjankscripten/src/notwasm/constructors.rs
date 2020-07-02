@@ -128,3 +128,6 @@ pub fn array_ty_(a: Type) -> Type {
 pub fn fn_ty_<I: Into<Option<Type>>>(b: Vec<Type>, a: I) -> Type {
     Type::Fn(b, Box::new(a.into()))
 }
+pub fn ref_ty_(a: Type) -> Type {
+    Type::Ref(Box::new(a))
+}

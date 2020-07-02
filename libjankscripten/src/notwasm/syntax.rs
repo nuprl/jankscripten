@@ -73,6 +73,7 @@ pub enum Stmt {
     /// these don't exist in NotWasm, only GotoWasm. if you try to [translate]
     /// a goto, it will panic
     Goto(Label),
+    Store(Id, Expr), // *id = expr
 }
 
 #[derive(Debug, PartialEq)]
@@ -87,6 +88,8 @@ pub enum Atom {
     StringLen(Box<Atom>),
     Unary(UnaryOp, Box<Atom>),
     Binary(BinaryOp, Box<Atom>, Box<Atom>),
+    GetAddr(Id), // &id
+    Deref(Id), // *id on RHS
 }
 
 #[derive(Debug, PartialEq)]
@@ -122,6 +125,7 @@ pub enum Type {
     Bool,
     AnyClass,
     Fn(Vec<Type>, Box<Option<Type>>),
+    Ref(Box<Type>),
     Any,
 }
 
@@ -203,6 +207,7 @@ impl std::fmt::Display for Type {
                 Class => "class",
                 HT(..) => "ht",
                 Array(..) => "array",
+                Ref(..) => "ref",
                 Bool => "bool",
                 AnyClass => "anyclass",
                 Fn(..) => "fn",

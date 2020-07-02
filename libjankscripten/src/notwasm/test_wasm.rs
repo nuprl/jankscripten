@@ -265,6 +265,23 @@ fn trivial_indirect_call() {
 
 #[test]
 #[ignore]
+fn parse_refs() {
+    let program = parse(
+        r#"
+        function main() : i32 {
+            var x : i32 = 100;
+            var refX : Ref(i32) = &x;
+            *refX = 130;
+            return *refX;
+        }
+        "#
+    );
+
+    test_wasm(130, program);
+}
+
+#[test]
+#[ignore]
 fn goto_skips_stuff() {
     let skip_to_here = func_i32_(Stmt::Return(i32_(7)));
     let main_body = Stmt::Block(vec![

@@ -271,6 +271,9 @@ impl<'a> Translate<'a> {
     // to clone `env` when we enter a new block scope.
     pub(self) fn translate_rec(&mut self, env: &Env, stmt: &mut N::Stmt) {
         match stmt {
+            N::Stmt::Store(id, expr) => {
+                panic!("can't translate stores yet");
+            },
             N::Stmt::Empty => (),
             N::Stmt::Block(ss) => {
                 // don't surround in an actual block, those are only useful
@@ -450,6 +453,12 @@ impl<'a> Translate<'a> {
 
     fn translate_atom(&mut self, atom: &mut N::Atom) {
         match atom {
+            N::Atom::GetAddr(id) => {
+                panic!("can't translate getaddrs yet");
+            },
+            N::Atom::Deref(id) => {
+                panic!("can't translate derefs yet");
+            },
             N::Atom::Lit(lit) => match lit {
                 N::Lit::I32(i) => self.out.push(I32Const(*i)),
                 N::Lit::F64(f) => self.out.push(F64Const(unsafe { std::mem::transmute(*f) })),

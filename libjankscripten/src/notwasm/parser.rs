@@ -141,6 +141,8 @@ parser! {
         )
         .or(id(lang).map(|i| Atom::Id(i)))
         .or(lang.parens(atom(lang)))
+        .or(lang.reserved_op("&").with(id(lang).map(|id| Atom::GetAddr(id))))
+        .or(lang.reserved_op("*").with(id(lang).map(|id| Atom::Deref(id))))
     }
 }
 
@@ -180,6 +182,7 @@ parser! {
             .or(lang.reserved("AnyClass").with(value(Type::AnyClass)))
             .or(lang.reserved("HT").with(lang.parens(type_(lang))).map(|t| ctor::ht_ty_(t)))
             .or(lang.reserved("Array").with(lang.parens(type_(lang))).map(|t| ctor::array_ty_(t)))
+            .or(lang.reserved("Ref").with(lang.parens(type_(lang)))).map(|t| ctor::ref_ty_(t))
     }
 }
 
@@ -273,6 +276,16 @@ parser! {
             .and(block(lang))
             .map(|(test,body)| ctor::while_(test, body));
 
+        /////////////////////////////////////////////////////////////
+        // Mark: is it possible to skip this reserved op in the beginning of the parse chain?
+        let store = lang.reserved_op("*") 
+            .with(id(lang))
+            .skip(lang.reserved_op("="))
+            .and(expr(lang))
+            .skip(lang.reserved_op(";"))
+            .map(|(id, expr)| Stmt::Store(id, expr)); 
+            // Stmt::Store(Id::Named("aa".to_string()), Expr::Atom(Atom::Id(Id::Named("ha".to_string())))));
+
         choice((
             var,
             while_,
@@ -283,7 +296,8 @@ parser! {
             break_,
             assign_or_label,
             ht_set,
-            object_set
+            object_set,
+            store,
         ))
     }
 }
@@ -403,7 +417,7 @@ pub fn parse(input: &str) -> Program {
             start: satisfy(|c| "+-*/[{:.<,".chars().any(|x| x == c)),
             rest: satisfy(|c| "]}.".chars().any(|x| x == c)),
             reserved: [
-                "+", "-", "*", "/", "[]", "{}", ":", ".", "*.", "/.", "+.", "-.", "<", ",",
+                "+", "-", "*", "/", "[]", "{}", ":", ".", "*.", "/.", "+.", "-.", "<", ",", "&",
             ]
             .iter()
             .map(|x| (*x).into())
