@@ -7,14 +7,21 @@ type Env = HashMap<Id, Type>;
 pub enum TypeCheckingError {
     NoSuchVariable(Id),
     TypeMismatch(String, Type, Type), // context, expected, got
+    ExpectedFunction(Id, Type),
+    ArityMismatch(Id, usize), // difference in arity
 }
 
 pub type TypeCheckingResult<T> = Result<T, TypeCheckingError>;
 
-fn lookup(env: &Env, id: &Id) -> TypeCheckingResult<Type> {
-    match env.get(id) {
-        Some(ty) => Ok(ty.clone()),
-        None => Err(TypeCheckingError::NoSuchVariable(id.clone())),
+fn lookup(p: &Program, env: &Env, id: &Id) -> TypeCheckingResult<Type> {
+    if let Some(ty) = env.get(id) {
+        Ok(ty.clone())
+    } else if let Some(global) = p.globals.get(id) {
+        Ok(global.ty.clone())
+    } else if let Some(function) = p.functions.get(id) {
+        Ok(function.fn_type.as_type())
+    } else {
+        Err(TypeCheckingError::NoSuchVariable(id.clone()))
     }
 }
 
@@ -43,13 +50,90 @@ pub fn type_check_stmt(p: &Program, env: &Env, s: &Stmt) -> TypeCheckingResult<E
 }
 
 pub fn type_check_expr(p: &Program, env: &Env, e: &Expr) -> TypeCheckingResult<Type> {
-    unimplemented!();
+    match e {
+        Expr::HT(ty) => Ok(Type::HT(Box::new(ty.clone()))),
+        Expr::Array(ty) => Ok(Type::Array(Box::new(ty.clone()))),
+        Expr::ObjectEmpty => Ok(Type::AnyClass), // ??? MMG right?
+        Expr::Push(a_arr, a_elt, ty) => {
+            let got_arr = type_check_atom(p, env, a_arr)?;
+            let got_elt = type_check_atom(p, env, a_elt)?;
+
+            // ??? MMG do we need to be checking array types, or is this implicitly doing coercion?
+            let _ = ensure(
+                "array push (array)",
+                Type::Array(Box::new(ty.clone())),
+                got_arr,
+            )?;
+            let _ = ensure("array push (element)", ty.clone(), got_elt)?;
+
+            Ok(Type::I32) // returns length
+        }
+        Expr::HTSet(a_ht, a_field, a_val, ty) => {
+            let got_ht = type_check_atom(p, env, a_ht)?;
+            let got_field = type_check_atom(p, env, a_field)?;
+            let got_val = type_check_atom(p, env, a_val)?;
+
+            let _ = ensure("ht set (ht)", Type::HT(Box::new(Type::Any)), got_ht)?;
+            let _ = ensure("ht set (field)", Type::String, got_field)?;
+            let _ = ensure("ht set (val)", ty.clone(), got_val)?;
+
+            Ok(ty.clone()) // returns value set
+        }
+        Expr::ObjectSet(a_obj, a_field, a_val, ty) => {
+            let got_obj = type_check_atom(p, env, a_obj)?;
+            let got_field = type_check_atom(p, env, a_field)?;
+            let got_val = type_check_atom(p, env, a_val)?;
+
+            let _ = ensure("object set (ht)", Type::AnyClass, got_obj)?;
+            let _ = ensure("object set (field)", Type::Any, got_field)?;
+            let _ = ensure("object set (val)", ty.clone(), got_val)?;
+
+            Ok(ty.clone()) // returns value set
+        }
+        Expr::ToString(a) => {
+            let got = type_check_atom(p, env, a)?;
+            let _ = ensure("tostring", Type::StrRef, got);
+            Ok(Type::String)
+        }
+        Expr::ToAny(a, ty) => {
+            let got = type_check_atom(p, env, a)?;
+            let _ = ensure("toany", ty.clone(), got)?;
+            // ??? MMG are there any types this DOESN'T work for?
+            // the Any enum leaves out strings, but Any::Any will wrap it?
+            Ok(Type::Any)
+        }
+        Expr::Call(id_f, actuals) => {
+            let got_f = lookup(p, env, id_f)?;
+     
+            if let Type::Fn(formals, ret) = got_f {
+                // arity check
+                if actuals.len() != formals.len() {
+                    return Err(TypeCheckingError::ArityMismatch(id_f.clone(), actuals.len() - formals.len()));
+                }
+
+                // match formals and actuals
+                let mut nth = 0;
+                for (actual, formal) in actuals.iter().zip(formals.iter()) {
+                    let got = lookup(p, env, actual)?;
+                    let _ = ensure(&format!("call {:?} (argument #{})", id_f, nth), formal.clone(), got)?;
+                    nth += 1;
+                }
+
+                // return type or any
+                // ??? MMG do we need a void/unit type?
+                Ok(ret.unwrap_or(Type::Any))
+            } else {
+                Err(TypeCheckingError::ExpectedFunction(id_f.clone(), got_f))
+            }
+        }
+        Expr::Atom(a) => type_check_atom(p, env, a),
+    }
 }
 
 pub fn type_check_atom(p: &Program, env: &Env, a: &Atom) -> TypeCheckingResult<Type> {
     match a {
         Atom::Lit(l) => Ok(type_check_lit(l)),
-        Atom::Id(id) => lookup(&env, id),
+        Atom::Id(id) => lookup(p, env, id),
         Atom::StringLen(a) => {
             let ty = type_check_atom(p, env, a)?;
             ensure("string len", Type::String, ty)
@@ -113,12 +197,17 @@ pub fn type_check_lit(l: &Lit) -> Type {
 
 pub fn type_check_binary(op: &BinaryOp) -> (Type, Type) {
     match op {
-        BinaryOp::I32Eq | BinaryOp::I32GT | BinaryOp::I32LT | BinaryOp::I32Ge | BinaryOp::I32Le =>
-          (Type::I32, Type::Bool),
-        BinaryOp::I32Add | BinaryOp::I32Sub | BinaryOp::I32Mul | BinaryOp::I32And | BinaryOp::I32Or =>
-          (Type::I32, Type::I32),
-        BinaryOp::F64Add | BinaryOp::F64Sub | BinaryOp::F64Mul | BinaryOp::F64Div =>
-          (Type::F64, Type::F64),
+        BinaryOp::I32Eq | BinaryOp::I32GT | BinaryOp::I32LT | BinaryOp::I32Ge | BinaryOp::I32Le => {
+            (Type::I32, Type::Bool)
+        }
+        BinaryOp::I32Add
+        | BinaryOp::I32Sub
+        | BinaryOp::I32Mul
+        | BinaryOp::I32And
+        | BinaryOp::I32Or => (Type::I32, Type::I32),
+        BinaryOp::F64Add | BinaryOp::F64Sub | BinaryOp::F64Mul | BinaryOp::F64Div => {
+            (Type::F64, Type::F64)
+        }
     }
 }
 

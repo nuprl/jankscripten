@@ -104,10 +104,16 @@ pub enum Expr {
     Atom(Atom),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct FnType {
     pub args: Vec<Type>,
     pub result: Option<Type>,
+}
+
+impl FnType {
+    pub fn as_type(&self) -> Type {
+        Type::Fn(self.args.clone(), Box::new(self.result.clone()))
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
