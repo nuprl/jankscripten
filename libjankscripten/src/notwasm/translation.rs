@@ -474,7 +474,7 @@ impl<'a> Translate<'a> {
                 self.rt_call_mono("object_get", ty);
             }
             N::Atom::Index(ht, index, ty) => {
-                self.translate_atom(ht);
+                self.translate_atom(ht); // ??? MMG says ht, but is for arrays?
                 self.translate_atom(index);
                 self.rt_call_mono("array_index", ty);
             }
