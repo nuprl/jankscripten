@@ -9,6 +9,8 @@ pub enum TypeCheckingError {
     TypeMismatch(String, Type, Type), // context, expected, got
     ExpectedFunction(Id, Type),
     ArityMismatch(Id, usize), // difference in arity
+    UndefinedBranch(Env),
+    MultiplyDefined(Id),
 }
 
 pub type TypeCheckingResult<T> = Result<T, TypeCheckingError>;
@@ -45,8 +47,63 @@ pub fn type_check_function(p: &Program, f: &Function) -> TypeCheckingResult<()> 
     unimplemented!();
 }
 
-pub fn type_check_stmt(p: &Program, env: &Env, s: &Stmt) -> TypeCheckingResult<Env> {
-    unimplemented!();
+pub fn type_check_stmt(p: &Program, env: Env, s: &Stmt, ret_ty: &Type) -> TypeCheckingResult<Env> {
+    match s {
+        Stmt::Empty => Ok(env),
+        Stmt::Var(id, e, ty) => {
+            if lookup(p, &env, id).is_ok() {
+                return Err(TypeCheckingError::MultiplyDefined(id.clone()));
+            }
+
+            let got = type_check_expr(p, &env, e)?;
+            let _ = ensure("var", ty.clone(), got)?;
+
+            Ok(env.update(id.clone(), ty.clone()))
+        }
+        Stmt::Assign(id, e) => {
+            let got_id = lookup(p, &env, id)?;
+            let got_expr = type_check_expr(p, &env, e)?;
+            let _ = ensure("assign", got_id, got_expr)?;
+
+            Ok(env)
+        }
+        Stmt::If(a_cond, s_then, s_else) => {
+            let got = type_check_atom(p, &env, a_cond)?;
+            let _ = ensure("if (conditional)", Type::Bool, got)?;
+
+            let env_then = type_check_stmt(p, env.clone(), s, ret_ty)?;
+            let env_else = type_check_stmt(p, env, s, ret_ty)?;
+
+            let env_new = env_then.symmetric_difference(env_else.clone());
+
+            // ??? MMG is this the behavior we want?
+            if !env_new.is_empty() {
+                Err(TypeCheckingError::UndefinedBranch(env_new))
+            } else {
+                Ok(env_else) // arbitrarily
+            }
+        }
+        Stmt::Loop(s) => type_check_stmt(p, env, s, ret_ty),
+        Stmt::Label(_lbl, s) => type_check_stmt(p, env, s, ret_ty), // ??? MMG do I need be tracking that labels are correct, or is that handled elsewhere?
+        Stmt::Break(_lbl) => Ok(env),
+        Stmt::Return(a) => {
+            let got = type_check_atom(p, &env, a)?;
+            let _ = ensure("return", ret_ty.clone(), got)?;
+
+            Ok(env)
+        }
+        Stmt::Block(ss) => {
+            let mut env = env;
+
+            for s in ss.iter() {
+                env = type_check_stmt(p, env, s, ret_ty)?;
+            }
+
+            Ok(env)
+        }
+        Stmt::Trap => Ok(env),
+        Stmt::Goto(_lbl) => Ok(env),
+    }
 }
 
 pub fn type_check_expr(p: &Program, env: &Env, e: &Expr) -> TypeCheckingResult<Type> {
