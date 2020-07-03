@@ -5,10 +5,17 @@ use im_rc::HashMap;
 type Env = HashMap<Id, Type>;
 
 pub enum TypeCheckingError {
-
+    NoSuchVariable(Id),
 }
 
 pub type TypeCheckingResult<T> = Result<T, TypeCheckingError>;
+
+fn lookup(env: &Env, id: &Id) -> TypeCheckingResult<Type> {
+    match env.get(id) {
+        Some(ty) => Ok(ty.clone()),
+        None => Err(TypeCheckingError::NoSuchVariable(id.clone())),
+    }
+}
 
 pub fn type_check(p: &Program) -> TypeCheckingResult<()> {
     unimplemented!();
@@ -27,7 +34,12 @@ pub fn type_check_expr(p: &Program, env: Env, e: &Expr) -> TypeCheckingResult<Ty
 }
 
 pub fn type_check_atom(p: &Program, env: Env, a: &Atom) -> TypeCheckingResult<Type> {
-    unimplemented!();
+    match a {
+        Atom::Lit(l) => Ok(type_check_lit(l)),
+        Atom::Id(id) => lookup(&env, id),
+        Atom::StringLen(a) => unimplemented!(),
+        _ => unimplemented!(),
+    }
 }
 
 pub fn type_check_lit(l: &Lit) -> Type {
