@@ -6,10 +6,13 @@ use std::iter::FromIterator;
 
 type Env = HashMap<Id, Type>;
 
+#[derive(Debug, Clone)]
 pub enum TypeCheckingError {
     NoSuchVariable(Id),
     TypeMismatch(String, Type, Type), // context, expected, got
     ExpectedFunction(Id, Type),
+    ExpectedHT(String, Type),
+    ExpectedArray(String, Type),
     UnexpectedReturn(Type),
     ArityMismatch(Id, usize), // difference in arity
     UndefinedBranch(Env),
@@ -42,6 +45,20 @@ fn ensure(msg: &str, expected: Type, got: Type) -> TypeCheckingResult<Type> {
     }
 }
 
+fn ensure_ht(msg: &str, got: Type) -> TypeCheckingResult<Type> {
+    match got {
+        Type::HT(ty) => Ok(*ty),
+        _ => Err(TypeCheckingError::ExpectedHT(String::from(msg), got)),        
+    }
+}
+
+fn ensure_array(msg: &str, got: Type) -> TypeCheckingResult<Type> {
+    match got {
+        Type::Array(ty) => Ok(*ty),
+        _ => Err(TypeCheckingError::ExpectedArray(String::from(msg), got)),        
+    }
+}
+
 pub fn type_check(p: &Program) -> TypeCheckingResult<()> {
     for (id, f) in p.functions.iter() {
         type_check_function(p, id, f)?;
@@ -60,8 +77,9 @@ pub fn type_check_function(p: &Program, id: &Id, f: &Function) -> TypeCheckingRe
 
     let env: Env = HashMap::from_iter(
         f.params
-            .iter().map(|arg| arg.clone())
-            .zip(f.fn_type.args.iter().map(|ty| ty.clone()))
+            .iter()
+            .map(|arg| arg.clone()) // ow
+            .zip(f.fn_type.args.iter().map(|ty| ty.clone())), // why can't i clone the pairs at the end?
     );
 
     let _ = type_check_stmt(p, env, &f.body, &f.fn_type.result)?;
@@ -78,14 +96,17 @@ pub fn type_check_stmt(
     match s {
         Stmt::Empty => Ok(env),
         Stmt::Var(id, e, ty) => {
-            if lookup(p, &env, id).is_ok() {
-                return Err(TypeCheckingError::MultiplyDefined(id.clone()));
-            }
-
             let got = type_check_expr(p, &env, e)?;
             let _ = ensure("var", ty.clone(), got)?;
 
-            Ok(env.update(id.clone(), ty.clone()))
+            // ??? MMG what do we want here?
+            if id.clone().into_name().starts_with("_") {
+                Ok(env)
+            } else if lookup(p, &env, id).is_ok() {
+                Err(TypeCheckingError::MultiplyDefined(id.clone()))
+            } else {
+                Ok(env.update(id.clone(), ty.clone()))
+            }
         }
         Stmt::Assign(id, e) => {
             let got_id = lookup(p, &env, id)?;
@@ -98,8 +119,8 @@ pub fn type_check_stmt(
             let got = type_check_atom(p, &env, a_cond)?;
             let _ = ensure("if (conditional)", Type::Bool, got)?;
 
-            let env_then = type_check_stmt(p, env.clone(), s, ret_ty)?;
-            let env_else = type_check_stmt(p, env, s, ret_ty)?;
+            let env_then = type_check_stmt(p, env.clone(), s_then, ret_ty)?;
+            let env_else = type_check_stmt(p, env, s_else, ret_ty)?;
 
             let env_new = env_then.symmetric_difference(env_else.clone());
 
@@ -110,18 +131,19 @@ pub fn type_check_stmt(
                 Ok(env_else) // arbitrarily
             }
         }
-        Stmt::Loop(s) => type_check_stmt(p, env, s, ret_ty),
-        Stmt::Label(_lbl, s) => type_check_stmt(p, env, s, ret_ty), // ??? MMG do I need be tracking that labels are correct, or is that handled elsewhere?
+        Stmt::Loop(s_body) => type_check_stmt(p, env, s_body, ret_ty),
+        Stmt::Label(_lbl, s_body) => type_check_stmt(p, env, s_body, ret_ty), // ??? MMG do I need be tracking that labels are correct, or is that handled elsewhere?
         Stmt::Break(_lbl) => Ok(env),
         Stmt::Return(a) => {
             let got = type_check_atom(p, &env, a)?;
 
+            // ??? MMG if ret_ty = None, can one return early?
             match ret_ty {
                 None => Err(TypeCheckingError::UnexpectedReturn(got)),
                 Some(ret_ty) => {
                     let _ = ensure("return", ret_ty.clone(), got)?;
 
-                    Ok(env)        
+                    Ok(env)
                 }
             }
         }
@@ -163,7 +185,10 @@ pub fn type_check_expr(p: &Program, env: &Env, e: &Expr) -> TypeCheckingResult<T
             let got_field = type_check_atom(p, env, a_field)?;
             let got_val = type_check_atom(p, env, a_val)?;
 
-            let _ = ensure("ht set (ht)", Type::HT(Box::new(Type::Any)), got_ht)?;
+            let got_ht_inner = ensure_ht("ht set (ht)", got_ht)?;
+
+            let _ = ensure("ht set (inner)", ty.clone(), got_ht_inner)?;
+
             let _ = ensure("ht set (field)", Type::String, got_field)?;
             let _ = ensure("ht set (val)", ty.clone(), got_val)?;
 
@@ -171,11 +196,12 @@ pub fn type_check_expr(p: &Program, env: &Env, e: &Expr) -> TypeCheckingResult<T
         }
         Expr::ObjectSet(a_obj, a_field, a_val, ty) => {
             let got_obj = type_check_atom(p, env, a_obj)?;
-            let got_field = type_check_atom(p, env, a_field)?;
+            let _got_field = type_check_atom(p, env, a_field)?;
             let got_val = type_check_atom(p, env, a_val)?;
 
             let _ = ensure("object set (ht)", Type::AnyClass, got_obj)?;
-            let _ = ensure("object set (field)", Type::Any, got_field)?;
+            // ??? MMG do we ever care what type the field has?
+            // let _ = ensure("object set (field)", Type::Any, got_field)?;
             let _ = ensure("object set (val)", ty.clone(), got_val)?;
 
             Ok(ty.clone()) // returns value set
@@ -232,7 +258,9 @@ pub fn type_check_atom(p: &Program, env: &Env, a: &Atom) -> TypeCheckingResult<T
         Atom::Id(id) => lookup(p, env, id),
         Atom::StringLen(a) => {
             let ty = type_check_atom(p, env, a)?;
-            ensure("string len", Type::String, ty)
+            let _ = ensure("string len", Type::String, ty);
+
+            Ok(Type::I32)
         }
         Atom::ArrayLen(a, ty) => {
             let got = type_check_atom(p, env, a)?;
@@ -242,11 +270,12 @@ pub fn type_check_atom(p: &Program, env: &Env, a: &Atom) -> TypeCheckingResult<T
             let got_arr = type_check_atom(p, env, a_arr)?;
             let got_idx = type_check_atom(p, env, a_idx)?;
             let _ = ensure("arrayi ndex (index)", Type::I32, got_idx)?;
-            ensure(
+            let _ = ensure(
                 "array index (array)",
                 Type::Array(Box::new(ty.clone())),
                 got_arr,
-            )
+            );
+            Ok(ty.clone())
         }
         Atom::ObjectGet(a_obj, a_field, ty) => {
             let got_obj = type_check_atom(p, env, a_obj)?;
@@ -259,9 +288,12 @@ pub fn type_check_atom(p: &Program, env: &Env, a: &Atom) -> TypeCheckingResult<T
         Atom::HTGet(a_ht, a_field, ty) => {
             let got_ht = type_check_atom(p, env, a_ht)?;
             let got_field = type_check_atom(p, env, a_field)?;
-            let _ = ensure("ht get field", Type::Any, got_field)?;
-            // ??? MMG what is the type field in HT for?
-            let _ = ensure("ht field", Type::HT(Box::new(Type::Any)), got_ht)?;
+
+            let got_ht_inner = ensure_ht("ht get", got_ht)?;
+
+            let _ = ensure("ht get (inner)", ty.clone(), got_ht_inner)?;
+            let _ = ensure("ht get (field)", Type::String, got_field)?;
+
             Ok(ty.clone())
         }
         Atom::Unary(op, a) => {
@@ -269,6 +301,12 @@ pub fn type_check_atom(p: &Program, env: &Env, a: &Atom) -> TypeCheckingResult<T
             let got = type_check_atom(p, env, a)?;
             let _ = ensure(&format!("unary ({:?})", op), ty_in, got)?;
             Ok(ty_out)
+        }
+        Atom::Binary(BinaryOp::PtrEq, a_l, a_r) => {
+            let got_l = type_check_atom(p, env, a_l)?;
+            let got_r = type_check_atom(p, env, a_r)?;
+            let _ = ensure("binary (===) lhs", got_l.clone(), got_r.clone())?;
+            Ok(Type::Bool)
         }
         Atom::Binary(op, a_l, a_r) => {
             let (ty_in, ty_out) = type_check_binary(op);
@@ -293,6 +331,7 @@ pub fn type_check_lit(l: &Lit) -> Type {
 
 pub fn type_check_binary(op: &BinaryOp) -> (Type, Type) {
     match op {
+        BinaryOp::PtrEq => (Type::Any, Type::Bool), // for completeness; should be special-cased
         BinaryOp::I32Eq | BinaryOp::I32GT | BinaryOp::I32LT | BinaryOp::I32Ge | BinaryOp::I32Le => {
             (Type::I32, Type::Bool)
         }

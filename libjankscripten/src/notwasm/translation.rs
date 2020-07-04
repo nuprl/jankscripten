@@ -358,6 +358,7 @@ impl<'a> Translate<'a> {
 
     fn translate_binop(&mut self, op: &N::BinaryOp) {
         match op {
+            N::BinaryOp::PtrEq => self.out.push(I32Eq),
             N::BinaryOp::I32Eq => self.out.push(I32Eq),
             N::BinaryOp::I32Add => self.out.push(I32Add),
             N::BinaryOp::I32Sub => self.out.push(I32Sub),

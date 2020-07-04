@@ -25,6 +25,7 @@ use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum BinaryOp {
+    PtrEq,
     I32Eq,
     I32Add,
     I32Sub,
