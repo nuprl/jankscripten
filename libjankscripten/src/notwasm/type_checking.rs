@@ -2,12 +2,15 @@ use super::syntax::*;
 
 use im_rc::HashMap;
 
+use std::iter::FromIterator;
+
 type Env = HashMap<Id, Type>;
 
 pub enum TypeCheckingError {
     NoSuchVariable(Id),
     TypeMismatch(String, Type, Type), // context, expected, got
     ExpectedFunction(Id, Type),
+    UnexpectedReturn(Type),
     ArityMismatch(Id, usize), // difference in arity
     UndefinedBranch(Env),
     MultiplyDefined(Id),
@@ -40,14 +43,38 @@ fn ensure(msg: &str, expected: Type, got: Type) -> TypeCheckingResult<Type> {
 }
 
 pub fn type_check(p: &Program) -> TypeCheckingResult<()> {
-    unimplemented!();
+    for (id, f) in p.functions.iter() {
+        type_check_function(p, id, f)?;
+    }
+
+    Ok(())
 }
 
-pub fn type_check_function(p: &Program, f: &Function) -> TypeCheckingResult<()> {
-    unimplemented!();
+pub fn type_check_function(p: &Program, id: &Id, f: &Function) -> TypeCheckingResult<()> {
+    if f.fn_type.args.len() != f.params.len() {
+        return Err(TypeCheckingError::ArityMismatch(
+            id.clone(),
+            f.params.len() - f.fn_type.args.len(),
+        ));
+    }
+
+    let env: Env = HashMap::from_iter(
+        f.params
+            .iter().map(|arg| arg.clone())
+            .zip(f.fn_type.args.iter().map(|ty| ty.clone()))
+    );
+
+    let _ = type_check_stmt(p, env, &f.body, &f.fn_type.result)?;
+
+    Ok(())
 }
 
-pub fn type_check_stmt(p: &Program, env: Env, s: &Stmt, ret_ty: &Type) -> TypeCheckingResult<Env> {
+pub fn type_check_stmt(
+    p: &Program,
+    env: Env,
+    s: &Stmt,
+    ret_ty: &Option<Type>,
+) -> TypeCheckingResult<Env> {
     match s {
         Stmt::Empty => Ok(env),
         Stmt::Var(id, e, ty) => {
@@ -88,9 +115,15 @@ pub fn type_check_stmt(p: &Program, env: Env, s: &Stmt, ret_ty: &Type) -> TypeCh
         Stmt::Break(_lbl) => Ok(env),
         Stmt::Return(a) => {
             let got = type_check_atom(p, &env, a)?;
-            let _ = ensure("return", ret_ty.clone(), got)?;
 
-            Ok(env)
+            match ret_ty {
+                None => Err(TypeCheckingError::UnexpectedReturn(got)),
+                Some(ret_ty) => {
+                    let _ = ensure("return", ret_ty.clone(), got)?;
+
+                    Ok(env)        
+                }
+            }
         }
         Stmt::Block(ss) => {
             let mut env = env;
@@ -161,18 +194,24 @@ pub fn type_check_expr(p: &Program, env: &Env, e: &Expr) -> TypeCheckingResult<T
         }
         Expr::Call(id_f, actuals) => {
             let got_f = lookup(p, env, id_f)?;
-     
             if let Type::Fn(formals, ret) = got_f {
                 // arity check
                 if actuals.len() != formals.len() {
-                    return Err(TypeCheckingError::ArityMismatch(id_f.clone(), actuals.len() - formals.len()));
+                    return Err(TypeCheckingError::ArityMismatch(
+                        id_f.clone(),
+                        actuals.len() - formals.len(),
+                    ));
                 }
 
                 // match formals and actuals
                 let mut nth = 0;
                 for (actual, formal) in actuals.iter().zip(formals.iter()) {
                     let got = lookup(p, env, actual)?;
-                    let _ = ensure(&format!("call {:?} (argument #{})", id_f, nth), formal.clone(), got)?;
+                    let _ = ensure(
+                        &format!("call {:?} (argument #{})", id_f, nth),
+                        formal.clone(),
+                        got,
+                    )?;
                     nth += 1;
                 }
 
