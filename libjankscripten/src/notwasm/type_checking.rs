@@ -99,7 +99,7 @@ pub fn type_check_stmt(
             let got = type_check_expr(p, &env, e)?;
             let _ = ensure("var", ty.clone(), got)?;
 
-            // ??? MMG what do we want here?
+            // ??? MMG what do we want here? i assume we don't actually want to allow strong update...
             if id.clone().into_name().starts_with("_") {
                 Ok(env)
             } else if lookup(p, &env, id).is_ok() {
@@ -125,6 +125,7 @@ pub fn type_check_stmt(
             let env_new = env_then.symmetric_difference(env_else.clone());
 
             // ??? MMG is this the behavior we want?
+            // could also do: LUB, unsound merge...
             if !env_new.is_empty() {
                 Err(TypeCheckingError::UndefinedBranch(env_new))
             } else {
@@ -165,12 +166,12 @@ pub fn type_check_expr(p: &Program, env: &Env, e: &Expr) -> TypeCheckingResult<T
     match e {
         Expr::HT(ty) => Ok(Type::HT(Box::new(ty.clone()))),
         Expr::Array(ty) => Ok(Type::Array(Box::new(ty.clone()))),
-        Expr::ObjectEmpty => Ok(Type::AnyClass), // ??? MMG right?
+        Expr::ObjectEmpty => Ok(Type::AnyClass),
         Expr::Push(a_arr, a_elt, ty) => {
             let got_arr = type_check_atom(p, env, a_arr)?;
             let got_elt = type_check_atom(p, env, a_elt)?;
 
-            // ??? MMG do we need to be checking array types, or is this implicitly doing coercion?
+            // RUNTIME ASSUMPTION: any array coercion will happen elsewhere---we want an exact match
             let _ = ensure(
                 "array push (array)",
                 Type::Array(Box::new(ty.clone())),
@@ -196,12 +197,12 @@ pub fn type_check_expr(p: &Program, env: &Env, e: &Expr) -> TypeCheckingResult<T
         }
         Expr::ObjectSet(a_obj, a_field, a_val, ty) => {
             let got_obj = type_check_atom(p, env, a_obj)?;
-            let _got_field = type_check_atom(p, env, a_field)?;
+            let got_field = type_check_atom(p, env, a_field)?;
             let got_val = type_check_atom(p, env, a_val)?;
 
             let _ = ensure("object set (ht)", Type::AnyClass, got_obj)?;
-            // ??? MMG do we ever care what type the field has?
-            // let _ = ensure("object set (field)", Type::Any, got_field)?;
+             
+            let _ = ensure("object set (field)", Type::String, got_field)?;
             let _ = ensure("object set (val)", ty.clone(), got_val)?;
 
             Ok(ty.clone()) // returns value set
@@ -280,7 +281,7 @@ pub fn type_check_atom(p: &Program, env: &Env, a: &Atom) -> TypeCheckingResult<T
         Atom::ObjectGet(a_obj, a_field, ty) => {
             let got_obj = type_check_atom(p, env, a_obj)?;
             let got_field = type_check_atom(p, env, a_field)?;
-            // ??? MMG should we be doing anything around classes here?
+
             let _ = ensure("object get field", Type::String, got_field)?;
             let _ = ensure("object field", Type::AnyClass, got_obj)?;
             Ok(ty.clone())
@@ -325,7 +326,7 @@ pub fn type_check_lit(l: &Lit) -> Type {
         Lit::I32(_) => Type::I32,
         Lit::F64(_) => Type::F64,
         Lit::String(_) => Type::String,
-        Lit::Interned(_) => Type::StrRef, // ??? MMG I think this is right...
+        Lit::Interned(_) => Type::StrRef,
     }
 }
 
