@@ -1,8 +1,8 @@
 use super::compile;
+use super::intern::intern;
 use super::parser::parse;
 use super::syntax::*;
-use super::intern::intern;
-use super::type_checking::{type_check, TypeCheckingResult};
+use super::type_checking::type_check;
 use std::fmt::Debug;
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -18,7 +18,6 @@ where
 {
     println!("{:?}", program);
     let _ = type_check(&program).expect("ill typed");
-    
     let wasm = compile(program).expect("couldn't compile");
     // NOTE(arjun): It is temption to make the runtime system a dev-dependency
     // in Cargo.toml. However, I do not believe that will work. I assume that
@@ -141,21 +140,9 @@ fn objects() {
 fn array_push_index() {
     let program = test_program_(Stmt::Block(vec![
         Stmt::Var(id_("x"), Expr::Array(Type::I32), array_ty_(Type::I32)),
-        Stmt::Var(
-            id_("_"),
-            Expr::Push(get_id_("x"), i32_(135), Type::I32),
-            Type::I32,
-        ),
-        Stmt::Var(
-            id_("_"),
-            Expr::Push(get_id_("x"), i32_(7), Type::I32),
-            Type::I32,
-        ),
-        Stmt::Var(
-            id_("_"),
-            Expr::Push(get_id_("x"), i32_(98), Type::I32),
-            Type::I32,
-        ),
+        Stmt::Expression(Expr::Push(get_id_("x"), i32_(135), Type::I32)),
+        Stmt::Expression(Expr::Push(get_id_("x"), i32_(7), Type::I32)),
+        Stmt::Expression(Expr::Push(get_id_("x"), i32_(98), Type::I32)),
         Stmt::Return(index_(get_id_("x"), i32_(2), Type::I32)),
     ]));
     test_wasm(98, program);
@@ -279,7 +266,7 @@ fn goto_skips_stuff() {
         // this is the part we wanna skip
         Stmt::Assign(id_("x"), atom_(i32_(2))),
         // goto goes here
-        Stmt::Var(id_("_"), Expr::Call(id_("other"), vec![]), Type::I32),
+        Stmt::Expression(Expr::Call(id_("other"), vec![])),
         Stmt::Return(get_id_("x")),
     ]);
     let program = program2_(func_i32_(main_body), skip_to_here);
@@ -296,7 +283,7 @@ fn goto_skips_loop() {
         // this is the part we wanna skip
         loop_(Stmt::Empty),
         // goto goes here
-        Stmt::Var(id_("_"), Expr::Call(id_("other"), vec![]), Type::I32),
+        Stmt::Expression(Expr::Call(id_("other"), vec![])),
         Stmt::Return(get_id_("x")),
     ]);
     let program = program2_(func_i32_(main_body), skip_to_here);
@@ -315,7 +302,7 @@ fn goto_enters_if() {
             // this is the part we wanna skip
             Stmt::Assign(id_("x"), atom_(i32_(2))),
             // goto goes here
-            Stmt::Var(id_("_"), Expr::Call(id_("other"), vec![]), Type::I32),
+            Stmt::Expression(Expr::Call(id_("other"), vec![])),
         ),
         Stmt::Return(get_id_("x")),
     ]);
@@ -361,12 +348,14 @@ fn simple_prec() {
 
 #[test]
 fn identical_interned_string_identity() {
-    let mut program = parse(r#"
+    let mut program = parse(
+        r#"
         function main(): bool {
             var s1 : str = "Calvin Coolidge";
             var s2 : str = "Calvin Coolidge";
             return s1 === s2; // ptr equality
-        }"#);
+        }"#,
+    );
     intern(&mut program);
     test_wasm(1, program);
 }

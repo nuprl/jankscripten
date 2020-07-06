@@ -52,13 +52,6 @@ fn ensure_ht(msg: &str, got: Type) -> TypeCheckingResult<Type> {
     }
 }
 
-fn ensure_array(msg: &str, got: Type) -> TypeCheckingResult<Type> {
-    match got {
-        Type::Array(ty) => Ok(*ty),
-        _ => Err(TypeCheckingError::ExpectedArray(String::from(msg), got)),        
-    }
-}
-
 pub fn type_check(p: &Program) -> TypeCheckingResult<()> {
     for (id, f) in p.functions.iter() {
         type_check_function(p, id, f)?;
@@ -107,6 +100,11 @@ pub fn type_check_stmt(
             } else {
                 Ok(env.update(id.clone(), ty.clone()))
             }
+        }
+        Stmt::Expression(e) => {
+            let _ = type_check_expr(p, &env, e)?;
+
+            Ok(env)
         }
         Stmt::Assign(id, e) => {
             let got_id = lookup(p, &env, id)?;

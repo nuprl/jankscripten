@@ -290,6 +290,10 @@ impl<'a> Translate<'a> {
                     .insert(id.clone(), IdIndex::Local(index, typ.clone()));
                 self.out.push(SetLocal(index));
             }
+            N::Stmt::Expression(expr) => {
+                self.translate_expr(expr);
+                self.out.push(Drop); // side-effects only, please
+            }
             N::Stmt::Assign(id, expr) => {
                 self.translate_expr(expr);
                 match self

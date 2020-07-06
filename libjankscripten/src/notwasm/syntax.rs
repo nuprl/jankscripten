@@ -62,6 +62,7 @@ pub enum Stmt {
     Empty,
     // type really only needs to be is_f64 (vs i32)
     Var(Id, Expr, Type),
+    Expression(Expr),
     Assign(Id, Expr),
     If(Atom, Box<Stmt>, Box<Stmt>),
     Loop(Box<Stmt>),

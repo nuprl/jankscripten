@@ -276,6 +276,8 @@ parser! {
             .and(block(lang))
             .map(|(test,body)| ctor::while_(test, body));
 
+        let expression = expr(lang).map(|e| Stmt::Expression(e));
+
         choice((
             var,
             while_,
@@ -286,7 +288,8 @@ parser! {
             break_,
             assign_or_label,
             ht_set,
-            object_set
+            object_set,
+            expression
         ))
     }
 }
