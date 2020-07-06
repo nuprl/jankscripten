@@ -55,7 +55,10 @@ parser! {
         lang.reserved_op("+").with(value(BinaryOp::I32Add))
         .or(lang.reserved_op(">").with(value(BinaryOp::I32GT)))
         .or(lang.reserved_op("<").with(value(BinaryOp::I32LT)))
+        .or(lang.reserved_op(">=").with(value(BinaryOp::I32Ge)))
+        .or(lang.reserved_op("<=").with(value(BinaryOp::I32Le)))
         .or(lang.reserved_op("-").with(value(BinaryOp::I32Sub)))
+        .or(lang.reserved_op("===").with(value(BinaryOp::PtrEq)))
         .or(lang.reserved_op("==").with(value(BinaryOp::I32Eq)))
         .or(lang.reserved_op("+.").with(value(BinaryOp::F64Add)))
         .or(lang.reserved_op("-.").with(value(BinaryOp::F64Sub)))
@@ -273,6 +276,8 @@ parser! {
             .and(block(lang))
             .map(|(test,body)| ctor::while_(test, body));
 
+        let expression = expr(lang).map(|e| Stmt::Expression(e));
+
         choice((
             var,
             while_,
@@ -283,7 +288,8 @@ parser! {
             break_,
             assign_or_label,
             ht_set,
-            object_set
+            object_set,
+            expression
         ))
     }
 }
@@ -400,10 +406,10 @@ pub fn parse(input: &str) -> Program {
         // not bothered to understand it. But, it ought to define a pattern that
         // matches operators. Our operators are quite straightforward.
         op: Identifier {
-            start: satisfy(|c| "+-*/[{:.<,".chars().any(|x| x == c)),
+            start: satisfy(|c| "+-*/[{:.<,=".chars().any(|x| x == c)),
             rest: satisfy(|c| "]}.".chars().any(|x| x == c)),
             reserved: [
-                "+", "-", "*", "/", "[]", "{}", ":", ".", "*.", "/.", "+.", "-.", "<", ",",
+                "=", "==", "===", "+", "-", "*", "/", "[]", "{}", ":", ".", "*.", "/.", "+.", "-.", "<", ",",
             ]
             .iter()
             .map(|x| (*x).into())

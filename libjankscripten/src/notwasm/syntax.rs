@@ -25,6 +25,7 @@ use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum BinaryOp {
+    PtrEq,
     I32Eq,
     I32Add,
     I32Sub,
@@ -61,6 +62,7 @@ pub enum Stmt {
     Empty,
     // type really only needs to be is_f64 (vs i32)
     Var(Id, Expr, Type),
+    Expression(Expr),
     Assign(Id, Expr),
     If(Atom, Box<Stmt>, Box<Stmt>),
     Loop(Box<Stmt>),
@@ -104,10 +106,16 @@ pub enum Expr {
     Atom(Atom),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct FnType {
     pub args: Vec<Type>,
     pub result: Option<Type>,
+}
+
+impl FnType {
+    pub fn as_type(&self) -> Type {
+        Type::Fn(self.args.clone(), Box::new(self.result.clone()))
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
