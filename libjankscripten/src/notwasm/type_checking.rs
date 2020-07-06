@@ -119,21 +119,21 @@ pub fn type_check_stmt(
             let got = type_check_atom(p, &env, a_cond)?;
             let _ = ensure("if (conditional)", Type::Bool, got)?;
 
-            let env_then = type_check_stmt(p, env.clone(), s_then, ret_ty)?;
-            let env_else = type_check_stmt(p, env, s_else, ret_ty)?;
+            // then/else branches are new blocks/scopes
+            let _ = type_check_stmt(p, env.clone(), s_then, ret_ty)?;
+            let _ = type_check_stmt(p, env.clone(), s_else, ret_ty)?;
 
-            let env_new = env_then.symmetric_difference(env_else.clone());
-
-            // ??? MMG is this the behavior we want?
-            // could also do: LUB, unsound merge...
-            if !env_new.is_empty() {
-                Err(TypeCheckingError::UndefinedBranch(env_new))
-            } else {
-                Ok(env_else) // arbitrarily
-            }
+            Ok(env)
         }
-        Stmt::Loop(s_body) => type_check_stmt(p, env, s_body, ret_ty),
-        Stmt::Label(_lbl, s_body) => type_check_stmt(p, env, s_body, ret_ty), // ??? MMG do I need be tracking that labels are correct, or is that handled elsewhere?
+        Stmt::Loop(s_body) => {
+            let _ = type_check_stmt(p, env.clone(), s_body, ret_ty);
+            Ok(env)
+        }
+        Stmt::Label(_lbl, s_body) => {
+            // LATER label checking
+            let _ = type_check_stmt(p, env.clone(), s_body, ret_ty);
+            Ok(env)
+        }
         Stmt::Break(_lbl) => Ok(env),
         Stmt::Return(a) => {
             let got = type_check_atom(p, &env, a)?;
@@ -149,16 +149,16 @@ pub fn type_check_stmt(
             }
         }
         Stmt::Block(ss) => {
-            let mut env = env;
+            let mut env_inner = env.clone();
 
             for s in ss.iter() {
-                env = type_check_stmt(p, env, s, ret_ty)?;
+                env_inner = type_check_stmt(p, env_inner, s, ret_ty)?;
             }
 
             Ok(env)
         }
         Stmt::Trap => Ok(env),
-        Stmt::Goto(_lbl) => Ok(env),
+        Stmt::Goto(_lbl) => unimplemented!(),
     }
 }
 
