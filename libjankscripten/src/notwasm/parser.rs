@@ -276,15 +276,12 @@ parser! {
             .and(block(lang))
             .map(|(test,body)| ctor::while_(test, body));
 
-        /////////////////////////////////////////////////////////////
-        // Mark: is it possible to skip this reserved op in the beginning of the parse chain?
         let store = lang.reserved_op("*") 
             .with(id(lang))
             .skip(lang.reserved_op("="))
             .and(expr(lang))
             .skip(lang.reserved_op(";"))
             .map(|(id, expr)| Stmt::Store(id, expr)); 
-            // Stmt::Store(Id::Named("aa".to_string()), Expr::Atom(Atom::Id(Id::Named("ha".to_string())))));
 
         choice((
             var,
