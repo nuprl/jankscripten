@@ -18,6 +18,7 @@ use elim_gotos::elim_gotos;
 use label_apps::label_apps;
 
 pub mod syntax;
+pub mod type_checking;
 
 pub use compile::compile;
 pub use parser::parse;

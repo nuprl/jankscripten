@@ -293,6 +293,10 @@ impl<'a> Translate<'a> {
                     .insert(id.clone(), IdIndex::Local(index, typ.clone()));
                 self.out.push(SetLocal(index));
             }
+            N::Stmt::Expression(expr) => {
+                self.translate_expr(expr);
+                self.out.push(Drop); // side-effects only, please
+            }
             N::Stmt::Assign(id, expr) => {
                 self.translate_expr(expr);
                 match self
@@ -361,6 +365,7 @@ impl<'a> Translate<'a> {
 
     fn translate_binop(&mut self, op: &N::BinaryOp) {
         match op {
+            N::BinaryOp::PtrEq => self.out.push(I32Eq),
             N::BinaryOp::I32Eq => self.out.push(I32Eq),
             N::BinaryOp::I32Add => self.out.push(I32Add),
             N::BinaryOp::I32Sub => self.out.push(I32Sub),
@@ -482,8 +487,8 @@ impl<'a> Translate<'a> {
                 self.data_cache();
                 self.rt_call_mono("object_get", ty);
             }
-            N::Atom::Index(ht, index, ty) => {
-                self.translate_atom(ht);
+            N::Atom::Index(arr, index, ty) => {
+                self.translate_atom(arr);
                 self.translate_atom(index);
                 self.rt_call_mono("array_index", ty);
             }

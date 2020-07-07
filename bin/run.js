@@ -21,31 +21,18 @@ const runtimePath = path.normalize(path.join(path.dirname(process.argv[1]),
 // keep a WebAssembly memory reference for `readString`
 let memory;
 
-// read a null terminated c string at a wasm memory buffer index
-function readString(ptr) {
-    const view = new Uint8Array(memory.buffer);
-
-    let end = ptr;
-    while (view[end]) ++end;
-
-    const buf = new Uint8Array(view.subarray(ptr, end));
-    return (new TextDecoder()).decode(buf);
-}
-
-// `wasm_glue::hook()` requires all three
 const imports = {
     env: {
-        print(ptr) {
-            console.log(readString(ptr));
-        },
-
-        eprint(ptr) {
-            console.warn(readString(ptr));
-        },
-
-        trace(ptr) {
-            throw new Error(readString(ptr));
-        },
+        jankscripten_log: function(startOffset) {
+            let view = new Uint8Array(memory.buffer, startOffset);
+            let len = 0;
+            // This will infinite loop if the string is not null-terminated.
+            while (view[len] !== 0) {
+                len += 1;
+            }
+            view = new Uint8Array(memory.buffer, startOffset, len);
+            console.error((new TextDecoder()).decode(view));
+        }
     },
 };
 

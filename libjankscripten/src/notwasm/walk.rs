@@ -115,7 +115,7 @@ where
                 block_cxt.apply_patches(ss);
             }
             // 1xExpr
-            Assign(.., a) | Var(.., a, _) | Store(.., a) => self.walk_expr(a, loc),
+            Expression(a) | Assign(.., a) | Var(.., a, _) | Store(.., a) => self.walk_expr(a, loc),
             // 1xAtom
             Return(a) => self.walk_atom(a, loc),
             // 1xExpr, 2xStmt
