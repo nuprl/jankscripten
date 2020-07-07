@@ -9,15 +9,15 @@ use std::collections::HashMap;
 
 #[no_mangle]
 pub extern "C" fn ht_new_any<'a>() -> HTPtr<'a, AnyJSPtr<'a>> {
-    heap().alloc(HashMap::new()).unwrap()
+    heap().alloc_or_gc(HashMap::new())
 }
 #[no_mangle]
 pub extern "C" fn ht_new_i32<'a>() -> HTPtr<'a, i32> {
-    heap().alloc(HashMap::new()).unwrap()
+    heap().alloc_or_gc(HashMap::new())
 }
 #[no_mangle]
 pub extern "C" fn ht_new_f64<'a>() -> HTPtr<'a, f64> {
-    heap().alloc(HashMap::new()).unwrap()
+    heap().alloc_or_gc(HashMap::new())
 }
 
 fn ht_get_generic<T: Clone>(ht: HTPtr<T>, field: Key) -> T {

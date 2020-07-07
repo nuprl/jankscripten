@@ -131,7 +131,7 @@ impl Heap {
         let free_list = RefCell::new(FreeList::new(buffer, size));
         let tag_size = layout::layout_aligned::<Tag>(ALIGNMENT).size() as isize;
         let classes = RefCell::new(ClassList::new());
-        let shadow_stack = RefCell::default();
+        let shadow_stack = RefCell::new(vec![vec![]]);
         return Heap {
             buffer,
             size,
@@ -148,37 +148,70 @@ impl Heap {
      *
      * Primitive values are defined as those with [HasTag] implemented
      */
-    pub fn alloc<T: HasTag>(&self, value: T) -> Option<TypePtr<T>> {
+    pub fn alloc<T: HasTag>(&self, value: T) -> Result<TypePtr<T>, T> {
         self.alloc_tag(T::get_tag(), value)
     }
-
-    fn alloc_tag<T>(&self, tag: Tag, value: T) -> Option<TypePtr<T>> {
+    pub fn alloc_or_gc<T: HasTag + std::fmt::Debug>(&self, value: T) -> TypePtr<T> {
+        match self.alloc(value) {
+            Ok(ptr) => ptr,
+            Err(value) => {
+                self.gc();
+                // TODO(luna): grow?
+                self.alloc(value).expect("out of memory even after gc")
+            }
+        }
+    }
+    fn alloc_tag<T>(&self, tag: Tag, value: T) -> Result<TypePtr<T>, T> {
         let opt_ptr = self
             .free_list
             .borrow_mut()
             .find_free_size(self.tag_size + TypePtr::<T>::size());
         match opt_ptr {
-            None => None,
+            None => Err(value),
             Some(ptr) => {
-                // safety: ptr is free, can become anything
-                let tag_ptr: *mut Tag = unsafe { std::mem::transmute(ptr) };
+                let tag_ptr: *mut Tag = ptr as *mut Tag;
+                // safety: we just allocated it
+                unsafe { self.update_shadow_frame(tag_ptr) };
                 let tag_ref: &mut Tag = unsafe { &mut *tag_ptr };
                 *tag_ref = tag;
                 let val_ref = TypePtr::<T>::new(tag_ptr, tag.type_tag, value);
-                Some(val_ref)
+                Ok(val_ref)
             }
         }
     }
 
-    #[allow(unused)] // remove after we extern
     pub fn alloc_object(&self, type_tag: u16) -> Option<ObjectPtr> {
         let object_data = self.alloc_object_data(type_tag)?;
         Some(unsafe {
             ObjectPtr::new(
-                self.alloc_tag(Tag::with_type(TypeTag::ObjectPtrPtr), object_data)?
+                self.alloc_tag(Tag::with_type(TypeTag::ObjectPtrPtr), object_data)
+                    .ok()?
                     .get_ptr(),
             )
         })
+    }
+    pub fn alloc_object_or_gc(&self, type_tag: u16) -> ObjectPtr {
+        // TODO(luna): alloc_object isn't really as atomic as it needs to be
+        match self.alloc_object(type_tag) {
+            Some(ptr) => ptr,
+            None => {
+                self.gc();
+                // TODO(luna): grow?
+                self.alloc_object(type_tag)
+                    .expect("out of memory even after gc")
+            }
+        }
+    }
+    pub fn alloc_object_data_or_gc(&self, type_tag: u16) -> ObjectDataPtr {
+        match self.alloc_object_data(type_tag) {
+            Some(ptr) => ptr,
+            None => {
+                self.gc();
+                // TODO(luna): grow?
+                self.alloc_object_data(type_tag)
+                    .expect("out of memory even after gc")
+            }
+        }
     }
     fn alloc_object_data(&self, type_tag: u16) -> Option<ObjectDataPtr> {
         let num_elements = self.get_class_size(type_tag);
@@ -190,7 +223,9 @@ impl Heap {
         match opt_ptr {
             None => None,
             Some(ptr) => {
-                let tag_ptr: *mut Tag = unsafe { std::mem::transmute(ptr) };
+                let tag_ptr: *mut Tag = ptr as *mut Tag;
+                // safety: we just allocated it
+                unsafe { self.update_shadow_frame(tag_ptr) };
                 let tag_ref: &mut Tag = unsafe { &mut *tag_ptr };
                 unsafe {
                     tag_ptr.write(Tag::object(type_tag));
@@ -213,23 +248,32 @@ impl Heap {
         self.classes.borrow().get_class_size(class_tag)
     }
 
-    #[allow(unused)] // remove after we extern
     pub fn push_shadow_frame(&self, frame: &[*mut Tag]) {
         let mut shadow_stack = self.shadow_stack.borrow_mut();
         shadow_stack.push(Vec::from(frame));
     }
-
-    #[allow(unused)] // remove after we extern
-    pub fn pop_shadow_frame(&self, frame: &[*mut Tag]) {
+    /// # Safety
+    ///
+    /// calling this without an appropriate push_shadow_frame, or before
+    /// all locals in the topmost frame have gone out of scope, results in [gc]
+    /// being unsafe (will free in-use data)
+    pub unsafe fn pop_shadow_frame(&self) {
         let mut shadow_stack = self.shadow_stack.borrow_mut();
-        shadow_stack.push(Vec::from(frame));
+        shadow_stack.pop();
+    }
+    /// updating with an improper tag will make [gc] unsafe (treating non-tags
+    /// as roots)
+    unsafe fn update_shadow_frame(&self, ptr: *mut Tag) {
+        let mut shadow_stack = self.shadow_stack.borrow_mut();
+        shadow_stack.last_mut().unwrap().push(ptr);
     }
 
     /// # Safety
     ///
-    /// roots must be live, appropriately allocated tags
+    /// if push_shadow_frame / pop_shadow_frame / update_shadow_frame were
+    /// used correctly (tagged unsafe), this is safe
     #[allow(unused)] // remove after we extern
-    pub unsafe fn gc(&self) {
+    pub fn gc(&self) {
         let roots = self
             .shadow_stack
             .borrow()

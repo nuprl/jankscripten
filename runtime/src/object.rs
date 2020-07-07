@@ -7,7 +7,7 @@ use crate::string::StrPtr;
 
 #[no_mangle]
 pub extern "C" fn object_empty<'a>() -> ObjectPtr<'a> {
-    heap().alloc_object(0).unwrap()
+    heap().alloc_object_or_gc(0)
 }
 
 #[no_mangle]
@@ -39,7 +39,7 @@ pub extern "C" fn object_get_any<'a>(
     cache: &mut isize,
 ) -> AnyJSPtr<'a> {
     let x: Any<'a> = object.get(heap(), field, cache).unwrap();
-    heap().alloc(x).unwrap()
+    heap().alloc_or_gc(x)
 }
 
 #[no_mangle]

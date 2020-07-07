@@ -346,6 +346,58 @@ fn simple_prec() {
     test_wasm(13, program);
 }
 
+const ITER_COUNT: usize = 1000;
+const ALLOC_PROG: &'static str = "
+    // allocates 8 Anys, and also 1, 2, ... = 28 * 96 = 2688
+    var x: AnyClass = {};
+    x.a: f64 = 0f;
+    x.b: f64 = 0f;
+    x.c: f64 = 0f;
+    x.d: f64 = 0f;
+    x.e: f64 = 0f;
+    x.f: f64 = 0f;
+    x.g: f64 = 0f;
+    x.h: f64 = 0f;";
+#[test]
+fn will_gc() {
+    let program = parse(&format!(
+        "
+        function alloc_and_drop(): i32 {{
+            {}
+            return 0;
+        }}
+        function main(): i32 {{
+            var i: i32 = 0;
+            while (i < {}) {{
+                var _: i32 = alloc_and_drop();
+                i = i + 1;
+            }}
+            return 5;
+        }}
+        ",
+        ALLOC_PROG, ITER_COUNT,
+    ));
+    test_wasm(5, program);
+}
+#[test]
+#[should_panic]
+fn oom_if_no_gc() {
+    let program = parse(&format!(
+        "
+        function main(): i32 {{
+            var i: i32 = 0;
+            while (i < {}) {{
+                {}
+                i = i + 1;
+            }}
+            return 5;
+        }}
+        ",
+        ITER_COUNT, ALLOC_PROG
+    ));
+    test_wasm(5, program);
+}
+
 #[test]
 fn identical_interned_string_identity() {
     let mut program = parse(

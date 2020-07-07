@@ -7,11 +7,11 @@ use super::{
 
 #[no_mangle]
 pub extern "C" fn array_new_any<'a>() -> ArrayPtr<'a, AnyJSPtr<'a>> {
-    heap().alloc(Vec::new()).unwrap()
+    heap().alloc_or_gc(Vec::new())
 }
 #[no_mangle]
 pub extern "C" fn array_new_i32<'a>() -> ArrayPtr<'a, i32> {
-    heap().alloc(Vec::new()).unwrap()
+    heap().alloc_or_gc(Vec::new())
 }
 
 fn array_index_generic<T: Clone>(array: ArrayPtr<T>, index: i32) -> T {
