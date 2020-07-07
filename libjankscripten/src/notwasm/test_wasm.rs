@@ -265,7 +265,7 @@ fn trivial_indirect_call() {
 
 #[test]
 #[ignore]
-fn parse_refs() {
+fn basic_ref() {
     let program = parse(
         r#"
         function main() : i32 {
