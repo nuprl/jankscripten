@@ -169,14 +169,15 @@ fn translate_func(
 
     // generate the actual code
     translator.translate_rec(&mut env, &mut func.body);
-    let mut insts = translator.out;
-    insts.push(End);
+    let mut insts = vec![];
     // before the code, if this is main we have to call rt init()
     if name == &N::Id::Named("main".to_string()) {
-        let mut new_insts = vec![Call(*rt_indexes.get("init").expect("no init"))];
-        new_insts.append(&mut insts);
-        insts = new_insts;
+        insts = vec![Call(*rt_indexes.get("init").expect("no init"))];
     }
+    insts.push(Call(*rt_indexes.get("gc_enter_fn").expect("no enter")));
+    insts.append(&mut translator.out);
+    insts.push(Call(*rt_indexes.get("gc_exit_fn").expect("no exit")));
+    insts.push(End);
     let locals: Vec<_> = translator
         .locals
         .into_iter()
@@ -346,6 +347,7 @@ impl<'a> Translate<'a> {
                 self.out.push(Br(i as u32));
             }
             N::Stmt::Return(atom) => {
+                self.rt_call("gc_exit_fn");
                 self.translate_atom(atom);
                 self.out.push(Return);
             }

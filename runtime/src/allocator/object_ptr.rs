@@ -75,7 +75,7 @@ impl<'a> ObjectDataPtr<'a> {
     /// if name is found, write to it. if not, transition, clone, write, and
     /// return new pointer. this should be called by ObjectPtr only
     #[must_use]
-    fn insert(self, heap: &'a Heap, name: StrPtr, value: Any, cache: &mut isize) -> Option<Self> {
+    fn insert(self, heap: &'a Heap, name: StrPtr, value: Any, cache: &mut isize) -> Self {
         let class_tag = self.class_tag();
         let mut classes = heap.classes.borrow_mut();
         let class = classes.get_class(class_tag);
@@ -84,21 +84,21 @@ impl<'a> ObjectDataPtr<'a> {
                 drop(class);
                 drop(classes);
                 self.write_at(heap, offset, value);
-                Some(self)
+                self
             }
             None => {
                 let size = class.size;
                 drop(class);
                 let new_tag = classes.transition(class_tag, name);
                 drop(classes);
-                let new_object = heap.alloc_object_data(new_tag)?;
+                let new_object = heap.alloc_object_data_or_gc(new_tag);
                 for i in 0..size {
                     if let Some(val) = self.read_at(heap, i) {
                         new_object.write_at(heap, i, val);
                     }
                 }
                 new_object.write_at(heap, size, value);
-                Some(new_object)
+                new_object
             }
         }
     }
@@ -130,11 +130,11 @@ impl<'a> ObjectPtr<'a> {
         name: StrPtr,
         value: Any<'a>,
         cache: &mut isize,
-    ) -> Option<Any> {
+    ) -> Any {
         let data = &mut **self;
-        let new = data.insert(heap, name, value, cache)?;
+        let new = data.insert(heap, name, value, cache);
         unsafe { *(self.ptr.add(DATA_OFFSET) as *mut ObjectDataPtr) = new };
-        Some(value)
+        value
     }
 }
 impl<'a> Deref for ObjectPtr<'a> {

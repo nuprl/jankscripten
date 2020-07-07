@@ -63,6 +63,8 @@ pub fn get_rt_bindings() -> BindMap {
     insert(m, "string_from_ptr", vec![StrRef], String);
     insert(m, "string_len", vec![String], I32);
     insert(m, "init", vec![], None);
+    insert(m, "gc_enter_fn", vec![], None);
+    insert(m, "gc_exit_fn", vec![], None);
     map
 }
 

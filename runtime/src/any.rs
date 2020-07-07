@@ -16,7 +16,7 @@ pub enum Any<'a> {
 
 #[no_mangle]
 pub extern "C" fn any_f64<'a>(val: f64) -> AnyJSPtr<'a> {
-    heap().alloc(Any::F64(val)).unwrap()
+    heap().alloc_or_gc(Any::F64(val))
 }
 
 #[no_mangle]

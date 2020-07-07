@@ -23,6 +23,7 @@ type Key = StrPtr;
 
 pub mod any;
 pub mod array;
+pub mod gc;
 pub mod ht;
 pub mod num;
 pub mod object;
@@ -43,7 +44,7 @@ pub static JNKS_STRINGS: [u8; 65536] = [0; 65536];
 #[no_mangle]
 pub extern "C" fn init() {
     unsafe {
-        HEAP = Some(Heap::new(268435456));
+        HEAP = Some(Heap::new(65535));
     }
 }
 
