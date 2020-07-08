@@ -20,7 +20,7 @@ pub fn intern(program: &mut Program) {
 struct InternVisitor {
     data: Vec<u8>,
     /// Helps avoid interning the same static string multiple times.
-    already_interned: std::collections::HashMap<String, u32>
+    already_interned: std::collections::HashMap<String, u32>,
 }
 impl Visitor for InternVisitor {
     fn exit_atom(&mut self, atom: &mut Atom, _loc: &mut Loc) {
@@ -37,7 +37,7 @@ impl Visitor for InternVisitor {
                     let pos = self.data.len() as u32;
 
                     // Cache the offset, so that the interned string can be
-                    // reused. 
+                    // reused.
                     self.already_interned.insert(s.clone(), pos);
                     let mut bytes = s.into_bytes();
                     *old_lit = Lit::Interned(pos);
@@ -89,7 +89,7 @@ mod test {
             ]),
             fn_type: FnType {
                 args: vec![],
-                result: Some(Type::I32),
+                result: Some(Box::new(Type::I32)),
             },
             params: vec![],
         };

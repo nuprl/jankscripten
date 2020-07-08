@@ -27,7 +27,7 @@ fn lookup(p: &Program, env: &Env, id: &Id) -> TypeCheckingResult<Type> {
     } else if let Some(global) = p.globals.get(id) {
         Ok(global.ty.clone())
     } else if let Some(function) = p.functions.get(id) {
-        Ok(function.fn_type.as_type())
+        Ok(function.fn_type.clone().to_type())
     } else {
         Err(TypeCheckingError::NoSuchVariable(id.clone()))
     }
@@ -42,13 +42,6 @@ fn ensure(msg: &str, expected: Type, got: Type) -> TypeCheckingResult<Type> {
             expected,
             got,
         ))
-    }
-}
-
-fn ensure_ht(msg: &str, got: Type) -> TypeCheckingResult<Type> {
-    match got {
-        Type::HT(ty) => Ok(*ty),
-        _ => Err(TypeCheckingError::ExpectedHT(String::from(msg), got)),        
     }
 }
 
@@ -75,7 +68,7 @@ pub fn type_check_function(p: &Program, id: &Id, f: &Function) -> TypeCheckingRe
             .zip(f.fn_type.args.iter().map(|ty| ty.clone())), // why can't i clone the pairs at the end?
     );
 
-    let _ = type_check_stmt(p, env, &f.body, &f.fn_type.result)?;
+    let _ = type_check_stmt(p, env, &f.body, &f.fn_type.result.clone().map(|b| *b))?;
 
     Ok(())
 }
@@ -162,75 +155,59 @@ pub fn type_check_stmt(
 
 pub fn type_check_expr(p: &Program, env: &Env, e: &Expr) -> TypeCheckingResult<Type> {
     match e {
-        Expr::HT(ty) => Ok(Type::HT(Box::new(ty.clone()))),
-        Expr::Array(ty) => Ok(Type::Array(Box::new(ty.clone()))),
+        Expr::HT => Ok(Type::HT),
+        Expr::Array => Ok(Type::Array),
         Expr::ObjectEmpty => Ok(Type::AnyClass),
-        Expr::Push(a_arr, a_elt, ty) => {
+        Expr::Push(a_arr, a_elt) => {
             let got_arr = type_check_atom(p, env, a_arr)?;
             let got_elt = type_check_atom(p, env, a_elt)?;
 
-            // RUNTIME ASSUMPTION: any array coercion will happen elsewhere---we want an exact match
-            let _ = ensure(
-                "array push (array)",
-                Type::Array(Box::new(ty.clone())),
-                got_arr,
-            )?;
-            let _ = ensure("array push (element)", ty.clone(), got_elt)?;
+            let _ = ensure("array push (array)", Type::Array, got_arr)?;
+            let _ = ensure("array push (element)", Type::Any, got_elt)?;
 
             Ok(Type::I32) // returns length
         }
-        Expr::HTSet(a_ht, a_field, a_val, ty) => {
+        Expr::HTSet(a_ht, a_field, a_val) => {
             let got_ht = type_check_atom(p, env, a_ht)?;
             let got_field = type_check_atom(p, env, a_field)?;
             let got_val = type_check_atom(p, env, a_val)?;
 
-            let got_ht_inner = ensure_ht("ht set (ht)", got_ht)?;
-
-            let _ = ensure("ht set (inner)", ty.clone(), got_ht_inner)?;
-
+            ensure("ht set (ht)", Type::HT, got_ht)?;
             let _ = ensure("ht set (field)", Type::String, got_field)?;
-            let _ = ensure("ht set (val)", ty.clone(), got_val)?;
+            let _ = ensure("ht set (val)", Type::Any, got_val)?;
 
-            Ok(ty.clone()) // returns value set
+            Ok(Type::Any) // returns value set
         }
-        Expr::ObjectSet(a_obj, a_field, a_val, ty) => {
+        Expr::ObjectSet(a_obj, a_field, a_val) => {
             let got_obj = type_check_atom(p, env, a_obj)?;
             let got_field = type_check_atom(p, env, a_field)?;
             let got_val = type_check_atom(p, env, a_val)?;
 
-            let _ = ensure("object set (ht)", Type::AnyClass, got_obj)?;
-             
+            let _ = ensure("object set (obj)", Type::AnyClass, got_obj)?;
             let _ = ensure("object set (field)", Type::String, got_field)?;
-            let _ = ensure("object set (val)", ty.clone(), got_val)?;
+            let _ = ensure("object set (val)", Type::Any, got_val)?;
 
-            Ok(ty.clone()) // returns value set
+            Ok(Type::Any) // returns value set
         }
         Expr::ToString(a) => {
             let got = type_check_atom(p, env, a)?;
             let _ = ensure("tostring", Type::StrRef, got);
             Ok(Type::String)
         }
-        Expr::ToAny(a, ty) => {
-            let got = type_check_atom(p, env, a)?;
-            let _ = ensure("toany", ty.clone(), got)?;
-            // ??? MMG are there any types this DOESN'T work for?
-            // the Any enum leaves out strings, but Any::Any will wrap it?
-            Ok(Type::Any)
-        }
         Expr::Call(id_f, actuals) => {
             let got_f = lookup(p, env, id_f)?;
-            if let Type::Fn(formals, ret) = got_f {
+            if let Type::Fn(fn_ty) = got_f {
                 // arity check
-                if actuals.len() != formals.len() {
+                if actuals.len() != fn_ty.args.len() {
                     return Err(TypeCheckingError::ArityMismatch(
                         id_f.clone(),
-                        actuals.len() - formals.len(),
+                        actuals.len() - fn_ty.args.len(),
                     ));
                 }
 
                 // match formals and actuals
                 let mut nth = 0;
-                for (actual, formal) in actuals.iter().zip(formals.iter()) {
+                for (actual, formal) in actuals.iter().zip(fn_ty.args.iter()) {
                     let got = lookup(p, env, actual)?;
                     let _ = ensure(
                         &format!("call {:?} (argument #{})", id_f, nth),
@@ -242,7 +219,7 @@ pub fn type_check_expr(p: &Program, env: &Env, e: &Expr) -> TypeCheckingResult<T
 
                 // return type or any
                 // ??? MMG do we need a void/unit type?
-                Ok(ret.unwrap_or(Type::Any))
+                Ok(fn_ty.result.map(|b| *b).unwrap_or(Type::Any))
             } else {
                 Err(TypeCheckingError::ExpectedFunction(id_f.clone(), got_f))
             }
@@ -254,6 +231,16 @@ pub fn type_check_expr(p: &Program, env: &Env, e: &Expr) -> TypeCheckingResult<T
 pub fn type_check_atom(p: &Program, env: &Env, a: &Atom) -> TypeCheckingResult<Type> {
     match a {
         Atom::Lit(l) => Ok(type_check_lit(l)),
+        Atom::ToAny(a, ty) => {
+            let got = type_check_atom(p, env, a)?;
+            let _ = ensure("toany", ty.clone(), got)?;
+            Ok(Type::Any)
+        }
+        Atom::FromAny(a, ty) => {
+            let got = type_check_atom(p, env, a)?;
+            ensure("from_any", Type::Any, got)?;
+            Ok(ty.clone())
+        }
         Atom::Id(id) => lookup(p, env, id),
         Atom::StringLen(a) => {
             let ty = type_check_atom(p, env, a)?;
@@ -261,39 +248,33 @@ pub fn type_check_atom(p: &Program, env: &Env, a: &Atom) -> TypeCheckingResult<T
 
             Ok(Type::I32)
         }
-        Atom::ArrayLen(a, ty) => {
+        Atom::ArrayLen(a) => {
             let got = type_check_atom(p, env, a)?;
-            ensure("array len", Type::Array(Box::new(ty.clone())), got)
+            ensure("array len", Type::Array, got)
         }
-        Atom::Index(a_arr, a_idx, ty) => {
+        Atom::Index(a_arr, a_idx) => {
             let got_arr = type_check_atom(p, env, a_arr)?;
             let got_idx = type_check_atom(p, env, a_idx)?;
             let _ = ensure("arrayi ndex (index)", Type::I32, got_idx)?;
-            let _ = ensure(
-                "array index (array)",
-                Type::Array(Box::new(ty.clone())),
-                got_arr,
-            );
-            Ok(ty.clone())
+            let _ = ensure("array index (array)", Type::Array, got_arr);
+            Ok(Type::Any)
         }
-        Atom::ObjectGet(a_obj, a_field, ty) => {
+        Atom::ObjectGet(a_obj, a_field) => {
             let got_obj = type_check_atom(p, env, a_obj)?;
             let got_field = type_check_atom(p, env, a_field)?;
 
             let _ = ensure("object get field", Type::String, got_field)?;
             let _ = ensure("object field", Type::AnyClass, got_obj)?;
-            Ok(ty.clone())
+            Ok(Type::Any)
         }
-        Atom::HTGet(a_ht, a_field, ty) => {
+        Atom::HTGet(a_ht, a_field) => {
             let got_ht = type_check_atom(p, env, a_ht)?;
             let got_field = type_check_atom(p, env, a_field)?;
 
-            let got_ht_inner = ensure_ht("ht get", got_ht)?;
-
-            let _ = ensure("ht get (inner)", ty.clone(), got_ht_inner)?;
+            ensure("ht get", Type::HT, got_ht)?;
             let _ = ensure("ht get (field)", Type::String, got_field)?;
 
-            Ok(ty.clone())
+            Ok(Type::Any)
         }
         Atom::Unary(op, a) => {
             let (ty_in, ty_out) = type_check_unary(op);

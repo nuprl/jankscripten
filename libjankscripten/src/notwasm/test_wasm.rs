@@ -107,44 +107,48 @@ fn fails_no_runtime() {
 fn test_ht() {
     let program = parse(
         r#"
-        function main(): f64 {
-            var x: HT(f64) = f64{};
-            x:one: f64 = 1f;
-            x:two: f64 = 2f;
-            x:three: f64 = 3f;
-            return x:one: f64;
+        function main(): i32 {
+            var x: HT = HT{};
+            x<<one = any::i32(1);
+            x<<two = any::i32(2);
+            x<<three = any::i32(3);
+            return x<<one: i32;
         }
         "#,
     );
-    test_wasm(1., program);
+    test_wasm(1, program);
 }
 
 #[test]
 fn objects() {
     let program = parse(
         r#"
-        function main(): f64 {
+        function main(): i32 {
             var obj: AnyClass = {};
-            obj.x: f64 = 3f;
-            obj.y: f64 = 2f;
-            obj.x: f64 = 1f;
-            obj.z: f64 = 3f;
-            return obj.x: f64;
+            obj.x = any::i32(3);
+            obj.y = any::i32(2);
+            obj.x = any::i32(1);
+            obj.z = any::i32(3);
+            return obj.x: i32;
         }
         "#,
     );
-    test_wasm(1., program);
+    test_wasm(1, program);
 }
 
 #[test]
 fn array_push_index() {
-    let program = test_program_(Stmt::Block(vec![
-        Stmt::Var(id_("x"), Expr::Array(Type::I32), array_ty_(Type::I32)),
-        Stmt::Expression(Expr::Push(get_id_("x"), i32_(135), Type::I32)),
-        Stmt::Expression(Expr::Push(get_id_("x"), i32_(7), Type::I32)),
-        Stmt::Expression(Expr::Push(get_id_("x"), i32_(98), Type::I32)),
-        Stmt::Return(index_(get_id_("x"), i32_(2), Type::I32)),
-    ]));
+    let program = parse(
+        "
+        function main(): i32 {
+            var x: Array = [];
+            var _: i32 = arrayPush(x, any::i32(135));
+            var _: i32 = arrayPush(x, any::i32(7));
+            var _: i32 = arrayPush(x, any::i32(98));
+            return x[2]: i32;
+        }
+        ",
+    );
     test_wasm(98, program);
 }
 
@@ -350,14 +354,14 @@ const ITER_COUNT: usize = 1000;
 const ALLOC_PROG: &'static str = "
     // allocates 8 Anys, and also 1, 2, ... = 28 * 96 = 2688
     var x: AnyClass = {};
-    x.a: f64 = 0f;
-    x.b: f64 = 0f;
-    x.c: f64 = 0f;
-    x.d: f64 = 0f;
-    x.e: f64 = 0f;
-    x.f: f64 = 0f;
-    x.g: f64 = 0f;
-    x.h: f64 = 0f;";
+    x.a = any::i32(0);
+    x.b = any::i32(0);
+    x.c = any::i32(0);
+    x.d = any::i32(0);
+    x.e = any::i32(0);
+    x.f = any::i32(0);
+    x.g = any::i32(0);
+    x.h = any::i32(0);";
 #[test]
 fn will_gc() {
     let program = parse(&format!(

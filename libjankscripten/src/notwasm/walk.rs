@@ -132,7 +132,7 @@ where
         use Expr::*;
         self.visitor.enter_expr(expr, loc);
         match expr {
-            ObjectEmpty | HT(..) | Array(..) | Call(..) => (),
+            ObjectEmpty | HT | Array | Call(..) => (),
             HTSet(ea, eb, ec, ..) | ObjectSet(ea, eb, ec, ..) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
@@ -142,7 +142,7 @@ where
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
             }
-            ToString(a) | ToAny(a, ..) | Atom(a, ..) => self.walk_atom(a, loc),
+            ToString(a) | Atom(a, ..) => self.walk_atom(a, loc),
         }
         self.visitor.exit_expr(expr, loc);
     }
@@ -153,7 +153,7 @@ where
         match atom {
             // 0
             Lit(..) | Id(..) => (),
-            StringLen(ea) | ArrayLen(ea, ..) | Unary(.., ea) => {
+            StringLen(ea) | ArrayLen(ea, ..) | Unary(.., ea) | ToAny(ea, ..) | FromAny(ea, ..) => {
                 self.walk_atom(ea, loc);
             }
             HTGet(ea, eb, ..) | ObjectGet(ea, eb, ..) | Binary(.., ea, eb) | Index(ea, eb, ..) => {

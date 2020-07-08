@@ -44,11 +44,8 @@ pub enum TypeTag {
     I32,
     F64,
     String,
-    HTAny,
-    HTI32,
-    HTF64,
-    ArrayAny,
-    ArrayI32,
+    HT,
+    Array,
     Any,
     // The value inside the tag is the address where the array of pointers
     // begins, for this object.
@@ -97,11 +94,8 @@ pub enum HeapRefView<'a> {
     I32(I32Ptr<'a>),
     F64(F64Ptr<'a>),
     String(StringPtr<'a>),
-    HTAny(HTPtr<'a, AnyJSPtr<'a>>),
-    HTI32(HTPtr<'a, i32>),
-    HTF64(HTPtr<'a, f64>),
-    ArrayAny(ArrayPtr<'a, AnyJSPtr<'a>>),
-    ArrayI32(ArrayPtr<'a, i32>),
+    HT(HTPtr<'a>),
+    Array(ArrayPtr<'a>),
     Any(AnyJSPtr<'a>),
     Class(ObjectDataPtr<'a>),
     ObjectPtrPtr(ObjectPtr<'a>),
@@ -114,11 +108,8 @@ impl<'a> HeapRefView<'a> {
             Self::I32(val) => val,
             Self::F64(val) => val,
             Self::String(val) => val,
-            Self::HTAny(val) => val,
-            Self::HTI32(val) => val,
-            Self::HTF64(val) => val,
-            Self::ArrayAny(val) => val,
-            Self::ArrayI32(val) => val,
+            Self::HT(val) => val,
+            Self::Array(val) => val,
             Self::Any(val) => val,
             Self::Class(val) => val,
             Self::ObjectPtrPtr(val) => val,
@@ -155,21 +146,8 @@ impl<'a> AnyPtr<'a> {
             TypeTag::String => {
                 HeapRefView::String(unsafe { StringPtr::new_tag_unchecked(self.ptr) })
             }
-            TypeTag::HTAny => {
-                HeapRefView::HTAny(unsafe { HTPtr::<AnyJSPtr<'a>>::new_tag_unchecked(self.ptr) })
-            }
-            TypeTag::HTI32 => {
-                HeapRefView::HTI32(unsafe { HTPtr::<i32>::new_tag_unchecked(self.ptr) })
-            }
-            TypeTag::HTF64 => {
-                HeapRefView::HTF64(unsafe { HTPtr::<f64>::new_tag_unchecked(self.ptr) })
-            }
-            TypeTag::ArrayAny => HeapRefView::ArrayAny(unsafe {
-                ArrayPtr::<AnyJSPtr<'a>>::new_tag_unchecked(self.ptr)
-            }),
-            TypeTag::ArrayI32 => {
-                HeapRefView::ArrayI32(unsafe { ArrayPtr::<i32>::new_tag_unchecked(self.ptr) })
-            }
+            TypeTag::HT => HeapRefView::HT(unsafe { HTPtr::new_tag_unchecked(self.ptr) }),
+            TypeTag::Array => HeapRefView::Array(unsafe { ArrayPtr::new_tag_unchecked(self.ptr) }),
             TypeTag::Any => HeapRefView::Any(unsafe { AnyJSPtr::new_tag_unchecked(self.ptr) }),
             TypeTag::Class => HeapRefView::Class(unsafe { ObjectDataPtr::new(self.ptr) }),
             TypeTag::ObjectPtrPtr => HeapRefView::ObjectPtrPtr(unsafe { ObjectPtr::new(self.ptr) }),

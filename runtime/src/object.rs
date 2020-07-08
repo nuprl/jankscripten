@@ -12,7 +12,7 @@ pub extern "C" fn object_empty<'a>() -> ObjectPtr<'a> {
 }
 
 #[no_mangle]
-pub extern "C" fn object_set_any<'a>(
+pub extern "C" fn object_set<'a>(
     mut object: ObjectPtr<'a>,
     field: StrPtr,
     value: AnyValue<'a>,
@@ -23,34 +23,10 @@ pub extern "C" fn object_set_any<'a>(
 }
 
 #[no_mangle]
-pub extern "C" fn object_set_f64<'a>(
-    mut object: ObjectPtr<'a>,
-    field: StrPtr,
-    value: f64,
-    cache: &mut isize,
-) -> f64 {
-    object.insert(heap(), field, AnyEnum::F64(box_f64(value)).into(), cache);
-    value
-}
-
-#[no_mangle]
-pub extern "C" fn object_get_any<'a>(
+pub extern "C" fn object_get<'a>(
     object: ObjectPtr<'a>,
     field: StrPtr,
     cache: &mut isize,
 ) -> AnyValue<'a> {
     object.get(heap(), field, cache).unwrap().into()
-}
-
-#[no_mangle]
-pub extern "C" fn object_get_f64<'a>(
-    object: ObjectPtr<'a>,
-    field: StrPtr,
-    cache: &mut isize,
-) -> f64 {
-    let x = object.get(heap(), field, cache).unwrap();
-    match x {
-        AnyEnum::F64(f) => *f,
-        _ => panic!("not an f64"),
-    }
 }

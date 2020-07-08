@@ -82,6 +82,7 @@ macro_rules! decl_proj_fns {
 }
 
 decl_proj_fns!(any_from_f64_ptr, any_to_f64_ptr, F64, F64Ptr<'a>);
+decl_proj_fns!(any_from_i32, any_to_i32, I32, i32);
 
 #[cfg(test)]
 mod test {
