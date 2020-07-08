@@ -122,9 +122,9 @@ impl FnType {
 pub enum Type {
     I32,
     F64,
+    F64Ptr,
     String,
     StrRef,
-    Class,
     HT(Box<Type>),
     Array(Box<Type>),
     Bool,
@@ -206,9 +206,9 @@ impl std::fmt::Display for Type {
             match self {
                 I32 => "i32",
                 F64 => "f64",
+                F64Ptr => "f64_ptr",
                 String => "string",
                 StrRef => "str",
-                Class => "class",
                 HT(..) => "ht",
                 Array(..) => "array",
                 Bool => "bool",

@@ -42,6 +42,7 @@ impl Tag {
 #[repr(u8)]
 pub enum TypeTag {
     I32,
+    F64,
     String,
     HTAny,
     HTI32,
@@ -94,6 +95,7 @@ pub struct AnyPtr<'a> {
 #[derive(Clone, Copy)]
 pub enum HeapRefView<'a> {
     I32(I32Ptr<'a>),
+    F64(F64Ptr<'a>),
     String(StringPtr<'a>),
     HTAny(HTPtr<'a, AnyJSPtr<'a>>),
     HTI32(HTPtr<'a, i32>),
@@ -110,6 +112,7 @@ impl<'a> HeapRefView<'a> {
     fn heap_ptr(&'a self) -> &'a dyn HeapPtr {
         match self {
             Self::I32(val) => val,
+            Self::F64(val) => val,
             Self::String(val) => val,
             Self::HTAny(val) => val,
             Self::HTI32(val) => val,
@@ -148,6 +151,7 @@ impl<'a> AnyPtr<'a> {
         let heap_ref: Tag = unsafe { *self.ptr };
         match heap_ref.type_tag {
             TypeTag::I32 => HeapRefView::I32(unsafe { I32Ptr::new_tag_unchecked(self.ptr) }),
+            TypeTag::F64 => HeapRefView::F64(unsafe { F64Ptr::new_tag_unchecked(self.ptr) }),
             TypeTag::String => {
                 HeapRefView::String(unsafe { StringPtr::new_tag_unchecked(self.ptr) })
             }
@@ -280,6 +284,13 @@ impl<T: PartialEq> PartialEq<TypePtr<'_, T>> for TypePtr<'_, T> {
     }
 }
 impl<T: PartialEq> Eq for TypePtr<'_, T> {}
+
+impl<'a, T> From<TypePtr<'a, T>> for AnyPtr<'a> {
+    fn from(ptr: TypePtr<'a, T>) -> Self {
+        // safety: TypePtr is valid, so an AnyPtr will be valid
+        unsafe { AnyPtr::new(ptr.get_ptr()) }
+    }
+}
 
 impl Tag {
     /**

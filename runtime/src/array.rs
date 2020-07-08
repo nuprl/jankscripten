@@ -1,12 +1,10 @@
 //! create managed Arrays
 
-use super::{
-    heap,
-    heap_types::{AnyJSPtr, ArrayPtr},
-};
+use super::{heap, heap_types::ArrayPtr};
+use crate::AnyValue;
 
 #[no_mangle]
-pub extern "C" fn array_new_any<'a>() -> ArrayPtr<'a, AnyJSPtr<'a>> {
+pub extern "C" fn array_new_any<'a>() -> ArrayPtr<'a, AnyValue<'a>> {
     heap().alloc_or_gc(Vec::new())
 }
 #[no_mangle]
@@ -19,9 +17,9 @@ fn array_index_generic<T: Clone>(array: ArrayPtr<T>, index: i32) -> T {
 }
 #[no_mangle]
 pub extern "C" fn array_index_any<'a>(
-    array: ArrayPtr<'a, AnyJSPtr<'a>>,
+    array: ArrayPtr<'a, AnyValue<'a>>,
     index: i32,
-) -> AnyJSPtr<'a> {
+) -> AnyValue<'a> {
     array_index_generic(array, index)
 }
 #[no_mangle]
@@ -33,7 +31,7 @@ fn array_len_generic<T>(array: ArrayPtr<T>) -> i32 {
     array.len() as i32
 }
 #[no_mangle]
-pub extern "C" fn array_len_any<'a>(array: ArrayPtr<'a, AnyJSPtr<'a>>) -> i32 {
+pub extern "C" fn array_len_any<'a>(array: ArrayPtr<'a, AnyValue<'a>>) -> i32 {
     array_len_generic(array)
 }
 #[no_mangle]
@@ -47,8 +45,8 @@ fn array_push_generic<'a, T>(mut array: ArrayPtr<'a, T>, value: T) -> i32 {
 }
 #[no_mangle]
 pub extern "C" fn array_push_any<'a>(
-    array: ArrayPtr<'a, AnyJSPtr<'a>>,
-    value: AnyJSPtr<'a>,
+    array: ArrayPtr<'a, AnyValue<'a>>,
+    value: AnyValue<'a>,
 ) -> i32 {
     array_push_generic(array, value)
 }

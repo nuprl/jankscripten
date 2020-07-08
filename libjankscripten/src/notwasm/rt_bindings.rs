@@ -42,8 +42,8 @@ pub fn get_rt_bindings() -> BindMap {
         vec![Any, I32],
     );
     insert_mono(m, "array_len", vec![&array_ty_], &|_| I32, vec![Any, I32]);
-    insert_mono(m, "any", vec![&mono], &|_| Any, vec![F64]);
-    insert_mono(m, "any_to", vec![&|_| Any], &mono, vec![F64]);
+    insert_mono(m, "any_from", vec![&mono], &|_| Any, vec![F64Ptr]);
+    insert_mono(m, "any_to", vec![&|_| Any], &mono, vec![F64Ptr]);
     insert(m, "object_empty", vec![], AnyClass);
     // I32s are caches here
     insert_mono(

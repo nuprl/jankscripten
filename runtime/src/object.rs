@@ -1,9 +1,10 @@
 //! Bindings to heap_type's ObjectPtr: instances of hidden classes
 
-use crate::any::Any;
+use crate::box_f64;
 use crate::heap;
 use crate::heap_types::*;
 use crate::string::StrPtr;
+use crate::{AnyEnum, AnyValue};
 
 #[no_mangle]
 pub extern "C" fn object_empty<'a>() -> ObjectPtr<'a> {
@@ -14,10 +15,10 @@ pub extern "C" fn object_empty<'a>() -> ObjectPtr<'a> {
 pub extern "C" fn object_set_any<'a>(
     mut object: ObjectPtr<'a>,
     field: StrPtr,
-    value: AnyJSPtr<'a>,
+    value: AnyValue<'a>,
     cache: &mut isize,
-) -> AnyJSPtr<'a> {
-    object.insert(heap(), field, value.get().clone(), cache);
+) -> AnyValue<'a> {
+    object.insert(heap(), field, value, cache);
     value
 }
 
@@ -28,7 +29,7 @@ pub extern "C" fn object_set_f64<'a>(
     value: f64,
     cache: &mut isize,
 ) -> f64 {
-    object.insert(heap(), field, Any::F64(value), cache);
+    object.insert(heap(), field, AnyEnum::F64(box_f64(value)).into(), cache);
     value
 }
 
@@ -37,9 +38,8 @@ pub extern "C" fn object_get_any<'a>(
     object: ObjectPtr<'a>,
     field: StrPtr,
     cache: &mut isize,
-) -> AnyJSPtr<'a> {
-    let x: Any<'a> = object.get(heap(), field, cache).unwrap();
-    heap().alloc_or_gc(x)
+) -> AnyValue<'a> {
+    object.get(heap(), field, cache).unwrap().into()
 }
 
 #[no_mangle]
@@ -48,9 +48,9 @@ pub extern "C" fn object_get_f64<'a>(
     field: StrPtr,
     cache: &mut isize,
 ) -> f64 {
-    let x: Any<'a> = object.get(heap(), field, cache).unwrap();
+    let x = object.get(heap(), field, cache).unwrap();
     match x {
-        Any::F64(f) => f,
+        AnyEnum::F64(f) => *f,
         _ => panic!("not an f64"),
     }
 }

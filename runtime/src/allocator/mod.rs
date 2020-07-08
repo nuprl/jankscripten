@@ -1,6 +1,6 @@
 //! managed allocation. most allocations should be made through [Heap]
 
-use crate::any::Any;
+use crate::{AnyEnum, AnyValue};
 use std::alloc;
 use std::alloc::Layout;
 use std::cell::RefCell;
@@ -11,6 +11,7 @@ mod layout;
 mod object_ptr;
 
 pub mod heap_types;
+pub use heap_values::AnyPtr;
 pub use heap_values::HeapRefView;
 
 use class_list::ClassList;
@@ -230,7 +231,7 @@ impl Heap {
                 unsafe {
                     tag_ptr.write(Tag::object(type_tag));
                 }
-                let values_slice = unsafe { tag_ref.slice_ref::<Option<Any>>(num_elements) };
+                let values_slice = unsafe { tag_ref.slice_ref::<Option<AnyEnum>>(num_elements) };
                 for opt_any in values_slice.iter_mut() {
                     *opt_any = None;
                 }
@@ -241,7 +242,9 @@ impl Heap {
 
     pub fn object_data_size(&self, type_tag: u16) -> usize {
         let num_elements = self.get_class_size(type_tag);
-        Layout::array::<Option<Any>>(num_elements).unwrap().size()
+        Layout::array::<Option<AnyEnum>>(num_elements)
+            .unwrap()
+            .size()
     }
 
     pub fn get_class_size(&self, class_tag: u16) -> usize {
@@ -303,14 +306,13 @@ impl Heap {
                 }
                 let class_tag = tag.class_tag; // needed since .class_tag is packed
                 let num_ptrs = self.get_class_size(class_tag);
-                let members_ptr: *mut Any = unsafe { data_ptr(root) };
+                let members_ptr: *mut AnyValue = unsafe { data_ptr(root) };
                 let members = unsafe { std::slice::from_raw_parts(members_ptr, num_ptrs) };
                 for member in members {
-                    new_roots.push(match member {
-                        Any::AnyHT(ptr) => ptr.get_ptr(),
-                        Any::I32HT(ptr) => ptr.get_ptr(),
-                        Any::Any(ptr) => ptr.get_ptr(),
-                        Any::F64(..) | Any::I32(..) | Any::Bool(..) => continue,
+                    new_roots.push(match **member {
+                        AnyEnum::Ptr(ptr) => ptr.get_ptr(),
+                        AnyEnum::F64(ptr) => ptr.get_ptr(),
+                        _ => continue,
                     });
                 }
             }

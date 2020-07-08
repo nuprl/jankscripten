@@ -450,7 +450,7 @@ impl<'a> Translate<'a> {
             }
             N::Expr::ToAny(a, ty) => {
                 self.translate_atom(a);
-                self.rt_call_mono("any", ty);
+                self.rt_call_mono("any_from", ty);
             }
         }
     }
@@ -547,6 +547,7 @@ impl N::Type {
             // NOTE(arjun): We do not need to support I64, since JavaScript cannot
             // natively represent 64-bit integers.
             N::Type::F64 => ValueType::F64,
+            N::Type::Any => ValueType::I64,
             // almost everything is a pointer type
             _ => ValueType::I32,
         }

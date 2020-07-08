@@ -1,14 +1,11 @@
 //! create (currently unmanaged) HashMaps and manage them
 
-use super::{
-    heap,
-    heap_types::{AnyJSPtr, HTPtr},
-};
-use crate::Key;
+use super::{heap, heap_types::HTPtr};
+use crate::{AnyValue, Key};
 use std::collections::HashMap;
 
 #[no_mangle]
-pub extern "C" fn ht_new_any<'a>() -> HTPtr<'a, AnyJSPtr<'a>> {
+pub extern "C" fn ht_new_any<'a>() -> HTPtr<'a, AnyValue<'a>> {
     heap().alloc_or_gc(HashMap::new())
 }
 #[no_mangle]
@@ -24,7 +21,7 @@ fn ht_get_generic<T: Clone>(ht: HTPtr<T>, field: Key) -> T {
     HashMap::get(&ht, &field).unwrap().clone()
 }
 #[no_mangle]
-pub extern "C" fn ht_get_any<'a>(ht: HTPtr<'a, AnyJSPtr<'a>>, field: Key) -> AnyJSPtr<'a> {
+pub extern "C" fn ht_get_any<'a>(ht: HTPtr<'a, AnyValue<'a>>, field: Key) -> AnyValue<'a> {
     ht_get_generic(ht, field)
 }
 #[no_mangle]
@@ -42,10 +39,10 @@ fn ht_set_generic<'a, T: Clone>(mut ht: HTPtr<'a, T>, field: Key, value: T) -> T
 }
 #[no_mangle]
 pub extern "C" fn ht_set_any<'a>(
-    ht: HTPtr<'a, AnyJSPtr<'a>>,
+    ht: HTPtr<'a, AnyValue<'a>>,
     field: Key,
-    value: AnyJSPtr<'a>,
-) -> AnyJSPtr<'a> {
+    value: AnyValue<'a>,
+) -> AnyValue<'a> {
     ht_set_generic(ht, field, value)
 }
 #[no_mangle]
