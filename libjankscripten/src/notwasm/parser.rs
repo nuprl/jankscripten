@@ -101,32 +101,32 @@ parser! {
             .map(|a| ctor::sqrt_(a))
         .or(lang.reserved("strlen").with(lang.parens(atom(lang)))
             .map(|a| ctor::len_(a)))
+        .or(
+            lang.reserved("any")
+                .skip(lang.reserved_op("::"))
+                .with(type_(lang))
+                .and(lang.parens(atom(lang)))
+                .map(|(ty, a)| ctor::to_any_(a, ty)))
         .or(lit(lang).map(|l| Atom::Lit(l)))
         .or(attempt(id(lang)
             .skip(lang.reserved_op("."))
             .and(id(lang))
-            .skip(lang.reserved_op(":"))
-            .and(type_(lang))
-            .map(|((x, field), ty)|
+            .map(|(x, field)|
                 ctor::object_get_(
                     Atom::Id(x),
                     ctor::str_(field.into_name()),
-                    ty
                 )
             ))
         )
         .or(attempt(id(lang)
-            .skip(lang.reserved_op(":"))
+            .skip(lang.reserved_op("<<"))
             .and(id(lang))
-            .skip(lang.reserved_op(":"))
-            .and(type_(lang))
-            .map(|((x, field), ty)| if field == ctor::id_("length") {
-                ctor::array_len_(Atom::Id(x), ty)
+            .map(|(x, field)| if field == ctor::id_("length") {
+                ctor::array_len_(Atom::Id(x))
             } else {
                 ctor::ht_get_(
                     Atom::Id(x),
                     ctor::str_(field.into_name()),
-                    ty
                 )
             }))
         )
@@ -134,16 +134,20 @@ parser! {
             .skip(lang.reserved_op("["))
             .and(atom(lang))
             .skip(lang.reserved_op("]"))
-            .skip(lang.reserved_op(":"))
-            .and(type_(lang))
-            .map(|((array, index), ty)| ctor::index_(
+            .map(|(array, index)| ctor::index_(
                 Atom::Id(array),
                 index,
-                ty
             )))
         )
         .or(id(lang).map(|i| Atom::Id(i)))
         .or(lang.parens(atom(lang)))
+        .and(optional(
+            lang.reserved_op(":")
+                .with(type_(lang))))
+        .map(|(atom, maybe_any)| match maybe_any {
+            Some(ty) => ctor::from_any_(atom, ty),
+            None => atom,
+        })
     }
 }
 
@@ -151,14 +155,12 @@ parser! {
     fn expr['a, 'b, I](lang: &'b Lang<'a, I>)(I) ->  Expr
     where [ I: Stream<Item = char>]
     {
-        attempt(type_(lang).skip(lang.reserved_op("[]")).map(|ty| Expr::Array(ty)))
-        .or(type_(lang).skip(lang.reserved_op("{}")).map(|ty| Expr::HT(ty)))
+        attempt(lang.reserved_op("[]").map(|_| Expr::Array))
+        .or(lang.reserved_op("HT{}").map(|_| Expr::HT))
         .or(lang.reserved_op("{}").map(|_| Expr::ObjectEmpty))
         .or(lang.reserved("arrayPush")
             .with(lang.parens(atom(lang).skip(lang.reserved_op(",")).and(atom(lang))))
-            .skip(lang.reserved_op(":"))
-            .and(type_(lang))
-            .map(|((array, member), ty)| Expr::Push(array, member, ty)))
+            .map(|(array, member)| Expr::Push(array, member)))
         .or(lang.reserved("sqrt").with(lang.parens(atom(lang)))
             .map(|a| Expr::Atom(ctor::sqrt_(a))))
         .or(attempt(id(lang)
@@ -178,11 +180,15 @@ parser! {
             .or(lang.parens(sep_by(type_(lang), lang.reserved_op(",")))
                 .skip(lang.reserved_op("->"))
                 .and(type_(lang))
-                .map(|(args, result)| Type::Fn(args, Box::new(Some(result)))))
+                .map(|(args, result)| Type::Fn(FnType {
+                    args,
+                    result: Some(Box::new(result))
+                })))
             .or(lang.reserved("f64").with(value(Type::F64)))
+            .or(lang.reserved("any").with(value(Type::Any)))
             .or(lang.reserved("AnyClass").with(value(Type::AnyClass)))
-            .or(lang.reserved("HT").with(lang.parens(type_(lang))).map(|t| ctor::ht_ty_(t)))
-            .or(lang.reserved("Array").with(lang.parens(type_(lang))).map(|t| ctor::array_ty_(t)))
+            .or(lang.reserved("HT").with(value(Type::HT)))
+            .or(lang.reserved("Array").with(value(Type::Array)))
     }
 }
 
@@ -215,39 +221,33 @@ parser! {
         let object_set = id(lang)
             .skip(lang.reserved_op("."))
             .and(id(lang))
-            .skip(lang.reserved_op(":"))
-            .and(type_(lang))
             .skip(lang.reserved_op("="))
             .and(atom(lang))
             .skip(lang.reserved_op(";"))
-            .map(|(((ht, field), ty), atom)| Stmt::Var(
+            .map(|((ht, field), atom)| Stmt::Var(
                 ctor::id_("_"),
                 Expr::ObjectSet(
                     Atom::Id(ht),
                     ctor::str_(field.into_name()),
                     atom,
-                    ty.clone(),
                 ),
-                ty,
+                Type::Any,
             ));
 
         let ht_set = attempt(id(lang)
-            .skip(lang.reserved_op(":"))
+            .skip(lang.reserved_op("<<"))
             .and(id(lang))
-            .skip(lang.reserved_op(":"))
-            .and(type_(lang))
             .skip(lang.reserved_op("="))
             .and(atom(lang))
             .skip(lang.reserved_op(";"))
-            .map(|(((ht, field), ty), atom)| Stmt::Var(
+            .map(|((ht, field), atom)| Stmt::Var(
                 ctor::id_("_"),
                 Expr::HTSet(
                     Atom::Id(ht),
                     ctor::str_(field.into_name()),
                     atom,
-                    ty.clone(),
                 ),
-                ty,
+                Type::Any,
             )));
 
         let if_ = lang.reserved("if")
@@ -347,7 +347,7 @@ parser! {
             // TODO(luna): support void
             (f, Function {
                 body,
-                fn_type: FnType { args, result: Some(ret_ty) },
+                fn_type: FnType { args, result: Some(Box::new(ret_ty)) },
                 params
             })
         })
@@ -397,6 +397,7 @@ pub fn parse(input: &str) -> Program {
                 "var",
                 "arrayPush",
                 "strlen",
+                "any",
             ]
             .iter()
             .map(|x| (*x).into())
@@ -409,7 +410,8 @@ pub fn parse(input: &str) -> Program {
             start: satisfy(|c| "+-*/[{:.<,=".chars().any(|x| x == c)),
             rest: satisfy(|c| "]}.".chars().any(|x| x == c)),
             reserved: [
-                "=", "==", "===", "+", "-", "*", "/", "[]", "{}", ":", ".", "*.", "/.", "+.", "-.", "<", ",",
+                "=", "==", "===", "+", "-", "*", "/", "[]", "{}", ":", ".", "*.", "/.", "+.", "-.",
+                "<", ",", "<<",
             ]
             .iter()
             .map(|x| (*x).into())

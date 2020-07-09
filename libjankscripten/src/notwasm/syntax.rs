@@ -80,10 +80,14 @@ pub enum Stmt {
 #[derive(Debug, PartialEq)]
 pub enum Atom {
     Lit(Lit),
-    HTGet(Box<Atom>, Box<Atom>, Type),
-    ObjectGet(Box<Atom>, Box<Atom>, Type),
-    Index(Box<Atom>, Box<Atom>, Type),
-    ArrayLen(Box<Atom>, Type),
+    /// the from type
+    ToAny(Box<Atom>, Type),
+    /// the to type
+    FromAny(Box<Atom>, Type),
+    HTGet(Box<Atom>, Box<Atom>),
+    ObjectGet(Box<Atom>, Box<Atom>),
+    Index(Box<Atom>, Box<Atom>),
+    ArrayLen(Box<Atom>),
     // TODO: classes
     Id(Id),
     StringLen(Box<Atom>),
@@ -93,28 +97,27 @@ pub enum Atom {
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
-    HT(Type),
-    Array(Type),
-    Push(Atom, Atom, Type),
-    HTSet(Atom, Atom, Atom, Type),
+    HT,
+    Array,
+    Push(Atom, Atom),
+    HTSet(Atom, Atom, Atom),
     Call(Id, Vec<Id>),
     ObjectEmpty,
     /// ObjectSet(obj, field_name, value, typ) is obj.field_name: typ = value;
-    ObjectSet(Atom, Atom, Atom, Type),
+    ObjectSet(Atom, Atom, Atom),
     ToString(Atom),
-    ToAny(Atom, Type),
     Atom(Atom),
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct FnType {
     pub args: Vec<Type>,
-    pub result: Option<Type>,
+    pub result: Option<Box<Type>>,
 }
 
 impl FnType {
-    pub fn as_type(&self) -> Type {
-        Type::Fn(self.args.clone(), Box::new(self.result.clone()))
+    pub fn to_type(self) -> Type {
+        Type::Fn(self)
     }
 }
 
@@ -122,14 +125,14 @@ impl FnType {
 pub enum Type {
     I32,
     F64,
+    F64Ptr,
     String,
     StrRef,
-    Class,
-    HT(Box<Type>),
-    Array(Box<Type>),
+    HT,
+    Array,
     Bool,
     AnyClass,
-    Fn(Vec<Type>, Box<Option<Type>>),
+    Fn(FnType),
     Any,
 }
 
@@ -206,11 +209,11 @@ impl std::fmt::Display for Type {
             match self {
                 I32 => "i32",
                 F64 => "f64",
+                F64Ptr => "f64_ptr",
                 String => "string",
                 StrRef => "str",
-                Class => "class",
-                HT(..) => "ht",
-                Array(..) => "array",
+                HT => "ht",
+                Array => "array",
                 Bool => "bool",
                 AnyClass => "anyclass",
                 Fn(..) => "fn",

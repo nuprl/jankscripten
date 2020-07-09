@@ -1,7 +1,7 @@
 pub use super::object_ptr::{ObjectDataPtr, ObjectPtr};
 use super::TypePtr;
 use super::{Tag, TypeTag};
-use crate::{Any, Key};
+use crate::{AnyValue, Key};
 use std::collections::HashMap;
 
 pub trait HasTag {
@@ -15,30 +15,25 @@ pub type I32Ptr<'a> = TypePtr<'a, i32>;
 impl HasTag for i32 {
     const TYPE_TAG: TypeTag = TypeTag::I32;
 }
+pub type F64Ptr<'a> = TypePtr<'a, f64>;
+impl HasTag for f64 {
+    const TYPE_TAG: TypeTag = TypeTag::F64;
+}
 pub type StringPtr<'a> = TypePtr<'a, String>;
 impl HasTag for String {
     const TYPE_TAG: TypeTag = TypeTag::String;
 }
-pub type AnyJSPtr<'a> = TypePtr<'a, Any<'a>>;
-impl<'a> HasTag for Any<'a> {
+pub type AnyJSPtr<'a> = TypePtr<'a, AnyValue<'a>>;
+impl<'a> HasTag for AnyValue<'a> {
     const TYPE_TAG: TypeTag = TypeTag::Any;
 }
 
-pub type HTPtr<'a, V> = TypePtr<'a, HashMap<Key, V>>;
-impl<'a> HasTag for HashMap<Key, AnyJSPtr<'a>> {
-    const TYPE_TAG: TypeTag = TypeTag::HTAny;
-}
-impl HasTag for HashMap<Key, i32> {
-    const TYPE_TAG: TypeTag = TypeTag::HTI32;
-}
-impl HasTag for HashMap<Key, f64> {
-    const TYPE_TAG: TypeTag = TypeTag::HTF64;
+pub type HTPtr<'a> = TypePtr<'a, HashMap<Key, AnyValue<'a>>>;
+impl<'a> HasTag for HashMap<Key, AnyValue<'a>> {
+    const TYPE_TAG: TypeTag = TypeTag::HT;
 }
 
-pub type ArrayPtr<'a, V> = TypePtr<'a, Vec<V>>;
-impl<'a> HasTag for Vec<AnyJSPtr<'a>> {
-    const TYPE_TAG: TypeTag = TypeTag::ArrayAny;
-}
-impl HasTag for Vec<i32> {
-    const TYPE_TAG: TypeTag = TypeTag::ArrayI32;
+pub type ArrayPtr<'a> = TypePtr<'a, Vec<AnyValue<'a>>>;
+impl<'a> HasTag for Vec<AnyValue<'a>> {
+    const TYPE_TAG: TypeTag = TypeTag::Array;
 }

@@ -133,20 +133,20 @@ fn insert_object() {
     let mut obj = heap.alloc_object(empty_type).expect("second alloc");
     let mut cache = -1;
     assert_eq!(
-        obj.insert(&heap, str_as_ptr("x"), Any::I32(32), &mut cache),
-        Any::I32(32)
+        obj.insert(&heap, str_as_ptr("x"), AnyEnum::I32(32).into(), &mut cache),
+        AnyEnum::I32(32).into()
     );
     assert_eq!(
-        obj.insert(&heap, str_as_ptr("x"), Any::I32(32), &mut cache),
-        Any::I32(32)
+        obj.insert(&heap, str_as_ptr("x"), AnyEnum::I32(32).into(), &mut cache),
+        AnyEnum::I32(32).into()
     );
     match obj.get(&heap, str_as_ptr("x"), &mut cache).expect("no x") {
-        Any::I32(i) => assert_eq!(i, 32),
-        _ => panic!("not an int"),
+        AnyEnum::I32(32) => (),
+        _ => panic!(),
     }
     match obj.get(&heap, str_as_ptr("x"), &mut -1).expect("no x") {
-        Any::I32(i) => assert_eq!(i, 32),
-        _ => panic!("not an int"),
+        AnyEnum::I32(32) => (),
+        _ => panic!(),
     }
 }
 
@@ -163,12 +163,15 @@ fn alloc_container2() {
         .borrow_mut()
         .transition(one_type, str_as_ptr("y"));
     let container = heap.alloc_object(type_tag).expect("second alloc");
-    let mut x = heap.alloc(Any::I32(200)).expect("second alloc");
-    container.write_at(&heap, 0, Any::Any(x));
-    *x.get_mut() = Any::I32(100);
+    let mut x: AnyJSPtr<'_> = heap.alloc(AnyEnum::I32(200).into()).expect("second alloc");
+    container.write_at(&heap, 0, AnyEnum::Ptr(x.into()).into());
+    *x.get_mut() = AnyEnum::I32(100).into();
     let elt = container.read_at(&heap, 0).expect("read");
     match elt {
-        Any::Any(prim) => assert_eq!(&Any::I32(100), prim.get()),
+        AnyEnum::Ptr(ptr) => match ptr.view() {
+            HeapRefView::Any(any) => assert_eq!(AnyEnum::I32(100), **any.get()),
+            _ => panic!("not an any"),
+        },
         _ => assert!(false),
     }
 }

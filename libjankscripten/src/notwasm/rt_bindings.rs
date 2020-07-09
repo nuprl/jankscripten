@@ -11,55 +11,21 @@ pub fn get_rt_bindings() -> BindMap {
     let mut map = HashMap::new();
     let m = &mut map;
     let mono = |t| t;
-    insert_mono(m, "ht_new", vec![], &ht_ty_, vec![Any, I32, F64]);
-    insert_mono(
-        m,
-        "ht_get",
-        vec![&ht_ty_, &|_| KEY],
-        &mono,
-        vec![Any, I32, F64],
-    );
-    insert_mono(
-        m,
-        "ht_set",
-        vec![&ht_ty_, &|_| KEY, &mono],
-        &mono,
-        vec![Any, I32, F64],
-    );
-    insert_mono(m, "array_new", vec![], &array_ty_, vec![Any, I32]);
-    insert_mono(
-        m,
-        "array_push",
-        vec![&array_ty_, &mono],
-        &|_| I32, // new length
-        vec![Any, I32],
-    );
-    insert_mono(
-        m,
-        "array_index",
-        vec![&array_ty_, &|_| I32],
-        &mono,
-        vec![Any, I32],
-    );
-    insert_mono(m, "array_len", vec![&array_ty_], &|_| I32, vec![Any, I32]);
-    insert_mono(m, "any", vec![&mono], &|_| Any, vec![F64]);
-    insert_mono(m, "any_to", vec![&|_| Any], &mono, vec![F64]);
+    insert(m, "ht_new", vec![], HT);
+    insert(m, "ht_get", vec![HT, KEY], Any);
+    insert(m, "ht_set", vec![HT, KEY, Any], Any);
+    insert(m, "array_new", vec![], Array);
+    insert(m, "array_push", vec![Array, Any], I32); // new length
+    insert(m, "array_index", vec![Type::Array, I32], Any);
+    insert(m, "array_len", vec![Type::Array], I32);
+    insert_mono(m, "any_from", vec![&mono], &|_| Any, vec![F64Ptr, I32]);
+    insert_mono(m, "any_to", vec![&|_| Any], &mono, vec![F64Ptr, I32]);
+    insert(m, "any_from_ptr", vec![I32], Any);
+    insert(m, "any_to_ptr", vec![Any], I32);
     insert(m, "object_empty", vec![], AnyClass);
     // I32s are caches here
-    insert_mono(
-        m,
-        "object_set",
-        vec![&|_| AnyClass, &|_| StrRef, &mono, &|_| I32],
-        &mono,
-        vec![Any, F64],
-    );
-    insert_mono(
-        m,
-        "object_get",
-        vec![&|_| AnyClass, &|_| StrRef, &|_| I32],
-        &mono,
-        vec![Any, F64],
-    );
+    insert(m, "object_set", vec![AnyClass, StrRef, Any, I32], Any);
+    insert(m, "object_get", vec![AnyClass, StrRef, I32], Any);
     insert(m, "string_from_ptr", vec![StrRef], String);
     insert(m, "string_len", vec![String], I32);
     insert(m, "init", vec![], None);
