@@ -466,11 +466,21 @@ impl<'a> Translate<'a> {
             N::Atom::Id(id) => self.get_id(id),
             N::Atom::ToAny(a, ty) => {
                 self.translate_atom(a);
-                self.rt_call_mono("any_from", ty);
+                match ty {
+                    N::Type::I32 => self.rt_call("any_from_i32"),
+                    N::Type::Bool => self.rt_call("any_from_bool"),
+                    N::Type::F64 => self.rt_call("any_from_f64"),
+                    _ => self.rt_call("any_from_ptr"),
+                }
             }
             N::Atom::FromAny(a, ty) => {
                 self.translate_atom(a);
-                self.rt_call_mono("any_to", ty);
+                match ty {
+                    N::Type::I32 => self.rt_call("any_to_i32"),
+                    N::Type::Bool => self.rt_call("any_to_bool"),
+                    N::Type::F64 => self.rt_call("any_to_f64"),
+                    _ => self.rt_call("any_to_ptr"),
+                }
             }
             N::Atom::HTGet(ht, field) => {
                 self.translate_atom(ht);
@@ -514,11 +524,6 @@ impl<'a> Translate<'a> {
             panic!("cannot find rt {}", name);
         }
     }
-    /// call a monomorphized function, which follows specific naming
-    /// conventions: `name_type`, with type given by [N::Type::fmt]
-    fn rt_call_mono(&mut self, name: &str, ty: &N::Type) {
-        self.rt_call(&format!("{}_{}", name, ty));
-    }
 
     fn get_id(&mut self, id: &N::Id) {
         match self
@@ -546,13 +551,22 @@ impl<'a> Translate<'a> {
 
 impl N::Type {
     pub fn as_wasm(&self) -> ValueType {
+        use N::Type::*;
         match self {
             // NOTE(arjun): We do not need to support I64, since JavaScript cannot
             // natively represent 64-bit integers.
-            N::Type::F64 => ValueType::F64,
-            N::Type::Any => ValueType::I64,
+            F64 => ValueType::F64,
+            Any => ValueType::I64,
+            I32 => ValueType::I32,
+            Bool => ValueType::I32,
             // almost everything is a pointer type
-            _ => ValueType::I32,
+            F64Ptr => ValueType::I32,
+            String => ValueType::I32,
+            StrRef => ValueType::I32,
+            HT => ValueType::I32,
+            Array => ValueType::I32,
+            AnyClass => ValueType::I32,
+            Fn(..) => ValueType::I32,
         }
     }
 }

@@ -20,6 +20,8 @@ pub fn get_rt_bindings() -> BindMap {
     insert(m, "array_len", vec![Type::Array], I32);
     insert_mono(m, "any_from", vec![&mono], &|_| Any, vec![F64Ptr, I32]);
     insert_mono(m, "any_to", vec![&|_| Any], &mono, vec![F64Ptr, I32]);
+    insert(m, "any_from_ptr", vec![I32], Any);
+    insert(m, "any_to_ptr", vec![Any], I32);
     insert(m, "object_empty", vec![], AnyClass);
     // I32s are caches here
     insert(m, "object_set", vec![AnyClass, StrRef, Any, I32], Any);
