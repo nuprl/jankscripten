@@ -144,7 +144,6 @@ parser! {
         )
         .or(id(lang).map(|i| Atom::Id(i)))
         .or(lang.parens(atom(lang)))
-        .or(lang.reserved_op("&").with(id(lang).map(|id| Atom::GetAddr(id))))
         .or(lang.reserved_op("*").with(id(lang).map(|id| Atom::Deref(id))))
     }
 }
@@ -163,6 +162,7 @@ parser! {
             .map(|((array, member), ty)| Expr::Push(array, member, ty)))
         .or(lang.reserved("sqrt").with(lang.parens(atom(lang)))
             .map(|a| Expr::Atom(ctor::sqrt_(a))))
+        .or(lang.reserved_op("newRef").with(lang.parens(atom(lang))).map(|val| Expr::NewRef(val)))
         .or(attempt(id(lang)
             .and(lang.parens(sep_by(id(lang), lang.reserved_op(","))))
             .map(|(f, args)| Expr::Call(f, args))))

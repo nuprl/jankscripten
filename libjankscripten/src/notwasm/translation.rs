@@ -449,6 +449,9 @@ impl<'a> Translate<'a> {
                 self.translate_atom(a);
                 self.rt_call("string_from_ptr");
             }
+            N::Expr::NewRef(a) => {
+                panic!("can't translate ref constructors yet");
+            }
             N::Expr::ToAny(a, ty) => {
                 self.translate_atom(a);
                 self.rt_call_mono("any", ty);
@@ -458,9 +461,6 @@ impl<'a> Translate<'a> {
 
     fn translate_atom(&mut self, atom: &mut N::Atom) {
         match atom {
-            N::Atom::GetAddr(id) => {
-                panic!("can't translate getaddrs yet");
-            },
             N::Atom::Deref(id) => {
                 panic!("can't translate derefs yet");
             },

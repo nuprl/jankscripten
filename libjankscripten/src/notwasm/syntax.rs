@@ -75,7 +75,7 @@ pub enum Stmt {
     /// these don't exist in NotWasm, only GotoWasm. if you try to [translate]
     /// a goto, it will panic
     Goto(Label),
-    Store(Id, Expr), // *id = expr
+    Store(Id, Expr), // *ref = expr
 }
 
 #[derive(Debug, PartialEq)]
@@ -90,8 +90,7 @@ pub enum Atom {
     StringLen(Box<Atom>),
     Unary(UnaryOp, Box<Atom>),
     Binary(BinaryOp, Box<Atom>, Box<Atom>),
-    GetAddr(Id), // &id
-    Deref(Id), // *id on RHS
+    Deref(Id), // *ref on RHS
 }
 
 #[derive(Debug, PartialEq)]
@@ -104,6 +103,7 @@ pub enum Expr {
     ObjectEmpty,
     /// ObjectSet(obj, field_name, value, typ) is obj.field_name: typ = value;
     ObjectSet(Atom, Atom, Atom, Type),
+    NewRef(Atom), // newRef(something)
     ToString(Atom),
     ToAny(Atom, Type),
     Atom(Atom),

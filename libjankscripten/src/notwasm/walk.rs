@@ -142,7 +142,7 @@ where
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
             }
-            ToString(a) | ToAny(a, ..) | Atom(a, ..) => self.walk_atom(a, loc),
+            ToString(a) | ToAny(a, ..) | NewRef(a) | Atom(a, ..) => self.walk_atom(a, loc),
         }
         self.visitor.exit_expr(expr, loc);
     }
@@ -152,7 +152,7 @@ where
         self.visitor.enter_atom(atom, loc);
         match atom {
             // 0
-            Lit(..) | Id(..) | GetAddr(..) | Deref(..) => (),
+            Lit(..) | Id(..) | Deref(..) => (),
             StringLen(ea) | ArrayLen(ea, ..) | Unary(.., ea) => {
                 self.walk_atom(ea, loc);
             }

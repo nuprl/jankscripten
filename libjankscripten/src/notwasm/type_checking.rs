@@ -265,13 +265,13 @@ pub fn type_check_expr(p: &Program, env: &Env, e: &Expr) -> TypeCheckingResult<T
                 Err(TypeCheckingError::ExpectedFunction(id_f.clone(), got_f))
             }
         }
+        Expr::NewRef(a) => Ok(Type::Ref(Box::new(type_check_atom(p, env, a)?))),
         Expr::Atom(a) => type_check_atom(p, env, a),
     }
 }
 
 pub fn type_check_atom(p: &Program, env: &Env, a: &Atom) -> TypeCheckingResult<Type> {
     match a {
-        Atom::GetAddr(id) => Ok(Type::Ref(Box::new(lookup(p, env, id)?))),
         Atom::Deref(id) => ensure_ref("dereference", lookup(p, env, id)?),
         Atom::Lit(l) => Ok(type_check_lit(l)),
         Atom::Id(id) => lookup(p, env, id),
