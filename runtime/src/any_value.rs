@@ -6,6 +6,7 @@ use crate::string::StrPtr;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
+use crate::heap;
 
 /// this is the actual Any type, however it should never be returned or
 /// accepted as a parameter, because rust will refuse to turn it into an i64
@@ -18,7 +19,7 @@ use std::ops::{Deref, DerefMut};
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AnyEnum<'a> {
     I32(i32),
-    F64(F64Ptr<'a>),
+    F64(*const f64),
     Bool(bool),
     Ptr(AnyPtr<'a>),
     StrPtr(StrPtr),
@@ -81,7 +82,24 @@ macro_rules! decl_proj_fns {
     };
 }
 
-decl_proj_fns!(any_from_f64_ptr, any_to_f64_ptr, F64, F64Ptr<'a>);
+#[no_mangle]
+pub extern "C" fn any_to_f64(any: AnyValue) -> f64 {
+    let any: AnyEnum = unsafe { std::mem::transmute(any) };
+    if let AnyEnum::F64(ptr) = any.into() {
+        return unsafe { *ptr };
+    }
+    panic!("any_to_f64 did not receive an AnyEnum::F64");
+}
+
+// NOTE(arjun): It is now clear to me that the lifetime parameter on heap values
+// is pointless.
+#[no_mangle]
+pub extern "C" fn f64_to_any(x: f64) -> AnyValue<'static> {
+    // TODO(arjun): This allocation can fail. We need to address this.
+    let any = AnyEnum::F64(heap().f64_allocator.borrow_mut().alloc(x));
+    return unsafe { std::mem::transmute(any) };
+}
+
 decl_proj_fns!(any_from_i32, any_to_i32, I32, i32);
 decl_proj_fns!(any_from_bool, any_to_bool, Bool, bool);
 decl_proj_fns!(any_from_ptr, any_to_ptr, Ptr, AnyPtr<'a>);
@@ -89,14 +107,8 @@ decl_proj_fns!(any_from_ptr, any_to_ptr, Ptr, AnyPtr<'a>);
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{box_f64, init};
     use wasm_bindgen_test::wasm_bindgen_test;
-    #[test]
-    #[wasm_bindgen_test]
-    fn in_and_out() {
-        init();
-        assert_eq!(*any_to_f64_ptr(any_from_f64_ptr(box_f64(5.))), 5.);
-    }
+
     #[wasm_bindgen_test]
     fn any_size_is_64() {
         assert_eq!(std::mem::size_of::<AnyValue>(), 8);

@@ -18,8 +18,8 @@ pub fn get_rt_bindings() -> BindMap {
     insert(m, "array_push", vec![Array, Any], I32); // new length
     insert(m, "array_index", vec![Type::Array, I32], Any);
     insert(m, "array_len", vec![Type::Array], I32);
-    insert_mono(m, "any_from", vec![&mono], &|_| Any, vec![F64Ptr, I32]);
-    insert_mono(m, "any_to", vec![&|_| Any], &mono, vec![F64Ptr, I32]);
+    insert_mono(m, "any_from", vec![&mono], &|_| Any, vec![I32]);
+    insert_mono(m, "any_to", vec![&|_| Any], &mono, vec![I32]);
     insert(m, "any_from_ptr", vec![I32], Any);
     insert(m, "any_to_ptr", vec![Any], I32);
     insert(m, "object_empty", vec![], AnyClass);
@@ -31,6 +31,8 @@ pub fn get_rt_bindings() -> BindMap {
     insert(m, "init", vec![], None);
     insert(m, "gc_enter_fn", vec![], None);
     insert(m, "gc_exit_fn", vec![], None);
+    insert(m, "any_to_f64", vec![Any], F64);
+    insert(m, "f64_to_any", vec![F64], Any);
     map
 }
 

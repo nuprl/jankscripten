@@ -469,7 +469,7 @@ impl<'a> Translate<'a> {
                 match ty {
                     N::Type::I32 => self.rt_call("any_from_i32"),
                     N::Type::Bool => self.rt_call("any_from_bool"),
-                    N::Type::F64 => self.rt_call("any_from_f64"),
+                    N::Type::F64 => self.rt_call("f64_to_any"),
                     _ => self.rt_call("any_from_ptr"),
                 }
             }
