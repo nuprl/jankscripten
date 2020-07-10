@@ -4,18 +4,7 @@
 //! produce a program in this language.
 
 use crate::shared::types::Type;
-
-#[derive(Debug)]
-pub enum BinOp {
-    Plus,
-    // TODO: others
-}
-
-#[derive(Debug)]
-pub enum UnaryOp {
-    Increment,
-    Decrement
-}
+use crate::shared::ops::*;
 
 #[derive(Debug)]
 pub enum Lit {
@@ -60,7 +49,7 @@ pub enum Expr {
 
 #[derive(Debug)]
 pub enum Stmt {
-    Var(Id, Option<Type>, Expr), // initialize to None (recommendation is to add default behavior to constructor)
+    Var(Id, Option<Type>, Expr),
     Block(Vec<Stmt>),
     Empty,
     Assign(Box<LValue>, Box<Expr>),

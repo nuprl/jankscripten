@@ -1,6 +1,7 @@
 use super::syntax::*;
 use crate::shared::types::Type;
 use crate::shared::coercions::*;
+use crate::shared::ops::*;
 use crate::jankyscript::constructors as Janky_;
 use crate::jankyscript::syntax as Janky;
 
@@ -59,11 +60,11 @@ impl Typing {
                 let (e1, t1) = self.insert_coercions_expr(*e1, env.clone())?;
                 let (e2, t2) = self.insert_coercions_expr(*e2, env.clone())?;
                 match (t1, t2) {
-                    (Type::Float, Type::Float) => Ok((Janky_::binary_(Janky::BinOp::PlusFloatFloat, e1, e2), Type::Float)),
+                    (Type::Float, Type::Float) => Ok((Janky_::binary_(BinOp::PlusFloatFloat, e1, e2), Type::Float)),
                     (Type::Any, Type::Any) => {
                         let e1 = Janky_::coercion_(self.coerce(Type::Any, Type::Float), e1);
                         let e2 = Janky_::coercion_(self.coerce(Type::Any, Type::Float), e2);
-                        Ok((Janky_::binary_(Janky::BinOp::Plus, e1, e2), Type::Any))
+                        Ok((Janky_::binary_(BinOp::Plus, e1, e2), Type::Any))
                     },
                     _ => unimplemented!()
                 }
