@@ -28,7 +28,7 @@ impl Typing {
         match stmt {
             Stmt::Var(x, t, e) => {
                 match t {
-                    Type::Any => {
+                    Some(Type::Any) => {
                         let (e, t) = self.insert_coercions_expr(e, env)?;
                         Ok(Janky_::var_(&x, t, e))
                     },

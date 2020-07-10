@@ -14,8 +14,8 @@ pub fn binary_(op: BinOp, e1: Expr, e2: Expr) -> Expr {
 // Statements
 
 // use default arguments for t. 
-pub fn var_(x: &str, t: Type, e: Expr) -> Stmt {
-    Stmt::Var(x.to_string(), t, e)
+pub fn var_(x: &str, e: Expr) -> Stmt {
+    Stmt::Var(x.to_string(), None, e)
 }
 
 pub fn block_(stmts: Vec<Stmt>) -> Stmt {
