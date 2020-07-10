@@ -2,20 +2,7 @@
 
 use crate::shared::types::Type;
 use crate::shared::coercions::Coercion;
-
-#[derive(Debug)]
-pub enum BinOp {
-    Plus,
-    PlusFloatFloat,
-    // TODO: others
-}
-
-#[derive(Debug)]
-pub enum UnaryOp {
-    IncrementAny,
-    IncrementNum
-    // TODO: others
-}
+use crate::shared::ops::*;
 
 #[derive(Debug)]
 pub enum Lit {
@@ -23,7 +10,7 @@ pub enum Lit {
     Regex(String, String),
     Bool(bool),
     Null,
-    Num(String), // TODO(arjun): parse
+    Num(String),
     Undefined,
 }
 
@@ -61,7 +48,7 @@ pub enum Expr {
 
 #[derive(Debug)]
 pub enum Stmt {
-    Var(Id, Type, Expr), // initialize to None (recommendation is to add default behavior to constructor)
+    Var(Id, Type, Expr),
     Block(Vec<Stmt>),
     Empty,
     Assign(Box<LValue>, Box<Expr>),
