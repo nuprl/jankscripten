@@ -23,6 +23,39 @@
 
 use std::collections::HashMap;
 
+/// The types of NotWam. Every value has a unique type, thus we *do not* support
+/// subtyping. The comment for each variant describes the shape of the value
+/// with the associated type. Note we refer to several types defined in the
+/// runtime system (e.g., `TypeTag`, `Tag`, and `AnyEnum`).
+#[derive(Debug, PartialEq, Clone)]
+pub enum Type {
+    /// If `v : I32` then `v` is an `i32`.
+    I32,
+    /// If `v : F64`, then `v` is an `f64`.
+    F64,
+    /// NOTE(arjun): I don't think this belongs here.
+    F64Ptr,
+    /// If `v : String` then `v` is a `*const Tag` ...
+    String,
+    /// NOTE(arjun): I think we can (and need) to combine String and StrRef.
+    StrRef,
+    /// If `v : HT` then `v` is a `*const Tag`, where
+    ///  `v.type_tag === TypeTag::HT`.
+    HT,
+    /// If `v : HT` then `v` is a `*const Tag`, where `v.type_tag == Array`.
+    Array,
+    /// If `v : Bool` then `v` is an `i32` that is either `1` or `0`.
+    Bool,
+    /// If `v : AnyClass` then `v` is a `*const Tag` where
+    /// `v.type_tag == Class`.
+    AnyClass,
+    /// If `v : Fn(fn_type)` then `v` is an `i32`, which is an index of a
+    /// function with the type `fn_type`.
+    Fn(FnType),
+    /// If `v : Any` then `v` is an `AnyEnum`.
+    Any,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum BinaryOp {
     PtrEq,
@@ -119,21 +152,6 @@ impl FnType {
     pub fn to_type(self) -> Type {
         Type::Fn(self)
     }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum Type {
-    I32,
-    F64,
-    F64Ptr,
-    String,
-    StrRef,
-    HT,
-    Array,
-    Bool,
-    AnyClass,
-    Fn(FnType),
-    Any,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
