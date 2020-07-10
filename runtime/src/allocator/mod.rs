@@ -13,7 +13,9 @@ mod object_ptr;
 pub mod heap_types;
 pub use heap_values::AnyPtr;
 pub use heap_values::HeapRefView;
+mod f64_allocator;
 
+use f64_allocator::F64Allocator;
 use class_list::ClassList;
 use constants::*;
 use heap_types::*;
@@ -26,6 +28,7 @@ mod tests;
 /// However, during testing, we create several heaps.
 pub struct Heap {
     buffer: *mut u8,
+    pub f64_allocator: RefCell<F64Allocator>,
     size: isize,
     free_list: RefCell<FreeList>,
     tag_size: isize,
@@ -128,6 +131,7 @@ impl FreeList {
 impl Heap {
     pub fn new(size: isize) -> Self {
         let layout = Layout::from_size_align(size as usize, ALIGNMENT).unwrap();
+        let f64_allocator = RefCell::new(F64Allocator::new());
         let buffer = unsafe { alloc::alloc_zeroed(layout) };
         let free_list = RefCell::new(FreeList::new(buffer, size));
         let tag_size = layout::layout_aligned::<Tag>(ALIGNMENT).size() as isize;
@@ -135,6 +139,7 @@ impl Heap {
         let shadow_stack = RefCell::new(vec![vec![]]);
         return Heap {
             buffer,
+            f64_allocator,
             size,
             free_list,
             tag_size,
@@ -311,7 +316,6 @@ impl Heap {
                 for member in members {
                     new_roots.push(match **member {
                         AnyEnum::Ptr(ptr) => ptr.get_ptr(),
-                        AnyEnum::F64(ptr) => ptr.get_ptr(),
                         _ => continue,
                     });
                 }

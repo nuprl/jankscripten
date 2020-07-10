@@ -33,8 +33,6 @@ pub enum Type {
     I32,
     /// If `v : F64`, then `v` is an `f64`.
     F64,
-    /// NOTE(arjun): I don't think this belongs here.
-    F64Ptr,
     /// If `v : String` then `v` is a `*const Tag` ...
     String,
     /// NOTE(arjun): I think we can (and need) to combine String and StrRef.
@@ -227,7 +225,6 @@ impl std::fmt::Display for Type {
             match self {
                 I32 => "i32",
                 F64 => "f64",
-                F64Ptr => "f64_ptr",
                 String => "string",
                 StrRef => "str",
                 HT => "ht",
