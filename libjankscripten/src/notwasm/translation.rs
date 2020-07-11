@@ -560,7 +560,6 @@ impl N::Type {
             I32 => ValueType::I32,
             Bool => ValueType::I32,
             // almost everything is a pointer type
-            F64Ptr => ValueType::I32,
             String => ValueType::I32,
             StrRef => ValueType::I32,
             HT => ValueType::I32,
