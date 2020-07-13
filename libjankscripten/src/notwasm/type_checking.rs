@@ -96,9 +96,10 @@ fn type_check_stmt(
 ) -> TypeCheckingResult<Env> {
     match s {
         Stmt::Empty => Ok(env),
-        Stmt::Var(id, e, ty) => {
-            let got = type_check_expr(&env, e)?;
-            let _ = ensure("var", ty.clone(), got)?;
+        Stmt::Var(var_stmt) => {
+            let ty = type_check_expr(&env, &mut var_stmt.named)?;
+            var_stmt.set_ty(ty.clone());
+            let id = &var_stmt.id;
 
             // ??? MMG what do we want here? i assume we don't actually want to allow strong update...
             if id.clone().into_name().starts_with("_") {

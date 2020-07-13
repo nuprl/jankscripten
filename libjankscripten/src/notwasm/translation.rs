@@ -280,15 +280,15 @@ impl<'a> Translate<'a> {
                     self.translate_rec(env, s);
                 }
             }
-            N::Stmt::Var(id, expr, typ) => {
+            N::Stmt::Var(var_stmt) => {
                 // Binds variable in env after compiling expr (prevents
                 // circularity).
-                self.translate_expr(expr);
+                self.translate_expr(&mut var_stmt.named);
                 let index = self.next_id;
                 self.next_id += 1;
-                self.locals.push(typ.as_wasm());
+                self.locals.push(var_stmt.ty().as_wasm());
                 self.id_env
-                    .insert(id.clone(), IdIndex::Local(index, typ.clone()));
+                    .insert(var_stmt.id.clone(), IdIndex::Local(index, var_stmt.ty().clone()));
                 self.out.push(SetLocal(index));
             }
             N::Stmt::Expression(expr) => {

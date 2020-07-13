@@ -114,8 +114,11 @@ where
                 }
                 block_cxt.apply_patches(ss);
             }
+            Var(var_stmt) => {
+                self.walk_expr(&mut var_stmt.named, loc);
+            }
             // 1xExpr
-            Expression(a) | Assign(.., a) | Var(.., a, _) => self.walk_expr(a, loc),
+            Expression(a) | Assign(.., a) => self.walk_expr(a, loc),
             // 1xAtom
             Return(a) => self.walk_atom(a, loc),
             // 1xExpr, 2xStmt
