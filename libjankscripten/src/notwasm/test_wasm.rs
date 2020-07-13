@@ -416,3 +416,18 @@ fn identical_interned_string_identity() {
     intern(&mut program);
     test_wasm(1, program);
 }
+
+#[test]
+fn float_in_any() {
+    let mut program = parse(
+        r#"
+        function main(): bool {
+            var x : any = any(32.3f);
+            var y : f64 = (x):f64;
+            var z : f64 = y +. 0.2f;
+            return true;
+        }"#,
+    );
+    intern(&mut program);
+    test_wasm(1, program);
+}

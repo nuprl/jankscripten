@@ -40,8 +40,3 @@ fn heap() -> &'static Heap {
     unsafe { &HEAP }.as_ref().unwrap()
 }
 
-/// TODO(luna): this should be put in box.rs but i don't wanna merge conflict Mark
-/// TODO(luna): do a float allocator
-pub extern "C" fn box_f64<'a>(val: f64) -> heap_types::F64Ptr<'a> {
-    heap().alloc_or_gc(val)
-}
