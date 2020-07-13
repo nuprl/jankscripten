@@ -195,12 +195,10 @@ parser! {
     {
         let var = lang.reserved("var")
             .with(id(lang))
-            .skip(lang.reserved_op(":"))
-            .and(type_(lang))
             .skip(lang.reserved_op("="))
             .and(expr(lang))
             .skip(lang.reserved_op(";"))
-            .map(|((x,t),e)| Stmt::Var(x, e, t));
+            .map(|(x,e)| Stmt::Var(VarStmt::new(x, e)));
 
         enum IdRhsInStmt {
             Expr(Expr),
@@ -222,14 +220,12 @@ parser! {
             .and(atom(lang))
             .skip(lang.reserved_op(";"))
             .map(|((ht, field), atom)| Stmt::Var(
-                ctor::id_("_"),
+                VarStmt::new(ctor::id_("_"),
                 Expr::ObjectSet(
                     Atom::Id(ht),
                     ctor::str_(field.into_name()),
                     atom,
-                ),
-                Type::Any,
-            ));
+                ))));
 
         let ht_set = attempt(id(lang)
             .skip(lang.reserved_op("<<"))
@@ -238,14 +234,12 @@ parser! {
             .and(atom(lang))
             .skip(lang.reserved_op(";"))
             .map(|((ht, field), atom)| Stmt::Var(
-                ctor::id_("_"),
-                Expr::HTSet(
-                    Atom::Id(ht),
-                    ctor::str_(field.into_name()),
-                    atom,
-                ),
-                Type::Any,
-            )));
+                VarStmt::new(
+                    ctor::id_("_"),
+                    Expr::HTSet(
+                        Atom::Id(ht),
+                        ctor::str_(field.into_name()),
+                        atom)))));
 
         let if_ = lang.reserved("if")
             .with(lang.parens(atom(lang)))

@@ -84,31 +84,11 @@ where
 use super::constructors::*;
 
 #[test]
-fn works_no_runtime() {
-    let program = test_program_(Stmt::Block(vec![
-        Stmt::Var(
-            Id::Named("x".to_string()),
-            Expr::Atom(Atom::Lit(Lit::I32(5))),
-            Type::I32,
-        ),
-        Stmt::Return(Atom::Id(Id::Named("x".to_string()))),
-    ]));
-    test_wasm(5, program);
-}
-
-#[test]
-#[should_panic]
-fn fails_no_runtime() {
-    let program = test_program_(Stmt::Return(Atom::Lit(Lit::I32(5))));
-    test_wasm(7, program);
-}
-
-#[test]
 fn test_ht() {
     let program = parse(
         r#"
         function main(): i32 {
-            var x: HT = HT{};
+            var x = HT{};
             x<<one = any(1);
             x<<two = any(2);
             x<<three = any(3);
@@ -124,7 +104,7 @@ fn objects() {
     let program = parse(
         r#"
         function main(): i32 {
-            var obj: DynObject = {};
+            var obj = {};
             obj.x = any(3);
             obj.y = any(2);
             obj.x = any(1);
@@ -141,10 +121,10 @@ fn array_push_index() {
     let program = parse(
         "
         function main(): i32 {
-            var x: Array = [];
-            var _: i32 = arrayPush(x, any(135));
-            var _: i32 = arrayPush(x, any(7));
-            var _: i32 = arrayPush(x, any(98));
+            var x = [];
+            var _ = arrayPush(x, any(135));
+            var _ = arrayPush(x, any(7));
+            var _ = arrayPush(x, any(98));
             return x[2] as i32;
         }
         ",
@@ -173,7 +153,7 @@ fn functions() {
         }
 
         function main() : i32 {
-            var x : i32 = toCall();
+            var x = toCall();
             return 4 + x;
         }
     "#,
@@ -184,7 +164,7 @@ fn functions() {
 #[test]
 fn break_block() {
     let body = Stmt::Block(vec![
-        Stmt::Var(id_("x"), atom_(i32_(0)), Type::I32),
+        Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(0)))),
         label_(
             "dont_do",
             Stmt::Block(vec![
@@ -203,13 +183,13 @@ fn big_sum() {
     let program = parse(
         r#"
         function main() : i32 {
-            var a : i32 = 1;
-            var b : i32 = 1;
+            var a = 1;
+            var b = 1;
             loop {
                 if (b > 1000) {
                     return b;
                 } else { }
-                var temp : i32 = a + b;
+                var temp = a + b;
                 a = b;
                 b = temp;
             }
@@ -229,8 +209,8 @@ fn trivial_direct_call() {
         }
 
         function main() : i32 {
-            var n : i32 = 100;
-            var result : i32 = F(n);
+            var n = 100;
+            var result = F(n);
             return result;
         }
     "#,
@@ -248,9 +228,9 @@ fn trivial_indirect_call() {
         }
 
         function main() : i32 {
-            var G : (i32) -> i32 = F;
-            var n : i32 = 102;
-            var result : i32 = G(n);
+            var G = F;
+            var n  = 102;
+            var result = G(n);
             return result;
         }
     "#,
@@ -265,7 +245,7 @@ fn goto_skips_stuff() {
     let skip_to_here = func_i32_(Stmt::Return(i32_(7)));
     let main_body = Stmt::Block(vec![
         // hopefully it stays 5
-        Stmt::Var(id_("x"), atom_(i32_(5)), Type::I32),
+        Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5)))),
         Stmt::Goto(Label::App(0)),
         // this is the part we wanna skip
         Stmt::Assign(id_("x"), atom_(i32_(2))),
@@ -282,7 +262,7 @@ fn goto_skips_loop() {
     let skip_to_here = func_i32_(Stmt::Return(i32_(7)));
     let main_body = Stmt::Block(vec![
         // hopefully it stays 5
-        Stmt::Var(id_("x"), atom_(i32_(5)), Type::I32),
+        Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5)))),
         Stmt::Goto(Label::App(0)),
         // this is the part we wanna skip
         loop_(Stmt::Empty),
@@ -299,7 +279,7 @@ fn goto_enters_if() {
     let skip_to_here = func_i32_(Stmt::Return(i32_(7)));
     let main_body = Stmt::Block(vec![
         // hopefully it stays 5
-        Stmt::Var(id_("x"), atom_(i32_(5)), Type::I32),
+        Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5)))),
         Stmt::Goto(Label::App(0)),
         if_(
             TRUE_,
@@ -317,7 +297,7 @@ fn goto_enters_if() {
 #[test]
 fn strings() {
     let body = Stmt::Block(vec![
-        Stmt::Var(id_("s"), Expr::ToString(str_("wow, thanks")), Type::String),
+        Stmt::Var(VarStmt::new(id_("s"), Expr::ToString(str_("wow, thanks")))),
         Stmt::Return(len_(get_id_("s"))),
     ]);
     let program = test_program_(body);
@@ -353,7 +333,7 @@ fn simple_prec() {
 const ITER_COUNT: usize = 1000;
 const ALLOC_PROG: &'static str = "
     // allocates 8 Anys, and also 1, 2, ... = 28 * 96 = 2688
-    var x: DynObject = {};
+    var x= {};
     x.a = any(0);
     x.b = any(0);
     x.c = any(0);
@@ -372,9 +352,9 @@ fn will_gc() {
             return 0;
         }}
         function main(): i32 {{
-            var i: i32 = 0;
+            var i = 0;
             while (i < {}) {{
-                var _: i32 = alloc_and_drop();
+                var _ = alloc_and_drop();
                 i = i + 1;
             }}
             return 5;
@@ -408,8 +388,8 @@ fn identical_interned_string_identity() {
     let mut program = parse(
         r#"
         function main(): bool {
-            var s1 : str = "Calvin Coolidge";
-            var s2 : str = "Calvin Coolidge";
+            var s1 = "Calvin Coolidge";
+            var s2 = "Calvin Coolidge";
             return s1 === s2; // ptr equality
         }"#,
     );
@@ -422,9 +402,9 @@ fn float_in_any() {
     let mut program = parse(
         r#"
         function main(): bool {
-            var x : any = any(32.3f);
-            var y : f64 = x as f64;
-            var z : f64 = y +. 0.2f;
+            var x = any(32.3f);
+            var y = x as f64;
+            var z = y +. 0.2f;
             return true;
         }"#,
     );

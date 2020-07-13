@@ -168,9 +168,33 @@ pub enum Expr {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct VarStmt {
+    pub id: Id,
+    pub named: Expr,
+    ty: Option<Type>
+}
+
+impl VarStmt {
+    pub fn new(id: Id, named: Expr) -> VarStmt {
+        VarStmt { id, named, ty: None }
+    }
+
+    pub fn set_ty(&mut self, ty: Type) {
+        assert!(self.ty.is_none(), "called set_typ twice on VarStmt");
+        self.ty = Some(ty);
+    }
+
+    pub fn ty(&self) -> &Type {
+        self.ty.as_ref().expect("type not set for VarStmt")
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Stmt {
     Empty,
-    Var(Id, Expr, Type),
+    /// Concrete syntax: `var <id> = <named>;`
+    /// The type-checker will fill in the type of the variable
+    Var(VarStmt),
     Expression(Expr),
     // TODO(arjun): An Assign could probably be an Atom
     Assign(Id, Expr),
