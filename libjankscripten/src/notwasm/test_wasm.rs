@@ -112,7 +112,7 @@ fn test_ht() {
             x<<one = any(1);
             x<<two = any(2);
             x<<three = any(3);
-            return x<<one: i32;
+            return x<<one as i32;
         }
         "#,
     );
@@ -129,7 +129,7 @@ fn objects() {
             obj.y = any(2);
             obj.x = any(1);
             obj.z = any(3);
-            return obj.x: i32;
+            return obj.x as i32;
         }
         "#,
     );
@@ -145,7 +145,7 @@ fn array_push_index() {
             var _: i32 = arrayPush(x, any(135));
             var _: i32 = arrayPush(x, any(7));
             var _: i32 = arrayPush(x, any(98));
-            return x[2]: i32;
+            return x[2] as i32;
         }
         ",
     );
@@ -423,7 +423,7 @@ fn float_in_any() {
         r#"
         function main(): bool {
             var x : any = any(32.3f);
-            var y : f64 = (x):f64;
+            var y : f64 = x as f64;
             var z : f64 = y +. 0.2f;
             return true;
         }"#,

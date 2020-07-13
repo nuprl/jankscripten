@@ -138,7 +138,9 @@ impl ToAny {
 pub enum Atom {
     Lit(Lit),
     ToAny(ToAny),
-    /// the to type
+    /// `FromAny(atom, ty)`
+    ///
+    /// Concrete syntax: `<atom> as <ty>`
     FromAny(Box<Atom>, Type),
     HTGet(Box<Atom>, Box<Atom>),
     ObjectGet(Box<Atom>, Box<Atom>),
