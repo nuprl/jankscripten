@@ -32,7 +32,7 @@ impl Tag {
     pub fn object(class_tag: u16) -> Self {
         Tag {
             marked: false,
-            type_tag: TypeTag::Class,
+            type_tag: TypeTag::DynObject,
             class_tag,
         }
     }
@@ -49,7 +49,7 @@ pub enum TypeTag {
     Any,
     // The value inside the tag is the address where the array of pointers
     // begins, for this object.
-    Class,
+    DynObject,
     ObjectPtrPtr,
 }
 
@@ -149,7 +149,7 @@ impl<'a> AnyPtr<'a> {
             TypeTag::HT => HeapRefView::HT(unsafe { HTPtr::new_tag_unchecked(self.ptr) }),
             TypeTag::Array => HeapRefView::Array(unsafe { ArrayPtr::new_tag_unchecked(self.ptr) }),
             TypeTag::Any => HeapRefView::Any(unsafe { AnyJSPtr::new_tag_unchecked(self.ptr) }),
-            TypeTag::Class => HeapRefView::Class(unsafe { ObjectDataPtr::new(self.ptr) }),
+            TypeTag::DynObject => HeapRefView::Class(unsafe { ObjectDataPtr::new(self.ptr) }),
             TypeTag::ObjectPtrPtr => HeapRefView::ObjectPtrPtr(unsafe { ObjectPtr::new(self.ptr) }),
         }
     }

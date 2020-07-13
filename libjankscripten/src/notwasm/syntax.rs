@@ -14,7 +14,7 @@
 //! - Unlike WebAssembly, NotWasm does not have an operand stack. Instead,
 //!   it has compound expressions. We can easily introduce the operand stack later.
 //! - What is the type system?
-//!   - T ::= i32 | f64 | num | C | ht | bool | AnyClass | (T1, … Tn) -> T
+//!   - T ::= i32 | f64 | num | C | ht | bool | DynObject | (T1, … Tn) -> T
 //! A Program is:
 //! - A set of classes (just fields, not methods, all public)
 //! - A set of functions
@@ -44,9 +44,9 @@ pub enum Type {
     Array,
     /// If `v : Bool` then `v` is an `i32` that is either `1` or `0`.
     Bool,
-    /// If `v : AnyClass` then `v` is a `*const Tag` where
+    /// If `v : DynObject` then `v` is a `*const Tag` where
     /// `v.type_tag == Class`.
-    AnyClass,
+    DynObject,
     /// If `v : Fn(fn_type)` then `v` is an `i32`, which is an index of a
     /// function with the type `fn_type`.
     Fn(FnType),
@@ -244,7 +244,7 @@ impl std::fmt::Display for Type {
                 HT => "ht",
                 Array => "array",
                 Bool => "bool",
-                AnyClass => "anyclass",
+                DynObject => "DynObject",
                 Fn(..) => "fn",
                 Any => "any",
             }

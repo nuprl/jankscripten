@@ -306,7 +306,7 @@ impl Heap {
                 }
                 tag.marked = true;
 
-                if tag.type_tag != TypeTag::Class {
+                if tag.type_tag != TypeTag::DynObject {
                     continue;
                 }
                 let class_tag = tag.class_tag; // needed since .class_tag is packed

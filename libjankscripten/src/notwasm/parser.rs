@@ -184,7 +184,7 @@ parser! {
                 })))
             .or(lang.reserved("f64").with(value(Type::F64)))
             .or(lang.reserved("any").with(value(Type::Any)))
-            .or(lang.reserved("AnyClass").with(value(Type::AnyClass)))
+            .or(lang.reserved("DynObject").with(value(Type::DynObject)))
             .or(lang.reserved("HT").with(value(Type::HT)))
             .or(lang.reserved("Array").with(value(Type::Array)))
     }

@@ -43,7 +43,7 @@ impl<'a> ObjectDataPtr<'a> {
     /// This function is unsafe, because (1) we do not check that the class_tag
     /// is valid, and (2) we assume that `ptr` is valid.
     pub unsafe fn new(ptr: *mut Tag) -> Self {
-        assert_eq!((*ptr).type_tag, TypeTag::Class);
+        assert_eq!((*ptr).type_tag, TypeTag::DynObject);
         ObjectDataPtr {
             ptr,
             _phantom: PhantomData,
@@ -52,13 +52,13 @@ impl<'a> ObjectDataPtr<'a> {
 
     pub fn class_tag(&self) -> u16 {
         let tag = unsafe { *self.ptr };
-        debug_assert_eq!(tag.type_tag, TypeTag::Class);
+        debug_assert_eq!(tag.type_tag, TypeTag::DynObject);
         tag.class_tag
     }
 
     pub fn read_at(&self, heap: &'a Heap, index: usize) -> Option<AnyEnum<'a>> {
         debug_assert!(index < heap.get_class_size(self.class_tag()));
-        debug_assert!(unsafe { *self.ptr }.type_tag == TypeTag::Class);
+        debug_assert!(unsafe { *self.ptr }.type_tag == TypeTag::DynObject);
         let values = unsafe { self.ptr.add(DATA_OFFSET) as *mut Option<AnyEnum> };
         unsafe { *values.add(index) }
     }

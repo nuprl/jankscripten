@@ -564,7 +564,7 @@ impl N::Type {
             StrRef => ValueType::I32,
             HT => ValueType::I32,
             Array => ValueType::I32,
-            AnyClass => ValueType::I32,
+            DynObject => ValueType::I32,
             Fn(..) => ValueType::I32,
         }
     }
