@@ -7,6 +7,7 @@ use super::constructors::*;
 use super::syntax::{Label as Lbl, *};
 use super::walk::*;
 
+#[allow(unused)]
 pub fn elim_gotos(program: &mut Program) {
     let mut vis = GotoVisitor::default();
     for func in program.functions.values_mut() {

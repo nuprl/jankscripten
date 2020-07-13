@@ -4,6 +4,7 @@ use super::constructors::*;
 use super::syntax::*;
 use super::walk::*;
 
+#[allow(unused)]
 pub fn label_apps(program: &mut Program) {
     let mut vis = LabelAppsVisitor::default();
     program.walk(&mut vis);

@@ -28,7 +28,6 @@ impl Type {
                     _ => false
                 }
             },
-            Type::Function(_, _) => false,
             _ => true
         }
     }

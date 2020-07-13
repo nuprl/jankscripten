@@ -13,7 +13,7 @@ type Env = HashMap<Id, Type>;
 pub enum TypeCheckingError {
     MismatchedTypes(String),
 }
-
+   
 pub type TypeCheckingResult = Result<Env, TypeCheckingError>;
 
 pub fn type_check(stmt: Stmt) -> TypeCheckingResult {
