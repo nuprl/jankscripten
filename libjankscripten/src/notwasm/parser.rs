@@ -363,9 +363,8 @@ parser! {
         .and(many::<HashMap<_, _>, _>(function(lang)))
         .skip(eof())
         .map(|(globals, functions)| {
-            let classes = HashMap::new();
             let data = Vec::new();
-            Program { functions, classes, globals, data }
+            Program { functions, globals, data }
         })
     }
 }

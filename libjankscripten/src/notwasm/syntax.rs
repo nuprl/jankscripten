@@ -54,6 +54,9 @@ pub enum Type {
     Any,
 }
 
+/// Binary operators that correspond to primitive WebAssembly instructions.
+/// Other than `PtrEq`, none of these operators can be applied to `Any`-typed
+/// values.
 #[derive(Clone, Debug, PartialEq)]
 pub enum BinaryOp {
     PtrEq,
@@ -73,6 +76,7 @@ pub enum BinaryOp {
     F64Div,
 }
 
+/// Unary operators that correspond to primitive WebAssembly instructions.
 #[derive(Clone, Debug, PartialEq)]
 pub enum UnaryOp {
     Sqrt,
@@ -80,7 +84,6 @@ pub enum UnaryOp {
 
 #[derive(Debug, PartialEq)]
 pub struct Program {
-    pub classes: HashMap<Id, Class>,
     pub functions: HashMap<Id, Function>,
     /// Atom must be const as defined by wasm
     pub globals: HashMap<Id, Global>,
@@ -119,7 +122,6 @@ pub enum Atom {
     ObjectGet(Box<Atom>, Box<Atom>),
     Index(Box<Atom>, Box<Atom>),
     ArrayLen(Box<Atom>),
-    // TODO: classes
     Id(Id),
     StringLen(Box<Atom>),
     Unary(UnaryOp, Box<Atom>),
@@ -177,10 +179,6 @@ impl<S: Into<String>> From<S> for Label {
     }
 }
 
-// TODO
-#[derive(Debug, PartialEq)]
-pub struct Class;
-
 #[derive(Debug, PartialEq)]
 pub struct Function {
     pub body: Stmt,
@@ -206,15 +204,6 @@ pub enum Lit {
     String(String),
     Interned(u32),
 }
-
-//#[derive(Debug, PartialEq)]
-/*pub enum Key {
-    I32(i32),
-    // TODO?
-    //Str(String),
-}*/
-// TODO: String instead of i32
-pub type Key = i32;
 
 impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
