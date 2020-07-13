@@ -103,10 +103,8 @@ parser! {
             .map(|a| ctor::len_(a)))
         .or(
             lang.reserved("any")
-                .skip(lang.reserved_op("::"))
-                .with(type_(lang))
-                .and(lang.parens(atom(lang)))
-                .map(|(ty, a)| ctor::to_any_(a, ty)))
+                .with(lang.parens(atom(lang)))
+                .map(|a| ctor::to_any(a)))
         .or(lit(lang).map(|l| Atom::Lit(l)))
         .or(attempt(id(lang)
             .skip(lang.reserved_op("."))

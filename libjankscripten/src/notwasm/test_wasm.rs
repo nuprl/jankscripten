@@ -11,13 +11,13 @@ use std::sync::Once;
 
 static COMPILE_RUNTIME: Once = Once::new();
 
-fn test_wasm<T>(expected: T, program: Program)
+fn test_wasm<T>(expected: T, mut program: Program)
 where
     T: Debug + FromStr + PartialEq,
     <T as FromStr>::Err: Debug,
 {
     println!("{:?}", program);
-    let _ = type_check(&program).expect("ill typed");
+    let _ = type_check(&mut program).expect("ill typed");
     let wasm = compile(program).expect("couldn't compile");
     // NOTE(arjun): It is temption to make the runtime system a dev-dependency
     // in Cargo.toml. However, I do not believe that will work. I assume that
@@ -109,9 +109,9 @@ fn test_ht() {
         r#"
         function main(): i32 {
             var x: HT = HT{};
-            x<<one = any::i32(1);
-            x<<two = any::i32(2);
-            x<<three = any::i32(3);
+            x<<one = any(1);
+            x<<two = any(2);
+            x<<three = any(3);
             return x<<one: i32;
         }
         "#,
@@ -125,10 +125,10 @@ fn objects() {
         r#"
         function main(): i32 {
             var obj: AnyClass = {};
-            obj.x = any::i32(3);
-            obj.y = any::i32(2);
-            obj.x = any::i32(1);
-            obj.z = any::i32(3);
+            obj.x = any(3);
+            obj.y = any(2);
+            obj.x = any(1);
+            obj.z = any(3);
             return obj.x: i32;
         }
         "#,
@@ -142,9 +142,9 @@ fn array_push_index() {
         "
         function main(): i32 {
             var x: Array = [];
-            var _: i32 = arrayPush(x, any::i32(135));
-            var _: i32 = arrayPush(x, any::i32(7));
-            var _: i32 = arrayPush(x, any::i32(98));
+            var _: i32 = arrayPush(x, any(135));
+            var _: i32 = arrayPush(x, any(7));
+            var _: i32 = arrayPush(x, any(98));
             return x[2]: i32;
         }
         ",
@@ -354,14 +354,15 @@ const ITER_COUNT: usize = 1000;
 const ALLOC_PROG: &'static str = "
     // allocates 8 Anys, and also 1, 2, ... = 28 * 96 = 2688
     var x: AnyClass = {};
-    x.a = any::i32(0);
-    x.b = any::i32(0);
-    x.c = any::i32(0);
-    x.d = any::i32(0);
-    x.e = any::i32(0);
-    x.f = any::i32(0);
-    x.g = any::i32(0);
-    x.h = any::i32(0);";
+    x.a = any(0);
+    x.b = any(0);
+    x.c = any(0);
+    x.d = any(0);
+    x.e = any(0);
+    x.f = any(0);
+    x.g = any(0);
+    x.h = any(0);";
+
 #[test]
 fn will_gc() {
     let program = parse(&format!(

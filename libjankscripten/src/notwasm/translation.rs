@@ -464,9 +464,9 @@ impl<'a> Translate<'a> {
                 N::Lit::Bool(b) => self.out.push(I32Const(*b as i32)),
             },
             N::Atom::Id(id) => self.get_id(id),
-            N::Atom::ToAny(a, ty) => {
-                self.translate_atom(a);
-                match ty {
+            N::Atom::ToAny(to_any) => {
+                self.translate_atom(&mut to_any.atom);
+                match to_any.ty() {
                     N::Type::I32 => self.rt_call("any_from_i32"),
                     N::Type::Bool => self.rt_call("any_from_bool"),
                     N::Type::F64 => self.rt_call("f64_to_any"),

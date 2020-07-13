@@ -153,7 +153,10 @@ where
         match atom {
             // 0
             Lit(..) | Id(..) => (),
-            StringLen(ea) | ArrayLen(ea, ..) | Unary(.., ea) | ToAny(ea, ..) | FromAny(ea, ..) => {
+            ToAny(to_any) => {
+                self.walk_atom(to_any.atom.as_mut(), loc);
+            }
+            StringLen(ea) | ArrayLen(ea, ..) | Unary(.., ea) | FromAny(ea, ..) => {
                 self.walk_atom(ea, loc);
             }
             HTGet(ea, eb, ..) | ObjectGet(ea, eb, ..) | Binary(.., ea, eb) | Index(ea, eb, ..) => {
