@@ -140,9 +140,8 @@ parser! {
         .or(id(lang).map(|i| Atom::Id(i)))
         .or(lang.parens(atom(lang)))
         .and(optional(
-            lang.reserved_op(":")
-                .with(type_(lang))))
-        .map(|(atom, maybe_any)| match maybe_any {
+            lang.reserved("as").with(type_(lang))))
+        .map(|(atom, maybe_as_ty)| match maybe_as_ty {
             Some(ty) => ctor::from_any_(atom, ty),
             None => atom,
         })
@@ -376,6 +375,7 @@ pub fn parse(input: &str) -> Program {
             start: letter().or(token('$')).or(token('_')),
             rest: alpha_num().or(token('_')),
             reserved: [
+                "as",
                 "if",
                 "else",
                 "true",
