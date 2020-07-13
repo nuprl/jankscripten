@@ -14,9 +14,6 @@ mod label_apps;
 use intern::intern;
 use translation::translate;
 
-use elim_gotos::elim_gotos;
-use label_apps::label_apps;
-
 pub mod syntax;
 pub mod type_checking;
 
