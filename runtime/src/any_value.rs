@@ -1,7 +1,6 @@
 //! An enum that can store any type known to the runtime
 
 pub use crate::allocator::AnyPtr;
-use crate::heap_types::*;
 use crate::string::StrPtr;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::marker::PhantomData;

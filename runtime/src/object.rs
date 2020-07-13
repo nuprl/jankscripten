@@ -1,10 +1,9 @@
 //! Bindings to heap_type's ObjectPtr: instances of hidden classes
 
-use crate::box_f64;
 use crate::heap;
 use crate::heap_types::*;
 use crate::string::StrPtr;
-use crate::{AnyEnum, AnyValue};
+use crate::{AnyValue};
 
 #[no_mangle]
 pub extern "C" fn object_empty<'a>() -> ObjectPtr<'a> {
