@@ -92,7 +92,6 @@ pub fn ht_set_(a: Atom, b: Atom, c: Atom) -> Expr {
 }
 pub fn program_(functions: HashMap<Id, Function>) -> Program {
     Program {
-        classes: HashMap::new(),
         functions,
         globals: HashMap::new(),
         data: Vec::new(),
