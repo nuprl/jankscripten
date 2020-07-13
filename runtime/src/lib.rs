@@ -27,6 +27,7 @@ pub mod ht;
 pub mod num;
 pub mod object;
 pub mod string;
+pub mod r#ref;
 mod util;
 
 mod allocator;

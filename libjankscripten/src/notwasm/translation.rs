@@ -272,7 +272,10 @@ impl<'a> Translate<'a> {
     pub(self) fn translate_rec(&mut self, env: &Env, stmt: &mut N::Stmt) {
         match stmt {
             N::Stmt::Store(id, expr) => {
-                panic!("can't translate stores yet");
+                // storing into a reference translates into a raw write
+                self.get_id(id);
+                self.translate_expr(expr);
+                self.out.push(I32Store(0, 4)); // skip 32 bits for tag in I32Ptr
             },
             N::Stmt::Empty => (),
             N::Stmt::Block(ss) => {
@@ -450,7 +453,8 @@ impl<'a> Translate<'a> {
                 self.rt_call("string_from_ptr");
             }
             N::Expr::NewRef(a) => {
-                panic!("can't translate ref constructors yet");
+                self.translate_atom(a);
+                self.rt_call("ref_new");
             }
             N::Expr::ToAny(a, ty) => {
                 self.translate_atom(a);
@@ -462,7 +466,9 @@ impl<'a> Translate<'a> {
     fn translate_atom(&mut self, atom: &mut N::Atom) {
         match atom {
             N::Atom::Deref(id) => {
-                panic!("can't translate derefs yet");
+                // dereferences are implemented as raw memory reads
+                self.get_id(id);
+                self.out.push(I32Load(0, 4)); // skip 32 bits for tag in I32Ptr
             },
             N::Atom::Lit(lit) => match lit {
                 N::Lit::I32(i) => self.out.push(I32Const(*i)),

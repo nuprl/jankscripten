@@ -256,8 +256,21 @@ fn trivial_indirect_call() {
 }
 
 #[test]
-#[ignore]
 fn basic_ref() {
+    let program = parse(
+        r#"
+        function main() : i32 {
+            var r : Ref(i32) = newRef(150);
+            return *r;
+        }
+        "#
+    );
+
+    test_wasm(150, program);
+}
+
+#[test]
+fn basic_ref_mutation() {
     let program = parse(
         r#"
         function main() : i32 {
@@ -272,7 +285,6 @@ fn basic_ref() {
 }
 
 #[test]
-#[ignore]
 fn ref_doesnt_mutate_variables() {
     let program = parse(
         r#"
