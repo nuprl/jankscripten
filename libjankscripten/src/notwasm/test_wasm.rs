@@ -124,7 +124,7 @@ fn objects() {
     let program = parse(
         r#"
         function main(): i32 {
-            var obj: AnyClass = {};
+            var obj: DynObject = {};
             obj.x = any(3);
             obj.y = any(2);
             obj.x = any(1);
@@ -353,7 +353,7 @@ fn simple_prec() {
 const ITER_COUNT: usize = 1000;
 const ALLOC_PROG: &'static str = "
     // allocates 8 Anys, and also 1, 2, ... = 28 * 96 = 2688
-    var x: AnyClass = {};
+    var x: DynObject = {};
     x.a = any(0);
     x.b = any(0);
     x.c = any(0);

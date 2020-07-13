@@ -172,7 +172,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
     match e {
         Expr::HT => Ok(Type::HT),
         Expr::Array => Ok(Type::Array),
-        Expr::ObjectEmpty => Ok(Type::AnyClass),
+        Expr::ObjectEmpty => Ok(Type::DynObject),
         Expr::Push(a_arr, a_elt) => {
             let got_arr = type_check_atom(env, a_arr)?;
             let got_elt = type_check_atom(env, a_elt)?;
@@ -198,7 +198,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             let got_field = type_check_atom(env, a_field)?;
             let got_val = type_check_atom(env, a_val)?;
 
-            let _ = ensure("object set (obj)", Type::AnyClass, got_obj)?;
+            let _ = ensure("object set (obj)", Type::DynObject, got_obj)?;
             let _ = ensure("object set (field)", Type::String, got_field)?;
             let _ = ensure("object set (val)", Type::Any, got_val)?;
 
@@ -257,7 +257,7 @@ fn assert_variant_of_any(ty: &Type) -> TypeCheckingResult<()> {
         // The following turn into pointers, and an Any can store a pointer
         Type::HT => Ok(()),
         Type::Array => Ok(()),
-        Type::AnyClass => Ok(())      
+        Type::DynObject => Ok(())      
     }
 }
 
@@ -298,7 +298,7 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             let got_field = type_check_atom(env, a_field)?;
 
             let _ = ensure("object get field", Type::String, got_field)?;
-            let _ = ensure("object field", Type::AnyClass, got_obj)?;
+            let _ = ensure("object field", Type::DynObject, got_obj)?;
             Ok(Type::Any)
         }
         Atom::HTGet(a_ht, a_field) => {
