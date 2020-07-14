@@ -32,7 +32,7 @@ impl Tag {
     pub fn object(class_tag: u16) -> Self {
         Tag {
             marked: false,
-            type_tag: TypeTag::Class,
+            type_tag: TypeTag::DynObject,
             class_tag,
         }
     }
@@ -42,16 +42,14 @@ impl Tag {
 #[repr(u8)]
 pub enum TypeTag {
     I32,
+    F64,
     String,
-    HTAny,
-    HTI32,
-    HTF64,
-    ArrayAny,
-    ArrayI32,
+    HT,
+    Array,
     Any,
     // The value inside the tag is the address where the array of pointers
     // begins, for this object.
-    Class,
+    DynObject,
     ObjectPtrPtr,
 }
 
@@ -94,12 +92,10 @@ pub struct AnyPtr<'a> {
 #[derive(Clone, Copy)]
 pub enum HeapRefView<'a> {
     I32(I32Ptr<'a>),
+    F64(F64Ptr<'a>),
     String(StringPtr<'a>),
-    HTAny(HTPtr<'a, AnyJSPtr<'a>>),
-    HTI32(HTPtr<'a, i32>),
-    HTF64(HTPtr<'a, f64>),
-    ArrayAny(ArrayPtr<'a, AnyJSPtr<'a>>),
-    ArrayI32(ArrayPtr<'a, i32>),
+    HT(HTPtr<'a>),
+    Array(ArrayPtr<'a>),
     Any(AnyJSPtr<'a>),
     Class(ObjectDataPtr<'a>),
     ObjectPtrPtr(ObjectPtr<'a>),
@@ -110,12 +106,10 @@ impl<'a> HeapRefView<'a> {
     fn heap_ptr(&'a self) -> &'a dyn HeapPtr {
         match self {
             Self::I32(val) => val,
+            Self::F64(val) => val,
             Self::String(val) => val,
-            Self::HTAny(val) => val,
-            Self::HTI32(val) => val,
-            Self::HTF64(val) => val,
-            Self::ArrayAny(val) => val,
-            Self::ArrayI32(val) => val,
+            Self::HT(val) => val,
+            Self::Array(val) => val,
             Self::Any(val) => val,
             Self::Class(val) => val,
             Self::ObjectPtrPtr(val) => val,
@@ -148,26 +142,14 @@ impl<'a> AnyPtr<'a> {
         let heap_ref: Tag = unsafe { *self.ptr };
         match heap_ref.type_tag {
             TypeTag::I32 => HeapRefView::I32(unsafe { I32Ptr::new_tag_unchecked(self.ptr) }),
+            TypeTag::F64 => HeapRefView::F64(unsafe { F64Ptr::new_tag_unchecked(self.ptr) }),
             TypeTag::String => {
                 HeapRefView::String(unsafe { StringPtr::new_tag_unchecked(self.ptr) })
             }
-            TypeTag::HTAny => {
-                HeapRefView::HTAny(unsafe { HTPtr::<AnyJSPtr<'a>>::new_tag_unchecked(self.ptr) })
-            }
-            TypeTag::HTI32 => {
-                HeapRefView::HTI32(unsafe { HTPtr::<i32>::new_tag_unchecked(self.ptr) })
-            }
-            TypeTag::HTF64 => {
-                HeapRefView::HTF64(unsafe { HTPtr::<f64>::new_tag_unchecked(self.ptr) })
-            }
-            TypeTag::ArrayAny => HeapRefView::ArrayAny(unsafe {
-                ArrayPtr::<AnyJSPtr<'a>>::new_tag_unchecked(self.ptr)
-            }),
-            TypeTag::ArrayI32 => {
-                HeapRefView::ArrayI32(unsafe { ArrayPtr::<i32>::new_tag_unchecked(self.ptr) })
-            }
+            TypeTag::HT => HeapRefView::HT(unsafe { HTPtr::new_tag_unchecked(self.ptr) }),
+            TypeTag::Array => HeapRefView::Array(unsafe { ArrayPtr::new_tag_unchecked(self.ptr) }),
             TypeTag::Any => HeapRefView::Any(unsafe { AnyJSPtr::new_tag_unchecked(self.ptr) }),
-            TypeTag::Class => HeapRefView::Class(unsafe { ObjectDataPtr::new(self.ptr) }),
+            TypeTag::DynObject => HeapRefView::Class(unsafe { ObjectDataPtr::new(self.ptr) }),
             TypeTag::ObjectPtrPtr => HeapRefView::ObjectPtrPtr(unsafe { ObjectPtr::new(self.ptr) }),
         }
     }
@@ -185,6 +167,18 @@ impl<'a> HeapPtr for AnyPtr<'a> {
     }
 }
 
+/// If p : TypePtr<'a, i32> then
+/// p.ptr : *const Tag and
+/// p.ptr.type_tag == HasTag::<i32>::TYPE_TAG
+///                == TypeTag::I32
+///
+/// Hypothetical:
+/// pub struct TypePtr<'a, T: HasTag> {
+///     ptr: *mut Tag && ptr.type_tag == HasTag::<T>::TYPE_TAG,
+/// }
+/// 
+/// Of course, we can't write the code above, which is what PhantomData
+/// solves.
 #[derive(Debug)]
 #[repr(transparent)]
 pub struct TypePtr<'a, T> {
@@ -280,6 +274,13 @@ impl<T: PartialEq> PartialEq<TypePtr<'_, T>> for TypePtr<'_, T> {
     }
 }
 impl<T: PartialEq> Eq for TypePtr<'_, T> {}
+
+impl<'a, T> From<TypePtr<'a, T>> for AnyPtr<'a> {
+    fn from(ptr: TypePtr<'a, T>) -> Self {
+        // safety: TypePtr is valid, so an AnyPtr will be valid
+        unsafe { AnyPtr::new(ptr.get_ptr()) }
+    }
+}
 
 impl Tag {
     /**

@@ -20,7 +20,7 @@ pub fn intern(program: &mut Program) {
 struct InternVisitor {
     data: Vec<u8>,
     /// Helps avoid interning the same static string multiple times.
-    already_interned: std::collections::HashMap<String, u32>
+    already_interned: std::collections::HashMap<String, u32>,
 }
 impl Visitor for InternVisitor {
     fn exit_atom(&mut self, atom: &mut Atom, _loc: &mut Loc) {
@@ -37,7 +37,7 @@ impl Visitor for InternVisitor {
                     let pos = self.data.len() as u32;
 
                     // Cache the offset, so that the interned string can be
-                    // reused. 
+                    // reused.
                     self.already_interned.insert(s.clone(), pos);
                     let mut bytes = s.into_bytes();
                     *old_lit = Lit::Interned(pos);
@@ -73,8 +73,8 @@ mod test {
         let mut program = parse(
             r#"
             function main() : i32 {
-                var a: str = "012301";
-                var b: str = "012";
+                var a = "012301";
+                var b = "012";
                 return 0;
             }
             "#,
@@ -82,14 +82,14 @@ mod test {
         intern(&mut program);
         let indexed_func = Function {
             body: Stmt::Block(vec![
-                Stmt::Var(id_("a"), atom_(Atom::Lit(Lit::Interned(0))), Type::StrRef),
+                Stmt::Var(VarStmt::new(id_("a"), atom_(Atom::Lit(Lit::Interned(0))))),
                 // 4(len) + 6 -> 10 ->(align) -> 12
-                Stmt::Var(id_("b"), atom_(Atom::Lit(Lit::Interned(12))), Type::StrRef),
+                Stmt::Var(VarStmt::new(id_("b"), atom_(Atom::Lit(Lit::Interned(12))))),
                 Stmt::Return(i32_(0)),
             ]),
             fn_type: FnType {
                 args: vec![],
-                result: Some(Type::I32),
+                result: Some(Box::new(Type::I32)),
             },
             params: vec![],
         };

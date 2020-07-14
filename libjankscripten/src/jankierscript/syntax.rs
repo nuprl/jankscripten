@@ -4,18 +4,7 @@
 //! produce a program in this language.
 
 use crate::shared::types::Type;
-
-#[derive(Debug)]
-pub enum BinOp {
-    Plus,
-    // TODO: others
-}
-
-#[derive(Debug)]
-pub enum UnaryOp {
-    Increment,
-    Decrement
-}
+use crate::shared::ops::*;
 
 #[derive(Debug)]
 pub enum Lit {
@@ -54,23 +43,13 @@ pub enum Expr {
     Unary(UnaryOp, Box<Expr>),
     Binary(BinOp, Box<Expr>, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
-    New(Type, Box<Expr>, Vec<Expr>),
-    Func(Type, Vec<(Id, Type)>, Box<Stmt>),
+    New(Option<Type>, Box<Expr>, Vec<Expr>),
+    Func(Option<Type>, Vec<(Id, Option<Type>)>, Box<Stmt>),
 }
-
-// function F(x) { }
-// var F = function (x) { }
-
-// in JS... JS::Stmt::Expr(JS::Expr::Dot(...))
-// careful with assign, unaryassign, seq
-
-// make a custom rust error
-// if we encounter the case above in the translation, something is wrong
-// throw a rust error
 
 #[derive(Debug)]
 pub enum Stmt {
-    Var(Id, Type, Expr), // initialize to None (recommendation is to add default behavior to constructor)
+    Var(Id, Option<Type>, Expr),
     Block(Vec<Stmt>),
     Empty,
     Assign(Box<LValue>, Box<Expr>),

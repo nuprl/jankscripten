@@ -11,13 +11,13 @@ use std::sync::Once;
 
 static COMPILE_RUNTIME: Once = Once::new();
 
-fn test_wasm<T>(expected: T, program: Program)
+fn test_wasm<T>(expected: T, mut program: Program)
 where
     T: Debug + FromStr + PartialEq,
     <T as FromStr>::Err: Debug,
 {
     println!("{:?}", program);
-    let _ = type_check(&program).expect("ill typed");
+    let _ = type_check(&mut program).expect("ill typed");
     let wasm = compile(program).expect("couldn't compile");
     // NOTE(arjun): It is temption to make the runtime system a dev-dependency
     // in Cargo.toml. However, I do not believe that will work. I assume that
@@ -84,67 +84,51 @@ where
 use super::constructors::*;
 
 #[test]
-fn works_no_runtime() {
-    let program = test_program_(Stmt::Block(vec![
-        Stmt::Var(
-            Id::Named("x".to_string()),
-            Expr::Atom(Atom::Lit(Lit::I32(5))),
-            Type::I32,
-        ),
-        Stmt::Return(Atom::Id(Id::Named("x".to_string()))),
-    ]));
-    test_wasm(5, program);
-}
-
-#[test]
-#[should_panic]
-fn fails_no_runtime() {
-    let program = test_program_(Stmt::Return(Atom::Lit(Lit::I32(5))));
-    test_wasm(7, program);
-}
-
-#[test]
 fn test_ht() {
     let program = parse(
         r#"
-        function main(): f64 {
-            var x: HT(f64) = f64{};
-            x:one: f64 = 1f;
-            x:two: f64 = 2f;
-            x:three: f64 = 3f;
-            return x:one: f64;
+        function main(): i32 {
+            var x = HT{};
+            x<<one = any(1);
+            x<<two = any(2);
+            x<<three = any(3);
+            return x<<one as i32;
         }
         "#,
     );
-    test_wasm(1., program);
+    test_wasm(1, program);
 }
 
 #[test]
 fn objects() {
     let program = parse(
         r#"
-        function main(): f64 {
-            var obj: AnyClass = {};
-            obj.x: f64 = 3f;
-            obj.y: f64 = 2f;
-            obj.x: f64 = 1f;
-            obj.z: f64 = 3f;
-            return obj.x: f64;
+        function main(): i32 {
+            var obj = {};
+            obj.x = any(3);
+            obj.y = any(2);
+            obj.x = any(1);
+            obj.z = any(3);
+            return obj.x as i32;
         }
         "#,
     );
-    test_wasm(1., program);
+    test_wasm(1, program);
 }
 
 #[test]
 fn array_push_index() {
-    let program = test_program_(Stmt::Block(vec![
-        Stmt::Var(id_("x"), Expr::Array(Type::I32), array_ty_(Type::I32)),
-        Stmt::Expression(Expr::Push(get_id_("x"), i32_(135), Type::I32)),
-        Stmt::Expression(Expr::Push(get_id_("x"), i32_(7), Type::I32)),
-        Stmt::Expression(Expr::Push(get_id_("x"), i32_(98), Type::I32)),
-        Stmt::Return(index_(get_id_("x"), i32_(2), Type::I32)),
-    ]));
+    let program = parse(
+        "
+        function main(): i32 {
+            var x = [];
+            var _ = arrayPush(x, any(135));
+            var _ = arrayPush(x, any(7));
+            var _ = arrayPush(x, any(98));
+            return x[2] as i32;
+        }
+        ",
+    );
     test_wasm(98, program);
 }
 
@@ -169,7 +153,7 @@ fn functions() {
         }
 
         function main() : i32 {
-            var x : i32 = toCall();
+            var x = toCall();
             return 4 + x;
         }
     "#,
@@ -180,7 +164,7 @@ fn functions() {
 #[test]
 fn break_block() {
     let body = Stmt::Block(vec![
-        Stmt::Var(id_("x"), atom_(i32_(0)), Type::I32),
+        Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(0)))),
         label_(
             "dont_do",
             Stmt::Block(vec![
@@ -199,13 +183,13 @@ fn big_sum() {
     let program = parse(
         r#"
         function main() : i32 {
-            var a : i32 = 1;
-            var b : i32 = 1;
+            var a = 1;
+            var b = 1;
             loop {
                 if (b > 1000) {
                     return b;
                 } else { }
-                var temp : i32 = a + b;
+                var temp = a + b;
                 a = b;
                 b = temp;
             }
@@ -225,8 +209,8 @@ fn trivial_direct_call() {
         }
 
         function main() : i32 {
-            var n : i32 = 100;
-            var result : i32 = F(n);
+            var n = 100;
+            var result = F(n);
             return result;
         }
     "#,
@@ -244,9 +228,9 @@ fn trivial_indirect_call() {
         }
 
         function main() : i32 {
-            var G : (i32) -> i32 = F;
-            var n : i32 = 102;
-            var result : i32 = G(n);
+            var G = F;
+            var n  = 102;
+            var result = G(n);
             return result;
         }
     "#,
@@ -260,7 +244,7 @@ fn basic_ref() {
     let program = parse(
         r#"
         function main() : i32 {
-            var r : Ref(i32) = newRef(150);
+            var r = newRef(150);
             return *r;
         }
         "#
@@ -274,7 +258,7 @@ fn basic_ref_mutation() {
     let program = parse(
         r#"
         function main() : i32 {
-            var r : Ref(i32) = newRef(150);
+            var r = newRef(150);
             *r = 130;
             return *r;
         }
@@ -289,10 +273,10 @@ fn ref_doesnt_mutate_variables() {
     let program = parse(
         r#"
         function main() : i32 {
-            var x : i32 = 100;
+            var x = 100;
             // Refs are like OCaml refs, not like C pointers.
             // They are essentially boxes that hold values.
-            var refX : Ref(i32) = newRef(x); // copy value of x
+            var refX = newRef(x); // copy value of x
 
             // set value inside box. should not change value of x
             *refX = 130;
@@ -312,7 +296,7 @@ fn goto_skips_stuff() {
     let skip_to_here = func_i32_(Stmt::Return(i32_(7)));
     let main_body = Stmt::Block(vec![
         // hopefully it stays 5
-        Stmt::Var(id_("x"), atom_(i32_(5)), Type::I32),
+        Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5)))),
         Stmt::Goto(Label::App(0)),
         // this is the part we wanna skip
         Stmt::Assign(id_("x"), atom_(i32_(2))),
@@ -329,7 +313,7 @@ fn goto_skips_loop() {
     let skip_to_here = func_i32_(Stmt::Return(i32_(7)));
     let main_body = Stmt::Block(vec![
         // hopefully it stays 5
-        Stmt::Var(id_("x"), atom_(i32_(5)), Type::I32),
+        Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5)))),
         Stmt::Goto(Label::App(0)),
         // this is the part we wanna skip
         loop_(Stmt::Empty),
@@ -346,7 +330,7 @@ fn goto_enters_if() {
     let skip_to_here = func_i32_(Stmt::Return(i32_(7)));
     let main_body = Stmt::Block(vec![
         // hopefully it stays 5
-        Stmt::Var(id_("x"), atom_(i32_(5)), Type::I32),
+        Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5)))),
         Stmt::Goto(Label::App(0)),
         if_(
             TRUE_,
@@ -364,7 +348,7 @@ fn goto_enters_if() {
 #[test]
 fn strings() {
     let body = Stmt::Block(vec![
-        Stmt::Var(id_("s"), Expr::ToString(str_("wow, thanks")), Type::String),
+        Stmt::Var(VarStmt::new(id_("s"), Expr::ToString(str_("wow, thanks")))),
         Stmt::Return(len_(get_id_("s"))),
     ]);
     let program = test_program_(body);
@@ -397,14 +381,82 @@ fn simple_prec() {
     test_wasm(13, program);
 }
 
+const ITER_COUNT: usize = 1000;
+const ALLOC_PROG: &'static str = "
+    // allocates 8 Anys, and also 1, 2, ... = 28 * 96 = 2688
+    var x= {};
+    x.a = any(0);
+    x.b = any(0);
+    x.c = any(0);
+    x.d = any(0);
+    x.e = any(0);
+    x.f = any(0);
+    x.g = any(0);
+    x.h = any(0);";
+
+#[test]
+fn will_gc() {
+    let program = parse(&format!(
+        "
+        function alloc_and_drop(): i32 {{
+            {}
+            return 0;
+        }}
+        function main(): i32 {{
+            var i = 0;
+            while (i < {}) {{
+                var _ = alloc_and_drop();
+                i = i + 1;
+            }}
+            return 5;
+        }}
+        ",
+        ALLOC_PROG, ITER_COUNT,
+    ));
+    test_wasm(5, program);
+}
+#[test]
+#[should_panic]
+fn oom_if_no_gc() {
+    let program = parse(&format!(
+        "
+        function main(): i32 {{
+            var i: i32 = 0;
+            while (i < {}) {{
+                {}
+                i = i + 1;
+            }}
+            return 5;
+        }}
+        ",
+        ITER_COUNT, ALLOC_PROG
+    ));
+    test_wasm(5, program);
+}
+
 #[test]
 fn identical_interned_string_identity() {
     let mut program = parse(
         r#"
         function main(): bool {
-            var s1 : str = "Calvin Coolidge";
-            var s2 : str = "Calvin Coolidge";
+            var s1 = "Calvin Coolidge";
+            var s2 = "Calvin Coolidge";
             return s1 === s2; // ptr equality
+        }"#,
+    );
+    intern(&mut program);
+    test_wasm(1, program);
+}
+
+#[test]
+fn float_in_any() {
+    let mut program = parse(
+        r#"
+        function main(): bool {
+            var x = any(32.3f);
+            var y = x as f64;
+            var z = y +. 0.2f;
+            return true;
         }"#,
     );
     intern(&mut program);

@@ -114,8 +114,11 @@ where
                 }
                 block_cxt.apply_patches(ss);
             }
+            Var(var_stmt) => {
+                self.walk_expr(&mut var_stmt.named, loc);
+            }
             // 1xExpr
-            Expression(a) | Assign(.., a) | Var(.., a, _) | Store(.., a) => self.walk_expr(a, loc),
+            Expression(a) | Assign(.., a) | Store(.., a) => self.walk_expr(a, loc),
             // 1xAtom
             Return(a) => self.walk_atom(a, loc),
             // 1xExpr, 2xStmt
@@ -132,7 +135,7 @@ where
         use Expr::*;
         self.visitor.enter_expr(expr, loc);
         match expr {
-            ObjectEmpty | HT(..) | Array(..) | Call(..) => (),
+            ObjectEmpty | HT | Array | Call(..) => (),
             HTSet(ea, eb, ec, ..) | ObjectSet(ea, eb, ec, ..) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
@@ -142,7 +145,7 @@ where
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
             }
-            ToString(a) | ToAny(a, ..) | NewRef(a) | Atom(a, ..) => self.walk_atom(a, loc),
+            ToString(a) | NewRef(a) | Atom(a, ..) => self.walk_atom(a, loc),
         }
         self.visitor.exit_expr(expr, loc);
     }
@@ -153,7 +156,10 @@ where
         match atom {
             // 0
             Lit(..) | Id(..) | Deref(..) => (),
-            StringLen(ea) | ArrayLen(ea, ..) | Unary(.., ea) => {
+            ToAny(to_any) => {
+                self.walk_atom(to_any.atom.as_mut(), loc);
+            }
+            StringLen(ea) | ArrayLen(ea, ..) | Unary(.., ea) | FromAny(ea, ..) => {
                 self.walk_atom(ea, loc);
             }
             HTGet(ea, eb, ..) | ObjectGet(ea, eb, ..) | Binary(.., ea, eb) | Index(ea, eb, ..) => {

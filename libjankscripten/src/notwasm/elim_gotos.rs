@@ -7,6 +7,7 @@ use super::constructors::*;
 use super::syntax::{Label as Lbl, *};
 use super::walk::*;
 
+#[allow(unused)]
 pub fn elim_gotos(program: &mut Program) {
     let mut vis = GotoVisitor::default();
     for func in program.functions.values_mut() {
@@ -14,9 +15,9 @@ pub fn elim_gotos(program: &mut Program) {
         // TODO(luna): fresh names??
         func.body = Stmt::Block(vec![
             // var inGoto = false;
-            Stmt::Var(id_("inGoto"), atom_(FALSE_), Type::Bool),
+            Stmt::Var(VarStmt::new(id_("inGoto"), atom_(FALSE_))),
             // var gotoTarget = 0;
-            Stmt::Var(id_("gotoTarget"), atom_(i32_(0)), Type::I32),
+            Stmt::Var(VarStmt::new(id_("gotoTarget"), atom_(i32_(0)))),
             func.body.take(),
             // if (inGoto) { trap; }
             if_(get_id_("inGoto"), Stmt::Trap, Stmt::Empty),
@@ -81,8 +82,13 @@ impl Visitor for GotoVisitor {
 fn is_call(stmt: &Stmt) -> bool {
     use Stmt::*;
     match stmt {
-        Assign(_, Expr::Call(..))
-        | Var(_, Expr::Call(..), _) => true,
+        Assign(_, Expr::Call(..)) => true,
+        Var(var_stmt) => {
+            match var_stmt.named {
+                 Expr::Call(..) => true,
+                 _ => false
+            }
+        }
         _ => false,
     }
 }

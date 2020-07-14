@@ -4,6 +4,7 @@ use super::constructors::*;
 use super::syntax::*;
 use super::walk::*;
 
+#[allow(unused)]
 pub fn label_apps(program: &mut Program) {
     let mut vis = LabelAppsVisitor::default();
     program.walk(&mut vis);
@@ -17,10 +18,15 @@ impl Visitor for LabelAppsVisitor {
     fn exit_stmt(&mut self, stmt: &mut Stmt) {
         use Stmt::*;
         match stmt {
-            Assign(_, Expr::Call(..))
-            | Var(_, Expr::Call(..), _) => {
+            Assign(_, Expr::Call(..)) => {
                 *stmt = label_(super::syntax::Label::App(self.n), stmt.take());
                 self.n += 1;
+            }
+            Var(var_stmt) => {
+                if let Expr::Call(..) = var_stmt.named {
+                    *stmt = label_(super::syntax::Label::App(self.n), stmt.take());
+                    self.n += 1;
+                }
             }
             _ => (),
         }
@@ -36,7 +42,7 @@ mod test {
         let mut program = parse(
             r#"
             function main() : i32 {
-                var x: i32 = aCall();
+                var x = aCall();
                 x = callTwo();
             }
             "#,
@@ -45,7 +51,7 @@ mod test {
         let expected_body = Stmt::Block(vec![
             label_(
                 Label::App(0),
-                Stmt::Var(id_("x"), Expr::Call(id_("aCall"), vec![]), Type::I32),
+                Stmt::Var(VarStmt::new(id_("x"), Expr::Call(id_("aCall"), vec![]))),
             ),
             label_(
                 Label::App(1),

@@ -1,30 +1,18 @@
-//! the runtime for programs compiled to wasm by jankscripten. it itself
-//! externs public non-mangled functions intended to by compiled to wasm
+//! the runtime for programs compiled to wasm by jankscripten. it
+//! externs public non-mangled functions intended to be compiled to wasm
 //! and dynamically linked
 //!
-//! currently only implements Num and add_num
-//!
-//! things i've learned messing around:
-//!
-//! - tag all public functions with `extern "C"` *and* `#[no_mangle]`. without
-//!   it no code will be generated at all fsr
-//! - you can't really use impl productively, just stick with flat
-//!   procedures. you can use mods, but they become flattened, so name
-//!   using mod_ (eg num::num_add instead of num::add)
-//! - because of no multiple returns, it's much easier to think about the
-//!   generated code if types are <=64 bits
-//! - when not, always expect a reference and return a box if
-//!   allocating. otherwise wasm will ask you to pack from memory
-//! - build on release if you wanna read the generated code, it's 1000% better
-//! - wasm_bindgen / wasm-pack is unneccessary and gets in the way since
-//!   it's all about js bindings and disallows enum structs
+//! - tag all public functions with `extern "C"` *and* `#[no_mangle]`
+//! - names become flattened, so name using mod_ (eg num::num_add instead
+//!   of num::add)
+//! - all externed return values must be <= 64 bits
 
 type Key = StrPtr;
 
-pub mod any;
+pub mod any_value;
 pub mod array;
+pub mod gc;
 pub mod ht;
-pub mod num;
 pub mod object;
 pub mod string;
 pub mod r#ref;
@@ -32,7 +20,8 @@ mod util;
 
 mod allocator;
 use allocator::*;
-use any::Any;
+use any_value::AnyEnum;
+use any_value::AnyValue;
 use string::StrPtr;
 
 static mut HEAP: Option<Heap> = None;
@@ -44,10 +33,11 @@ pub static JNKS_STRINGS: [u8; 65536] = [0; 65536];
 #[no_mangle]
 pub extern "C" fn init() {
     unsafe {
-        HEAP = Some(Heap::new(268435456));
+        HEAP = Some(Heap::new(65535));
     }
 }
 
 fn heap() -> &'static Heap {
     unsafe { &HEAP }.as_ref().unwrap()
 }
+

@@ -1,5 +1,6 @@
-//! The types associated with the Jankyscript language.
+//! The types associated with the JankyScript language.
 
+// TODO(arjun): should be exactly the same as NotWasm types for a first pass.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     Any,
@@ -27,7 +28,6 @@ impl Type {
                     _ => false
                 }
             },
-            Type::Function(_, _) => false,
             _ => true
         }
     }

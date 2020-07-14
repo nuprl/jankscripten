@@ -21,17 +21,28 @@ pub fn label_<L: Into<Label>>(a: L, b: Stmt) -> Stmt {
 pub fn get_id_<S: Into<String>>(a: S) -> Atom {
     Atom::Id(id_(a))
 }
-pub fn ht_get_(a: Atom, b: Atom, ty: Type) -> Atom {
-    Atom::HTGet(Box::new(a), Box::new(b), ty)
+
+/// NOTE: This function constructions a `ToAny` that lacks the type annotation
+/// that is necessary for code generation. We must use the type-checker to fill
+/// in the annotation before trying to generate code.
+pub fn to_any(a: Atom) -> Atom {
+    Atom::ToAny(ToAny::new(a))
 }
-pub fn object_get_(a: Atom, b: Atom, ty: Type) -> Atom {
-    Atom::ObjectGet(Box::new(a), Box::new(b), ty)
+
+pub fn from_any_(a: Atom, ty: Type) -> Atom {
+    Atom::FromAny(Box::new(a), ty)
 }
-pub fn index_(a: Atom, b: Atom, ty: Type) -> Atom {
-    Atom::Index(Box::new(a), Box::new(b), ty)
+pub fn ht_get_(a: Atom, b: Atom) -> Atom {
+    Atom::HTGet(Box::new(a), Box::new(b))
 }
-pub fn array_len_(a: Atom, ty: Type) -> Atom {
-    Atom::ArrayLen(Box::new(a), ty)
+pub fn object_get_(a: Atom, b: Atom) -> Atom {
+    Atom::ObjectGet(Box::new(a), Box::new(b))
+}
+pub fn index_(a: Atom, b: Atom) -> Atom {
+    Atom::Index(Box::new(a), Box::new(b))
+}
+pub fn array_len_(a: Atom) -> Atom {
+    Atom::ArrayLen(Box::new(a))
 }
 pub fn i32_(a: i32) -> Atom {
     Atom::Lit(Lit::I32(a))
@@ -81,12 +92,11 @@ pub const FALSE_: Atom = Atom::Lit(Lit::Bool(false));
 pub fn atom_(a: Atom) -> Expr {
     Expr::Atom(a)
 }
-pub fn ht_set_(a: Atom, b: Atom, c: Atom, ty: Type) -> Expr {
-    Expr::HTSet(a, b, c, ty)
+pub fn ht_set_(a: Atom, b: Atom, c: Atom) -> Expr {
+    Expr::HTSet(a, b, c)
 }
 pub fn program_(functions: HashMap<Id, Function>) -> Program {
     Program {
-        classes: HashMap::new(),
         functions,
         globals: HashMap::new(),
         data: Vec::new(),
@@ -111,7 +121,7 @@ pub fn func_i32_(body: Stmt) -> Function {
         body,
         fn_type: FnType {
             args: Vec::new(),
-            result: Some(Type::I32),
+            result: Some(Box::new(Type::I32)),
         },
         params: Vec::new(),
     }
@@ -119,14 +129,11 @@ pub fn func_i32_(body: Stmt) -> Function {
 pub fn id_<S: Into<String>>(a: S) -> Id {
     Id::Named(a.into())
 }
-pub fn ht_ty_(a: Type) -> Type {
-    Type::HT(Box::new(a))
-}
-pub fn array_ty_(a: Type) -> Type {
-    Type::Array(Box::new(a))
-}
 pub fn fn_ty_<I: Into<Option<Type>>>(b: Vec<Type>, a: I) -> Type {
-    Type::Fn(b, Box::new(a.into()))
+    Type::Fn(FnType {
+        args: b,
+        result: a.into().map(|b| Box::new(b)),
+    })
 }
 pub fn ref_ty_(a: Type) -> Type {
     Type::Ref(Box::new(a))

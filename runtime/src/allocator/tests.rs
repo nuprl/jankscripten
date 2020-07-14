@@ -12,19 +12,21 @@ fn allocs() {
     let y = heap.alloc(64).expect("second alloc");
     assert_eq!(*y.get(), 64);
     assert_eq!(*x.get(), 32);
-    assert!(heap.alloc(12).is_none());
+    assert!(heap.alloc(12).is_err());
 }
 
 #[test]
 #[wasm_bindgen_test]
-fn trivial_gc() {
+fn gc_enter_exit() {
     let heap = Heap::new((ALIGNMENT * 4) as isize);
+    heap.push_shadow_frame(&[]);
     let x = heap.alloc(32).expect("first allocation failed");
     assert_eq!(
         *x.get(),
         32,
         "first value was not written to the heap correctly"
     );
+    heap.push_shadow_frame(&[]);
     let y = heap.alloc(64).expect("second allocation failed");
     assert_eq!(
         *y.get(),
@@ -37,13 +39,54 @@ fn trivial_gc() {
         "second allocation corrupted the first value on the heap"
     );
     assert!(
-        heap.alloc(12).is_none(),
+        heap.alloc(12).is_err(),
         "third allocation should fail due to lack of space"
     );
-    heap.push_shadow_frame(&[x.get_ptr()]);
-    unsafe { heap.gc() };
+    unsafe { heap.pop_shadow_frame() };
+    heap.gc();
     let z = heap.alloc(128).expect("GC failed to free enough memory");
     assert_eq!(*z.get(), 128, "allocation should succeed after GC");
+    assert_eq!(
+        *x.get(),
+        32,
+        "allocation after GC corrupted the first value on the heap"
+    );
+}
+
+#[test]
+#[wasm_bindgen_test]
+fn alloc_or_gc_gcs() {
+    let heap = Heap::new((ALIGNMENT * 4) as isize);
+    heap.push_shadow_frame(&[]);
+    let x = heap.alloc(32).expect("first allocation failed");
+    assert_eq!(
+        *x.get(),
+        32,
+        "first value was not written to the heap correctly"
+    );
+    heap.push_shadow_frame(&[]);
+    let y = heap.alloc(64).expect("second allocation failed");
+    assert_eq!(
+        *y.get(),
+        64,
+        "second value was not written to the heap correctly"
+    );
+    assert_eq!(
+        *x.get(),
+        32,
+        "second allocation corrupted the first value on the heap"
+    );
+    assert!(
+        heap.alloc(12).is_err(),
+        "third allocation should fail due to lack of space"
+    );
+    unsafe { heap.pop_shadow_frame() };
+    let z = heap.alloc_or_gc(128);
+    assert_eq!(
+        *z.get(),
+        128,
+        "allocation should succeed after automatic GC"
+    );
     assert_eq!(
         *x.get(),
         32,
@@ -90,22 +133,20 @@ fn insert_object() {
     let mut obj = heap.alloc_object(empty_type).expect("second alloc");
     let mut cache = -1;
     assert_eq!(
-        obj.insert(&heap, str_as_ptr("x"), Any::I32(32), &mut cache)
-            .expect("couldn't allocate again"),
-        Any::I32(32)
+        obj.insert(&heap, str_as_ptr("x"), AnyEnum::I32(32).into(), &mut cache),
+        AnyEnum::I32(32).into()
     );
     assert_eq!(
-        obj.insert(&heap, str_as_ptr("x"), Any::I32(32), &mut cache)
-            .expect("couldn't find cached offset"),
-        Any::I32(32)
+        obj.insert(&heap, str_as_ptr("x"), AnyEnum::I32(32).into(), &mut cache),
+        AnyEnum::I32(32).into()
     );
     match obj.get(&heap, str_as_ptr("x"), &mut cache).expect("no x") {
-        Any::I32(i) => assert_eq!(i, 32),
-        _ => panic!("not an int"),
+        AnyEnum::I32(32) => (),
+        _ => panic!(),
     }
     match obj.get(&heap, str_as_ptr("x"), &mut -1).expect("no x") {
-        Any::I32(i) => assert_eq!(i, 32),
-        _ => panic!("not an int"),
+        AnyEnum::I32(32) => (),
+        _ => panic!(),
     }
 }
 
@@ -122,12 +163,15 @@ fn alloc_container2() {
         .borrow_mut()
         .transition(one_type, str_as_ptr("y"));
     let container = heap.alloc_object(type_tag).expect("second alloc");
-    let mut x = heap.alloc(Any::I32(200)).expect("second alloc");
-    container.write_at(&heap, 0, Any::Any(x));
-    *x.get_mut() = Any::I32(100);
+    let mut x: AnyJSPtr<'_> = heap.alloc(AnyEnum::I32(200).into()).expect("second alloc");
+    container.write_at(&heap, 0, AnyEnum::Ptr(x.into()).into());
+    *x.get_mut() = AnyEnum::I32(100).into();
     let elt = container.read_at(&heap, 0).expect("read");
     match elt {
-        Any::Any(prim) => assert_eq!(&Any::I32(100), prim.get()),
+        AnyEnum::Ptr(ptr) => match ptr.view() {
+            HeapRefView::Any(any) => assert_eq!(AnyEnum::I32(100), **any.get()),
+            _ => panic!("not an any"),
+        },
         _ => assert!(false),
     }
 }
@@ -159,5 +203,5 @@ fn string_ptr_drop_read() {
 fn too_big() {
     // String = Vec<u8> = {addr, size, alloc}
     let heap = Heap::new((ALIGNMENT * 2) as isize);
-    assert!(heap.alloc(String::from("hi")).is_none());
+    assert!(heap.alloc(String::from("hi")).is_err());
 }

@@ -12,7 +12,7 @@ pub extern "C" fn string_from_ptr(from: StrPtr) -> StringPtr<'static> {
     // can't use String::from_raw_parts because data for that needs to be
     // known to the allocator
     let str_ref = str_from_ptr(from);
-    heap().alloc(String::from(str_ref)).unwrap()
+    heap().alloc_or_gc(String::from(str_ref))
 }
 
 /// # Panics
