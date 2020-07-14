@@ -1,5 +1,5 @@
 function factorial(n : i32) : i32 {
-    var result : i32 = 1;
+    var result = 1;
     while (n > 0) {
         result = result * n;
         n = n - 1;
@@ -8,11 +8,11 @@ function factorial(n : i32) : i32 {
 }
 
 function main() : i32 {
-    var total : i32 = 0;
-    var counter : i32 = 10000000;    
+    var total = 0;
+    var counter = 10000000;    
     while (counter > 0) {
-        var n : i32 = 10;
-        var tmp : i32 = factorial(n);
+        var n = 10;
+        var tmp = factorial(n);
         total = total + tmp;
         counter = counter - 1;
     }

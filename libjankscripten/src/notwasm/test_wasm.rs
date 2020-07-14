@@ -17,8 +17,7 @@ where
     <T as FromStr>::Err: Debug,
 {
     println!("{:?}", program);
-    let _ = type_check(&mut program).expect("ill typed");
-    let wasm = compile(program).expect("couldn't compile");
+    let wasm = compile(program).expect("could not compile");
     // NOTE(arjun): It is temption to make the runtime system a dev-dependency
     // in Cargo.toml. However, I do not believe that will work. I assume that
     // dev-dependencies are compiled with the same target as the primary crate.
