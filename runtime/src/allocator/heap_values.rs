@@ -167,6 +167,18 @@ impl<'a> HeapPtr for AnyPtr<'a> {
     }
 }
 
+/// If p : TypePtr<'a, i32> then
+/// p.ptr : *const Tag and
+/// p.ptr.type_tag == HasTag::<i32>::TYPE_TAG
+///                == TypeTag::I32
+///
+/// Hypothetical:
+/// pub struct TypePtr<'a, T: HasTag> {
+///     ptr: *mut Tag && ptr.type_tag == HasTag::<T>::TYPE_TAG,
+/// }
+/// 
+/// Of course, we can't write the code above, which is what PhantomData
+/// solves.
 #[derive(Debug)]
 #[repr(transparent)]
 pub struct TypePtr<'a, T> {
