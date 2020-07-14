@@ -150,6 +150,22 @@ impl Heap {
         };
     }
 
+    // NOTE(arjun): It is now clear to me that the lifetime parameter on heap values
+    // is pointless.
+    pub fn f64_to_any(&self, x: f64) -> AnyValue<'static> {
+        let mut opt_ptr = self.f64_allocator.borrow_mut().alloc(x);
+        if let None = opt_ptr {
+            self.gc();
+            // TODO(arjun): This is a design flaw. We have to borrow_mut again,
+            // because self.gc also borrows the f64_allocator. Frankly, we
+            // should use a raw pointer.
+            opt_ptr = self.f64_allocator.borrow_mut().alloc(x);
+        }
+        let ptr = unwrap_log(opt_ptr, "out of f64 memory");
+        let any = AnyEnum::F64(ptr);
+        unsafe { std::mem::transmute(any) }
+    }
+
     /**
      * Allocates a primitive value on the heap, and returns a reference to the
      * tag that precedes the primitive.
@@ -279,7 +295,6 @@ impl Heap {
     /// if push_shadow_frame / pop_shadow_frame / set_in_current_shadow_frame_slot were
     /// used correctly (tagged unsafe), this is safe
     pub fn gc(&self) {
-        log(&format!("Triggering GC."));
         let roots = self
             .shadow_stack
             .borrow()
@@ -296,6 +311,9 @@ impl Heap {
         let mut current_roots = roots;
         let mut new_roots = Vec::<*mut Tag>::new();
 
+        let mut f64_allocator = self.f64_allocator.borrow_mut();
+        f64_allocator.semispace_swap();
+
         while current_roots.is_empty() == false {
             for root in current_roots.drain(0..) {
                 let tag = unsafe { &mut *root };
@@ -305,18 +323,24 @@ impl Heap {
                 }
                 tag.marked = true;
 
-                if tag.type_tag != TypeTag::DynObject {
+                if tag.type_tag != TypeTag::ObjectPtrPtr {
                     continue;
                 }
                 let class_tag = tag.class_tag; // needed since .class_tag is packed
                 let num_ptrs = self.get_class_size(class_tag);
                 let members_ptr: *mut AnyValue = unsafe { data_ptr(root) };
-                let members = unsafe { std::slice::from_raw_parts(members_ptr, num_ptrs) };
+                let members = unsafe { std::slice::from_raw_parts_mut(members_ptr, num_ptrs) };
                 for member in members {
-                    new_roots.push(match **member {
-                        AnyEnum::Ptr(ptr) => ptr.get_ptr(),
-                        _ => continue,
-                    });
+                    match **member {
+                        AnyEnum::F64(f64_ptr) => {
+                            log("Moving a float");
+                            *member = AnyEnum::F64(f64_allocator.alloc(unsafe { *f64_ptr }).unwrap()).into();
+                        }
+                        AnyEnum::Ptr(ptr) => {
+                            new_roots.push(ptr.get_ptr());
+                        }
+                        _ => ()
+                    }
                 }
             }
             std::mem::swap(&mut current_roots, &mut new_roots);

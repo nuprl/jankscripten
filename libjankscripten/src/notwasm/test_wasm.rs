@@ -75,7 +75,7 @@ where
     assert_eq!(
         expected,
         // exclude trailing newline
-        out_str.trim_end().parse::<T>().expect("non number"),
+        out_str.trim_end().parse::<T>().expect(&format!("number expected, got {}", &out_str)),
     );
 }
 
@@ -381,12 +381,15 @@ fn simple_prec() {
 
 const ITER_COUNT: usize = 1000;
 const ALLOC_PROG: &'static str = "
+    // NOTE(arjun): The follow comment is no longer accurate, since Anys are
+    // no longer heap allocated. However, I'm not sure what the product is
+    // intended to be.
     // allocates 8 Anys, and also 1, 2, ... = 28 * 96 = 2688
-    var x= {};
-    x.a = any(0);
-    x.b = any(0);
-    x.c = any(0);
-    x.d = any(0);
+    var x = {};
+    x.a = any(0.0f);
+    x.b = any(1.0f);
+    x.c = any(2.0f);
+    x.d = any(3.0f);
     x.e = any(0);
     x.f = any(0);
     x.g = any(0);
@@ -459,4 +462,22 @@ fn float_in_any() {
     );
     intern(&mut program);
     test_wasm(1, program);
+}
+
+#[test]
+fn gc_float_in_any() {
+    let program = parse(
+        r#"
+        function main(): i32 {
+            var i = 0;
+            var o = {};
+            o.x = any(0.0f);
+            while (i < 2000) {
+                o.x = any((o.x as f64) +. 0.1f);
+                i = i + 1;
+            }
+            return 5;
+        }
+        "#);
+    test_wasm(5, program);            
 }

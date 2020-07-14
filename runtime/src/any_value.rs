@@ -90,13 +90,9 @@ pub extern "C" fn any_to_f64(any: AnyValue) -> f64 {
     panic!("any_to_f64 did not receive an AnyEnum::F64");
 }
 
-// NOTE(arjun): It is now clear to me that the lifetime parameter on heap values
-// is pointless.
 #[no_mangle]
 pub extern "C" fn f64_to_any(x: f64) -> AnyValue<'static> {
-    // TODO(arjun): This allocation can fail. We need to address this.
-    let any = AnyEnum::F64(heap().f64_allocator.borrow_mut().alloc(x));
-    return unsafe { std::mem::transmute(any) };
+    return heap().f64_to_any(x);
 }
 
 decl_proj_fns!(any_from_i32, any_to_i32, I32, i32);

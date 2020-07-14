@@ -25,3 +25,13 @@ pub fn log(s: &str) {
 pub fn log(s: &str) {
     eprintln!("{}", s);
 }
+
+pub fn unwrap_log<T>(value: Option<T>, message: &'static str) -> T {
+    match value {
+        Some(v) => v,
+        None => {
+            log(message);
+            panic!(message); // the message does not appear
+        }
+    }
+}
