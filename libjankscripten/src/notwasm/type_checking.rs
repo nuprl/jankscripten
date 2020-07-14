@@ -136,7 +136,7 @@ fn type_check_stmt(
         Stmt::Assign(id, e) => {
             let got_id = lookup(&env, id)?;
             let got_expr = type_check_expr(&env, e)?;
-            let _ = ensure("assign", got_id, got_expr)?;
+            ensure("assign", got_id, got_expr)?;
 
             Ok(env)
         }
@@ -151,12 +151,12 @@ fn type_check_stmt(
             Ok(env)
         }
         Stmt::Loop(s_body) => {
-            let _ = type_check_stmt(env.clone(), s_body, ret_ty);
+            type_check_stmt(env.clone(), s_body, ret_ty)?;
             Ok(env)
         }
         Stmt::Label(_lbl, s_body) => {
             // LATER label checking
-            let _ = type_check_stmt(env.clone(), s_body, ret_ty);
+            type_check_stmt(env.clone(), s_body, ret_ty)?;
             Ok(env)
         }
         Stmt::Break(_lbl) => Ok(env),
@@ -207,7 +207,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             let got_val = type_check_atom(env, a_val)?;
 
             ensure("ht set (ht)", Type::HT, got_ht)?;
-            let _ = ensure("ht set (field)", Type::String, got_field)?;
+            let _ = ensure("ht set (field)", Type::StrRef, got_field)?;
             let _ = ensure("ht set (val)", Type::Any, got_val)?;
 
             Ok(Type::Any) // returns value set
@@ -218,7 +218,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             let got_val = type_check_atom(env, a_val)?;
 
             let _ = ensure("object set (obj)", Type::DynObject, got_obj)?;
-            let _ = ensure("object set (field)", Type::String, got_field)?;
+            let _ = ensure("object set (field)", Type::StrRef, got_field)?;
             let _ = ensure("object set (val)", Type::Any, got_val)?;
 
             Ok(Type::Any) // returns value set
@@ -259,7 +259,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             }
         }
         Expr::NewRef(a) => Ok(Type::Ref(Box::new(type_check_atom(env, a)?))),
-        Expr::Atom(a) => type_check_atom(env, a),
+        Expr::Atom(a) => type_check_atom(env, a)
     }
 }
 
@@ -300,13 +300,14 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
         Atom::Id(id) => lookup(env, id),
         Atom::StringLen(a) => {
             let ty = type_check_atom(env, a)?;
-            let _ = ensure("string len", Type::String, ty);
+            let _ = ensure("string len", Type::String, ty)?;
 
             Ok(Type::I32)
         }
         Atom::ArrayLen(a) => {
             let got = type_check_atom(env, a)?;
-            ensure("array len", Type::Array, got)
+            ensure("array len", Type::Array, got)?;
+            Ok(Type::I32)
         }
         Atom::Index(a_arr, a_idx) => {
             let got_arr = type_check_atom(env, a_arr)?;
@@ -319,7 +320,7 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             let got_obj = type_check_atom(env, a_obj)?;
             let got_field = type_check_atom(env, a_field)?;
 
-            let _ = ensure("object get field", Type::String, got_field)?;
+            let _ = ensure("object get field", Type::StrRef, got_field)?;
             let _ = ensure("object field", Type::DynObject, got_obj)?;
             Ok(Type::Any)
         }
@@ -328,7 +329,7 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             let got_field = type_check_atom(env, a_field)?;
 
             ensure("ht get", Type::HT, got_ht)?;
-            let _ = ensure("ht get (field)", Type::String, got_field)?;
+            let _ = ensure("ht get (field)", Type::StrRef, got_field)?;
 
             Ok(Type::Any)
         }

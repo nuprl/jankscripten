@@ -11,7 +11,7 @@ function main() {
     var total = 0;
     var counter = 10000000;    
     while (counter > 0) {
-        var n  = 10;
+        var n = 10;
         var tmp = factorial(n) | 0;
         total = (total + tmp) | 0;
         counter = (counter - 1) | 0;
