@@ -56,8 +56,8 @@ pub fn stmt(s: Js::Stmt) -> Stmt {
         Js::While(c, body) => While(Box::new(expr(*c)), Box::new(stmt(*body))),
         Js::DoWhile(stmt, cond) => panic!(),
         Js::For(_, _, _, _) => panic!(),
-        Js::Catch(try_body, exception_name, finally_body) => 
-            Catch(Box::new(stmt(*try_body)), exception_name, Box::new(stmt(*finally_body))),
+        Js::Catch(try_body, exception_name, catch_body) => 
+            Catch(Box::new(stmt(*try_body)), exception_name, Box::new(stmt(*catch_body))),
         Js::Finally(try_body, finally_body) => 
             Finally(Box::new(stmt(*try_body)), Box::new(stmt(*finally_body))),
         Js::Throw(e) => Throw(Box::new(expr(*e))),
