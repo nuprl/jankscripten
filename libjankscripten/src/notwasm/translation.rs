@@ -174,7 +174,13 @@ fn translate_func(
     if name == &N::Id::Named("main".to_string()) {
         insts = vec![Call(*rt_indexes.get("init").expect("no init"))];
     }
+
+    // Eager shadow stack: The runtime system needs to create a shadow stack
+    // frame that has enough slots for the local variables.
+    let num_slots = translator.locals.len() + func.params.len();
+    insts.push(I32Const(num_slots.try_into().unwrap()));
     insts.push(Call(*rt_indexes.get("gc_enter_fn").expect("no enter")));
+
     insts.append(&mut translator.out);
     insts.push(Call(*rt_indexes.get("gc_exit_fn").expect("no exit")));
     insts.push(End);
@@ -290,12 +296,22 @@ impl<'a> Translate<'a> {
                 // Binds variable in env after compiling expr (prevents
                 // circularity).
                 self.translate_expr(&mut var_stmt.named);
+
                 let index = self.next_id;
                 self.next_id += 1;
                 self.locals.push(var_stmt.ty().as_wasm());
                 self.id_env
                     .insert(var_stmt.id.clone(), IdIndex::Local(index, var_stmt.ty().clone()));
-                self.out.push(SetLocal(index));
+                
+                // Eager shadow stack: 
+                if var_stmt.ty().is_gc_root() == false {
+                    self.out.push(SetLocal(index));
+                }
+                else {
+                    self.out.push(TeeLocal(index));
+                    self.out.push(I32Const(index.try_into().unwrap()));
+                    self.out.push(Call(*self.rt_indexes.get("set_in_current_shadow_frame_slot").unwrap()));
+                }
             }
             N::Stmt::Expression(expr) => {
                 self.translate_expr(expr);
@@ -308,7 +324,16 @@ impl<'a> Translate<'a> {
                     .get(id)
                     .expect(&format!("unbound identifier {:?}", id))
                 {
-                    IdIndex::Local(n, _) => self.out.push(SetLocal(*n)),
+                    IdIndex::Local(n, ty) => {
+                        if ty.is_gc_root() == false {
+                            self.out.push(SetLocal(*n));
+                        }
+                        else {
+                            self.out.push(TeeLocal(*n));
+                            self.out.push(I32Const((*n).try_into().unwrap()));
+                            self.out.push(Call(*self.rt_indexes.get("set_in_current_shadow_frame_slot").unwrap()));
+                        }
+                    },
                     // +1 for JNKS_STRINGS
                     IdIndex::Global(n) => self.out.push(SetGlobal(*n + 1)),
                     IdIndex::Fun(..) => panic!("cannot set function"),

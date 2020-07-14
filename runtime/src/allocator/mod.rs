@@ -9,6 +9,7 @@ mod constants;
 mod heap_values;
 mod layout;
 mod object_ptr;
+use crate::util::*;
 
 pub mod heap_types;
 pub use heap_values::AnyPtr;
@@ -20,6 +21,7 @@ use class_list::ClassList;
 use constants::*;
 use heap_types::*;
 use heap_values::*;
+pub use heap_values::Tag;
 
 #[cfg(test)]
 mod tests;
@@ -35,7 +37,7 @@ pub struct Heap {
     pub classes: RefCell<ClassList>,
     /// We initialize this to the empty stack. Before calling [Heap::gc()], the
     /// shadow stack must contain all GC roots.
-    shadow_stack: RefCell<Vec<Vec<*mut Tag>>>,
+    shadow_stack: RefCell<Vec<Vec<Option<*mut Tag>>>>,
 }
 
 #[derive(Debug)]
@@ -176,8 +178,6 @@ impl Heap {
             None => Err(value),
             Some(ptr) => {
                 let tag_ptr: *mut Tag = ptr as *mut Tag;
-                // safety: we just allocated it
-                unsafe { self.update_shadow_frame(tag_ptr) };
                 let tag_ref: &mut Tag = unsafe { &mut *tag_ptr };
                 *tag_ref = tag;
                 let val_ref = TypePtr::<T>::new(tag_ptr, tag.type_tag, value);
@@ -230,8 +230,6 @@ impl Heap {
             None => None,
             Some(ptr) => {
                 let tag_ptr: *mut Tag = ptr as *mut Tag;
-                // safety: we just allocated it
-                unsafe { self.update_shadow_frame(tag_ptr) };
                 let tag_ref: &mut Tag = unsafe { &mut *tag_ptr };
                 unsafe {
                     tag_ptr.write(Tag::object(type_tag));
@@ -256,10 +254,11 @@ impl Heap {
         self.classes.borrow().get_class_size(class_tag)
     }
 
-    pub fn push_shadow_frame(&self, frame: &[*mut Tag]) {
+    pub fn push_shadow_frame(&self, slots: usize) {
         let mut shadow_stack = self.shadow_stack.borrow_mut();
-        shadow_stack.push(Vec::from(frame));
+        shadow_stack.push(vec![None; slots]);
     }
+
     /// # Safety
     ///
     /// calling this without an appropriate push_shadow_frame, or before
@@ -269,23 +268,23 @@ impl Heap {
         let mut shadow_stack = self.shadow_stack.borrow_mut();
         shadow_stack.pop();
     }
-    /// updating with an improper tag will make [gc] unsafe (treating non-tags
-    /// as roots)
-    unsafe fn update_shadow_frame(&self, ptr: *mut Tag) {
+
+    pub fn set_in_current_shadow_frame_slot(&self, slot: usize, ptr: *mut Tag) {
         let mut shadow_stack = self.shadow_stack.borrow_mut();
-        shadow_stack.last_mut().unwrap().push(ptr);
+        shadow_stack.last_mut().unwrap()[slot] = Some(ptr);
     }
 
     /// # Safety
     ///
-    /// if push_shadow_frame / pop_shadow_frame / update_shadow_frame were
+    /// if push_shadow_frame / pop_shadow_frame / set_in_current_shadow_frame_slot were
     /// used correctly (tagged unsafe), this is safe
-    #[allow(unused)] // remove after we extern
     pub fn gc(&self) {
+        log(&format!("Triggering GC."));
         let roots = self
             .shadow_stack
             .borrow()
             .iter()
+            .flatten()
             .flatten()
             .map(|refptr| *refptr)
             .collect::<Vec<*mut Tag>>();
