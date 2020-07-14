@@ -9,7 +9,8 @@ const LEN : usize = 1000;
 /// TODO(arjun): We need to implement garbage collection.
 pub struct F64Allocator {
     // TODO(arjun): No more that one thousand floats.
-    buf: [f64; LEN],
+    current_space: Box<[f64; LEN]>,
+    other_space: Box<[f64; LEN]>,
     next_slot: usize
 }
 
@@ -17,20 +18,31 @@ impl F64Allocator {
 
     pub fn new() -> Self {
         let next_slot = 0;
-        let buf = [0.0; LEN];
-        return F64Allocator { buf, next_slot };
+        let current_space = Box::new([0.0; LEN]);
+        let other_space = Box::new([0.0; LEN]);
+        return F64Allocator { current_space, other_space, next_slot };
     }
 
     /// Note that we don't have a function to read the value of a float.
-    pub fn alloc(&mut self, value: f64) -> *const f64 {
+    pub fn alloc(&mut self, value: f64) -> Option<*const f64> {
+        assert!(self.next_slot <= LEN);
         let index = self.next_slot;
         self.next_slot += 1;
-        assert!(self.next_slot < LEN, "no space left for floats");
+        if self.next_slot == LEN {
+            return None;
+        }
         let f64_ref = unsafe {
-            self.buf.get_unchecked_mut(index)
+            self.current_space.get_unchecked_mut(index)
         };
         *f64_ref = value;
-        return f64_ref as *const f64;
+        return Some(f64_ref as *const f64);
+    }
+
+    /// Swaps semispaces. All subsequent allocations will occur in the other
+    /// space, and start from the first slot.
+    pub fn semispace_swap(&mut self) {
+        std::mem::swap(&mut self.current_space, &mut self.other_space);
+        self.next_slot = 0;
     }
 
 }
