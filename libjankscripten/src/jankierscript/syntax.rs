@@ -2,27 +2,10 @@
 //!
 //! The JavaScript AST goes through several stages of desugaring before we
 //! produce a program in this language.
-
 use crate::shared::types::Type;
 use crate::shared::ops::*;
 
-#[derive(Debug)]
-pub enum Lit {
-    String(String),
-    Regex(String, String),
-    Bool(bool),
-    Null,
-    Num(String), // TODO(arjun): parse
-    Undefined,
-}
-
-#[derive(Debug)]
-pub enum Key {
-    Int(i32),
-    Str(String),
-}
-
-pub type Id = String;
+pub type Id = super::super::javascript::Id;
 
 #[derive(Debug)]
 pub enum LValue {
@@ -33,15 +16,16 @@ pub enum LValue {
 
 #[derive(Debug)]
 pub enum Expr {
-    Lit(Lit),
+    Lit(super::super::javascript::Lit),
     Array(Vec<Expr>),
-    Object(Vec<(Key, Expr)>),
+    Object(Vec<(super::super::javascript::Key, Expr)>),
     This,
     Id(Id),
     Dot(Box<Expr>, Id),
     Bracket(Box<Expr>, Box<Expr>),
-    Unary(UnaryOp, Box<Expr>),
-    Binary(BinOp, Box<Expr>, Box<Expr>),
+    Unary(super::super::javascript::UnaryOp, Box<Expr>),
+    Binary(super::super::javascript::BinOp, Box<Expr>, Box<Expr>),
+    Assign(Box<LValue>, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
     New(Option<Type>, Box<Expr>, Vec<Expr>),
     Func(Option<Type>, Vec<(Id, Option<Type>)>, Box<Stmt>),
@@ -49,10 +33,9 @@ pub enum Expr {
 
 #[derive(Debug)]
 pub enum Stmt {
-    Var(Id, Option<Type>, Expr),
+    Var(Id, Option<Type>, Box<Expr>),
     Block(Vec<Stmt>),
     Empty,
-    Assign(Box<LValue>, Box<Expr>),
     If(Box<Expr>, Box<Stmt>, Box<Stmt>),
     While(Box<Expr>, Box<Stmt>),
     Label(Id, Box<Stmt>),
