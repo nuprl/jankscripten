@@ -14,7 +14,7 @@ pub mod array;
 pub mod ht;
 pub mod object;
 pub mod string;
-pub mod r#ref;
+pub mod r#ref; // Rust raw identifier syntax
 mod util;
 
 mod allocator;

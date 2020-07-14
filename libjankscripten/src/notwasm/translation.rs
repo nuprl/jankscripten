@@ -487,9 +487,9 @@ impl<'a> Translate<'a> {
 
     fn translate_atom(&mut self, atom: &mut N::Atom) {
         match atom {
-            N::Atom::Deref(id) => {
+            N::Atom::Deref(a) => {
                 // dereferences are implemented as raw memory reads
-                self.get_id(id);
+                self.translate_atom(a);
                 self.out.push(I32Load(0, 4)); // skip 32 bits for tag in I32Ptr
             },
             N::Atom::Lit(lit) => match lit {

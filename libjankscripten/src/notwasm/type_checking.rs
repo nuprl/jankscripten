@@ -284,7 +284,7 @@ fn assert_variant_of_any(ty: &Type) -> TypeCheckingResult<()> {
 
 fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
     match a {
-        Atom::Deref(id) => ensure_ref("dereference", lookup(env, id)?),
+        Atom::Deref(a) => ensure_ref("dereference", type_check_atom(env, a)?),
         Atom::Lit(l) => Ok(type_check_lit(l)),
         Atom::ToAny(to_any) => {
             let ty = type_check_atom(env, &mut to_any.atom)?;
