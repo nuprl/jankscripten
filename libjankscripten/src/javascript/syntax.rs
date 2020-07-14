@@ -116,9 +116,15 @@ pub enum Stmt {
     Label(Id, Box<Stmt>),
     Break(Option<Id>),
     Continue(Option<Id>),
+    /// `Catch(body, x, catch_block)` is
+    /// `try { body } catch(x) { catch_block }
     Catch(Box<Stmt>, Id, Box<Stmt>),
+    // `Finally(body, finally_block)`
+    // `try { body } finally { finally_block }`
     Finally(Box<Stmt>, Box<Stmt>),
     Throw(Box<Expr>),
+    /// Could be:
+    /// `var x = 10, y = 30;`
     VarDecl(Vec<VarDecl>),
     Func(Id, Vec<Id>, Box<Stmt>),
     Return(Box<Expr>),
