@@ -15,84 +15,84 @@ fn allocs() {
     assert!(heap.alloc(12).is_err());
 }
 
-#[test]
-#[wasm_bindgen_test]
-fn gc_enter_exit() {
-    let heap = Heap::new((ALIGNMENT * 4) as isize);
-    heap.push_shadow_frame(&[]);
-    let x = heap.alloc(32).expect("first allocation failed");
-    assert_eq!(
-        *x.get(),
-        32,
-        "first value was not written to the heap correctly"
-    );
-    heap.push_shadow_frame(&[]);
-    let y = heap.alloc(64).expect("second allocation failed");
-    assert_eq!(
-        *y.get(),
-        64,
-        "second value was not written to the heap correctly"
-    );
-    assert_eq!(
-        *x.get(),
-        32,
-        "second allocation corrupted the first value on the heap"
-    );
-    assert!(
-        heap.alloc(12).is_err(),
-        "third allocation should fail due to lack of space"
-    );
-    unsafe { heap.pop_shadow_frame() };
-    heap.gc();
-    let z = heap.alloc(128).expect("GC failed to free enough memory");
-    assert_eq!(*z.get(), 128, "allocation should succeed after GC");
-    assert_eq!(
-        *x.get(),
-        32,
-        "allocation after GC corrupted the first value on the heap"
-    );
-}
+// #[test]
+// #[wasm_bindgen_test]
+// fn gc_enter_exit() {
+//     let heap = Heap::new((ALIGNMENT * 4) as isize);
+//     heap.push_shadow_frame(&[]);
+//     let x = heap.alloc(32).expect("first allocation failed");
+//     assert_eq!(
+//         *x.get(),
+//         32,
+//         "first value was not written to the heap correctly"
+//     );
+//     heap.push_shadow_frame(&[]);
+//     let y = heap.alloc(64).expect("second allocation failed");
+//     assert_eq!(
+//         *y.get(),
+//         64,
+//         "second value was not written to the heap correctly"
+//     );
+//     assert_eq!(
+//         *x.get(),
+//         32,
+//         "second allocation corrupted the first value on the heap"
+//     );
+//     assert!(
+//         heap.alloc(12).is_err(),
+//         "third allocation should fail due to lack of space"
+//     );
+//     unsafe { heap.pop_shadow_frame() };
+//     heap.gc();
+//     let z = heap.alloc(128).expect("GC failed to free enough memory");
+//     assert_eq!(*z.get(), 128, "allocation should succeed after GC");
+//     assert_eq!(
+//         *x.get(),
+//         32,
+//         "allocation after GC corrupted the first value on the heap"
+//     );
+// }
 
-#[test]
-#[wasm_bindgen_test]
-fn alloc_or_gc_gcs() {
-    let heap = Heap::new((ALIGNMENT * 4) as isize);
-    heap.push_shadow_frame(&[]);
-    let x = heap.alloc(32).expect("first allocation failed");
-    assert_eq!(
-        *x.get(),
-        32,
-        "first value was not written to the heap correctly"
-    );
-    heap.push_shadow_frame(&[]);
-    let y = heap.alloc(64).expect("second allocation failed");
-    assert_eq!(
-        *y.get(),
-        64,
-        "second value was not written to the heap correctly"
-    );
-    assert_eq!(
-        *x.get(),
-        32,
-        "second allocation corrupted the first value on the heap"
-    );
-    assert!(
-        heap.alloc(12).is_err(),
-        "third allocation should fail due to lack of space"
-    );
-    unsafe { heap.pop_shadow_frame() };
-    let z = heap.alloc_or_gc(128);
-    assert_eq!(
-        *z.get(),
-        128,
-        "allocation should succeed after automatic GC"
-    );
-    assert_eq!(
-        *x.get(),
-        32,
-        "allocation after GC corrupted the first value on the heap"
-    );
-}
+// #[test]
+// #[wasm_bindgen_test]
+// fn alloc_or_gc_gcs() {
+//     let heap = Heap::new((ALIGNMENT * 4) as isize);
+//     heap.push_shadow_frame(&[]);
+//     let x = heap.alloc(32).expect("first allocation failed");
+//     assert_eq!(
+//         *x.get(),
+//         32,
+//         "first value was not written to the heap correctly"
+//     );
+//     heap.push_shadow_frame(&[]);
+//     let y = heap.alloc(64).expect("second allocation failed");
+//     assert_eq!(
+//         *y.get(),
+//         64,
+//         "second value was not written to the heap correctly"
+//     );
+//     assert_eq!(
+//         *x.get(),
+//         32,
+//         "second allocation corrupted the first value on the heap"
+//     );
+//     assert!(
+//         heap.alloc(12).is_err(),
+//         "third allocation should fail due to lack of space"
+//     );
+//     unsafe { heap.pop_shadow_frame() };
+//     let z = heap.alloc_or_gc(128);
+//     assert_eq!(
+//         *z.get(),
+//         128,
+//         "allocation should succeed after automatic GC"
+//     );
+//     assert_eq!(
+//         *x.get(),
+//         32,
+//         "allocation after GC corrupted the first value on the heap"
+//     );
+// }
 
 #[test]
 #[wasm_bindgen_test]

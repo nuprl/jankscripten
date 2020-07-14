@@ -30,8 +30,11 @@ pub fn get_rt_bindings() -> BindMap {
     insert(m, "string_len", vec![String], I32);
     insert(m, "ref_new", vec![I32], I32);
     insert(m, "init", vec![], None);
-    insert(m, "gc_enter_fn", vec![], None);
+    insert(m, "gc_enter_fn", vec![I32], None);
     insert(m, "gc_exit_fn", vec![], None);
+    // NOTE(arjun): The type below is not accurate. The first argument is
+    // a *mut Tag, but we don't have a type for that.
+    insert(m, "set_in_current_shadow_frame_slot", vec![I32, I32], None);
     insert(m, "any_to_f64", vec![Any], F64);
     insert(m, "f64_to_any", vec![F64], Any);
     map

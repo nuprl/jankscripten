@@ -55,6 +55,25 @@ pub enum Type {
     Any,
 }
 
+impl Type {
+    pub fn is_gc_root(&self) -> bool {
+        match self {
+            Type::I32 => false,
+            Type::F64 => false,
+            // TODO: Think through strings
+            Type::String => false,
+            Type::StrRef => false,
+            Type::HT => true,
+            Type::Array => true,
+            Type::Bool => false,
+            Type::DynObject => true,
+            Type::Fn(_) => false,
+            Type::Ref(_) => true,
+            Type::Any => false
+        }
+    }    
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct FnType {
     pub args: Vec<Type>,

@@ -2,7 +2,6 @@ use super::compile;
 use super::intern::intern;
 use super::parser::parse;
 use super::syntax::*;
-use super::type_checking::type_check;
 use std::fmt::Debug;
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -11,7 +10,7 @@ use std::sync::Once;
 
 static COMPILE_RUNTIME: Once = Once::new();
 
-fn test_wasm<T>(expected: T, mut program: Program)
+fn test_wasm<T>(expected: T, program: Program)
 where
     T: Debug + FromStr + PartialEq,
     <T as FromStr>::Err: Debug,
