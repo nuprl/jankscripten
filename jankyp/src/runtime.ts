@@ -3,7 +3,10 @@ import * as process from 'process';
 type BadBehavior = Map<string, Set<string>>;
 
 const badArityBehavior: BadBehavior = new Map();
+
 const badOperands: BadBehavior = new Map();
+
+const expectedNumber: BadBehavior = new Map();
 
 function record(theMap: BadBehavior, location: string, message: string) {
     let existingMessages = theMap.get(location);
@@ -13,6 +16,13 @@ function record(theMap: BadBehavior, location: string, message: string) {
     else {
         existingMessages.add(message);
     }
+}
+
+export function expectNumber(loc: string, value: any): any {
+    if (typeof value !== 'number') {
+        record(expectedNumber, loc, typeof value);
+    }
+    return value;
 }
 
 export function checkOperand(loc: string, value: any): any {
@@ -31,4 +41,5 @@ export function checkArgs(loc: string, numFormals: number, numActuals: number) {
 process.on('beforeExit', () => {
     console.log(badArityBehavior);
     console.log(badOperands);
+    console.log(expectedNumber);
 });

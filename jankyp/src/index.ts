@@ -50,6 +50,12 @@ const visitor: TraverseOptions = {
             if (path.node.right.loc === null) {
                 throw new Error('no location');
             }
+
+            if (['*', '/', '-', '&', '|', '<<', '>>', '>>>'].includes(op)) {
+                path.node.left = qCall('expectNumber', [ qLoc(path.node.left.loc), path.node.left ]);
+                path.node.right = qCall('expectNumber', [ qLoc(path.node.right.loc), path.node.right ]);
+                return;
+            }
             path.node.left = qCall('checkOperand', [ qLoc(path.node.left.loc), path.node.left ]);
             path.node.right = qCall('checkOperand', [ qLoc(path.node.right.loc), path.node.right ]);
         }

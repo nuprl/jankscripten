@@ -11,6 +11,8 @@ At the moment, it prints the following warnings:
    formal argument list.
 2. A binary operator receives a object or function, thus the correct behavior
    is to call `.toString()` or `.valueOf()`.
+3. A numeric operator (multiplication, subtraction, etc.) receives a non-numeric
+   operand.
 
 ## Building
 
