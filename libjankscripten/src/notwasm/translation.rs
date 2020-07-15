@@ -267,6 +267,16 @@ impl<'a> Translate<'a> {
         }
     }
 
+    /// Produces an instruction that passes a GC root to the runtime system. There are two kinds
+    /// of roots: pointers (I32) and Any-typed values (I64) that may contain pointers, thus we
+    /// dispatch on the type of the GC root.
+    fn set_in_current_shadow_frame_slot(&self, ty: &N::Type) -> Instruction {
+        match ty {
+            N::Type::Any => Call(*self.rt_indexes.get("set_any_in_current_shadow_frame_slot").unwrap()),
+            _ => Call(*self.rt_indexes.get("set_in_current_shadow_frame_slot").unwrap()),
+        }
+    }
+
     // We are not using a visitor, since we have to perform an operation on every
     // give of statement and expression. Thus, the visitor wouldn't give us much.
     //
@@ -310,7 +320,7 @@ impl<'a> Translate<'a> {
                 else {
                     self.out.push(TeeLocal(index));
                     self.out.push(I32Const(index.try_into().unwrap()));
-                    self.out.push(Call(*self.rt_indexes.get("set_in_current_shadow_frame_slot").unwrap()));
+                    self.out.push(self.set_in_current_shadow_frame_slot(var_stmt.ty()));
                 }
             }
             N::Stmt::Expression(expr) => {
@@ -331,7 +341,7 @@ impl<'a> Translate<'a> {
                         else {
                             self.out.push(TeeLocal(*n));
                             self.out.push(I32Const((*n).try_into().unwrap()));
-                            self.out.push(Call(*self.rt_indexes.get("set_in_current_shadow_frame_slot").unwrap()));
+                            self.out.push(self.set_in_current_shadow_frame_slot(&ty));
                         }
                     },
                     // +1 for JNKS_STRINGS

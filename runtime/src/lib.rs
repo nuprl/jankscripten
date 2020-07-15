@@ -51,6 +51,11 @@ pub fn set_in_current_shadow_frame_slot(ptr: *mut Tag, slot: usize) {
     heap().set_in_current_shadow_frame_slot(slot, ptr);
 }
 
+#[no_mangle]
+pub fn set_any_in_current_shadow_frame_slot(any: AnyValue, slot: usize) {
+    heap().set_any_in_current_shadow_frame_slot(slot, any);
+}
+
 fn heap() -> &'static Heap {
     unsafe { &HEAP }.as_ref().unwrap()
 }

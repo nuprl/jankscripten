@@ -69,9 +69,9 @@ impl Type {
             Type::DynObject => true,
             Type::Fn(_) => false,
             Type::Ref(_) => true,
-            Type::Any => false
+            Type::Any => true,
         }
-    }    
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]

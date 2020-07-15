@@ -290,6 +290,18 @@ impl Heap {
         shadow_stack.last_mut().unwrap()[slot] = Some(ptr);
     }
 
+    pub fn set_any_in_current_shadow_frame_slot(&self, slot: usize, any: AnyValue) {
+        match *any {
+            AnyEnum::Ptr(ptr) => {
+                self.set_in_current_shadow_frame_slot(slot, ptr.get_ptr());
+            }
+            _ => {
+                let mut shadow_stack = self.shadow_stack.borrow_mut();
+                shadow_stack.last_mut().unwrap()[slot] = None;
+            }
+        }
+    }
+
     /// # Safety
     ///
     /// if push_shadow_frame / pop_shadow_frame / set_in_current_shadow_frame_slot were
