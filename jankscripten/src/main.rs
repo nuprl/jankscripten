@@ -87,9 +87,15 @@ fn parse(opts: Parse) {
     match ext {
         "js" => {
             let input = read_file(input_path);
-            if let Err(err) = libjankscripten::javascript::parse(&input) {
-                eprintln!("{}:\n{}", opts.input, err);
-                process::exit(1);
+            match libjankscripten::javascript::parse(&input) {
+                Ok(stmt) => {
+                    libjankscripten::jankierscript::from_javascript::stmt(stmt);
+                    println!("successfully translated {} to jankierscript", opts.input);
+                }
+                Err(err) => {
+                    eprintln!("{}:\n{}", opts.input, err);
+                    process::exit(1);
+                }
             }
         }
         _ => {
