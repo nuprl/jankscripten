@@ -35,6 +35,11 @@ const visitor: TraverseOptions = {
     },
     BinaryExpression: {
         exit(path) {
+            let op = path.node.operator;
+            // Let's assume all (in)equalities are safe.
+            if (['==', '!=', '===', '!=='].includes(op)) {
+                return;
+            }
             if (path.node.left.type == 'PrivateName') {
                 // No idea what this is.
                 return;
