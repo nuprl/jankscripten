@@ -81,28 +81,47 @@ fn compile(opts: Compile) {
     }
 }
 
-fn parse(opts: Parse) {
-    let input_path = Path::new(&opts.input);
+fn read_javascript(raw_path: &String) -> String {
+    let input_path = Path::new(raw_path);
     let ext = expect_extension(input_path);
     match ext {
         "js" => {
-            let input = read_file(input_path);
-            match libjankscripten::javascript::parse(&input) {
-                Ok(stmt) => {
-                    libjankscripten::jankierscript::from_javascript::stmt(stmt);
-                    println!("successfully translated {} to jankierscript", opts.input);
-                }
-                Err(err) => {
-                    eprintln!("{}:\n{}", opts.input, err);
-                    process::exit(1);
-                }
-            }
+            read_file(input_path)
         }
         _ => {
             eprintln!("Unsupported extension: .{}", ext);
             process::exit(1);
         }
     }
+}
+
+fn parse_javascript(input: &String, input_path: &String) -> libjankscripten::javascript::Stmt {
+    match libjankscripten::javascript::parse(&input) {
+        Ok(stmt) => stmt,
+        Err(err) => {
+            eprintln!("{}:\n{}", input_path, err);
+            process::exit(1);
+        }
+    }
+}
+
+fn desugar_javascript(stmt: &mut libjankscripten::javascript::Stmt) -> 
+        &libjankscripten::javascript::Stmt {
+    let mut name_gen = libjankscripten::javascript::NameGen::default();
+    libjankscripten::javascript::desugar(stmt, &mut name_gen);
+    stmt
+}
+
+fn parse(opts: Parse) {
+    ///// Source Code -> JavaScript
+    let src_javascript = read_javascript(&opts.input);
+    let mut parsed_javascript = parse_javascript(&src_javascript, &opts.input);
+    // desugaring mutates the stmt in place
+    desugar_javascript(&mut parsed_javascript);
+    let desugared_javascript = parsed_javascript;
+
+    ///// JavaScript -> JankierScript
+    let jankyscript = libjankscripten::jankierscript::from_javascript::stmt(desugared_javascript);
 }
 
 fn main() {
