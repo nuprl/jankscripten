@@ -82,7 +82,7 @@ impl Visitor for LabelLoops<'_> {
         }
     }
     /// do the actual AST modification
-    fn exit_stmt(&mut self, node: &mut Stmt) {
+    fn exit_stmt(&mut self, node: &mut Stmt, _loc: &Loc) {
         match node {
             // break to name needs no change
             // Some(unwrap) ensures we get our label
@@ -178,7 +178,7 @@ fn if_loop_then_body(stmt: &mut Stmt) -> Option<&mut Box<Stmt>> {
 /// loop unification, so we special case them
 struct ExplicitBreaks;
 impl Visitor for ExplicitBreaks {
-    fn exit_stmt(&mut self, node: &mut Stmt) {
+    fn exit_stmt(&mut self, node: &mut Stmt, _loc: &Loc) {
         match node {
             While(cond, body) | For(.., cond, _, body) => {
                 // if you don't add a block, inserted statements will go above
