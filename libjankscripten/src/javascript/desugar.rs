@@ -1,6 +1,7 @@
 use super::*;
 
 pub fn desugar(stmt: &mut Stmt, ng: &mut NameGen) {
+    stmt.walk(&mut super::desugar_function_stmts::DesugarFunctionStmts { });
     desugar_switch::desugar_switch(stmt, ng);
     // rdep: do..while uses ||
     // dep: desugar_loops needs to come after desugar_switch 

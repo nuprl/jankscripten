@@ -24,7 +24,7 @@ pub trait Visitor {
     /// called before recursing on an expression
     fn enter_expr(&mut self, _expr: &mut Expr, _loc: &Loc) {}
     /// called after recursing on a statement, with the new value
-    fn exit_stmt(&mut self, _stmt: &mut Stmt) {}
+    fn exit_stmt(&mut self, _stmt: &mut Stmt, _loc: &Loc) {}
     /// called after recursing on an expression, with the new value
     fn exit_expr(&mut self, _expr: &mut Expr, _loc: &Loc) {}
 }
@@ -95,7 +95,9 @@ pub enum Context<'a> {
     /// Within the context of an expression of an unknown kind.
     Expr,
     /// Within the left-hand side of an assignment expression.
-    LValue,    
+    LValue,
+    // Within a function body
+    FunctionBody,
 }
 
 /// A data structure that represents the context of a call to a visitor.
@@ -121,6 +123,23 @@ impl<'a> Loc<'a> {
             Loc::Node(_, rest) => rest.enclosing_block()
         }
     }
+
+    /// Returns the `BlockContext` of the enclosing function. If the statement is at the top-level,
+    /// returns the top-level `BlockContext`.
+    pub fn body_of_enclosing_function_or_program(&self) -> &'a BlockContext {
+        match self {
+            Loc::Top => panic!("the top-level program is not a block"),
+            Loc::Node(Context::Block(cxt), rest) => match *rest {
+                Loc::Top => cxt,
+                Loc::Node(Context::FunctionBody, _) => {
+                    cxt
+                },
+                Loc::Node(_, rest) => rest.body_of_enclosing_function_or_program()
+            }
+            Loc::Node(_, rest) => rest.body_of_enclosing_function_or_program()
+        }
+    }
+
 }
 impl<'v, V> VisitorState<'v, V>
 where
@@ -137,9 +156,12 @@ where
         match stmt {
             // 0
             Empty | Break(_) | Continue(_) => (),
-            // 1xStmt
-            Label(.., a) | Func(.., a) => {
+            Label(.., a) => {
                 let loc = Loc::Node(Context::Stmt, loc);
+                self.walk_stmt(a, &loc);
+            }
+            Func(.., a) => {
+                let loc = Loc::Node(Context::FunctionBody, loc);
                 self.walk_stmt(a, &loc);
             }
             // 2xStmt
@@ -201,7 +223,7 @@ where
                 self.walk_stmt(s, &loc);
             }
         }
-        self.visitor.exit_stmt(stmt);
+        self.visitor.exit_stmt(stmt, &loc);
     }
 
     pub fn walk_expr(&mut self, expr: &mut Expr, loc: &Loc) {
@@ -215,9 +237,8 @@ where
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_lval(lv, &loc);
             }
-            // 1xStmt
             Func(.., s) => {
-                let loc = Loc::Node(Context::Expr, loc);
+                let loc = Loc::Node(Context::FunctionBody, loc);
                 self.walk_stmt(s, &loc);
             }
             // 1x[Expr]

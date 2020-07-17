@@ -30,7 +30,7 @@ fn name_breaks(stmts: &Stmt, name: &Id, fallthrough: &Id) -> Stmt {
 }
 
 impl Visitor for SwitchToIf<'_> {
-    fn exit_stmt(&mut self, stmt: &mut Stmt) {
+    fn exit_stmt(&mut self, stmt: &mut Stmt, _loc: &Loc) {
         match stmt {
             Stmt::Switch(expr, cases, default) => { // cases = vec<(expr, stmt)>
                 let name = self.ng.fresh("sw");
