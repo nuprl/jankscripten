@@ -505,7 +505,11 @@ fn simpl_program<'a>(program: Program<'a>) -> ParseResult<S::Stmt> {
                 .collect();
             let mut stmts = maybe_stmts?;
             if stmts.len() == 1 {
-                Ok(stmts.pop().unwrap())
+                // Ensure the outermost statement is always a block, but not a double-nested block.
+                match stmts[0] {
+                    S::Stmt::Block(_) => Ok(stmts.pop().unwrap()),
+                    _ => Ok(S::Stmt::Block(vec![stmts.pop().unwrap()]))
+                }
             } else {
                 Ok(S::Stmt::Block(stmts))
             }
@@ -605,17 +609,5 @@ mod tests {
     #[test]
     fn parse_float() {
         assert_eq!(parse_number("3.14"), Num::Float(3.14));
-    }
-
-    #[test]
-    fn parse_escapes() {
-        let prog = parse(r#"var x = "Hello\nworld";"#).unwrap();
-        assert_eq!(
-            prog,
-            vardecl1_(
-                "x",
-                S::Expr::Lit(S::Lit::String("Hello\nworld".to_string()))
-            )
-        );
     }
 }
