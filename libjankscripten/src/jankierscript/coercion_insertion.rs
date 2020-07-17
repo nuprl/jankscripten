@@ -37,6 +37,25 @@ impl Typing {
                 }
             },
             Stmt::Block(stmts) => self.insert_coercions_stmts(stmts, env),
+            Stmt::If(c, t, e) => {
+                // insert coercions into the conditional expression
+                let (c, c_type) = self.insert_coercions_expr(*c, env)?;
+
+                // if the conditional expression is already type bool,
+                // use that as the condition.
+                // if the conditional expression isn't type bool, coerce it to
+                // type bool.
+                let c = match c_type {
+                    Type::Bool => c,
+                    _ => Janky_::coercion_(self.coerce(c_type, Type::Bool), c),
+                };
+
+                // coerce the two branches and put it all together
+                Ok(Janky_::if_(c,
+                    self.insert_coercions_stmt(*t, env)?,
+                    self.insert_coercions_stmt(*e, env)?
+                ))
+            }
             Stmt::Empty => Ok(Janky_::empty_()),
             _ => unimplemented!()
         }

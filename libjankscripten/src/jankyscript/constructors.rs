@@ -33,6 +33,10 @@ pub fn block_(stmts: Vec<Stmt>) -> Stmt {
     Stmt::Block(stmts)
 }
 
+pub fn if_(c: Expr, t: Stmt, e: Stmt) -> Stmt {
+    Stmt::If(Box::new(c), Box::new(t), Box::new(e))
+}
+
 pub fn empty_() -> Stmt {
     Stmt::Empty
 }
