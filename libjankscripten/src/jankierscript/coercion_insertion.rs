@@ -38,23 +38,20 @@ impl Typing {
             },
             Stmt::Block(stmts) => self.insert_coercions_stmts(stmts, env),
             Stmt::If(c, t, e) => {
-                // insert coercions into the conditional expression
-                let (c, c_type) = self.insert_coercions_expr(*c, env)?;
-
-                // if the conditional expression is already type bool,
-                // use that as the condition.
-                // if the conditional expression isn't type bool, coerce it to
-                // type bool.
-                let c = match c_type {
-                    Type::Bool => c,
-                    _ => Janky_::coercion_(self.coerce(c_type, Type::Bool), c),
-                };
+                // coerce the conditional expression into type Bool
+                let c = self.coerce_expr(*c, Type::Bool, env)?;
 
                 // coerce the two branches and put it all together
                 Ok(Janky_::if_(c,
                     self.insert_coercions_stmt(*t, env)?,
                     self.insert_coercions_stmt(*e, env)?
                 ))
+            }
+            Stmt::While(cond, body) => {
+                // coerce the loop conditional into type Bool
+                let cond = self.coerce_expr(*cond, Type::Bool, env)?;
+                let body = self.insert_coercions_stmt(*body, env)?;
+                Ok(Janky_::while_(cond, body))
             }
             Stmt::Empty => Ok(Janky_::empty_()),
             _ => unimplemented!()
@@ -93,6 +90,21 @@ impl Typing {
                 unimplemented!()
             }
             _ => unimplemented!()
+        }
+    }
+
+    /// Inserts coercions into an expr AND ensures the expr will have the given 
+    /// type.
+    fn coerce_expr(&self, e: Expr, desired_type: Type, env: Env) -> TypingResult<Janky::Expr> {
+        // insert coercions into the expression
+        let (e, e_type) = self.insert_coercions_expr(e, env)?;
+
+        // if the expression is already the desired type, return that
+        // if the conditional expression isn't the desired type, coerce it to
+        // the desired type.
+        match e_type {
+            desired_type => Ok(e),
+            _ => Ok(Janky_::coercion_(self.coerce(e_type, desired_type), e)),
         }
     }
 

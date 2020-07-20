@@ -37,6 +37,10 @@ pub fn if_(c: Expr, t: Stmt, e: Stmt) -> Stmt {
     Stmt::If(Box::new(c), Box::new(t), Box::new(e))
 }
 
+pub fn while_(cond: Expr, body: Stmt) -> Stmt {
+    Stmt::While(Box::new(cond), Box::new(body))
+}
+
 pub fn empty_() -> Stmt {
     Stmt::Empty
 }
