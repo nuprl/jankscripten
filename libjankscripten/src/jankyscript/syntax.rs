@@ -1,37 +1,13 @@
 //! The JankierScript language
 
+use crate::shared::coercions::Coercion;
 use crate::shared::types::Type;
 use crate::shared::ops::*;
 
 pub type Id = super::super::javascript::Id;
 pub type Lit = super::super::javascript::Lit;
+pub type Num = super::super::javascript::Num;
 pub type Key = super::super::javascript::Key;
-
-#[derive(Debug)]
-/// Coercion : S -> T
-/// 
-/// Every coercion turns into a call to a function in the runtime system.
-pub enum Coercion {
-    /// Coercion::Tag(t) : t -> Any
-    /// Note that not all values may be injected in Any.
-    Tag(Type),
-    /// Coercion::Untag(t) : Any -> t
-    /// Note that untagging will fail if the Any-typed value contains an element
-    /// that does not have the type t.
-    Untag(Type),
-    /// Coercion::Fun(args, ret)
-    /// 
-    /// Assume exactly one argument:
-    /// 
-    /// Coercion::Fun([arg], ret) where arg : S -> S' and ret : T -> T'
-    /// Coercion::Fun([arg], ret) : (S' -> T) -> (S -> T')
-    Fun(Vec<Coercion>, Box<Coercion>),
-    // Coercion::Id(t) : t -> t
-    Id(Type),
-    /// Coercion::Seq(t2, t1) where t1 : S -> U and t2 : U -> T
-    /// has the type S -> Ts
-    Seq(Box<Coercion>, Box<Coercion>)
-}
 
 #[derive(Debug)]
 pub enum LValue {
