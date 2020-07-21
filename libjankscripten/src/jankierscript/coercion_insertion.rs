@@ -30,8 +30,8 @@ impl Typing {
             Stmt::Var(x, t, e) => {
                 match t {
                     Some(Type::Any) => {
-                        let (e, t) = self.insert_coercions_expr(e, env)?;
-                        Ok(Janky_::var_(&x, t, e))
+                        let (e, t) = self.insert_coercions_expr(*e, env)?;
+                        Ok(Janky_::var_(x, t, e))
                     },
                     _ => unimplemented!()
                 }
@@ -39,18 +39,18 @@ impl Typing {
             Stmt::Block(stmts) => self.insert_coercions_stmts(stmts, env),
             Stmt::If(c, t, e) => {
                 // coerce the conditional expression into type Bool
-                let c = self.coerce_expr(*c, Type::Bool, env)?;
+                let c = self.coerce_expr(*c, Type::Bool, env.clone())?;
 
                 // coerce the two branches and put it all together
                 Ok(Janky_::if_(c,
-                    self.insert_coercions_stmt(*t, env)?,
-                    self.insert_coercions_stmt(*e, env)?
+                    self.insert_coercions_stmt(*t, env.clone())?,
+                    self.insert_coercions_stmt(*e, env.clone())?
                 ))
             }
             Stmt::While(cond, body) => {
                 // coerce the loop conditional into type Bool
-                let cond = self.coerce_expr(*cond, Type::Bool, env)?;
-                let body = self.insert_coercions_stmt(*body, env)?;
+                let cond = self.coerce_expr(*cond, Type::Bool, env.clone())?;
+                let body = self.insert_coercions_stmt(*body, env.clone())?;
                 Ok(Janky_::while_(cond, body))
             }
             Stmt::Empty => Ok(Janky_::empty_()),
@@ -108,9 +108,9 @@ impl Typing {
         }
     }
 
-    fn insert_coercions_lit(&self, lit: Lit) -> TypingResult<(Janky::Lit, Type)> {
+    fn insert_coercions_lit(&self, lit: Janky::Lit) -> TypingResult<(Janky::Lit, Type)> {
         match lit {
-            Lit::Num(n) => Ok((Janky_::num_(&n), Type::Float)),
+            Janky::Lit::Num(n) => Ok((Janky_::num_(n), Type::Float)),
             _ => unimplemented!()
         }
     }

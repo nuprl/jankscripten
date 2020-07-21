@@ -5,8 +5,8 @@ use crate::shared::ops::*;
 
 // Lit
 
-pub fn num_(n: &str) -> Lit {
-    Lit::Num(n.to_string())
+pub fn num_(n: Num) -> Lit {
+    Lit::Num(n)
 }
 
 // Expressions
@@ -23,10 +23,10 @@ pub fn coercion_(c: Coercion, e: Expr) -> Expr {
     Expr::Coercion(c, Box::new(e))
 }
 
-// Statments
+// Statements
 
-pub fn var_(x: &str, t: Type, e: Expr) -> Stmt {
-    Stmt::Var(x.to_string(), t, e)
+pub fn var_(x: Id, t: Type, e: Expr) -> Stmt {
+    Stmt::Var(x, t, e)
 }
 
 pub fn block_(stmts: Vec<Stmt>) -> Stmt {
