@@ -71,5 +71,23 @@ fn type_check_stmts(stmts: Vec<Stmt>, env: Env) -> TypeCheckingResult<Env> {
 }
 
 fn type_check_expr(expr: Expr, env: Env) -> TypeCheckingResult<Type> {
-    unimplemented!()
+    match expr {
+        Expr::Func(return_type, args, body) => {
+            // type check body under assumption that args have the specified
+            // types
+            let function_env = env.clone();
+            function_env.extend(args.into_iter());
+
+            type_check_stmt(*body, function_env)?;
+
+            Ok(Type::Function(
+                args.into_iter().map(|(name, ty)| ty).collect(), 
+                Box::new(return_type)))
+        },
+        Expr::Call(fun, args) => {
+            // let fun_type = 
+            unimplemented!();
+        },
+        _ => unimplemented!()
+    }
 }
