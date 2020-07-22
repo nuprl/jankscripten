@@ -48,7 +48,10 @@ fn type_check_stmt(stmt: Stmt, env: Env) -> TypeCheckingResult<Env> {
             Ok(env)
         },
         Stmt::If(c, t, e) => {
-            ensure("if condition", Type::Bool, type_check_expr(*c, env.clone())?)?;
+            ensure("if condition", 
+                Type::Bool, 
+                type_check_expr(*c, env.clone())?)?;
+
             type_check_stmt(*t, env.clone())?;
             type_check_stmt(*e, env.clone())?;
 
