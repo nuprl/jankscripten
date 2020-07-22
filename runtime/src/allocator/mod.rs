@@ -16,12 +16,12 @@ pub use heap_values::AnyPtr;
 pub use heap_values::HeapRefView;
 mod f64_allocator;
 
-use f64_allocator::F64Allocator;
 use class_list::ClassList;
 use constants::*;
+use f64_allocator::F64Allocator;
 use heap_types::*;
-use heap_values::*;
 pub use heap_values::Tag;
+use heap_values::*;
 
 #[cfg(test)]
 mod tests;
@@ -162,8 +162,7 @@ impl Heap {
             opt_ptr = self.f64_allocator.borrow_mut().alloc(x);
         }
         let ptr = unwrap_log(opt_ptr, "out of f64 memory");
-        let any = AnyEnum::F64(ptr);
-        unsafe { std::mem::transmute(any) }
+        AnyEnum::F64(ptr).into()
     }
 
     /**
@@ -346,12 +345,14 @@ impl Heap {
                     match **member {
                         AnyEnum::F64(f64_ptr) => {
                             log("Moving a float");
-                            *member = AnyEnum::F64(f64_allocator.alloc(unsafe { *f64_ptr }).unwrap()).into();
+                            *member =
+                                AnyEnum::F64(f64_allocator.alloc(unsafe { *f64_ptr }).unwrap())
+                                    .into();
                         }
                         AnyEnum::Ptr(ptr) => {
                             new_roots.push(ptr.get_ptr());
                         }
-                        _ => ()
+                        _ => (),
                     }
                 }
             }

@@ -11,18 +11,20 @@ type Key = StrPtr;
 
 pub mod any_value;
 pub mod array;
+pub mod closure;
 pub mod ht;
 pub mod object;
-pub mod string;
 pub mod r#ref; // Rust raw identifier syntax
+pub mod string;
 mod util;
 
 mod allocator;
+mod i64_val;
+use crate::allocator::Tag;
 use allocator::*;
 use any_value::AnyEnum;
 use any_value::AnyValue;
 use string::StrPtr;
-use crate::allocator::Tag;
 static mut HEAP: Option<Heap> = None;
 
 #[no_mangle]
@@ -59,4 +61,3 @@ pub fn set_any_in_current_shadow_frame_slot(any: AnyValue, slot: usize) {
 fn heap() -> &'static Heap {
     unsafe { &HEAP }.as_ref().unwrap()
 }
-

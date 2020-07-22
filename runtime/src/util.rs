@@ -1,8 +1,8 @@
-
 // Preserve this `allow(unused)`. We call log for debugging, and there may
 // not be any debugging output!
 #[allow(unused)]
 #[cfg(target_arch = "wasm32")]
+#[cfg(not(test))]
 pub fn log(s: &str) {
     use std::ffi::CString;
     use std::os::raw::c_char;
@@ -11,7 +11,7 @@ pub fn log(s: &str) {
         // logarithm function.
         fn jankscripten_log(string: *const c_char);
     }
-    
+
     let c_str = CString::new(s).expect("could not create C string");
     unsafe {
         jankscripten_log(c_str.as_ptr());
@@ -21,7 +21,7 @@ pub fn log(s: &str) {
 // Preserve this `allow(unused)`. We call log for debugging, and there may
 // not be any debugging output!
 #[allow(unused)]
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(any(not(target_arch = "wasm32"), test))]
 pub fn log(s: &str) {
     eprintln!("{}", s);
 }

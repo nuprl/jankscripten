@@ -1,11 +1,10 @@
 //! An enum that can store any type known to the runtime
 
 pub use crate::allocator::AnyPtr;
-use crate::string::StrPtr;
-use std::fmt::{Debug, Formatter, Result as FmtResult};
-use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut};
+use crate::closure::{AnyClosure, AnyClosureVal};
 use crate::heap;
+use crate::i64_val::*;
+use crate::string::StrPtr;
 
 /// this is the actual Any type, however it should never be returned or
 /// accepted as a parameter, because rust will refuse to turn it into an i64
@@ -22,47 +21,10 @@ pub enum AnyEnum<'a> {
     Bool(bool),
     Ptr(AnyPtr<'a>),
     StrPtr(StrPtr),
-    Fn(u32),
+    Fn(AnyClosure),
 }
-
-#[repr(transparent)]
-#[derive(Clone, Copy)]
-pub struct AnyValue<'a> {
-    #[cfg(target_pointer_width = "32")]
-    val: u64,
-    #[cfg(target_pointer_width = "64")]
-    val: u128,
-    _phantom: PhantomData<&'a ()>,
-}
-
-impl<'a> Deref for AnyValue<'a> {
-    type Target = AnyEnum<'a>;
-    fn deref(&self) -> &Self::Target {
-        let ptr = self as *const Self as *const Self::Target;
-        unsafe { &*ptr }
-    }
-}
-impl<'a> DerefMut for AnyValue<'a> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        let ptr = self as *mut Self as *mut Self::Target;
-        unsafe { &mut *ptr }
-    }
-}
-impl Debug for AnyValue<'_> {
-    fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        write!(f, "{:?} ({})", **self, self.val)
-    }
-}
-impl<'a> From<AnyEnum<'a>> for AnyValue<'a> {
-    fn from(val: AnyEnum) -> Self {
-        unsafe { std::mem::transmute(val) }
-    }
-}
-impl<'a> PartialEq<Self> for AnyValue<'a> {
-    fn eq(&self, other: &Self) -> bool {
-        **self == **other
-    }
-}
+impl<'a> AsI64 for AnyEnum<'a> {}
+pub type AnyValue<'a> = I64Val<AnyEnum<'a>>;
 
 macro_rules! decl_proj_fns {
     ($from_name:ident, $to_name:ident, $any_name:ident, $ty:ty) => {
@@ -73,7 +35,7 @@ macro_rules! decl_proj_fns {
         #[no_mangle]
         pub extern "C" fn $to_name<'a>(val: AnyValue<'a>) -> $ty {
             if let AnyEnum::$any_name(inner) = *val {
-                inner
+                inner.into()
             } else {
                 panic!("unwrap incorrect type {}", stringify!($any_name));
             }
@@ -83,8 +45,7 @@ macro_rules! decl_proj_fns {
 
 #[no_mangle]
 pub extern "C" fn any_to_f64(any: AnyValue) -> f64 {
-    let any: AnyEnum = unsafe { std::mem::transmute(any) };
-    if let AnyEnum::F64(ptr) = any.into() {
+    if let AnyEnum::F64(ptr) = *any {
         return unsafe { *ptr };
     }
     panic!("any_to_f64 did not receive an AnyEnum::F64");
@@ -93,6 +54,19 @@ pub extern "C" fn any_to_f64(any: AnyValue) -> f64 {
 #[no_mangle]
 pub extern "C" fn f64_to_any(x: f64) -> AnyValue<'static> {
     return heap().f64_to_any(x);
+}
+
+#[no_mangle]
+pub extern "C" fn any_from_any_closure<'a>(val: AnyClosureVal) -> AnyValue<'a> {
+    AnyEnum::Fn(*val).into()
+}
+#[no_mangle]
+pub extern "C" fn any_to_any_closure<'a>(val: AnyValue<'a>) -> AnyClosureVal {
+    if let AnyEnum::Fn(inner) = *val {
+        inner.into()
+    } else {
+        panic!("unwrap incorrect type {}", stringify!(Fn));
+    }
 }
 
 decl_proj_fns!(any_from_i32, any_to_i32, I32, i32);
