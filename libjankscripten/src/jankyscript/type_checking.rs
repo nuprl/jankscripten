@@ -40,7 +40,7 @@ fn type_check_stmt(stmt: Stmt, env: Env) -> TypeCheckingResult<Env> {
     match stmt {
         Stmt::Var(x, t, e) => {
             ensure("variable declaration matches given type",
-                t,
+                t.clone(),
                 type_check_expr(*e, env.clone())?)?;
 
             let mut env = env;
@@ -75,8 +75,8 @@ fn type_check_expr(expr: Expr, env: Env) -> TypeCheckingResult<Type> {
         Expr::Func(return_type, args, body) => {
             // type check body under assumption that args have the specified
             // types
-            let function_env = env.clone();
-            function_env.extend(args.into_iter());
+            let mut function_env = env.clone();
+            function_env.extend(args.clone().into_iter());
 
             type_check_stmt(*body, function_env)?;
 
