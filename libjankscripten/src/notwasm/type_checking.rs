@@ -17,13 +17,16 @@ pub enum TypeCheckingError {
     MultiplyDefined(Id),
     /// `Unexpected(message, ty)`: an expression has the type `ty`, which is
     /// not valid in the context in which it appears.
-    InvalidInContext(String, Type)
+    InvalidInContext(String, Type),
 }
 
 pub type TypeCheckingResult<T> = Result<T, TypeCheckingError>;
 
 fn invalid_in_context<T>(message: impl Into<String>, ty: &Type) -> TypeCheckingResult<T> {
-    return Err(TypeCheckingError::InvalidInContext(message.into(), ty.clone()));
+    return Err(TypeCheckingError::InvalidInContext(
+        message.into(),
+        ty.clone(),
+    ));
 }
 
 fn lookup(env: &Env, id: &Id) -> TypeCheckingResult<Type> {
@@ -54,7 +57,10 @@ pub fn type_check(p: &mut Program) -> TypeCheckingResult<()> {
     // Top-level type environment, including checks for duplicate identifiers.
     let mut env: Env = HashMap::new();
     for (id, f) in p.functions.iter() {
-        if env.insert(id.clone(), f.fn_type.clone().to_type()).is_some() {
+        if env
+            .insert(id.clone(), f.fn_type.clone().to_type())
+            .is_some()
+        {
             return Err(TypeCheckingError::MultiplyDefined(id.clone()));
         }
     }
@@ -66,7 +72,7 @@ pub fn type_check(p: &mut Program) -> TypeCheckingResult<()> {
 
     for (id, f) in p.functions.iter_mut() {
         type_check_function(env.clone(), id, f)?;
-    }    
+    }
 
     return Ok(());
 }
@@ -97,11 +103,7 @@ fn type_check_function(mut env: Env, id: &Id, f: &mut Function) -> TypeCheckingR
     Ok(())
 }
 
-fn type_check_stmt(
-    env: Env,
-    s: &mut Stmt,
-    ret_ty: &Option<Type>,
-) -> TypeCheckingResult<Env> {
+fn type_check_stmt(env: Env, s: &mut Stmt, ret_ty: &Option<Type>) -> TypeCheckingResult<Env> {
     match s {
         Stmt::Empty => Ok(env),
         Stmt::Var(var_stmt) => {
@@ -132,7 +134,7 @@ fn type_check_stmt(
             let _ = ensure("ref store", type_pointed_to, got_expr)?;
 
             Ok(env)
-        },
+        }
         Stmt::Assign(id, e) => {
             let got_id = lookup(&env, id)?;
             let got_expr = type_check_expr(&env, e)?;
@@ -259,7 +261,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             }
         }
         Expr::NewRef(a) => Ok(Type::Ref(Box::new(type_check_atom(env, a)?))),
-        Expr::Atom(a) => type_check_atom(env, a)
+        Expr::Atom(a) => type_check_atom(env, a),
     }
 }
 
@@ -273,12 +275,13 @@ fn assert_variant_of_any(ty: &Type) -> TypeCheckingResult<()> {
         Type::StrRef => Ok(()),
         // We need to think this through. We cannot store arbitrary functions
         // inside an Any.
-        Type::Fn(_) => todo!(),
+        // TODO(luna): re todo!() this
+        Type::Fn(_) => Ok(()),
         // The following turn into pointers, and an Any can store a pointer
         Type::HT => Ok(()),
         Type::Array => Ok(()),
         Type::DynObject => Ok(()),
-        Type::Ref(..) => todo!()
+        Type::Ref(..) => todo!(),
     }
 }
 
