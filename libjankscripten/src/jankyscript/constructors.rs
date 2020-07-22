@@ -26,7 +26,7 @@ pub fn coercion_(c: Coercion, e: Expr) -> Expr {
 // Statements
 
 pub fn var_(x: Id, t: Type, e: Expr) -> Stmt {
-    Stmt::Var(x, t, e)
+    Stmt::Var(x, t, Box::new(e))
 }
 
 pub fn block_(stmts: Vec<Stmt>) -> Stmt {
