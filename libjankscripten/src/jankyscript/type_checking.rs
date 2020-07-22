@@ -43,9 +43,7 @@ fn type_check_stmt(stmt: Stmt, env: Env) -> TypeCheckingResult<Env> {
                 t.clone(),
                 type_check_expr(*e, env.clone())?)?;
 
-            let mut env = env;
-            env.insert(x, t);
-            Ok(env)
+            Ok(env.update(x, t))
         },
         Stmt::If(c, t, e) => {
             ensure("if condition", 
