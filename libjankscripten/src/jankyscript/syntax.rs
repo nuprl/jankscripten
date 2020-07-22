@@ -1,8 +1,8 @@
 //! The JankierScript language
 
-use crate::shared::coercions::Coercion;
-use crate::shared::types::Type;
-use crate::shared::ops::*;
+pub use crate::shared::coercions::Coercion;
+pub use crate::shared::types::Type;
+pub use crate::shared::ops::*;
 
 pub type Id = super::super::javascript::Id;
 pub type Lit = super::super::javascript::Lit;
@@ -35,7 +35,7 @@ pub enum Expr {
 
 #[derive(Debug)]
 pub enum Stmt {
-    Var(Id, Type, Expr),
+    Var(Id, Type, Box<Expr>),
     Block(Vec<Stmt>),
     Empty,
     Assign(Box<LValue>, Box<Expr>),
