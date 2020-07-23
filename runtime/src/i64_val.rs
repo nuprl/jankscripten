@@ -2,12 +2,29 @@ use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
-/// implement this trait in order to allow into::<I64Val>() / vice-versa
-/// / deref
+/// implement this trait in order to allow into::<I64Val>() / deref. see
+/// [I64Val]
 pub trait AsI64 {}
 
 /// a 64-bit type that can be returned from a wasm function and stored in
-/// 1 local. rust is too stubborn to allow most types to do this automatically
+/// a local. rust is too stubborn to allow most types to do this automatically
+///
+/// use `into()` to turn `T` into `I64Val`, and `*` to turn I64Val<T> into T
+///
+/// ```
+/// struct MakeMe64(i32, i32);
+/// impl AsI64 for MakeMe64 {}
+///
+/// #[no_mangle]
+/// pub extern "C" with_second_5(in: AsI64<MakeMe64>) -> AsI64<MakeMe64> {
+///     let mut in_tuple = *in;
+///     in_tuple.1 = 5;
+///     in_tuple.into()
+/// }
+///
+/// let x: AsI64<MakeMe64> = MakeMe64(5, 0).into(); // wasm type: i64
+/// assert_eq!(*with_second_5(x), MakeMe64(5, 5));
+/// ```
 #[repr(transparent)]
 #[derive(Clone, Copy)]
 pub struct I64Val<T> {

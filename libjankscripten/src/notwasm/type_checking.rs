@@ -235,14 +235,18 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             if let Type::Fn(fn_ty) = got_f {
                 // arity check
                 if actuals.len() != fn_ty.args.len() {
-                    return Err(TypeCheckingError::ArityMismatch(
+                    // TODO(luna): uhhhh wait i thought this was supposed
+                    // to be legal
+                    /*return Err(TypeCheckingError::ArityMismatch(
                         id_f.clone(),
                         actuals.len() - fn_ty.args.len(),
-                    ));
+                    ));*/
                 }
 
                 // match formals and actuals
                 let mut nth = 0;
+                // TODO: if there's an arity mismatch, the parameter should
+                // probably have been labeled |undefined, right
                 for (actual, formal) in actuals.iter().zip(fn_ty.args.iter()) {
                     let got = lookup(env, actual)?;
                     let _ = ensure(

@@ -24,10 +24,13 @@ type IdEnv = im_rc::HashMap<N::Id, IdIndex>;
 pub fn translate_parity(mut program: N::Program) -> Module {
     // The initial environment maps functions names to their indices.
     let mut global_env = IdEnv::default();
-    for (index, (name, _)) in program.functions.iter().enumerate() {
+    for (index, (name, func)) in program.functions.iter().enumerate() {
         global_env.insert(
             name.clone(),
-            IdIndex::Fun(index.try_into().expect("too many functions")),
+            IdIndex::Fun(
+                index.try_into().expect("too many functions"),
+                func.fn_type.args.len() as u8,
+            ),
         );
     }
     for (i, name) in program.globals.keys().enumerate() {
@@ -246,7 +249,7 @@ enum TranslateLabel {
 enum IdIndex {
     Local(u32, N::Type),
     Global(u32),
-    Fun(u32),
+    Fun(u32, u8), // arity
 }
 
 impl<'a> Translate<'a> {
@@ -272,8 +275,18 @@ impl<'a> Translate<'a> {
     /// dispatch on the type of the GC root.
     fn set_in_current_shadow_frame_slot(&self, ty: &N::Type) -> Instruction {
         match ty {
-            N::Type::Any => Call(*self.rt_indexes.get("set_any_in_current_shadow_frame_slot").unwrap()),
-            _ => Call(*self.rt_indexes.get("set_in_current_shadow_frame_slot").unwrap()),
+            N::Type::Any => Call(
+                *self
+                    .rt_indexes
+                    .get("set_any_in_current_shadow_frame_slot")
+                    .unwrap(),
+            ),
+            _ => Call(
+                *self
+                    .rt_indexes
+                    .get("set_in_current_shadow_frame_slot")
+                    .unwrap(),
+            ),
         }
     }
 
@@ -293,7 +306,7 @@ impl<'a> Translate<'a> {
                 self.get_id(id);
                 self.translate_expr(expr);
                 self.out.push(I32Store(0, 4)); // skip 32 bits for tag in I32Ptr
-            },
+            }
             N::Stmt::Empty => (),
             N::Stmt::Block(ss) => {
                 // don't surround in an actual block, those are only useful
@@ -310,17 +323,19 @@ impl<'a> Translate<'a> {
                 let index = self.next_id;
                 self.next_id += 1;
                 self.locals.push(var_stmt.ty().as_wasm());
-                self.id_env
-                    .insert(var_stmt.id.clone(), IdIndex::Local(index, var_stmt.ty().clone()));
-                
-                // Eager shadow stack: 
+                self.id_env.insert(
+                    var_stmt.id.clone(),
+                    IdIndex::Local(index, var_stmt.ty().clone()),
+                );
+
+                // Eager shadow stack:
                 if var_stmt.ty().is_gc_root() == false {
                     self.out.push(SetLocal(index));
-                }
-                else {
+                } else {
                     self.out.push(TeeLocal(index));
                     self.out.push(I32Const(index.try_into().unwrap()));
-                    self.out.push(self.set_in_current_shadow_frame_slot(var_stmt.ty()));
+                    self.out
+                        .push(self.set_in_current_shadow_frame_slot(var_stmt.ty()));
                 }
             }
             N::Stmt::Expression(expr) => {
@@ -337,13 +352,12 @@ impl<'a> Translate<'a> {
                     IdIndex::Local(n, ty) => {
                         if ty.is_gc_root() == false {
                             self.out.push(SetLocal(*n));
-                        }
-                        else {
+                        } else {
                             self.out.push(TeeLocal(*n));
                             self.out.push(I32Const((*n).try_into().unwrap()));
                             self.out.push(self.set_in_current_shadow_frame_slot(&ty));
                         }
-                    },
+                    }
                     // +1 for JNKS_STRINGS
                     IdIndex::Global(n) => self.out.push(SetGlobal(*n + 1)),
                     IdIndex::Fun(..) => panic!("cannot set function"),
@@ -455,11 +469,9 @@ impl<'a> Translate<'a> {
                 self.rt_call("array_push");
             }
             N::Expr::Call(f, args) => {
-                for arg in args {
-                    self.get_id(arg);
-                }
                 match self.id_env.get(f) {
-                    Some(IdIndex::Fun(i)) => {
+                    Some(&IdIndex::Fun(i, arity)) => {
+                        self.push_args_with_arity(args, arity as usize);
                         // this one's a little weird. we index in notwasm
                         // by 0 = first user function. but wasm indexes by 0 =
                         // first rt function. se we have to offset. but only
@@ -468,13 +480,16 @@ impl<'a> Translate<'a> {
                         self.out.push(Call(i + self.rt_indexes.len() as u32));
                     }
                     Some(IdIndex::Local(i, t)) => {
-                        self.out.push(GetLocal(*i));
+                        // borrow checker nonsense
+                        let i = *i;
                         let (params_tys, ret_ty) = match t {
                             N::Type::Fn(fn_ty) => {
                                 (types_as_wasm(&fn_ty.args), option_as_wasm(&fn_ty.result))
                             }
                             _ => panic!("identifier {:?} is not function-typed", f),
                         };
+                        self.push_args_with_arity(args, params_tys.len());
+                        self.out.push(GetLocal(i));
                         let ty_index = self
                             .type_indexes
                             .get(&(params_tys, ret_ty))
@@ -495,13 +510,26 @@ impl<'a> Translate<'a> {
         }
     }
 
+    /// handle a statically known arity mismatch
+    /// ignores additional arguments, and provides undefined for additional
+    /// parameters
+    fn push_args_with_arity(&mut self, args: &[N::Id], arity: usize) {
+        // TODO(luna): undefined id isn't a thing so that's a problem for us
+        let undef = N::Id::Named("undefined".to_string());
+        let undefineds = std::iter::repeat(&undef);
+        let iter = args.iter().chain(undefineds).take(arity);
+        for arg in iter {
+            self.get_id(arg);
+        }
+    }
+
     fn translate_atom(&mut self, atom: &mut N::Atom) {
         match atom {
             N::Atom::Deref(a) => {
                 // dereferences are implemented as raw memory reads
                 self.translate_atom(a);
                 self.out.push(I32Load(0, 4)); // skip 32 bits for tag in I32Ptr
-            },
+            }
             N::Atom::Lit(lit) => match lit {
                 N::Lit::I32(i) => self.out.push(I32Const(*i)),
                 N::Lit::F64(f) => self.out.push(F64Const(unsafe { std::mem::transmute(*f) })),
@@ -584,7 +612,8 @@ impl<'a> Translate<'a> {
             IdIndex::Local(n, _) => self.out.push(GetLocal(*n)),
             // +1 for JNKS_STRINGS
             IdIndex::Global(n) => self.out.push(GetGlobal(*n + 1)),
-            IdIndex::Fun(n) => self.out.push(I32Const(*n as i32)),
+            // TODO(luna): ClosureVal / I64Const; to-be-unpacked?
+            IdIndex::Fun(n, _) => self.out.push(I32Const(*n as i32)),
         }
     }
 
@@ -616,7 +645,7 @@ impl N::Type {
             Array => ValueType::I32,
             DynObject => ValueType::I32,
             Fn(..) => ValueType::I32,
-            Ref(..) => ValueType::I32
+            Ref(..) => ValueType::I32,
         }
     }
 }

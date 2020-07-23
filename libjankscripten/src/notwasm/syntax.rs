@@ -67,6 +67,8 @@ impl Type {
             Type::Array => true,
             Type::Bool => false,
             Type::DynObject => true,
+            // TODO(luna): there's a pointer in here but, to the runtime it's just
+            // an I64. so idk what to do
             Type::Fn(_) => false,
             Type::Ref(_) => true,
             Type::Any => true,
@@ -132,12 +134,15 @@ pub enum Id {
 #[derive(Debug, PartialEq)]
 pub struct ToAny {
     pub atom: Box<Atom>,
-    ty: Option<Type>
+    ty: Option<Type>,
 }
 
 impl ToAny {
     pub fn new(atom: Atom) -> ToAny {
-        return ToAny { atom: Box::new(atom), ty: None };
+        return ToAny {
+            atom: Box::new(atom),
+            ty: None,
+        };
     }
 
     pub fn set_ty(&mut self, ty: Type) {
@@ -193,12 +198,16 @@ pub enum Expr {
 pub struct VarStmt {
     pub id: Id,
     pub named: Expr,
-    ty: Option<Type>
+    ty: Option<Type>,
 }
 
 impl VarStmt {
     pub fn new(id: Id, named: Expr) -> VarStmt {
-        VarStmt { id, named, ty: None }
+        VarStmt {
+            id,
+            named,
+            ty: None,
+        }
     }
 
     pub fn set_ty(&mut self, ty: Type) {

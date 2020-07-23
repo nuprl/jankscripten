@@ -1,12 +1,16 @@
 use super::i64_val::*;
 use super::Tag;
 
-/// this is a closure-converted closure, it represents a cons of an environment
-/// (a fixed array) and a function pointer. these two pointers can be combined
-/// into one i64 to be used as an immediate value. this closure has had its
-/// arity erased, for example if it is not stuck within an any
+/// this is a closure, it represents a cons of an environment (a fixed array)
+/// and a function pointer
+///
+/// these two pointers can be combined into one i64 to be used as an immediate
+/// value. this closure has had its arity erased, for example if it is not
+/// stuck within an any
+///
+/// if there is no closure environment paired with the function (it is
+/// already 1st order), the pointer can be null
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-//#[repr(packed(2))]
 pub struct Closure(*const Tag, u16);
 impl AsI64 for Closure {}
 pub type ClosureVal = I64Val<Closure>;
@@ -28,10 +32,6 @@ pub extern "C" fn closure_func(closure: ClosureVal) -> u32 {
 /// it. this is to allow arity mismatches to be correctly handled even when the
 /// arity of the closure would otherwise not be known (for example, in an Any,
 /// or if an argument type was specified as AnyFunc)
-///
-/// you must not obtain a reference to any of its fields, since it is
-/// unaligned. https://github.com/rust-lang/rust/issues/27060 it is unaligned
-/// because of the need to fit it in Any
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(packed)]
 pub struct AnyClosure(*const Tag, u16, u8);

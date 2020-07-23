@@ -279,6 +279,30 @@ fn function_any() {
 }
 
 #[test]
+fn arity_mismatch() {
+    let program = parse(
+        r#"
+        function arity1(n: i32): i32 {
+            return n;
+        }
+        function main(): i32 {
+            // 5
+            var five = 5;
+            var six = 6;
+            var a = arity1(five, six);
+            // ridiculousness because i don't know how undefined is supposed
+            // to work
+            var undefined = 0;
+            // 0, should be undefined i guess
+            var b = arity1();
+            return a + b;
+        }
+    "#,
+    );
+    test_wasm(5, program);
+}
+
+#[test]
 fn basic_ref() {
     let program = parse(
         r#"
