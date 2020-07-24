@@ -19,8 +19,8 @@ pub enum TypeCheckingError {
     // Tried to tag a value of the first type, but it had the second
     TagTypeMismatch(Type, Type),
 
-    // Tried to tag a value of the given type, but the type wasn't ground
-    TagNonGroundFunction(Type),
+    // Expected a ground type
+    ExpectedGround(String, Type),
 }
    
 pub type TypeCheckingResult<T> = Result<T, TypeCheckingError>;
@@ -44,6 +44,14 @@ fn ensure_function(msg: &str, got: Type) -> TypeCheckingResult<(Vec<Type>, Box<T
             Ok((args_types, return_type))
         },
         _ => Err(TypeCheckingError::ExpectedFunction(String::from(msg), got))
+    }
+}
+
+fn ensure_ground(msg: &str, got: Type) -> TypeCheckingResult<Type> {
+    if got.is_ground() {
+        Ok(got)
+    } else {
+        Err(TypeCheckingError::ExpectedGround(String::from(msg), got))
     }
 }
 
@@ -154,43 +162,26 @@ fn type_check_expr(expr: Expr, env: Env) -> TypeCheckingResult<Type> {
                     // Tags are only valid when
                     // 1. they correctly specify the type they want to tag
                     // 2. that type is ground
-                    match from_type {
-                        // tagging at the correct type
-                        actual_type if actual_type.is_ground() => 
-                            Ok(actual_type),
-
-                        // tagging at a non-ground type
-                        actual_type => 
-                            Err(TypeCheckingError::TagNonGroundFunction(
-                                actual_type)),
-
-                        // tagging at the wrong type
-                        _ => Err(TypeCheckingError::TagTypeMismatch(from_type, 
-                                actual_type))
-                    }
+                    ensure("Coercion::Tag type mismatch", from_type, actual_type.clone())?;
+                    ensure_ground("Coercion::Tag expected ground type", actual_type.clone())?;
+                    Ok(actual_type)
                 },
                 Coercion::Untag(to_type) => {
                     // untagging cannot fail at compile time, only runtime
                     Ok(to_type)
                 },
-                Coercion::Fun(args_to_type, ret_to_type) {
-
+                Coercion::Fun(args_to_type, ret_to_type) => {
+                    unimplemented!();
                 },
-                Coercion::Id(to_type) {
-                    match to_type {
-                        // id used with the correct type
-                        actual_type => Ok(actual_type),
-
-                        // id used with the wrong type
-                        _ => Err(TypeCheckingError::TagTypeMismatch(to_type,
-                            actual_type))
-                    }
+                Coercion::Id(to_type) => {
+                    ensure("Coercion::Id type mismatch", to_type, actual_type.clone())?;
+                    Ok(actual_type)
                 },
                 // t1 : S -> U
                 // t2 : U -> T
                 // Seq(t2, t1) : S -> T
-                Coercion::Seq(t2, t1) { 
-                    /**
+                Coercion::Seq(t2, t1) => { 
+                    /*
                      * e : S    t1 : S -> U    t2 : U -> T
                      * -----------------------------------
                      *     Coerce(Seq(t2, t1), e) : T
