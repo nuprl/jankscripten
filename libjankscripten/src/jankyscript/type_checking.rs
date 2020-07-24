@@ -10,8 +10,17 @@ type Env = HashMap<Id, Type>;
 
 #[derive(Debug)]
 pub enum TypeCheckingError {
+    // Expected expression to have the first type, but it had the second
     TypeMismatch(String, Type, Type),
+
+    // Expected an expression to have a function type
     ExpectedFunction(String, Type),
+
+    // Tried to tag a value of the first type, but it had the second
+    TagTypeMismatch(Type, Type),
+
+    // Tried to tag a value of the given type, but the type wasn't ground
+    TagNonGroundFunction(Type),
 }
    
 pub type TypeCheckingResult<T> = Result<T, TypeCheckingError>;
@@ -136,7 +145,59 @@ fn type_check_expr(expr: Expr, env: Env) -> TypeCheckingResult<Type> {
             Ok(*return_type)
         },
         Expr::Coercion(coercion, e) => {
-            unimplemented!();
+            // type the expression. regardless of the coercion, the expression
+            // needs to be well-typed.
+            let actual_type = type_check_expr(*e, env)?;
+
+            match coercion {
+                Coercion::Tag(from_type) => {
+                    // Tags are only valid when
+                    // 1. they correctly specify the type they want to tag
+                    // 2. that type is ground
+                    match from_type {
+                        // tagging at the correct type
+                        actual_type if actual_type.is_ground() => 
+                            Ok(actual_type),
+
+                        // tagging at a non-ground type
+                        actual_type => 
+                            Err(TypeCheckingError::TagNonGroundFunction(
+                                actual_type)),
+
+                        // tagging at the wrong type
+                        _ => Err(TypeCheckingError::TagTypeMismatch(from_type, 
+                                actual_type))
+                    }
+                },
+                Coercion::Untag(to_type) => {
+                    // untagging cannot fail at compile time, only runtime
+                    Ok(to_type)
+                },
+                Coercion::Fun(args_to_type, ret_to_type) {
+
+                },
+                Coercion::Id(to_type) {
+                    match to_type {
+                        // id used with the correct type
+                        actual_type => Ok(actual_type),
+
+                        // id used with the wrong type
+                        _ => Err(TypeCheckingError::TagTypeMismatch(to_type,
+                            actual_type))
+                    }
+                },
+                // t1 : S -> U
+                // t2 : U -> T
+                // Seq(t2, t1) : S -> T
+                Coercion::Seq(t2, t1) { 
+                    /**
+                     * e : S    t1 : S -> U    t2 : U -> T
+                     * -----------------------------------
+                     *     Coerce(Seq(t2, t1), e) : T
+                     */
+                    unimplemented!();
+                },
+            }
         }
         _ => unimplemented!()
     }
