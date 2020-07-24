@@ -95,6 +95,10 @@ fn type_check_expr(expr: Expr, env: Env) -> TypeCheckingResult<Type> {
 
             match *body {
                 Stmt::Block(stmts) => {
+                    // TODO: this is probably *NOT* where this should happen.
+                    // we're not modifying the program here, just type-checking it.
+                    // this should probably happen in the desugaring step, since
+                    // it already has the mechanisms to walk and modify the AST.
                     todo!("gather all variables defined in this function without crossing a function definition boundary, lift their definitions to the top");
                 },
                 _ => panic!()
