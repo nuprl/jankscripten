@@ -157,39 +157,35 @@ fn type_check_expr(expr: Expr, env: Env) -> TypeCheckingResult<Type> {
             // needs to be well-typed.
             let actual_type = type_check_expr(*e, env)?;
 
-            match coercion {
-                Coercion::Tag(from_type) => {
-                    // Tags are only valid when
-                    // 1. they correctly specify the type they want to tag
-                    // 2. that type is ground
-                    ensure("Coercion::Tag type mismatch", from_type, actual_type.clone())?;
-                    ensure_ground("Coercion::Tag expected ground type", actual_type.clone())?;
-                    Ok(actual_type)
-                },
-                Coercion::Untag(to_type) => {
-                    // untagging cannot fail at compile time, only runtime
-                    Ok(to_type)
-                },
-                Coercion::Fun(args_to_type, ret_to_type) => {
-                    unimplemented!();
-                },
-                Coercion::Id(to_type) => {
-                    ensure("Coercion::Id type mismatch", to_type, actual_type.clone())?;
-                    Ok(actual_type)
-                },
-                // t1 : S -> U
-                // t2 : U -> T
-                // Seq(t2, t1) : S -> T
-                Coercion::Seq(t2, t1) => { 
-                    /*
-                     * e : S    t1 : S -> U    t2 : U -> T
-                     * -----------------------------------
-                     *     Coerce(Seq(t2, t1), e) : T
-                     */
-                    unimplemented!();
-                },
-            }
+            // find the types the coercion is going from and to
+            let (from, to) = type_check_coercion(coercion)?;
+
+            ensure("expression matches coercion source type", from, actual_type)?;
+            Ok(to)
         }
         _ => unimplemented!()
+    }
+}
+
+fn type_check_coercion(c: Coercion) -> TypeCheckingResult<(Type, Type)> {
+    match c {
+        Coercion::Tag(from_type) => {
+            Ok((from_type, Type::Any))
+        },
+        Coercion::Untag(to_type) => {
+            Ok((Type::Any, to_type))
+        },
+        Coercion::Fun(args_to_type, ret_to_type) => {
+            unimplemented!();
+        },
+        Coercion::Id(to_type) => {
+            Ok((to_type.clone(), to_type))
+        },
+        Coercion::Seq(t2, t1) => { 
+            let (_, t2_to) = type_check_coercion(*t2)?;
+            let (t1_from, _) = type_check_coercion(*t1)?;
+
+            Ok((t1_from, t2_to))
+        },
     }
 }
