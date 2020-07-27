@@ -277,10 +277,11 @@ fn assert_variant_of_any(ty: &Type) -> TypeCheckingResult<()> {
         Type::Bool => Ok(()),
         Type::String => Ok(()),
         Type::StrRef => Ok(()),
-        // We need to think this through. We cannot store arbitrary functions
-        // inside an Any.
-        // TODO(luna): re todo!() this
+        // the only caveat here is we need to ensure this any is never called
+        // with incorrect arity, until/unless we add complicated machinery
+        // for that
         Type::Fn(_) => Ok(()),
+        Type::Closure(_) => Ok(()),
         // The following turn into pointers, and an Any can store a pointer
         Type::HT => Ok(()),
         Type::Array => Ok(()),

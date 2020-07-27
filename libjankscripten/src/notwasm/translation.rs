@@ -482,14 +482,24 @@ impl<'a> Translate<'a> {
                     Some(IdIndex::Local(i, t)) => {
                         // borrow checker nonsense
                         let i = *i;
-                        let (params_tys, ret_ty) = match t {
+                        let fn_ty = match t.clone() {
                             N::Type::Fn(fn_ty) => {
-                                (types_as_wasm(&fn_ty.args), option_as_wasm(&fn_ty.result))
+                                self.push_args_with_arity(args, fn_ty.args.len());
+                                self.out.push(GetLocal(i));
+                                fn_ty
+                            }
+                            N::Type::Closure(fn_ty) => {
+                                self.out.push(GetLocal(i));
+                                self.rt_call("closure_ptr");
+                                self.push_args_with_arity(args, fn_ty.args.len());
+                                self.out.push(GetLocal(i));
+                                self.rt_call("closure_func");
+                                fn_ty
                             }
                             _ => panic!("identifier {:?} is not function-typed", f),
                         };
-                        self.push_args_with_arity(args, params_tys.len());
-                        self.out.push(GetLocal(i));
+                        let params_tys = types_as_wasm(&fn_ty.args);
+                        let ret_ty = option_as_wasm(&fn_ty.result);
                         let ty_index = self
                             .type_indexes
                             .get(&(params_tys, ret_ty))
@@ -612,7 +622,6 @@ impl<'a> Translate<'a> {
             IdIndex::Local(n, _) => self.out.push(GetLocal(*n)),
             // +1 for JNKS_STRINGS
             IdIndex::Global(n) => self.out.push(GetGlobal(*n + 1)),
-            // TODO(luna): ClosureVal / I64Const; to-be-unpacked?
             IdIndex::Fun(n, _) => self.out.push(I32Const(*n as i32)),
         }
     }
@@ -638,6 +647,7 @@ impl N::Type {
             Any => ValueType::I64,
             I32 => ValueType::I32,
             Bool => ValueType::I32,
+            Closure(..) => ValueType::I64,
             // almost everything is a pointer type
             String => ValueType::I32,
             StrRef => ValueType::I32,

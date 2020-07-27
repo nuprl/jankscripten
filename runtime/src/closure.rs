@@ -11,6 +11,7 @@ use super::Tag;
 /// if there is no closure environment paired with the function (it is
 /// already 1st order), the pointer can be null
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(packed)]
 pub struct Closure(*const Tag, u16);
 impl AsI64 for Closure {}
 pub type ClosureVal = I64Val<Closure>;
@@ -29,9 +30,14 @@ pub extern "C" fn closure_func(closure: ClosureVal) -> u32 {
 }
 
 /// this is a closure with any arity, which holds its arity along with
-/// it. this is to allow arity mismatches to be correctly handled even when the
+/// it
+///
+/// this is to allow arity mismatches to be correctly handled even when the
 /// arity of the closure would otherwise not be known (for example, in an Any,
 /// or if an argument type was specified as AnyFunc)
+///
+/// note that this is not being used for now. arity mismatches are only
+/// allowed when the arity is statically known at this time
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(packed)]
 pub struct AnyClosure(*const Tag, u16, u8);
@@ -63,14 +69,14 @@ mod test {
     #[wasm_bindgen_test]
     fn closure_size_is_64() {
         assert_eq!(std::mem::size_of::<ClosureVal>(), 8);
-        assert_eq!(std::mem::size_of::<Closure>(), 8);
+        assert_eq!(std::mem::size_of::<Closure>(), 6);
         assert_eq!(std::mem::size_of::<AnyClosureVal>(), 8);
         assert_eq!(std::mem::size_of::<AnyClosure>(), 7);
     }
     #[test]
     fn closure_size_is_128() {
         assert_eq!(std::mem::size_of::<ClosureVal>(), 16);
-        assert_eq!(std::mem::size_of::<Closure>(), 16);
+        assert_eq!(std::mem::size_of::<Closure>(), 10);
         assert_eq!(std::mem::size_of::<AnyClosureVal>(), 16);
         assert_eq!(std::mem::size_of::<AnyClosure>(), 11);
     }

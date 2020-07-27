@@ -50,6 +50,13 @@ pub enum Type {
     /// If `v : Fn(fn_type)` then `v` is an `i32`, which is an index of a
     /// function with the type `fn_type`.
     Fn(FnType),
+    /// If `v : Closure(fn_type)` then `v` is an `i64`, which is 16 bits of
+    /// arbitrary padding, then an Array, then a 16-bit unsigned int
+    /// representing an Fn with the type `fn_type`
+    Closure(FnType),
+    /// If `v : Ref<ty>` then `v` is a pointer. it is either a `*const Tag`
+    /// into the managed heap, where the Tag matches the Type, or a `*const
+    /// f64` into the float heap, where `ty === Type::F64`
     Ref(Box<Type>),
     /// If `v : Any` then `v` is an `AnyEnum`.
     Any,
@@ -67,9 +74,10 @@ impl Type {
             Type::Array => true,
             Type::Bool => false,
             Type::DynObject => true,
+            Type::Fn(_) => false,
             // TODO(luna): there's a pointer in here but, to the runtime it's just
             // an I64. so idk what to do
-            Type::Fn(_) => false,
+            Type::Closure(_) => true,
             Type::Ref(_) => true,
             Type::Any => true,
         }
@@ -305,6 +313,7 @@ impl std::fmt::Display for Type {
                 Bool => "bool",
                 DynObject => "DynObject",
                 Fn(..) => "fn",
+                Closure(..) => "closure",
                 Any => "any",
             }
         )

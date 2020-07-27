@@ -18,8 +18,24 @@ pub fn get_rt_bindings() -> BindMap {
     insert(m, "array_push", vec![Array, Any], I32); // new length
     insert(m, "array_index", vec![Type::Array, I32], Any);
     insert(m, "array_len", vec![Type::Array], I32);
-    insert_mono(m, "any_from", vec![&mono], &|_| Any, vec![I32]);
-    insert_mono(m, "any_to", vec![&|_| Any], &mono, vec![I32]);
+    let fn_ty = super::syntax::FnType {
+        args: vec![],
+        result: None,
+    };
+    insert_mono(
+        m,
+        "any_from",
+        vec![&mono],
+        &|_| Any,
+        vec![I32, Bool, Fn(fn_ty.clone()), Closure(fn_ty.clone())],
+    );
+    insert_mono(
+        m,
+        "any_to",
+        vec![&|_| Any],
+        &mono,
+        vec![I32, Bool, Fn(fn_ty.clone()), Closure(fn_ty.clone())],
+    );
     insert(m, "any_from_ptr", vec![I32], Any);
     insert(m, "any_to_ptr", vec![Any], I32);
     insert(m, "object_empty", vec![], DynObject);
@@ -35,9 +51,21 @@ pub fn get_rt_bindings() -> BindMap {
     // NOTE(arjun): The type below is not accurate. The first argument is
     // a *mut Tag, but we don't have a type for that.
     insert(m, "set_in_current_shadow_frame_slot", vec![I32, I32], None);
-    insert(m, "set_any_in_current_shadow_frame_slot", vec![Any, I32], None);
+    insert(
+        m,
+        "set_any_in_current_shadow_frame_slot",
+        vec![Any, I32],
+        None,
+    );
     insert(m, "any_to_f64", vec![Any], F64);
     insert(m, "f64_to_any", vec![F64], Any);
+    insert(m, "closure_ptr", vec![Closure(fn_ty.clone())], Array);
+    insert(
+        m,
+        "closure_func",
+        vec![Closure(fn_ty.clone())],
+        Fn(fn_ty.clone()),
+    );
     map
 }
 

@@ -1,7 +1,7 @@
 //! An enum that can store any type known to the runtime
 
 pub use crate::allocator::AnyPtr;
-use crate::closure::{AnyClosure, AnyClosureVal};
+use crate::closure::{Closure, ClosureVal};
 use crate::heap;
 use crate::i64_val::*;
 use crate::string::StrPtr;
@@ -21,7 +21,8 @@ pub enum AnyEnum<'a> {
     Bool(bool),
     Ptr(AnyPtr<'a>),
     StrPtr(StrPtr),
-    Fn(AnyClosure),
+    Fn(i32),
+    Closure(Closure),
 }
 impl<'a> AsI64 for AnyEnum<'a> {}
 pub type AnyValue<'a> = I64Val<AnyEnum<'a>>;
@@ -57,21 +58,22 @@ pub extern "C" fn f64_to_any(x: f64) -> AnyValue<'static> {
 }
 
 #[no_mangle]
-pub extern "C" fn any_from_any_closure<'a>(val: AnyClosureVal) -> AnyValue<'a> {
-    AnyEnum::Fn(*val).into()
+pub extern "C" fn any_from_closure<'a>(val: ClosureVal) -> AnyValue<'a> {
+    AnyEnum::Closure(*val).into()
 }
 #[no_mangle]
-pub extern "C" fn any_to_any_closure<'a>(val: AnyValue<'a>) -> AnyClosureVal {
-    if let AnyEnum::Fn(inner) = *val {
+pub extern "C" fn any_to_closure<'a>(val: AnyValue<'a>) -> ClosureVal {
+    if let AnyEnum::Closure(inner) = *val {
         inner.into()
     } else {
-        panic!("unwrap incorrect type {}", stringify!(Fn));
+        panic!("unwrap incorrect type {}", stringify!(Closure));
     }
 }
 
 decl_proj_fns!(any_from_i32, any_to_i32, I32, i32);
 decl_proj_fns!(any_from_bool, any_to_bool, Bool, bool);
 decl_proj_fns!(any_from_ptr, any_to_ptr, Ptr, AnyPtr<'a>);
+decl_proj_fns!(any_from_fn, any_to_fn, Fn, i32);
 
 #[cfg(test)]
 mod test {
