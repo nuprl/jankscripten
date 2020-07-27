@@ -181,7 +181,31 @@ fn type_check_coercion(c: Coercion) -> TypeCheckingResult<(Type, Type)> {
             Ok((Type::Any, to_type))
         },
         Coercion::Fun(args_to_type, ret_to_type) => {
-            unimplemented!();
+            // type check the arguments' coercions
+
+            // the original types of the arguments
+            let mut args_from = Vec::<Type>::new();
+
+            // the new types of the arguments
+            let mut args_to = Vec::<Type>::new();
+
+            for arg_coercion in args_to_type {
+                let (from, to) = type_check_coercion(arg_coercion)?;
+                args_from.push(from);
+                args_to.push(to);
+            }
+
+            // get the original and new return type
+            let (ret_from, ret_to) = type_check_coercion(*ret_to_type)?;
+
+            // construct "from" function type
+            let from = Type::Function(args_from, Box::new(ret_from));
+
+            // construct "to" function type
+            let to = Type::Function(args_to, Box::new(ret_to));
+
+            // put them together
+            Ok((from, to))
         },
         Coercion::Id(to_type) => {
             Ok((to_type.clone(), to_type))

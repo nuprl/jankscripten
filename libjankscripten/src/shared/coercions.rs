@@ -1,6 +1,6 @@
 use super::types::Type;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 /// Coercion : S -> T
 /// 
 /// Every coercion turns into a call to a function in the runtime system.
