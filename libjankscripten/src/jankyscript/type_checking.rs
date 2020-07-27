@@ -160,13 +160,18 @@ fn type_check_expr(expr: Expr, env: Env) -> TypeCheckingResult<Type> {
             // find the types the coercion is going from and to
             let (from, to) = type_check_coercion(coercion)?;
 
+            // ensure we can feed the given expr into the given coercion
             ensure("expression matches coercion source type", from, actual_type)?;
+
+            // we can, so we will have the output type of the coercion
             Ok(to)
         }
         _ => unimplemented!()
     }
 }
 
+// ensures the given coercion is well-formed, and returns its input and output
+// types.
 fn type_check_coercion(c: Coercion) -> TypeCheckingResult<(Type, Type)> {
     match c {
         Coercion::Tag(from_type) => {
