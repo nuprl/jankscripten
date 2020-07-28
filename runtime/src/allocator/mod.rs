@@ -194,8 +194,7 @@ impl Heap {
             None => Err(value),
             Some(ptr) => {
                 let tag_ptr: *mut Tag = ptr as *mut Tag;
-                let tag_ref: &mut Tag = unsafe { &mut *tag_ptr };
-                *tag_ref = tag;
+                unsafe { tag_ptr.write(tag) };
                 let val_ref = TypePtr::<T>::new(tag_ptr, tag.type_tag, value);
                 Ok(val_ref)
             }
@@ -204,13 +203,12 @@ impl Heap {
 
     pub fn alloc_object(&self, type_tag: u16) -> Option<ObjectPtr> {
         let object_data = self.alloc_object_data(type_tag)?;
-        Some(unsafe {
-            ObjectPtr::new(
-                self.alloc_tag(Tag::with_type(TypeTag::ObjectPtrPtr), object_data)
-                    .ok()?
-                    .get_ptr(),
-            )
-        })
+        // we explicitly make sure we're calling TypePtr's get_ptr
+        // implementation so we don't get the pointer of the object data. this
+        // should work properly now that ObjectDataPtr implements HasTag,
+        // but if it gets messed up it leads to insidious memory bugs
+        let rv = Some(unsafe { ObjectPtr::new(HeapPtr::get_ptr(&self.alloc(object_data).ok()?)) });
+        rv
     }
     pub fn alloc_object_or_gc(&self, type_tag: u16) -> ObjectPtr {
         // TODO(luna): alloc_object isn't really as atomic as it needs to be
@@ -247,9 +245,7 @@ impl Heap {
             Some(ptr) => {
                 let tag_ptr: *mut Tag = ptr as *mut Tag;
                 let tag_ref: &mut Tag = unsafe { &mut *tag_ptr };
-                unsafe {
-                    tag_ptr.write(Tag::object(type_tag));
-                }
+                *tag_ref = Tag::object(type_tag);
                 let values_slice = unsafe { tag_ref.slice_ref::<Option<AnyEnum>>(num_elements) };
                 for opt_any in values_slice.iter_mut() {
                     *opt_any = None;
@@ -335,7 +331,7 @@ impl Heap {
                 }
                 tag.marked = true;
 
-                if tag.type_tag != TypeTag::Class {
+                if tag.type_tag != TypeTag::DynObject {
                     let any_ptr = unsafe { AnyPtr::new(root) };
                     new_roots.append(&mut any_ptr.get_gc_branches());
                 } else {

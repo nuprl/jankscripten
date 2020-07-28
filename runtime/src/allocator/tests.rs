@@ -110,11 +110,7 @@ fn update_prims() {
 #[wasm_bindgen_test]
 fn alloc_container1() {
     let heap = Heap::new(128);
-    let empty_type = heap.classes.borrow_mut().new_class_type(Class::new());
-    let one_type = heap
-        .classes
-        .borrow_mut()
-        .transition(empty_type, str_as_ptr("x"));
+    let one_type = heap.classes.borrow_mut().transition(0, str_as_ptr("x"));
     let type_tag = heap
         .classes
         .borrow_mut()
@@ -129,8 +125,7 @@ fn alloc_container1() {
 #[wasm_bindgen_test]
 fn insert_object() {
     let heap = Heap::new(128);
-    let empty_type = heap.classes.borrow_mut().new_class_type(Class::new());
-    let mut obj = heap.alloc_object(empty_type).expect("second alloc");
+    let mut obj = heap.alloc_object(0).expect("second alloc");
     let mut cache = -1;
     assert_eq!(
         obj.insert(&heap, str_as_ptr("x"), AnyEnum::I32(32).into(), &mut cache),
@@ -140,14 +135,14 @@ fn insert_object() {
         obj.insert(&heap, str_as_ptr("x"), AnyEnum::I32(32).into(), &mut cache),
         AnyEnum::I32(32).into()
     );
-    match obj.get(&heap, str_as_ptr("x"), &mut cache).expect("no x") {
-        AnyEnum::I32(32) => (),
-        _ => panic!(),
-    }
-    match obj.get(&heap, str_as_ptr("x"), &mut -1).expect("no x") {
-        AnyEnum::I32(32) => (),
-        _ => panic!(),
-    }
+    assert!(matches!(
+        obj.get(&heap, str_as_ptr("x"), &mut cache).expect("no x"),
+        AnyEnum::I32(32)
+    ));
+    assert!(matches!(
+        obj.get(&heap, str_as_ptr("x"), &mut -1).expect("no x"),
+        AnyEnum::I32(32)
+    ));
 }
 
 #[test]
