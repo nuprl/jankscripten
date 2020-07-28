@@ -30,6 +30,13 @@ impl HasTag for String {
 pub type AnyJSPtr<'a> = TypePtr<'a, AnyValue<'a>>;
 impl<'a> HasTag for AnyValue<'a> {
     const TYPE_TAG: TypeTag = TypeTag::Any;
+    fn get_gc_branches(&self) -> Vec<*mut Tag> {
+        (**self).get_gc_branches()
+    }
+}
+
+impl<'a> HasTag for ObjectDataPtr<'a> {
+    const TYPE_TAG: TypeTag = TypeTag::DynObject;
 }
 
 pub type HTPtr<'a> = TypePtr<'a, HashMap<Key, AnyValue<'a>>>;
