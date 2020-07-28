@@ -70,6 +70,11 @@ pub trait HeapPtr {
     /// nothing, because most structures do not allocate on the
     /// rust heap
     fn final_drop(&self) {}
+    /// this should return all the garbage collected pointers in the data
+    /// structure, whether found in the rust or managed heap
+    fn get_gc_branches(&self) -> Vec<*mut Tag> {
+        vec![]
+    }
 }
 
 /// Returns a pointer to the data that follows the tag.
@@ -126,6 +131,9 @@ impl<'a> HeapPtr for HeapRefView<'a> {
     fn final_drop(&self) {
         self.heap_ptr().final_drop()
     }
+    fn get_gc_branches(&self) -> Vec<*mut Tag> {
+        self.heap_ptr().get_gc_branches()
+    }
 }
 
 impl<'a> AnyPtr<'a> {
@@ -165,6 +173,9 @@ impl<'a> HeapPtr for AnyPtr<'a> {
     fn final_drop(&self) {
         self.view().final_drop()
     }
+    fn get_gc_branches(&self) -> Vec<*mut Tag> {
+        self.view().get_gc_branches()
+    }
 }
 
 /// If p : TypePtr<'a, i32> then
@@ -197,7 +208,7 @@ impl<'a, T> Clone for TypePtr<'a, T> {
 }
 impl<'a, T> Copy for TypePtr<'a, T> {}
 
-impl<'a, T> HeapPtr for TypePtr<'a, T> {
+impl<'a, T: HasTag> HeapPtr for TypePtr<'a, T> {
     fn get_ptr(&self) -> *mut Tag {
         self.ptr
     }
@@ -208,6 +219,10 @@ impl<'a, T> HeapPtr for TypePtr<'a, T> {
 
     fn final_drop(&self) {
         unsafe { std::ptr::drop_in_place::<T>(data_ptr(self.ptr)) }
+    }
+
+    fn get_gc_branches(&self) -> Vec<*mut Tag> {
+        self.get().get_gc_branches()
     }
 }
 
@@ -275,7 +290,7 @@ impl<T: PartialEq> PartialEq<TypePtr<'_, T>> for TypePtr<'_, T> {
 }
 impl<T: PartialEq> Eq for TypePtr<'_, T> {}
 
-impl<'a, T> From<TypePtr<'a, T>> for AnyPtr<'a> {
+impl<'a, T: HasTag> From<TypePtr<'a, T>> for AnyPtr<'a> {
     fn from(ptr: TypePtr<'a, T>) -> Self {
         // safety: TypePtr is valid, so an AnyPtr will be valid
         unsafe { AnyPtr::new(ptr.get_ptr()) }
