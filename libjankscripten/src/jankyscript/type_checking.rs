@@ -21,6 +21,9 @@ pub enum TypeCheckingError {
 
     // Expected a ground type
     ExpectedGround(String, Type),
+
+    // A return statement was used outside of a function
+    UnexpectedReturn(Type),
 }
    
 pub type TypeCheckingResult<T> = Result<T, TypeCheckingError>;
@@ -58,13 +61,13 @@ fn ensure_ground(msg: &str, got: Type) -> TypeCheckingResult<Type> {
 // type check an entire program.
 pub fn type_check(stmt: Stmt) -> TypeCheckingResult<()> {
     
-    match type_check_stmt(stmt, HashMap::new()) {
+    match type_check_stmt(stmt, HashMap::new(), &None) {
         Ok(_) => Ok(()),
         Err(error) => Err(error)
     }
 }
 
-fn type_check_stmt(stmt: Stmt, env: Env) -> TypeCheckingResult<Env> {
+fn type_check_stmt(stmt: Stmt, env: Env, ret_ty: &Option<Type>) -> TypeCheckingResult<Env> {
     match stmt {
         Stmt::Var(x, t, e) => {
             ensure("variable declaration matches given type",
@@ -78,26 +81,34 @@ fn type_check_stmt(stmt: Stmt, env: Env) -> TypeCheckingResult<Env> {
                 Type::Bool, 
                 type_check_expr(*c, env.clone())?)?;
 
-            type_check_stmt(*t, env.clone())?;
-            type_check_stmt(*e, env.clone())?;
+            type_check_stmt(*t, env.clone(), ret_ty)?;
+            type_check_stmt(*e, env.clone(), ret_ty)?;
 
             Ok(env)
         },
         Stmt::Block(stmts) => {
-            type_check_stmts(stmts, env.clone())?;
+            type_check_stmts(stmts, env.clone(), ret_ty)?;
             Ok(env)
         },
-        Stmt::Return(_) => {
-            todo!("type_check_stmt should take optional ret_ty");
+        Stmt::Return(e) => {
+            let e_type = type_check_expr(*e, env.clone())?;
+
+            match ret_ty {
+                None => Err(TypeCheckingError::UnexpectedReturn(e_type)),
+                Some(ty) => {
+                    ensure("return", ty.clone(), e_type)?;
+                    Ok(env)
+                }
+            }
         }
         _ => unimplemented!()
     }
 }
 
-fn type_check_stmts(stmts: Vec<Stmt>, env: Env) -> TypeCheckingResult<Env> {
+fn type_check_stmts(stmts: Vec<Stmt>, env: Env, ret_ty: &Option<Type>) -> TypeCheckingResult<Env> {
     let mut env = env;
     for s in stmts {
-        env = type_check_stmt(s, env)?;
+        env = type_check_stmt(s, env, ret_ty)?;
     }
     Ok(env)
 }
@@ -110,18 +121,7 @@ fn type_check_expr(expr: Expr, env: Env) -> TypeCheckingResult<Type> {
             let mut function_env = env.clone();
             function_env.extend(args.clone().into_iter());
 
-            match *body {
-                Stmt::Block(stmts) => {
-                    // TODO: this is probably *NOT* where this should happen.
-                    // we're not modifying the program here, just type-checking it.
-                    // this should probably happen in the desugaring step, since
-                    // it already has the mechanisms to walk and modify the AST.
-                    todo!("gather all variables defined in this function without crossing a function definition boundary, lift their definitions to the top");
-                },
-                _ => panic!()
-            }
-
-            type_check_stmt(*body, function_env)?;
+            type_check_stmt(*body, function_env, &Some(return_type.clone()))?;
 
             Ok(Type::Function(
                 args.into_iter().map(|(_, ty)| ty).collect(), 
