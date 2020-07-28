@@ -24,6 +24,9 @@ pub enum TypeCheckingError {
 
     // A return statement was used outside of a function
     UnexpectedReturn(Type),
+
+    // A variable was referenced that does not exist
+    NoSuchVariable(Id),
 }
    
 pub type TypeCheckingResult<T> = Result<T, TypeCheckingError>;
@@ -58,6 +61,14 @@ fn ensure_ground(msg: &str, got: Type) -> TypeCheckingResult<Type> {
     }
 }
 
+fn lookup(env: &Env, id: &Id) -> TypeCheckingResult<Type> {
+    if let Some(ty) = env.get(id) {
+        Ok(ty.clone())
+    } else {
+        Err(TypeCheckingError::NoSuchVariable(id.clone()))
+    }
+}
+
 // type check an entire program.
 pub fn type_check(stmt: Stmt) -> TypeCheckingResult<()> {
     
@@ -69,6 +80,88 @@ pub fn type_check(stmt: Stmt) -> TypeCheckingResult<()> {
 
 fn type_check_stmt(stmt: Stmt, env: Env, ret_ty: &Option<Type>) -> TypeCheckingResult<Env> {
     match stmt {
+        Stmt::Empty => Ok(env),
+        Stmt::Finally(try_body, finally_body) => {
+            // try_body should be well-typed
+            type_check_stmt(*try_body, env.clone(), ret_ty)?;
+
+            // finally_body should be well-typed
+            type_check_stmt(*finally_body, env.clone(), ret_ty)?;
+
+            Ok(env)
+        },
+        Stmt::Catch(try_body, ex_name, catch_body) => {
+            // try_body should be well-typed
+            type_check_stmt(*try_body, env.clone(), ret_ty)?;
+
+            // catch_body should be well-typed, when ex_name is bound to Any?
+            let catch_body_env = env.clone().update(ex_name, Type::Any);
+            type_check_stmt(*catch_body, catch_body_env, ret_ty)?;
+
+            Ok(env)
+        },
+        Stmt::Assign(lval, rval) => {
+            // rval should be well typed
+            let rval_ty = type_check_expr(*rval, env.clone())?;
+            
+            // whether or not rval can go in lval depends on what lval is
+            match *lval {
+                LValue::Id(id) => {
+                    // what type is id?
+                    let id_ty = lookup(&env, &id)?;
+                    ensure("variable assignment", id_ty, rval_ty)?;
+                    Ok(env)
+                },
+                LValue::Dot(e, _id) => {
+                    // e should be well typed
+                    type_check_expr(e, env.clone())?;
+
+                    // TODO: can we do any further typechecking than this? do
+                    //       our object types include info about their props?
+
+                    Ok(env)
+                },
+                LValue::Bracket(e, computed_prop) => {
+                    // e should be well typed
+                    type_check_expr(e, env.clone())?;
+
+                    // computed_prop should be well typed
+                    type_check_expr(computed_prop, env.clone())?;
+
+                    // TODO: can we do any further typechecking than this? do
+                    //       our object types include info about their props?
+                    
+                    Ok(env)
+                }
+            }
+        },
+        Stmt::While(cond, body) => {
+            // make sure cond is a bool
+            let cond_ty = type_check_expr(*cond, env.clone())?;
+            ensure("while loop conditional", Type::Bool, cond_ty)?;
+
+            // type check body in a new scope
+            type_check_stmt(*body, env.clone(), ret_ty)?;
+
+            Ok(env)
+        },
+        Stmt::Throw(e) => {
+            // expression we're throwing should be well-typed
+            type_check_expr(*e, env.clone())?;
+
+            Ok(env)
+        },
+        Stmt::Break(_id) => {
+            // TODO: label checking
+            Ok(env)
+        },
+        Stmt::Label(_id, stmt) => {
+            // TODO: label checking
+
+            type_check_stmt(*stmt, env.clone(), ret_ty)?;
+
+            Ok(env)
+        },
         Stmt::Var(x, t, e) => {
             ensure("variable declaration matches given type",
                 t.clone(),
@@ -101,7 +194,6 @@ fn type_check_stmt(stmt: Stmt, env: Env, ret_ty: &Option<Type>) -> TypeCheckingR
                 }
             }
         }
-        _ => unimplemented!()
     }
 }
 
