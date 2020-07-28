@@ -302,9 +302,11 @@ fn type_check_coercion(c: Coercion) -> TypeCheckingResult<(Type, Type)> {
         Coercion::Id(to_type) => {
             Ok((to_type.clone(), to_type))
         },
-        Coercion::Seq(t2, t1) => { 
-            let (_, t2_to) = type_check_coercion(*t2)?;
-            let (t1_from, _) = type_check_coercion(*t1)?;
+        Coercion::Seq(t1, t2) => { 
+            let (t2_from, t2_to) = type_check_coercion(*t2)?;
+            let (t1_from, t1_to) = type_check_coercion(*t1)?;
+
+            ensure("sequence composition", t1_to, t2_from)?;
 
             Ok((t1_from, t2_to))
         },
