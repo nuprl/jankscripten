@@ -37,6 +37,17 @@ impl<'a> HeapPtr for ObjectDataPtr<'a> {
     fn get_data_size(&self, heap: &Heap) -> usize {
         heap.object_data_size(self.class_tag())
     }
+
+    fn get_gc_branches(&self, heap: &Heap) -> Vec<*mut Tag> {
+        let size = heap.get_class_size(self.class_tag());
+        let mut rv = vec![];
+        for i in 0..size {
+            if let Some(any) = self.read_at(heap, i) {
+                rv.append(&mut any.get_gc_branches(heap));
+            }
+        }
+        vec![]
+    }
 }
 
 impl<'a> ObjectDataPtr<'a> {
