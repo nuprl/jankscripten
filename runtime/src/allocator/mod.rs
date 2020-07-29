@@ -331,23 +331,13 @@ impl Heap {
                 }
                 tag.marked = true;
 
-                if tag.type_tag != TypeTag::DynObject {
-                    let any_ptr = unsafe { AnyPtr::new(root) };
-                    new_roots.append(&mut any_ptr.get_gc_branches(self));
-                } else {
-                    // TODO(luna): special handle floats again, but generically
-                    //AnyEnum::F64(f64_ptr) => {
-                    //    log("Moving a float");
-                    //    *member = AnyEnum::F64(f64_allocator.alloc(unsafe { *f64_ptr }).unwrap()).into();
-                    //}
-                    let class_tag = tag.class_tag; // needed since .class_tag is packed
-                    let num_ptrs = self.get_class_size(class_tag);
-                    let members_ptr: *mut AnyValue = unsafe { data_ptr(root) };
-                    let members = unsafe { std::slice::from_raw_parts(members_ptr, num_ptrs) };
-                    for member in members {
-                        new_roots.extend(member.get_gc_branches(self));
-                    }
-                }
+                let any_ptr = unsafe { AnyPtr::new(root) };
+                new_roots.append(&mut any_ptr.get_gc_branches(self));
+                // TODO(luna): special handle floats again, but generically
+                //AnyEnum::F64(f64_ptr) => {
+                //    log("Moving a float");
+                //    *member = AnyEnum::F64(f64_allocator.alloc(unsafe { *f64_ptr }).unwrap()).into();
+                //}
             }
             std::mem::swap(&mut current_roots, &mut new_roots);
         }

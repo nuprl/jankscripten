@@ -120,11 +120,53 @@ fn array_members_marked() {
     );
     heap.gc();
     assert!(heap.alloc(12).is_err(), "nothing should have been freed");
+    // pop the x to free it on next gc
+    arr.pop();
+    heap.gc();
+    heap.alloc(12).expect("now an int has been freed");
+}
+
+#[test]
+#[wasm_bindgen_test]
+fn object_members_marked() {
+    let heap = Heap::new((ALIGNMENT * 7) as isize);
+    // the one root will be the array
+    heap.push_shadow_frame(1);
+    // i32: ALIGNMENT * 2 (32-bit), OR ALIGNMENT * 1 (64-bit)
+    let x = heap.alloc(32).expect("first allocation failed");
     assert_eq!(
         *x.get(),
         32,
-        "allocation after GC corrupted the first value on the heap"
+        "first value was not written to the heap correctly"
     );
+    let one_type = heap.classes.borrow_mut().transition(0, str_as_ptr("x"));
+    // Object: ALIGNMENT * 5 = ALIGNMENT * 2 (tag, ptr) + ALIGNMENT * 3 (tag, any (size: ALIGNMENT * 2))
+    let mut obj = heap.alloc_object(one_type).expect("couldn't alloc obj");
+    // obj is root
+    heap.set_in_current_shadow_frame_slot(0, obj.get_ptr());
+    // but put x into the obj
+    let mut cache = -1;
+    obj.insert(
+        &heap,
+        str_as_ptr("x"),
+        AnyEnum::Ptr(x.into()).into(),
+        &mut cache,
+    );
+    assert!(
+        heap.alloc(12).is_err(),
+        "third allocation should fail due to lack of space"
+    );
+    heap.gc();
+    assert!(heap.alloc(12).is_err(), "nothing should have been freed");
+    // unset the pointer to free the x
+    obj.insert(
+        &heap,
+        str_as_ptr("x"),
+        AnyEnum::Bool(false).into(),
+        &mut cache,
+    );
+    heap.gc();
+    heap.alloc(12).expect("now an int has been freed");
 }
 
 #[test]

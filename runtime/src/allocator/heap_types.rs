@@ -36,7 +36,8 @@ impl<'a> HasTag for AnyValue<'a> {
 }
 
 impl<'a> HasTag for ObjectDataPtr<'a> {
-    const TYPE_TAG: TypeTag = TypeTag::DynObject;
+    /// to be clear, this means the type tag OF THE POINTER
+    const TYPE_TAG: TypeTag = TypeTag::ObjectPtrPtr;
 }
 
 pub type HTPtr<'a> = TypePtr<'a, HashMap<Key, AnyValue<'a>>>;
