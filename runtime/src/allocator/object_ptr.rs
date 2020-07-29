@@ -38,14 +38,20 @@ impl<'a> HeapPtr for ObjectDataPtr<'a> {
         heap.object_data_size(self.class_tag())
     }
 
-    fn get_gc_branches(&self, heap: &Heap) -> Vec<*mut Tag> {
-        let num_ptrs = heap.get_class_size(self.class_tag());
-        let members_ptr: *mut Option<AnyEnum> = unsafe { data_ptr(self.ptr) };
-        let members = unsafe { std::slice::from_raw_parts(members_ptr, num_ptrs) };
+    fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
         let mut rv = vec![];
-        for member in members {
+        for member in self.as_array(heap) {
             if let Some(any) = member {
-                rv.append(&mut any.get_gc_branches(heap));
+                rv.append(&mut any.get_gc_ptrs(heap));
+            }
+        }
+        rv
+    }
+    fn get_gc_f64s(&mut self, heap: &Heap) -> Vec<*mut *const f64> {
+        let mut rv = vec![];
+        for member in self.as_array(heap) {
+            if let Some(any) = member {
+                rv.append(&mut any.get_gc_f64s(heap));
             }
         }
         rv
@@ -123,6 +129,12 @@ impl<'a> ObjectDataPtr<'a> {
         let offset = class.lookup(name, cache)?;
         self.read_at(heap, offset)
     }
+
+    fn as_array(&self, heap: &Heap) -> &mut [Option<AnyEnum>] {
+        let num_ptrs = heap.get_class_size(self.class_tag());
+        let members_ptr: *mut Option<AnyEnum> = unsafe { data_ptr(self.ptr) };
+        unsafe { std::slice::from_raw_parts_mut(members_ptr, num_ptrs) }
+    }
 }
 
 impl<'a> ObjectPtr<'a> {
@@ -168,7 +180,7 @@ impl<'a> HeapPtr for ObjectPtr<'a> {
     fn get_data_size(&self, _heap: &Heap) -> usize {
         ALIGNMENT
     }
-    fn get_gc_branches(&self, _heap: &Heap) -> Vec<*mut Tag> {
+    fn get_gc_ptrs(&self, _heap: &Heap) -> Vec<*mut Tag> {
         vec![(**self).get_ptr()]
     }
 }
@@ -183,7 +195,7 @@ mod test {
         use crate::Heap;
         let heap = Heap::new((ALIGNMENT * 7) as isize);
         let obj_ptr = heap.alloc_object(0).unwrap();
-        let ptrs = obj_ptr.get_gc_branches(&heap);
+        let ptrs = obj_ptr.get_gc_ptrs(&heap);
         assert_eq!(ptrs.len(), 1);
         assert_eq!(unsafe { *ptrs[0] }.type_tag, TypeTag::DynObject);
     }

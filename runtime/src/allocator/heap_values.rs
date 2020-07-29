@@ -70,9 +70,13 @@ pub trait HeapPtr {
     /// nothing, because most structures do not allocate on the
     /// rust heap
     fn final_drop(&self) {}
-    /// this should return all the garbage collected pointers in the data
-    /// structure, whether found in the rust or managed heap
-    fn get_gc_branches(&self, _heap: &Heap) -> Vec<*mut Tag> {
+    /// this should return all the pointers to garbage collected Tags in
+    /// the managed heap in the data structure
+    fn get_gc_ptrs(&self, _heap: &Heap) -> Vec<*mut Tag> {
+        vec![]
+    }
+    /// this should return all the pointers to f64s in the managed f64 heap
+    fn get_gc_f64s(&mut self, _heap: &Heap) -> Vec<*mut *const f64> {
         vec![]
     }
 }
@@ -120,6 +124,18 @@ impl<'a> HeapRefView<'a> {
             Self::ObjectPtrPtr(val) => val,
         }
     }
+    fn heap_ptr_mut(&mut self) -> &mut (dyn HeapPtr + 'a) {
+        match self {
+            Self::I32(val) => val,
+            Self::F64(val) => val,
+            Self::String(val) => val,
+            Self::HT(val) => val,
+            Self::Array(val) => val,
+            Self::Any(val) => val,
+            Self::Class(val) => val,
+            Self::ObjectPtrPtr(val) => val,
+        }
+    }
 }
 impl<'a> HeapPtr for HeapRefView<'a> {
     fn get_ptr(&self) -> *mut Tag {
@@ -131,8 +147,11 @@ impl<'a> HeapPtr for HeapRefView<'a> {
     fn final_drop(&self) {
         self.heap_ptr().final_drop()
     }
-    fn get_gc_branches(&self, heap: &Heap) -> Vec<*mut Tag> {
-        self.heap_ptr().get_gc_branches(heap)
+    fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
+        self.heap_ptr().get_gc_ptrs(heap)
+    }
+    fn get_gc_f64s(&mut self, heap: &Heap) -> Vec<*mut *const f64> {
+        self.heap_ptr_mut().get_gc_f64s(heap)
     }
 }
 
@@ -173,8 +192,11 @@ impl<'a> HeapPtr for AnyPtr<'a> {
     fn final_drop(&self) {
         self.view().final_drop()
     }
-    fn get_gc_branches(&self, heap: &Heap) -> Vec<*mut Tag> {
-        self.view().get_gc_branches(heap)
+    fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
+        self.view().get_gc_ptrs(heap)
+    }
+    fn get_gc_f64s(&mut self, heap: &Heap) -> Vec<*mut *const f64> {
+        self.view().get_gc_f64s(heap)
     }
 }
 
@@ -221,8 +243,11 @@ impl<'a, T: HasTag> HeapPtr for TypePtr<'a, T> {
         unsafe { std::ptr::drop_in_place::<T>(data_ptr(self.ptr)) }
     }
 
-    fn get_gc_branches(&self, heap: &Heap) -> Vec<*mut Tag> {
-        self.get().get_gc_branches(heap)
+    fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
+        self.get().get_gc_ptrs(heap)
+    }
+    fn get_gc_f64s(&mut self, heap: &Heap) -> Vec<*mut *const f64> {
+        self.get_mut().get_gc_f64s(heap)
     }
 }
 
