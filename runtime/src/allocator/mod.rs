@@ -274,8 +274,8 @@ impl Heap {
     /// # Safety
     ///
     /// calling this without an appropriate push_shadow_frame, or before
-    /// all locals in the topmost frame have gone out of scope, results in [gc]
-    /// being unsafe (will free in-use data)
+    /// all locals in the topmost frame have gone out of scope, results in
+    /// [Heap::gc] being unsafe (will free in-use data)
     pub unsafe fn pop_shadow_frame(&self) {
         let mut shadow_stack = self.shadow_stack.borrow_mut();
         shadow_stack.pop();
@@ -333,7 +333,7 @@ impl Heap {
 
                 if tag.type_tag != TypeTag::DynObject {
                     let any_ptr = unsafe { AnyPtr::new(root) };
-                    new_roots.append(&mut any_ptr.get_gc_branches());
+                    new_roots.append(&mut any_ptr.get_gc_branches(self));
                 } else {
                     // TODO(luna): special handle floats again, but generically
                     //AnyEnum::F64(f64_ptr) => {
@@ -345,7 +345,7 @@ impl Heap {
                     let members_ptr: *mut AnyValue = unsafe { data_ptr(root) };
                     let members = unsafe { std::slice::from_raw_parts(members_ptr, num_ptrs) };
                     for member in members {
-                        new_roots.extend(member.get_gc_branches());
+                        new_roots.extend(member.get_gc_branches(self));
                     }
                 }
             }

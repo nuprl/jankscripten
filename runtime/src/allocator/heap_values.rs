@@ -72,7 +72,7 @@ pub trait HeapPtr {
     fn final_drop(&self) {}
     /// this should return all the garbage collected pointers in the data
     /// structure, whether found in the rust or managed heap
-    fn get_gc_branches(&self) -> Vec<*mut Tag> {
+    fn get_gc_branches(&self, _heap: &Heap) -> Vec<*mut Tag> {
         vec![]
     }
 }
@@ -131,8 +131,8 @@ impl<'a> HeapPtr for HeapRefView<'a> {
     fn final_drop(&self) {
         self.heap_ptr().final_drop()
     }
-    fn get_gc_branches(&self) -> Vec<*mut Tag> {
-        self.heap_ptr().get_gc_branches()
+    fn get_gc_branches(&self, heap: &Heap) -> Vec<*mut Tag> {
+        self.heap_ptr().get_gc_branches(heap)
     }
 }
 
@@ -173,8 +173,8 @@ impl<'a> HeapPtr for AnyPtr<'a> {
     fn final_drop(&self) {
         self.view().final_drop()
     }
-    fn get_gc_branches(&self) -> Vec<*mut Tag> {
-        self.view().get_gc_branches()
+    fn get_gc_branches(&self, heap: &Heap) -> Vec<*mut Tag> {
+        self.view().get_gc_branches(heap)
     }
 }
 
@@ -187,7 +187,7 @@ impl<'a> HeapPtr for AnyPtr<'a> {
 /// pub struct TypePtr<'a, T: HasTag> {
 ///     ptr: *mut Tag && ptr.type_tag == HasTag::<T>::TYPE_TAG,
 /// }
-/// 
+///
 /// Of course, we can't write the code above, which is what PhantomData
 /// solves.
 #[derive(Debug)]
@@ -221,8 +221,8 @@ impl<'a, T: HasTag> HeapPtr for TypePtr<'a, T> {
         unsafe { std::ptr::drop_in_place::<T>(data_ptr(self.ptr)) }
     }
 
-    fn get_gc_branches(&self) -> Vec<*mut Tag> {
-        self.get().get_gc_branches()
+    fn get_gc_branches(&self, heap: &Heap) -> Vec<*mut Tag> {
+        self.get().get_gc_branches(heap)
     }
 }
 

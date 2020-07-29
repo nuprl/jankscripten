@@ -15,84 +15,117 @@ fn allocs() {
     assert!(heap.alloc(12).is_err());
 }
 
-// #[test]
-// #[wasm_bindgen_test]
-// fn gc_enter_exit() {
-//     let heap = Heap::new((ALIGNMENT * 4) as isize);
-//     heap.push_shadow_frame(&[]);
-//     let x = heap.alloc(32).expect("first allocation failed");
-//     assert_eq!(
-//         *x.get(),
-//         32,
-//         "first value was not written to the heap correctly"
-//     );
-//     heap.push_shadow_frame(&[]);
-//     let y = heap.alloc(64).expect("second allocation failed");
-//     assert_eq!(
-//         *y.get(),
-//         64,
-//         "second value was not written to the heap correctly"
-//     );
-//     assert_eq!(
-//         *x.get(),
-//         32,
-//         "second allocation corrupted the first value on the heap"
-//     );
-//     assert!(
-//         heap.alloc(12).is_err(),
-//         "third allocation should fail due to lack of space"
-//     );
-//     unsafe { heap.pop_shadow_frame() };
-//     heap.gc();
-//     let z = heap.alloc(128).expect("GC failed to free enough memory");
-//     assert_eq!(*z.get(), 128, "allocation should succeed after GC");
-//     assert_eq!(
-//         *x.get(),
-//         32,
-//         "allocation after GC corrupted the first value on the heap"
-//     );
-// }
+#[test]
+#[wasm_bindgen_test]
+fn gc_enter_exit() {
+    let heap = Heap::new((ALIGNMENT * 4) as isize);
+    heap.push_shadow_frame(1);
+    let x = heap.alloc(32).expect("first allocation failed");
+    assert_eq!(
+        *x.get(),
+        32,
+        "first value was not written to the heap correctly"
+    );
+    heap.set_in_current_shadow_frame_slot(0, x.get_ptr());
+    // not added as a root
+    let y = heap.alloc(64).expect("second allocation failed");
+    assert_eq!(
+        *y.get(),
+        64,
+        "second value was not written to the heap correctly"
+    );
+    assert_eq!(
+        *x.get(),
+        32,
+        "second allocation corrupted the first value on the heap"
+    );
+    assert!(
+        heap.alloc(12).is_err(),
+        "third allocation should fail due to lack of space"
+    );
+    heap.gc();
+    let z = heap.alloc(128).expect("GC failed to free enough memory");
+    assert_eq!(*z.get(), 128, "allocation should succeed after GC");
+    assert_eq!(
+        *x.get(),
+        32,
+        "allocation after GC corrupted the first value on the heap"
+    );
+}
 
-// #[test]
-// #[wasm_bindgen_test]
-// fn alloc_or_gc_gcs() {
-//     let heap = Heap::new((ALIGNMENT * 4) as isize);
-//     heap.push_shadow_frame(&[]);
-//     let x = heap.alloc(32).expect("first allocation failed");
-//     assert_eq!(
-//         *x.get(),
-//         32,
-//         "first value was not written to the heap correctly"
-//     );
-//     heap.push_shadow_frame(&[]);
-//     let y = heap.alloc(64).expect("second allocation failed");
-//     assert_eq!(
-//         *y.get(),
-//         64,
-//         "second value was not written to the heap correctly"
-//     );
-//     assert_eq!(
-//         *x.get(),
-//         32,
-//         "second allocation corrupted the first value on the heap"
-//     );
-//     assert!(
-//         heap.alloc(12).is_err(),
-//         "third allocation should fail due to lack of space"
-//     );
-//     unsafe { heap.pop_shadow_frame() };
-//     let z = heap.alloc_or_gc(128);
-//     assert_eq!(
-//         *z.get(),
-//         128,
-//         "allocation should succeed after automatic GC"
-//     );
-//     assert_eq!(
-//         *x.get(),
-//         32,
-//         "allocation after GC corrupted the first value on the heap"
-//     );
-// }
+#[test]
+#[wasm_bindgen_test]
+fn alloc_or_gc_gcs() {
+    let heap = Heap::new((ALIGNMENT * 4) as isize);
+    heap.push_shadow_frame(1);
+    let x = heap.alloc(32).expect("first allocation failed");
+    assert_eq!(
+        *x.get(),
+        32,
+        "first value was not written to the heap correctly"
+    );
+    heap.set_in_current_shadow_frame_slot(0, x.get_ptr());
+    // not added as a root
+    let y = heap.alloc(64).expect("second allocation failed");
+    assert_eq!(
+        *y.get(),
+        64,
+        "second value was not written to the heap correctly"
+    );
+    assert_eq!(
+        *x.get(),
+        32,
+        "second allocation corrupted the first value on the heap"
+    );
+    assert!(
+        heap.alloc(12).is_err(),
+        "third allocation should fail due to lack of space"
+    );
+    let z = heap.alloc_or_gc(128);
+    assert_eq!(
+        *z.get(),
+        128,
+        "allocation should succeed after automatic GC"
+    );
+    assert_eq!(
+        *x.get(),
+        32,
+        "allocation after GC corrupted the first value on the heap"
+    );
+}
+
+#[test]
+#[wasm_bindgen_test]
+fn array_members_marked() {
+    let heap = Heap::new((ALIGNMENT * 6) as isize);
+    // the one root will be the array
+    heap.push_shadow_frame(1);
+    // i32: ALIGNMENT * 2 (32-bit), OR ALIGNMENT * 1 (64-bit)
+    let x = heap.alloc(32).expect("first allocation failed");
+    assert_eq!(
+        *x.get(),
+        32,
+        "first value was not written to the heap correctly"
+    );
+    // x is not a root
+    // Vec: ALIGNMENT * 4 (tag, ptr, len, cap)
+    let mut arr: TypePtr<'_, Vec<AnyValue<'_>>> = heap.alloc_or_gc(Vec::new());
+    // arr is
+    heap.set_in_current_shadow_frame_slot(0, arr.get_ptr());
+    // but put x into the array
+    arr.push(AnyEnum::Ptr(x.into()).into());
+    assert!(
+        heap.alloc(12).is_err(),
+        "third allocation should fail due to lack of space"
+    );
+    heap.gc();
+    assert!(heap.alloc(12).is_err(), "nothing should have been freed");
+    assert_eq!(
+        *x.get(),
+        32,
+        "allocation after GC corrupted the first value on the heap"
+    );
+}
 
 #[test]
 #[wasm_bindgen_test]
