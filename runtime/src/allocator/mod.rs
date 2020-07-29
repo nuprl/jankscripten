@@ -351,20 +351,18 @@ impl Heap {
         let mut free_list_ptr = std::mem::replace(borrowed_free_list, FreeList::Nil);
 
         let mut ptr: *mut u8 = self.buffer;
-        let heap_max = unsafe { self.buffer.add(self.size as usize) };
+        let heap_max = unsafe { self.buffer.offset(self.size) };
         while ptr < heap_max {
             let any_ptr = unsafe { AnyPtr::new(std::mem::transmute(ptr)) };
-            // drop any rust memory that may exist
-            any_ptr.final_drop();
             let tag_ref = unsafe { &mut *any_ptr.get_ptr() };
             let size = self.tag_size as usize + any_ptr.get_data_size(self);
-            if tag_ref.marked == true {
+            if tag_ref.marked {
                 tag_ref.marked = false;
-                ptr = unsafe { ptr.add(size) };
-                continue;
+            } else {
+                free_list_ptr = free_list_ptr.insert(ptr, size as isize);
+                // drop any rust memory that may exist
+                any_ptr.final_drop();
             }
-
-            free_list_ptr = free_list_ptr.insert(ptr, size as isize);
             ptr = unsafe { ptr.add(size) };
         }
         *borrowed_free_list = free_list_ptr;
