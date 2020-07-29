@@ -9,20 +9,27 @@
 
 type Key = StrPtr;
 
+#[allow(unused)]
+macro_rules! log {
+    ($($t:tt)*) => (
+        crate::util::log(&format!($($t)*))
+    )
+}
+
 pub mod any_value;
 pub mod array;
 pub mod ht;
 pub mod object;
-pub mod string;
 pub mod r#ref; // Rust raw identifier syntax
+pub mod string;
 mod util;
 
 mod allocator;
+use crate::allocator::Tag;
 use allocator::*;
 use any_value::AnyEnum;
 use any_value::AnyValue;
 use string::StrPtr;
-use crate::allocator::Tag;
 static mut HEAP: Option<Heap> = None;
 
 #[no_mangle]
