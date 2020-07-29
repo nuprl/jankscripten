@@ -171,6 +171,20 @@ fn object_members_marked() {
 
 #[test]
 #[wasm_bindgen_test]
+fn gc_f64s() {
+    let heap = Heap::new((ALIGNMENT * 6) as isize);
+    heap.push_shadow_frame(1);
+    let x = heap.f64_to_any(5.);
+    let mut arr: TypePtr<'_, Vec<AnyValue<'_>>> = heap.alloc(Vec::new()).unwrap();
+    heap.set_in_current_shadow_frame_slot(0, arr.get_ptr());
+    arr.push(x);
+    let x_copy = arr[0];
+    heap.gc();
+    assert_ne!(x_copy, arr[0]);
+}
+
+#[test]
+#[wasm_bindgen_test]
 fn update_prims() {
     let heap = Heap::new((ALIGNMENT * 4) as isize);
     heap.alloc(32).expect("first alloc");

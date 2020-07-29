@@ -331,13 +331,11 @@ impl Heap {
                 }
                 tag.marked = true;
 
-                let any_ptr = unsafe { AnyPtr::new(root) };
-                new_roots.append(&mut any_ptr.get_gc_branches(self));
-                // TODO(luna): special handle floats again, but generically
-                //AnyEnum::F64(f64_ptr) => {
-                //    log("Moving a float");
-                //    *member = AnyEnum::F64(f64_allocator.alloc(unsafe { *f64_ptr }).unwrap()).into();
-                //}
+                let mut any_ptr = unsafe { AnyPtr::new(root) };
+                new_roots.append(&mut any_ptr.get_gc_ptrs(self));
+                for ptr in any_ptr.get_gc_f64s(self) {
+                    unsafe { *ptr = f64_allocator.alloc(**ptr).unwrap() }
+                }
             }
             std::mem::swap(&mut current_roots, &mut new_roots);
         }
