@@ -39,14 +39,16 @@ impl<'a> HeapPtr for ObjectDataPtr<'a> {
     }
 
     fn get_gc_branches(&self, heap: &Heap) -> Vec<*mut Tag> {
-        let size = heap.get_class_size(self.class_tag());
+        let num_ptrs = heap.get_class_size(self.class_tag());
+        let members_ptr: *mut Option<AnyEnum> = unsafe { data_ptr(self.ptr) };
+        let members = unsafe { std::slice::from_raw_parts(members_ptr, num_ptrs) };
         let mut rv = vec![];
-        for i in 0..size {
-            if let Some(any) = self.read_at(heap, i) {
+        for member in members {
+            if let Some(any) = member {
                 rv.append(&mut any.get_gc_branches(heap));
             }
         }
-        vec![]
+        rv
     }
 }
 
@@ -165,5 +167,24 @@ impl<'a> HeapPtr for ObjectPtr<'a> {
     }
     fn get_data_size(&self, _heap: &Heap) -> usize {
         ALIGNMENT
+    }
+    fn get_gc_branches(&self, _heap: &Heap) -> Vec<*mut Tag> {
+        vec![(**self).get_ptr()]
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use wasm_bindgen_test::wasm_bindgen_test;
+    #[wasm_bindgen_test]
+    #[test]
+    fn object_ptr_get_ptrs() {
+        use super::{HeapPtr, TypeTag, ALIGNMENT};
+        use crate::Heap;
+        let heap = Heap::new((ALIGNMENT * 7) as isize);
+        let obj_ptr = heap.alloc_object(0).unwrap();
+        let ptrs = obj_ptr.get_gc_branches(&heap);
+        assert_eq!(ptrs.len(), 1);
+        assert_eq!(unsafe { *ptrs[0] }.type_tag, TypeTag::DynObject);
     }
 }
