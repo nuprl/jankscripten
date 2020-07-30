@@ -23,6 +23,8 @@
 
 use std::collections::HashMap;
 
+pub use super::super::javascript::Id;
+
 /// The types of NotWam. Every value has a unique type, thus we *do not* support
 /// subtyping. The comment for each variant describes the shape of the value
 /// with the associated type. Note we refer to several types defined in the
@@ -122,11 +124,6 @@ pub enum Lit {
     F64(f64),
     String(String),
     Interned(u32),
-}
-
-#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
-pub enum Id {
-    Named(String),
 }
 
 #[derive(Debug, PartialEq)]
@@ -266,13 +263,6 @@ impl FnType {
     }
 }
 
-impl Id {
-    pub fn into_name(self) -> String {
-        match self {
-            Id::Named(s) => s,
-        }
-    }
-}
 impl<S: Into<String>> From<S> for Label {
     fn from(s: S) -> Self {
         Self::Named(s.into())
