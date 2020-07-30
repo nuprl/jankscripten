@@ -10,6 +10,7 @@ mod walk;
 
 mod elim_gotos;
 mod label_apps;
+mod from_jankyscript;
 
 use intern::intern;
 use translation::translate;
