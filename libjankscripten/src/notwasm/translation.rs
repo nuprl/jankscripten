@@ -454,6 +454,12 @@ impl<'a> Translate<'a> {
                 self.translate_atom(val);
                 self.rt_call("array_push");
             }
+            N::Expr::PrimCall(name, args) => {
+                for arg in args {
+                    self.translate_atom(arg);
+                }
+                self.rt_call(name);
+            }
             N::Expr::Call(f, args) => {
                 for arg in args {
                     self.get_id(arg);

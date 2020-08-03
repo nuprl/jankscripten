@@ -214,6 +214,15 @@ fn compile_ty(janky_typ: J::Type) -> Type {
     }
 }
 
+fn coercion_to_prim(c: J::Coercion) -> String {
+    use J::Coercion::*;
+    use J::Type::*;
+    match c {
+        Tag(Float) => "f64_to_any".to_string(),
+        _ => todo!("{:?}", c)
+    }
+}
+
 fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
     match expr {
         J::Expr::Lit(lit) => cxt.recv_a(s, Atom::Lit(compile_lit(lit))),
@@ -224,7 +233,10 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
         J::Expr::Unary(_, _) => todo!("unary op"),
         J::Expr::New(_, _, _) => todo!("new -- need deep thought"),
         J::Expr::Bracket(_, _) => todo!("arr[x]"),
-        J::Expr::Coercion(_, _) => todo!("coercion"),
+        J::Expr::Coercion(coercion, e) => compile_expr(
+            s,
+            *e,
+            C::a(move |s, a| cxt.recv_e(s, Expr::PrimCall(coercion_to_prim(coercion), vec![a])))),
         J::Expr::Id(x) => cxt.recv_a(s, Atom::Id(x)),
         J::Expr::Func(ret_ty, args_tys, body) => {
             let (param_names, param_tys): (Vec<_>, Vec<_>) = args_tys.into_iter().unzip();
@@ -257,6 +269,11 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 )
             }),
         ),
+        J::Expr::PrimCall(prim_name, args) => compile_exprs(s, args, move |s, arg_ids| {
+            cxt.recv_e(s, Expr::PrimCall(
+                prim_name, 
+                arg_ids.into_iter().map(|x| Atom::Id(x)).collect()))
+        }),
         J::Expr::Call(fun, args) => compile_expr(
             s,
             *fun,

@@ -15,7 +15,44 @@ pub enum TypingError {
 
 type CoercionResult<T> = Result<T, TypingError>;
 
-type Env = HashMap<String, Type>;
+macro_rules! error {
+    ($($t:tt)*) => (
+        Err(TypingError::Wrong(format!($($t)*)))
+    )
+}
+
+#[derive(Clone)]
+enum EnvItem {
+    JsId(Type),
+    Prim(Type)
+}
+
+#[derive(Clone)]
+struct Env {
+    env: HashMap<String, EnvItem>
+}
+
+impl Env {
+
+    pub fn new() -> Env {
+        let mut env: HashMap<String, EnvItem> = HashMap::new();
+        env.insert(
+            "log_any".to_string(), 
+            EnvItem::Prim(Type::Function(vec![Type::Any], Box::new(Type::Any))));
+        Env { env }
+    }
+
+    /// If `expr` is an identifier that isbound to a primitive, returns its name and type.
+    pub fn get_prim_ty(&self, expr: &Expr) -> Option<(String, &Type)> {
+        match expr {
+            Expr::Id(Id::Named(name)) => match self.env.get(name) {
+                Some(EnvItem::Prim(ty)) => Some((name.to_owned(), ty)),
+                _ => None
+            },
+            _ => None
+        }
+    }
+}
 
 #[derive(Default)]
 struct InsertCoercions {
@@ -90,10 +127,23 @@ impl InsertCoercions {
                 }
             },
             Expr::Call(f, args) => {
+                // Special case for a primitive function call. JavaScript, and thus JankierScript
+                // do not distinguish primitive calls from calls to user-defined functions. However,
+                // we make the distinction explicit right here.
+                if let Some((prim_name, prim_ty)) = env.get_prim_ty(&f) {
+                    if let Type::Function(arg_typs, result_ty) = prim_ty {
+                        let coerced_args = args.into_iter().zip(arg_typs.iter())
+                            .map(|(e, t)| self.expr(e, t.clone(), env.clone()))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        let coerced_e = Janky::Expr::PrimCall(prim_name, coerced_args);
+                        return Ok((coerced_e, *result_ty.clone()));
+                    }
+                    return error!("primitive is not a function {:?}", f);
+                }
                 let (f, t) = self.expr_and_type(*f, env)?;
                 unimplemented!()
             }
-            _ => unimplemented!()
+            _ => todo!("{:?}", expr)
         }
     }
 
@@ -106,9 +156,11 @@ impl InsertCoercions {
         // if the expression is already the desired type, return that
         // if the conditional expression isn't the desired type, coerce it to
         // the desired type.
-        match e_type {
-            desired_type => Ok(e),
-            _ => Ok(Janky_::coercion_(self.coerce(e_type, desired_type), e)),
+        if e_type == desired_type {
+            Ok(e)
+        }
+        else {
+            Ok(Janky_::coercion_(self.coerce(e_type, desired_type), e))
         }
     }
 
@@ -165,6 +217,6 @@ impl InsertCoercions {
 
 pub fn insert_coercions(jankier_prog: Stmt) -> CoercionResult<Janky::Stmt> {
     let coercions = InsertCoercions::default();
-    let janky_prog = coercions.stmt(jankier_prog, Env::default())?;
+    let janky_prog = coercions.stmt(jankier_prog, Env::new())?;
     Ok(janky_prog)
 }

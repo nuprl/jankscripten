@@ -135,7 +135,7 @@ where
         use Expr::*;
         self.visitor.enter_expr(expr, loc);
         match expr {
-            ObjectEmpty | HT | Array | Call(..) => (),
+            ObjectEmpty | HT | Array | Call(..) | PrimCall(..) => (),
             HTSet(ea, eb, ec, ..) | ObjectSet(ea, eb, ec, ..) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);

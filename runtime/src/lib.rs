@@ -63,6 +63,13 @@ pub fn set_any_in_current_shadow_frame_slot(any: AnyValue, slot: usize) {
     heap().set_any_in_current_shadow_frame_slot(slot, any);
 }
 
+#[no_mangle]
+pub fn log_any(any: AnyValue) -> AnyValue {
+    let any: AnyEnum = *any;
+    log!("{}", any);
+    AnyEnum::I32(42).into()
+}
+
 fn heap() -> &'static Heap {
     unsafe { &HEAP }.as_ref().unwrap()
 }

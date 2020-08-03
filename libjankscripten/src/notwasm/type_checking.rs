@@ -1,26 +1,86 @@
 use super::syntax::*;
+use thiserror::Error;
 use im_rc::HashMap;
+use std::rc::Rc;
 
-type Env = HashMap<Id, Type>;
+#[derive(Clone, Debug)]
+pub struct Env {
+    env: HashMap<Id, Type>,
+    prim_env: Rc<std::collections::HashMap<String, Type>>,
+}
 
-#[derive(Debug, Clone)]
+impl Env {
+
+    pub fn new() -> Env {
+        Env { 
+            env: HashMap::new(),
+            prim_env: Rc::new(super::rt_bindings::get_rt_bindings())
+        }
+    }
+
+    pub fn get(&self, id: &Id) -> Option<&Type> {
+        self.env.get(id)
+    }
+
+
+    #[deprecated(note = "Refactor to use .update instead")]
+    pub fn insert(&mut self, id: Id, ty: Type) -> Option<Type> {
+        self.env.insert(id, ty)
+    }
+
+    pub fn update(&self, id: Id, ty: Type) -> Self {
+        Env {
+            env: self.env.update(id, ty),
+            prim_env: Rc::clone(&self.prim_env),
+        }
+    }
+
+    pub fn get_prim(&self, name: &str) -> Option<&Type> {
+        self.prim_env.get(name)
+    }
+}
+
+// TODO(arjun): I don't think we get much out of enumerating all kinds of errors. Refactor this
+// into just TypeCheckingError::Other.
+#[derive(Debug, Clone, Error)]
 pub enum TypeCheckingError {
+    #[error("undefined variable ")]
     NoSuchVariable(Id),
-    TypeMismatch(String, Type, Type), // context, expected, got
+    #[error("{0} expected type {1}, but received {2}")]
+    TypeMismatch(String, Type, Type),
+    #[error("expected function, but got {1}")]
     ExpectedFunction(Id, Type),
+    #[error("{0} expected hash table, but got {1}")]
     ExpectedHT(String, Type),
+    #[error("{0} expected array, but got {1}")]
     ExpectedArray(String, Type),
+    #[error("{0} expected ref, but got {1}")]
     ExpectedRef(String, Type),
+    #[error("unexpected return type {0}")]
     UnexpectedReturn(Type),
+    #[error("arity mismatch")]
     ArityMismatch(Id, usize), // difference in arity
+    #[error("Undefined branch")]
     UndefinedBranch(Env),
+    #[error("identifier is multiply defined")]
     MultiplyDefined(Id),
-    /// `Unexpected(message, ty)`: an expression has the type `ty`, which is
-    /// not valid in the context in which it appears.
-    InvalidInContext(String, Type)
+    #[error("In context {0}, unexpected type {1}")]
+    InvalidInContext(String, Type),
+    #[error("Error type-checking NotWasm: {0}")]
+    Other(String),
 }
 
 pub type TypeCheckingResult<T> = Result<T, TypeCheckingError>;
+
+fn error(message: impl Into<String>) -> TypeCheckingError {
+    TypeCheckingError::Other(message.into())
+}
+
+macro_rules! error {
+    ($($t:tt)*) => (
+        Err(TypeCheckingError::Other(format!($($t)*)))
+    )
+}
 
 fn invalid_in_context<T>(message: impl Into<String>, ty: &Type) -> TypeCheckingResult<T> {
     return Err(TypeCheckingError::InvalidInContext(message.into(), ty.clone()));
@@ -52,7 +112,7 @@ fn ensure(msg: &str, expected: Type, got: Type) -> TypeCheckingResult<Type> {
 /// but they are trivial to calculate.
 pub fn type_check(p: &mut Program) -> TypeCheckingResult<()> {
     // Top-level type environment, including checks for duplicate identifiers.
-    let mut env: Env = HashMap::new();
+    let mut env: Env = Env::new();
     for (id, f) in p.functions.iter() {
         if env.insert(id.clone(), f.fn_type.clone().to_type()).is_some() {
             return Err(TypeCheckingError::MultiplyDefined(id.clone()));
@@ -110,9 +170,13 @@ fn type_check_stmt(
             let id = &var_stmt.id;
 
             // ??? MMG what do we want here? i assume we don't actually want to allow strong update...
-            if id.clone().into_name().starts_with("_") {
-                Ok(env)
-            } else if lookup(&env, id).is_ok() {
+            if let Id::Named(name) = id {
+                if name.starts_with("_") {
+                    return Ok(env);
+                }
+            }
+            
+            if lookup(&env, id).is_ok() {
                 Err(TypeCheckingError::MultiplyDefined(id.clone()))
             } else {
                 Ok(env.update(id.clone(), ty.clone()))
@@ -228,6 +292,30 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             let _ = ensure("tostring", Type::StrRef, got);
             Ok(Type::String)
         }
+        Expr::PrimCall(prim, args) => {
+            match env.get_prim(prim).ok_or_else(|| error(format!("invalid primitive ({})", prim)))? {
+                Type::Fn(fn_ty) => {
+                    let arg_tys = args.into_iter().map(|a| type_check_atom(env, a)).collect::<Result<Vec<_>, _>>()?;
+                    if arg_tys.len() != fn_ty.args.len() {
+                        error!("primitive {} expected {} arguments, but received {}", prim,
+                            fn_ty.args.len(), arg_tys.len())
+                    }
+                    else if arg_tys.iter().zip(fn_ty.args.iter()).any(|(t1, t2)| t1 != t2) {
+                        error!("primitive {} applied to wrong argument type", prim)
+                    }
+                    else {
+                        // ??? MMG do we need a void/unit type?
+                        Ok(match &fn_ty.result {
+                            None => Type::Any,
+                            Some(t) => *t.clone()
+                        })
+                    }
+                }
+                _ => {
+                    error!("primitive is not a function ({})", prim)
+                }
+            }
+        },
         Expr::Call(id_f, actuals) => {
             let got_f = lookup(env, id_f)?;
             if let Type::Fn(fn_ty) = got_f {
