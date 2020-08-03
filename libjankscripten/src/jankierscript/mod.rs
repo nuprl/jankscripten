@@ -2,5 +2,8 @@
 mod syntax;
 // pub mod constructors;
 // pub mod inference;
-pub mod coercion_insertion;
-pub mod from_javascript;
+mod coercion_insertion;
+mod from_javascript;
+
+pub use from_javascript::*;
+pub use coercion_insertion::*;

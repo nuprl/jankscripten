@@ -3,54 +3,53 @@ use crate::shared::types::Type;
 use crate::shared::coercions::*;
 use crate::jankyscript::constructors as Janky_;
 use crate::jankyscript::syntax as Janky;
-
 use super::super::notwasm::syntax::BinaryOp;
 use im_rc::HashMap;
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum TypingError {
+    #[error("{0}")]
     Wrong(String)
 }
 
-pub type TypingResult<T> = Result<T, TypingError>;
+type CoercionResult<T> = Result<T, TypingError>;
 
-pub type Env = HashMap<String, Type>;
+type Env = HashMap<String, Type>;
 
-pub struct Typing {
+#[derive(Default)]
+struct InsertCoercions {
 
 }
 
-impl Typing {
-    fn insert_coercions(&self, stmt: Stmt) -> TypingResult<Janky::Stmt> {
-        self.insert_coercions_stmt(stmt, HashMap::new())
-    }
+impl InsertCoercions {
     
-    fn insert_coercions_stmt(&self, stmt: Stmt, env: Env) -> TypingResult<Janky::Stmt> {
+    fn stmt(&self, stmt: Stmt, env: Env) -> CoercionResult<Janky::Stmt> {
         match stmt {
             Stmt::Var(x, t, e) => {
                 match t {
                     Some(Type::Any) => {
-                        let (e, t) = self.insert_coercions_expr(*e, env)?;
+                        let (e, t) = self.expr_and_type(*e, env)?;
                         Ok(Janky_::var_(x, t, e))
                     },
                     _ => unimplemented!()
                 }
             },
-            Stmt::Block(stmts) => self.insert_coercions_stmts(stmts, env),
+            Stmt::Block(stmts) => self.stmts(stmts, env),
             Stmt::If(c, t, e) => {
                 // coerce the conditional expression into type Bool
-                let c = self.coerce_expr(*c, Type::Bool, env.clone())?;
+                let c = self.expr(*c, Type::Bool, env.clone())?;
 
                 // coerce the two branches and put it all together
                 Ok(Janky_::if_(c,
-                    self.insert_coercions_stmt(*t, env.clone())?,
-                    self.insert_coercions_stmt(*e, env.clone())?
+                    self.stmt(*t, env.clone())?,
+                    self.stmt(*e, env.clone())?
                 ))
             }
             Stmt::While(cond, body) => {
                 // coerce the loop conditional into type Bool
-                let cond = self.coerce_expr(*cond, Type::Bool, env.clone())?;
-                let body = self.insert_coercions_stmt(*body, env.clone())?;
+                let cond = self.expr(*cond, Type::Bool, env.clone())?;
+                let body = self.stmt(*body, env.clone())?;
                 Ok(Janky_::while_(cond, body))
             }
             Stmt::Empty => Ok(Janky_::empty_()),
@@ -58,23 +57,23 @@ impl Typing {
         }
     }
 
-    fn insert_coercions_stmts(&self, stmts: Vec<Stmt>, env: Env) -> TypingResult<Janky::Stmt> {
+    fn stmts(&self, stmts: Vec<Stmt>, env: Env) -> CoercionResult<Janky::Stmt> {
         let mut ret = vec!();
         for stmt in stmts.into_iter() {
-            ret.push(self.insert_coercions_stmt(stmt, env.clone())?);
+            ret.push(self.stmt(stmt, env.clone())?);
         }
         Ok(Janky_::block_(ret))
     }
 
-    fn insert_coercions_expr(&self, expr: Expr, env: Env) -> TypingResult<(Janky::Expr, Type)> {
+    fn expr_and_type(&self, expr: Expr, env: Env) -> CoercionResult<(Janky::Expr, Type)> {
         match expr {
             Expr::Lit(l) => {
-                let (l, t) = self.insert_coercions_lit(l)?;
+                let (l, t) = self.lit(l)?;
                 Ok((Janky_::lit_(l), t))
             },
             Expr::Binary(op, e1, e2) => {
-                let (e1, t1) = self.insert_coercions_expr(*e1, env.clone())?;
-                let (e2, t2) = self.insert_coercions_expr(*e2, env.clone())?;
+                let (e1, t1) = self.expr_and_type(*e1, env.clone())?;
+                let (e2, t2) = self.expr_and_type(*e2, env.clone())?;
                 match (t1, t2) {
                     (Type::Float, Type::Float) => Ok((Janky_::binary_(BinaryOp::F64Add, e1, e2), Type::Float)),
                     (Type::Any, Type::Any) => {
@@ -86,7 +85,7 @@ impl Typing {
                 }
             },
             Expr::Call(f, args) => {
-                let (f, t) = self.insert_coercions_expr(*f, env)?;
+                let (f, t) = self.expr_and_type(*f, env)?;
                 unimplemented!()
             }
             _ => unimplemented!()
@@ -95,9 +94,9 @@ impl Typing {
 
     /// Inserts coercions into an expr AND ensures the expr will have the given 
     /// type.
-    fn coerce_expr(&self, e: Expr, desired_type: Type, env: Env) -> TypingResult<Janky::Expr> {
+    fn expr(&self, e: Expr, desired_type: Type, env: Env) -> CoercionResult<Janky::Expr> {
         // insert coercions into the expression
-        let (e, e_type) = self.insert_coercions_expr(e, env)?;
+        let (e, e_type) = self.expr_and_type(e, env)?;
 
         // if the expression is already the desired type, return that
         // if the conditional expression isn't the desired type, coerce it to
@@ -108,7 +107,7 @@ impl Typing {
         }
     }
 
-    fn insert_coercions_lit(&self, lit: Janky::Lit) -> TypingResult<(Janky::Lit, Type)> {
+    fn lit(&self, lit: Janky::Lit) -> CoercionResult<(Janky::Lit, Type)> {
         match lit {
             Janky::Lit::Num(n) => Ok((Janky_::num_(n), Type::Float)),
             _ => unimplemented!()
@@ -157,4 +156,10 @@ impl Typing {
         }
     }
 
+}
+
+pub fn insert_coercions(jankier_prog: Stmt) -> CoercionResult<Janky::Stmt> {
+    let coercions = InsertCoercions::default();
+    let janky_prog = coercions.stmt(jankier_prog, Env::default())?;
+    Ok(janky_prog)
 }

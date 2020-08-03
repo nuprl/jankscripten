@@ -74,7 +74,13 @@ fn compile(opts: Compile) {
             let input = read_file(input_path);
             compile_notwasm(&input, output_path.as_path());
         }
-        _ => {
+        "js" => {
+            let js_code = read_file(input_path);
+            let wasm_bin = libjankscripten::javascript_to_wasm(&js_code).expect("compile error");
+            let output_path = make_output_filename(&opts.output, input_path, "wasm");
+            fs::write(output_path, wasm_bin).expect("writing file");
+        }       
+         _ => {
             eprintln!("Unsupported extension: .{}", ext);
             process::exit(1);
         }
@@ -121,7 +127,7 @@ fn parse(opts: Parse) {
     let desugared_javascript = parsed_javascript;
 
     ///// JavaScript -> JankierScript
-    let jankyscript = libjankscripten::jankierscript::from_javascript::stmt(desugared_javascript);
+    let _jankyscript = libjankscripten::jankierscript::from_javascript(desugared_javascript);
 }
 
 fn main() {

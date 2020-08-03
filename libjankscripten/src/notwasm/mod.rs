@@ -23,3 +23,5 @@ pub use parser::parse;
 
 #[cfg(test)]
 mod test_wasm;
+
+pub use from_jankyscript::*;
