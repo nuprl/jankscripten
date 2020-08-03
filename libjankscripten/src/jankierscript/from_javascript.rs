@@ -40,7 +40,7 @@ fn expr(e: Js::Expr) -> Expr {
     }
 }
 
-pub fn stmt(s: Js::Stmt) -> Stmt {
+fn stmt(s: Js::Stmt) -> Stmt {
     use Js::{Stmt as Js};
     use Stmt::*;
     match s {
@@ -67,6 +67,10 @@ pub fn stmt(s: Js::Stmt) -> Stmt {
     }
 }
 
-pub fn vardecl(decl: Js::VarDecl) -> Stmt {
+fn vardecl(decl: Js::VarDecl) -> Stmt {
     Stmt::Var(decl.name, None, Box::new(expr(*decl.named)))
+}
+
+pub fn from_javascript(js_prog: Js::Stmt) -> Stmt {
+    stmt(js_prog)
 }
