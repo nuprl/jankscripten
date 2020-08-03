@@ -81,6 +81,10 @@ pub fn type_check(stmt: Stmt) -> TypeCheckingResult<()> {
 fn type_check_stmt(stmt: Stmt, env: Env, ret_ty: &Option<Type>) -> TypeCheckingResult<Env> {
     match stmt {
         Stmt::Empty => Ok(env),
+        Stmt::Expr(e) => {
+            type_check_expr(*e, env.clone())?;
+            Ok(env)
+        }
         Stmt::Finally(try_body, finally_body) => {
             // try_body should be well-typed
             type_check_stmt(*try_body, env.clone(), ret_ty)?;

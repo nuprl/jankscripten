@@ -53,6 +53,11 @@ impl InsertCoercions {
                 Ok(Janky_::while_(cond, body))
             }
             Stmt::Empty => Ok(Janky_::empty_()),
+            Stmt::Expr(e) => {
+                // One of the few cases where the type does not matter
+                let (janky_e, _) = self.expr_and_type(*e, env.clone())?;
+                Ok(Janky::Stmt::Expr(Box::new(janky_e)))
+            }
             _ => unimplemented!()
         }
     }

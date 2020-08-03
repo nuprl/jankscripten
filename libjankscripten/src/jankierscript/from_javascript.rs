@@ -46,7 +46,7 @@ fn stmt(s: Js::Stmt) -> Stmt {
     match s {
         Js::Block(stmts) => Block(stmts.into_iter().map(|s| stmt(s)).collect()),
         Js::Empty => Empty,
-        Js::Expr(e) => panic!(),
+        Js::Expr(e) => Expr(Box::new(expr(*e))),
         Js::If(c, t, e) => If(Box::new(expr(*c)), Box::new(stmt(*t)), Box::new(stmt(*e))),
         Js::ForIn(_, _, _, _) => todo!(),
         Js::Label(x, s) => Label(x, Box::new(stmt(*s))),
