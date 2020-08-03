@@ -1,7 +1,6 @@
 use super::syntax::*;
 use crate::shared::coercions::Coercion;
 use crate::shared::types::Type;
-use crate::shared::ops::*;
 
 // Lit
 
@@ -15,7 +14,7 @@ pub fn lit_(l: Lit) -> Expr {
     Expr::Lit(l)
 }
 
-pub fn binary_(op: BinOp, e1: Expr, e2: Expr) -> Expr {
+pub fn binary_(op: super::super::notwasm::syntax::BinaryOp, e1: Expr, e2: Expr) -> Expr {
     Expr::Binary(op, Box::new(e1), Box::new(e2))
 }
 
