@@ -293,6 +293,13 @@ fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
                 .collect(),
         )),
         S::Empty => Rope::singleton(Stmt::Empty),
+        S::Expr(e) => compile_expr(
+            s,
+            *e,
+            // We could use a C::e context. However, the C::a context will make generated code
+            // easier to understand in trivial examples. A C::e context would discard useless
+            // binary operations.
+            C::a(|_s, _a_notwasm| Rope::Nil)),
         S::Assign(lv, e) => todo!(),
         S::If(cond, then_branch, else_branch) => todo!(),
         S::While(cond, body) => todo!(),

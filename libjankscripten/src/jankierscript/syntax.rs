@@ -34,6 +34,7 @@ pub enum Expr {
 pub enum Stmt {
     Var(Id, Option<Type>, Box<Expr>),
     Block(Vec<Stmt>),
+    Expr(Box<Expr>),
     Empty,
     If(Box<Expr>, Box<Stmt>, Box<Stmt>),
     While(Box<Expr>, Box<Stmt>),
