@@ -26,7 +26,7 @@ To compile `filename.ext` to WebAssembly:
 ./bin/jankscripten compile filename.ext
 ```
 
-*NOTE:* The CLI tool only supports NotWasm files at the moment.
+*NOTE:* The supported extensions are .js and .notwasm.
 
 To run a compiled WebAssembly program with the jankscripten runtime:
 
