@@ -178,6 +178,7 @@ pub enum Expr {
     Push(Atom, Atom),
     HTSet(Atom, Atom, Atom),
     Call(Id, Vec<Id>),
+    PrimCall(String, Vec<Atom>),
     ObjectEmpty,
     /// ObjectSet(obj, field_name, value, typ) is obj.field_name: typ = value;
     ObjectSet(Atom, Atom, Atom),

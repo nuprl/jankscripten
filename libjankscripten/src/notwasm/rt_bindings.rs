@@ -38,6 +38,7 @@ pub fn get_rt_bindings() -> BindMap {
     insert(m, "set_any_in_current_shadow_frame_slot", vec![Any, I32], None);
     insert(m, "any_to_f64", vec![Any], F64);
     insert(m, "f64_to_any", vec![F64], Any);
+    insert(m, "log_any", vec![Any], Any);
     map
 }
 

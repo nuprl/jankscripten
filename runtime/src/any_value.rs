@@ -25,6 +25,21 @@ pub enum AnyEnum<'a> {
     Fn(u32),
 }
 
+impl std::fmt::Display for AnyEnum<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use AnyEnum::*;
+        match self {
+            I32(n) => write!(f, "I32({})", n),
+            F64(ptr) => write!(f, "F64({})", unsafe { ptr.read() }),
+            Bool(b) => write!(f, "Bool({})", b),
+            Ptr(_) => write!(f, "Ptr(..)"),
+            StrPtr(_) => write!(f, "StrPtr(..)"),
+            Fn(n) => write!(f, "Fn({})", n)
+        }
+    }
+}
+
+
 #[repr(transparent)]
 #[derive(Clone, Copy)]
 pub struct AnyValue<'a> {

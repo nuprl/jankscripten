@@ -27,6 +27,7 @@ pub enum Expr {
     Unary(super::super::notwasm::syntax::UnaryOp, Box<Expr>),
     Binary(super::super::notwasm::syntax::BinaryOp, Box<Expr>, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
+    PrimCall(String, Vec<Expr>),
     New(Type, Box<Expr>, Vec<Expr>),
     Func(Type, Vec<(Id, Type)>, Box<Stmt>),
     Coercion(Coercion, Box<Expr>)
