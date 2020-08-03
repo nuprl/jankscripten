@@ -2,7 +2,6 @@
 
 pub use crate::shared::coercions::Coercion;
 pub use crate::shared::types::Type;
-pub use crate::shared::ops::*;
 
 pub type Id = super::super::javascript::Id;
 pub type Lit = super::super::javascript::Lit;
@@ -25,8 +24,8 @@ pub enum Expr {
     Id(Id),
     Dot(Box<Expr>, Id),
     Bracket(Box<Expr>, Box<Expr>),
-    Unary(UnaryOp, Box<Expr>),
-    Binary(BinOp, Box<Expr>, Box<Expr>),
+    Unary(super::super::notwasm::syntax::UnaryOp, Box<Expr>),
+    Binary(super::super::notwasm::syntax::BinaryOp, Box<Expr>, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
     New(Type, Box<Expr>, Vec<Expr>),
     Func(Type, Vec<(Id, Type)>, Box<Stmt>),

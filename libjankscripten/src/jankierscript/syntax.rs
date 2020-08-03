@@ -3,7 +3,6 @@
 //! The JavaScript AST goes through several stages of desugaring before we
 //! produce a program in this language.
 use crate::shared::types::Type;
-use crate::shared::ops::*;
 
 pub type Id = super::super::javascript::Id;
 
