@@ -98,7 +98,7 @@ pub struct AnyPtr<'a> {
 
 /// We can safely turn an `AnyPtr` into a more specific type of pointer using
 /// the `view` method, which produces a `HeapRefView`.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum HeapRefView<'a> {
     I32(I32Ptr<'a>),
     F64(F64Ptr<'a>),
