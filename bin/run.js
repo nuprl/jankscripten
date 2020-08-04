@@ -64,5 +64,7 @@ main(process.argv[2])
         process.exit(1);
     })
     .then(result => {
-        console.error(result);
+        if (typeof result !== "undefined") {
+            console.log(result);
+        }
     });

@@ -447,7 +447,7 @@ mod test {
                 vec![Expr::Id("res".into())],
             )),
         ]);
-        expect_notwasm(true, from_jankyscript(program));
+        expect_notwasm("Bool(true)".to_string(), from_jankyscript(program));
     }
     #[test]
     fn test_obj() {
@@ -470,7 +470,7 @@ mod test {
                 vec![Expr::Id("res".into())],
             )),
         ]);
-        expect_notwasm(true, from_jankyscript(program));
+        expect_notwasm("Bool(true)".to_string(), from_jankyscript(program));
     }
     #[test]
     fn unary_and_assign() {
@@ -489,6 +489,6 @@ mod test {
                 vec![coercion_(Coercion::Tag(Type::Float), Expr::Id("a".into()))],
             )),
         ]);
-        expect_notwasm(5., from_jankyscript(program));
+        expect_notwasm("F64(5)".to_string(), from_jankyscript(program));
     }
 }
