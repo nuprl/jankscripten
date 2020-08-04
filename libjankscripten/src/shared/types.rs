@@ -7,8 +7,7 @@ pub enum Type {
     Float,
     Int,
     Bool,
-    Function(Vec<Type>, Box<Type>)
-    // TODO: others
+    Function(Vec<Type>, Box<Type>), // TODO: others
 }
 
 impl Type {
@@ -25,11 +24,11 @@ impl Type {
                             }
                         }
                         return true;
-                    },
-                    _ => false
+                    }
+                    _ => false,
                 }
-            },
-            _ => true
+            }
+            _ => true,
         }
     }
 

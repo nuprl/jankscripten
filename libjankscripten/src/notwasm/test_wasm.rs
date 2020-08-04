@@ -76,7 +76,10 @@ where
     assert_eq!(
         expected,
         // exclude trailing newline
-        result.trim_end().parse::<T>().expect(&format!("number expected, got {}", &stderr)),
+        result
+            .trim_end()
+            .parse::<T>()
+            .expect(&format!("number expected, got {}", &stderr)),
     );
 }
 
@@ -246,7 +249,7 @@ fn basic_ref() {
             var r = newRef(150);
             return *r;
         }
-        "#
+        "#,
     );
 
     test_wasm(150, program);
@@ -261,7 +264,7 @@ fn basic_ref_mutation() {
             *r = 130;
             return *r;
         }
-        "#
+        "#,
     );
 
     test_wasm(130, program);
@@ -283,7 +286,7 @@ fn ref_doesnt_mutate_variables() {
             // return original variable, which should be unchanged
             return x;
         }
-        "#
+        "#,
     );
 
     test_wasm(100, program);
@@ -479,6 +482,7 @@ fn gc_float_in_any() {
             }
             return 5;
         }
-        "#);
-    test_wasm(5, program);            
+        "#,
+    );
+    test_wasm(5, program);
 }

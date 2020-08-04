@@ -3,7 +3,7 @@
 use crate::heap;
 use crate::heap_types::*;
 use crate::string::StrPtr;
-use crate::{AnyValue};
+use crate::AnyValue;
 
 #[no_mangle]
 pub extern "C" fn object_empty<'a>() -> ObjectPtr<'a> {
