@@ -31,7 +31,7 @@ const imports = {
                 len += 1;
             }
             view = new Uint8Array(memory.buffer, startOffset, len);
-            console.error((new TextDecoder()).decode(view));
+            console.log((new TextDecoder()).decode(view));
         }
     },
 };
@@ -64,5 +64,5 @@ main(process.argv[2])
         process.exit(1);
     })
     .then(result => {
-        console.log(result);
+        console.error(result);
     });

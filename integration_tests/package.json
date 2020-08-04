@@ -1,0 +1,14 @@
+{
+  "name": "integration_tests",
+  "version": "1.0.0",
+  "description": "End-to-end, integration tests for jankscripten",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "npx jest"
+  },
+  "author": "",
+  "license": "BSD-3-Clause",
+  "dependencies": {
+    "jest": "^26.2.2"
+  }
+}

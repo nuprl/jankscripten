@@ -1,4 +1,4 @@
-name: Rust
+name: Build and test
 
 on:
   push:
@@ -15,5 +15,11 @@ jobs:
     - uses: actions/checkout@v2
     - name: Build
       run: cargo build --verbose
-    - name: Run tests
+    - name: Build integration testing tool
+      working-directory: integration_tests
+      run: npm install
+    - name: Run unit tests
       run: cargo test --verbose -- --test-threads=1
+    - name: Run integration tests
+      run: npm run-script test
+      working-directory: integration_tests
