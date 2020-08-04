@@ -9,8 +9,8 @@ mod translation;
 mod walk;
 
 mod elim_gotos;
-mod label_apps;
 mod from_jankyscript;
+mod label_apps;
 
 use intern::intern;
 use translation::translate;
@@ -22,6 +22,6 @@ pub use compile::compile;
 pub use parser::parse;
 
 #[cfg(test)]
-mod test_wasm;
+pub mod test_wasm;
 
 pub use from_jankyscript::*;
