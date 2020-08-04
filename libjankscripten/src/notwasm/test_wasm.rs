@@ -57,6 +57,7 @@ where
         // avoids needing tmp file which is test threading mess
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
         .expect("failed to run tester binary");
     // https://doc.rust-lang.org/std/process/struct.Stdio.html
@@ -68,14 +69,14 @@ where
             .expect("couldn't write");
     }
     let out = run.wait_with_output().expect("no stdout");
-    // print stderr for debugging
-    println!("{}", String::from_utf8_lossy(&out.stderr));
-    let out_str = String::from_utf8_lossy(&out.stdout);
-    println!("{}", out_str);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    println!("Standard out:{}\n\nStandard error:{}", stdout, stderr);
+    let result = stderr.lines().last().expect("no lines of output");
     assert_eq!(
         expected,
         // exclude trailing newline
-        out_str.trim_end().parse::<T>().expect(&format!("number expected, got {}", &out_str)),
+        result.trim_end().parse::<T>().expect(&format!("number expected, got {}", &stderr)),
     );
 }
 
