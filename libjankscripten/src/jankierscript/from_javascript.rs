@@ -15,28 +15,31 @@ fn lvalue(lval: Js::LValue) -> LValue {
 }
 
 fn expr(e: Js::Expr) -> Expr {
-    use Js::{Expr as Js};
+    use Js::{BinOp, Expr as E};
     use Expr::*;
     match e {
-        Js::Lit(lit) => Lit(lit),
-        Js::Array(es) => Array(es.into_iter().map(|e| expr(e)).collect()),
-        Js::Object(kvs) => Object(kvs.into_iter().map(|(k, e)| (k, expr(e))).collect()),
-        Js::This => This,
-        Js::Id(id) => Id(id),
-        Js::Dot(e, x) => Dot(Box::new(expr(*e)), x),
-        Js::Bracket(e1, e2) => Bracket(Box::new(expr(*e1)), Box::new(expr(*e2))),
+        E::Lit(lit) => Lit(lit),
+        E::Array(es) => Array(es.into_iter().map(|e| expr(e)).collect()),
+        E::Object(kvs) => Object(kvs.into_iter().map(|(k, e)| (k, expr(e))).collect()),
+        E::This => This,
+        E::Id(id) => Id(id),
+        E::Dot(e, x) => Dot(Box::new(expr(*e)), x),
+        E::Bracket(e1, e2) => Bracket(Box::new(expr(*e1)), Box::new(expr(*e2))),
         // We need to think about New
-        Js::New(_, _) => todo!(),
-        Js::Unary(op, e) => Unary(op, Box::new(expr(*e))),
-        Js::Binary(op, e1, e2) => Binary(op, Box::new(expr(*e1)), Box::new(expr(*e2))),
-        Js::UnaryAssign(_, _) => panic!(),
-        Js::If(_, _, _) => panic!(),
-        Js::Assign(_, lval, e) => Assign(Box::new(lvalue(*lval)), Box::new(expr(*e))),
-        Js::Call(e, es) => Call(Box::new(expr(*e)),
+        E::New(_, _) => todo!(),
+        E::Unary(op, e) => Unary(op, Box::new(expr(*e))),
+        E::Binary(BinOp::BinaryOp(op), e1, e2) =>
+            Binary(op, Box::new(expr(*e1)), Box::new(expr(*e2))),
+        E::Binary(BinOp::LogicalOp(_), _, _) =>
+            panic!("all logical operators should be desugared"),
+        E::UnaryAssign(_, _) => panic!(),
+        E::If(_, _, _) => panic!(),
+        E::Assign(_, lval, e) => Assign(Box::new(lvalue(*lval)), Box::new(expr(*e))),
+        E::Call(e, es) => Call(Box::new(expr(*e)),
             es.into_iter().map(|e| expr(e)).collect()),
-        Js::Func(_, args, body) =>
+        E::Func(_, args, body) =>
             Func(None, args.into_iter().map(|x| (x, None)).collect(), Box::new(stmt(*body))),
-        Js::Seq(_) => panic!(),    
+        E::Seq(_) => panic!(),    
     }
 }
 

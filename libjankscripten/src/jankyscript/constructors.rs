@@ -19,7 +19,10 @@ pub fn binary_(op: super::super::notwasm::syntax::BinaryOp, e1: Expr, e2: Expr) 
 }
 
 pub fn coercion_(c: Coercion, e: Expr) -> Expr {
-    Expr::Coercion(c, Box::new(e))
+    match c {
+        Coercion::Id(_) => e,
+        _ => Expr::Coercion(c, Box::new(e))
+    }
 }
 
 // Statements

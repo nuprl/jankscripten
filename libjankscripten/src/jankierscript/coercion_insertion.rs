@@ -59,6 +59,35 @@ struct InsertCoercions {
 
 }
 
+enum Overload {
+    Prim(BinaryOp),
+    RTS(String)
+}
+
+// Given a JavaScript binary operator and the types of its operands, returns
+// either (1) a Wasm operator and its type, and (2) a function in the runtime
+// system and its type.
+fn binop_overload(op: &BinOp,
+        lhs_ty: &Type,
+        rhs_ty: &Type)
+    -> (Overload, Type, Type, Type) {
+    match (op, lhs_ty, rhs_ty) {
+        // TODO(arjun): This is not accurate. Adding two 32-bit integers in JS
+        // can produce a float.
+        (BinOp::Plus, Type::Int, Type::Int) => 
+            (Overload::Prim(BinaryOp::I32Add), Type::Int, Type::Int, Type::Int),
+        (BinOp::Plus, Type::Float, Type::Float) => 
+            (Overload::Prim(BinaryOp::F64Add), Type::Float, Type::Float, Type::Float),
+        (BinOp::Plus, Type::Float, Type::Int) =>
+            (Overload::Prim(BinaryOp::F64Add), Type::Float, Type::Float, Type::Float),
+        (BinOp::Plus, Type::Int, Type::Float) =>
+            (Overload::Prim(BinaryOp::F64Add), Type::Float, Type::Float, Type::Float),
+        (BinOp::Plus, Type::Int, Type::Float) =>
+            (Overload::RTS("janky_plus".to_string()), Type::Any, Type::Any, Type::Any),
+        _ => todo!("other binary operators"),
+    }
+}
+
 impl InsertCoercions {
     
     fn stmt(&self, stmt: Stmt, env: Env) -> CoercionResult<Janky::Stmt> {
@@ -116,15 +145,16 @@ impl InsertCoercions {
             Expr::Binary(op, e1, e2) => {
                 let (e1, t1) = self.expr_and_type(*e1, env.clone())?;
                 let (e2, t2) = self.expr_and_type(*e2, env.clone())?;
-                match (t1, t2) {
-                    (Type::Float, Type::Float) => Ok((Janky_::binary_(BinaryOp::F64Add, e1, e2), Type::Float)),
-                    (Type::Any, Type::Any) => {
-                        let e1 = Janky_::coercion_(self.coerce(Type::Any, Type::Float), e1);
-                        let e2 = Janky_::coercion_(self.coerce(Type::Any, Type::Float), e2);
-                        todo!("any addition")
-                    },
-                    _ => unimplemented!()
-                }
+                let (overload, expected_t1, expected_t2, result_ty) = binop_overload(&op, &t1, &t2);
+                let coerced_e1 = Janky_::coercion_(self.coerce(expected_t1, t1), e1);
+                let coerced_e2 = Janky_::coercion_(self.coerce(expected_t2, t2), e2);
+                let coerced_expr = match overload {
+                    Overload::Prim(op) =>
+                        Janky_::binary_(op, coerced_e1, coerced_e2),
+                    Overload::RTS(name) =>
+                        Janky::Expr::PrimCall(name, vec![ coerced_e1, coerced_e2 ])
+                };
+                Ok((coerced_expr, result_ty))
             },
             Expr::Call(f, args) => {
                 // Special case for a primitive function call. JavaScript, and thus JankierScript
