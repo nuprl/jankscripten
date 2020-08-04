@@ -4,11 +4,13 @@ pub fn desugar(stmt: &mut Stmt, ng: &mut NameGen) {
     stmt.walk(&mut super::desugar_function_stmts::DesugarFunctionStmts { });
     desugar_switch::desugar_switch(stmt, ng);
     // rdep: do..while uses ||
-    // dep: desugar_loops needs to come after desugar_switch 
+    // dep: desugar_loops needs to come after desugar_switch
     desugar_loops::desugar_loops(stmt, ng);
     // dep: desugar_logical needs loop conds to be simple
     desugar_logical::desugar_logical(stmt, ng);
     desugar_function_applications::desugar_function_applications(stmt, ng);
+    //dep: desugar_vardecls needs desugar_loops to be simple
+    desugar_vardecls::desugar_vardecls(stmt, ng); 
     //dep: desugar_updates needs desugar_function_applications to work properly
     desugar_updates::desugar_updates(stmt, ng);
 }
@@ -469,6 +471,33 @@ mod test {
                 break;
             }
             r;"
+        );
+    }
+
+    #[test]
+    fn desugar_vardecls_simple() {
+        okay("
+            var x = 1, y = 2;
+            y;
+        ");
+    }
+
+    #[test]
+    fn desugar_vardecls_dep() {
+        okay(
+            "var x = 1, y = x, z = 3, a = x + y + 4;
+            a;"
+        );
+    }
+
+    #[test]
+    fn desugar_vardecls_forloop() {
+        okay(
+            "var sum = 0;
+            for (var x = 1, y = x; x + y < 10; y++) {
+                sum +=  x+y;
+            }
+            sum;"
         );
     }
 }

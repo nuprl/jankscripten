@@ -9,6 +9,7 @@ mod desugar_switch;
 mod desugar_updates;
 mod desugar_function_applications;
 mod desugar_function_stmts;
+mod desugar_vardecls;
 pub mod name_gen;
 mod parser;
 pub mod syntax;
