@@ -9,7 +9,6 @@ pub enum BinOp {
     LogicalOp(resast::LogicalOp),
 }
 
-
 pub type UnaryOp = resast::UnaryOp;
 
 pub type AssignOp = resast::AssignOp;
