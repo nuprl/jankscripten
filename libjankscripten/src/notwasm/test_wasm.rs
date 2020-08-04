@@ -70,14 +70,13 @@ where
     let stderr = String::from_utf8_lossy(&out.stderr);
     let stdout = String::from_utf8_lossy(&out.stdout);
     println!("Standard out:{}\n\nStandard error:{}", stdout, stderr);
-    let result = stderr.lines().last().expect("no lines of output");
     assert_eq!(
         expected,
         // exclude trailing newline
-        result
+        stdout
             .trim_end()
             .parse::<T>()
-            .expect(&format!("number expected, got {}", &stderr)),
+            .expect(&format!("number expected, got {}", &stdout)),
     );
 }
 
