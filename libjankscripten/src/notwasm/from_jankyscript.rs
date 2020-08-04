@@ -94,6 +94,7 @@
 
 use super::super::jankyscript::syntax as J;
 use super::super::rope::Rope;
+use super::constructors::*;
 use super::syntax::*;
 use std::collections::HashMap;
 
@@ -210,33 +211,60 @@ fn compile_exprs<'a>(
 fn compile_ty(janky_typ: J::Type) -> Type {
     match janky_typ {
         J::Type::Any => Type::Any,
+        J::Type::Bool => Type::Bool,
         _ => todo!("compile_ty"),
     }
 }
 
-fn coercion_to_prim(c: J::Coercion) -> String {
+fn coercion_to_expr(c: J::Coercion, a: Atom) -> Atom {
     use J::Coercion::*;
-    use J::Type::*;
     match c {
-        Tag(Float) => "f64_to_any".to_string(),
-        _ => todo!("{:?}", c)
+        Tag(..) => to_any_(a),
+        Untag(ty) => from_any_(a, compile_ty(ty)),
+        Fun(..) => todo!(),
+        Id(..) => todo!(),
+        Seq(..) => todo!(),
     }
 }
 
 fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
     match expr {
         J::Expr::Lit(lit) => cxt.recv_a(s, Atom::Lit(compile_lit(lit))),
-        J::Expr::Array(_) => todo!("arrays need a variant of compile_exprs"),
+        J::Expr::Array(members) => compile_exprs(s, members, move |s, member_ids| {
+            let array_name = s.fresh();
+            let mut rv = Rope::singleton(Stmt::Var(VarStmt::new(array_name.clone(), Expr::Array)));
+            for member_id in member_ids {
+                rv = rv.append(Rope::singleton(Stmt::Expression(Expr::Push(
+                    Atom::Id(array_name.clone()),
+                    Atom::Id(member_id),
+                ))))
+            }
+            rv.append(cxt.recv_a(s, Atom::Id(array_name)))
+        }),
         J::Expr::Object(_) => todo!("should be easy"),
         J::Expr::This => todo!("we need to think more deeply about this"),
         J::Expr::Dot(_, _) => todo!("o.x"),
         J::Expr::Unary(_, _) => todo!("unary op"),
         J::Expr::New(_, _, _) => todo!("new -- need deep thought"),
-        J::Expr::Bracket(_, _) => todo!("arr[x]"),
+        // TODO(luna): i think JankyScript bracket supports like
+        // object/hashtable fetch by name, so we have to descriminate based
+        // on type or something(?)
+        J::Expr::Bracket(arr, index) => compile_expr(
+            s,
+            *arr,
+            C::a(move |s, arr| {
+                compile_expr(
+                    s,
+                    *index,
+                    C::a(move |s, index| cxt.recv_a(s, index_(arr, index))),
+                )
+            }),
+        ),
         J::Expr::Coercion(coercion, e) => compile_expr(
             s,
             *e,
-            C::a(move |s, a| cxt.recv_e(s, Expr::PrimCall(coercion_to_prim(coercion), vec![a])))),
+            C::a(move |s, a| cxt.recv_a(s, coercion_to_expr(coercion, a))),
+        ),
         J::Expr::Id(x) => cxt.recv_a(s, Atom::Id(x)),
         J::Expr::Func(ret_ty, args_tys, body) => {
             let (param_names, param_tys): (Vec<_>, Vec<_>) = args_tys.into_iter().unzip();
@@ -269,9 +297,13 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             }),
         ),
         J::Expr::PrimCall(prim_name, args) => compile_exprs(s, args, move |s, arg_ids| {
-            cxt.recv_e(s, Expr::PrimCall(
-                prim_name, 
-                arg_ids.into_iter().map(|x| Atom::Id(x)).collect()))
+            cxt.recv_e(
+                s,
+                Expr::PrimCall(
+                    prim_name,
+                    arg_ids.into_iter().map(|x| Atom::Id(x)).collect(),
+                ),
+            )
         }),
         J::Expr::Call(fun, args) => compile_expr(
             s,
@@ -315,7 +347,8 @@ fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
             // We could use a C::e context. However, the C::a context will make generated code
             // easier to understand in trivial examples. A C::e context would discard useless
             // binary operations.
-            C::a(|_s, _a_notwasm| Rope::Nil)),
+            C::a(|_s, _a_notwasm| Rope::Nil),
+        ),
         S::Assign(lv, e) => todo!(),
         S::If(cond, then_branch, else_branch) => todo!(),
         S::While(cond, body) => todo!(),
@@ -350,5 +383,36 @@ pub fn from_jankyscript(janky_program: J::Stmt) -> Program {
         functions: state.functions,
         globals: HashMap::new(),
         data: Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::super::test_wasm::expect_notwasm;
+    use super::from_jankyscript;
+    use crate::jankyscript::constructors::*;
+    use crate::jankyscript::syntax::*;
+    fn any_bool(b: bool) -> Expr {
+        coercion_(Coercion::Tag(Type::Bool), lit_(Lit::Bool(b)))
+    }
+    #[test]
+    fn test_array() {
+        let program = Stmt::Block(vec![
+            var_(
+                "arr".into(),
+                Type::Array,
+                Expr::Array(vec![any_bool(false), any_bool(true)]),
+            ),
+            var_(
+                "res".into(),
+                Type::Any,
+                bracket_(Expr::Id("arr".into()), lit_(Lit::Num(Num::Int(1)))),
+            ),
+            expr_(Expr::PrimCall(
+                "log_any".into(),
+                vec![Expr::Id("res".into())],
+            )),
+        ]);
+        expect_notwasm(true, from_jankyscript(program));
     }
 }
