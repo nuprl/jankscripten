@@ -5,6 +5,7 @@
 pub enum Type {
     Any,
     Float,
+    Int,
     Bool,
     Function(Vec<Type>, Box<Type>)
     // TODO: others
