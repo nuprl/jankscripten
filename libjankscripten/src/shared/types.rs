@@ -9,6 +9,7 @@ pub enum Type {
     Bool,
     Function(Vec<Type>, Box<Type>),
     Array,
+    DynObject,
     // TODO: others
 }
 
