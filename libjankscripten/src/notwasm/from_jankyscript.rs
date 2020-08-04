@@ -241,10 +241,36 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             }
             rv.append(cxt.recv_a(s, Atom::Id(array_name)))
         }),
-        J::Expr::Object(_) => todo!("should be easy"),
+        J::Expr::Object(keys_exprs) => {
+            let (keys, exprs): (Vec<_>, Vec<_>) = keys_exprs.into_iter().unzip();
+            compile_exprs(s, exprs, move |s, ids| {
+                // TODO: semi-static classes when objects are defined like this
+                let obj_name = s.fresh();
+                let mut rv =
+                    Rope::singleton(Stmt::Var(VarStmt::new(obj_name.clone(), Expr::ObjectEmpty)));
+                for (key, id) in keys.into_iter().zip(ids) {
+                    let key_str = match key {
+                        J::Key::Str(s) => s,
+                        J::Key::Int(_) => todo!(),
+                    };
+                    rv = rv.append(Rope::singleton(Stmt::Expression(Expr::ObjectSet(
+                        Atom::Id(obj_name.clone()),
+                        str_(key_str),
+                        Atom::Id(id),
+                    ))))
+                }
+                rv.append(cxt.recv_a(s, Atom::Id(obj_name)))
+            })
+        }
         J::Expr::This => todo!("we need to think more deeply about this"),
-        J::Expr::Dot(_, _) => todo!("o.x"),
-        J::Expr::Unary(_, _) => todo!("unary op"),
+        J::Expr::Dot(obj, field) => compile_expr(
+            s,
+            *obj,
+            C::a(move |s, obj| cxt.recv_a(s, object_get_(obj, str_(field.into_name())))),
+        ),
+        J::Expr::Unary(op, expr) => {
+            compile_expr(s, *expr, C::a(move |s, a| cxt.recv_a(s, unary_(op, a))))
+        }
         J::Expr::New(_, _, _) => todo!("new -- need deep thought"),
         // TODO(luna): i think JankyScript bracket supports like
         // object/hashtable fetch by name, so we have to descriminate based
@@ -349,7 +375,15 @@ fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
             // binary operations.
             C::a(|_s, _a_notwasm| Rope::Nil),
         ),
-        S::Assign(lv, e) => todo!(),
+        S::Assign(lv, e) => compile_expr(
+            s,
+            *e,
+            C::e(|_s, e| match *lv {
+                J::LValue::Id(id) => Rope::singleton(Stmt::Assign(id, e)),
+                J::LValue::Dot(..) => todo!(),
+                J::LValue::Bracket(..) => todo!(),
+            }),
+        ),
         S::If(cond, then_branch, else_branch) => todo!(),
         S::While(cond, body) => todo!(),
         S::Label(x, body) => todo!(),
@@ -414,5 +448,47 @@ mod test {
             )),
         ]);
         expect_notwasm(true, from_jankyscript(program));
+    }
+    #[test]
+    fn test_obj() {
+        let program = Stmt::Block(vec![
+            var_(
+                "obj".into(),
+                Type::DynObject,
+                Expr::Object(vec![
+                    (Key::Str("false_".into()), any_bool(false)),
+                    (Key::Str("true_".into()), any_bool(true)),
+                ]),
+            ),
+            var_(
+                "res".into(),
+                Type::Any,
+                dot_(Expr::Id("obj".into()), "true_"),
+            ),
+            expr_(Expr::PrimCall(
+                "log_any".into(),
+                vec![Expr::Id("res".into())],
+            )),
+        ]);
+        expect_notwasm(true, from_jankyscript(program));
+    }
+    #[test]
+    fn unary_and_assign() {
+        let program = Stmt::Block(vec![
+            var_(
+                "a".into(),
+                Type::Float,
+                Expr::Lit(Lit::Num(Num::Float(25.))),
+            ),
+            assign_var_(
+                "a".into(),
+                unary_(crate::notwasm::syntax::UnaryOp::Sqrt, Expr::Id("a".into())),
+            ),
+            expr_(Expr::PrimCall(
+                "log_any".into(),
+                vec![coercion_(Coercion::Tag(Type::Float), Expr::Id("a".into()))],
+            )),
+        ]);
+        expect_notwasm(5., from_jankyscript(program));
     }
 }
