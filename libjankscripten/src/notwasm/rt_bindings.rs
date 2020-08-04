@@ -48,10 +48,7 @@ pub fn get_rt_bindings() -> BindMap {
 }
 
 fn insert_mono<'a, X, I>(
-    map: &mut BindMap,
-    name: &str,
-    params_tys: Vec<&dyn core::ops::Fn(Type) -> Type>,
-    ret_ty: I,
+    map: &mut BindMap, name: &str, params_tys: Vec<&dyn core::ops::Fn(Type) -> Type>, ret_ty: I,
     provided_tys: Vec<Type>,
 ) where
     X: core::ops::Fn(Type) -> Type + 'a,

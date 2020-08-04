@@ -28,9 +28,7 @@ struct Opts {
 }
 
 fn make_output_filename(
-    opt_output: &Option<String>,
-    input_path: &Path,
-    default_extension: &str,
+    opt_output: &Option<String>, input_path: &Path, default_extension: &str,
 ) -> PathBuf {
     match opt_output {
         Some(name) => PathBuf::from(name),

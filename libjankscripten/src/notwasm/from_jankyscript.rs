@@ -188,9 +188,7 @@ impl<'a> C<'a> {
 
 /// Compile a vector of expressions, name them, and send their names (in a vector) to a context.
 fn compile_exprs<'a>(
-    s: &'a mut S,
-    exprs: Vec<J::Expr>,
-    cxt: impl FnOnce(&'a mut S, Vec<Id>) -> Rope<Stmt>,
+    s: &'a mut S, exprs: Vec<J::Expr>, cxt: impl FnOnce(&'a mut S, Vec<Id>) -> Rope<Stmt>,
 ) -> Rope<Stmt> {
     let mut ids = Vec::<Id>::new();
     let mut stmts = Rope::new();

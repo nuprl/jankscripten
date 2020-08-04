@@ -150,11 +150,7 @@ impl<'a> ObjectPtr<'a> {
     /// have to have a double-pointer situation
     /// (ObjectPtr -> ArrayPtr -> [u8; n])
     pub fn insert(
-        &mut self,
-        heap: &'a Heap,
-        name: StrPtr,
-        value: AnyValue<'a>,
-        cache: &mut isize,
+        &mut self, heap: &'a Heap, name: StrPtr, value: AnyValue<'a>, cache: &mut isize,
     ) -> AnyValue {
         let data = &mut **self;
         let new = data.insert(heap, name, value, cache);

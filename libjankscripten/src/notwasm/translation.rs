@@ -147,12 +147,8 @@ pub fn translate_parity(mut program: N::Program) -> Module {
 }
 
 fn translate_func(
-    func: &mut N::Function,
-    id_env: &IdEnv,
-    rt_indexes: &HashMap<String, u32>,
-    type_indexes: &FuncTypeMap,
-    name: &N::Id,
-    data: &mut Vec<u8>,
+    func: &mut N::Function, id_env: &IdEnv, rt_indexes: &HashMap<String, u32>,
+    type_indexes: &FuncTypeMap, name: &N::Id, data: &mut Vec<u8>,
 ) -> FunctionDefinition {
     let mut translator = Translate::new(rt_indexes, type_indexes, id_env, data);
 
@@ -251,9 +247,7 @@ enum IdIndex {
 
 impl<'a> Translate<'a> {
     fn new(
-        rt_indexes: &'a HashMap<String, u32>,
-        type_indexes: &'a FuncTypeMap,
-        id_env: &IdEnv,
+        rt_indexes: &'a HashMap<String, u32>, type_indexes: &'a FuncTypeMap, id_env: &IdEnv,
         data: &'a mut Vec<u8>,
     ) -> Self {
         Self {
