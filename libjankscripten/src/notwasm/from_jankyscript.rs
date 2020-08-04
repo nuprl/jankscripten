@@ -260,10 +260,9 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                     s,
                     *e2,
                     C::a(|s, a2| {
-                        // TODO(arjun): compile binops correctly
                         cxt.recv_a(
                             s,
-                            Atom::Binary(BinaryOp::I32Add, Box::new(a1), Box::new(a2)),
+                            Atom::Binary(op, Box::new(a1), Box::new(a2)),
                         )
                     }),
                 )
