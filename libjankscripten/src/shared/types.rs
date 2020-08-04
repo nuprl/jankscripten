@@ -8,6 +8,7 @@ pub enum Type {
     Int,
     Bool,
     Function(Vec<Type>, Box<Type>),
+    String,
     Array,
     DynObject,
     // TODO: others
