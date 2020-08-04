@@ -8,9 +8,7 @@ on:
 
 jobs:
   build:
-
     runs-on: self-hosted
-
     steps:
     - uses: actions/checkout@v2
     - name: Build
@@ -18,8 +16,16 @@ jobs:
     - name: Build integration testing tool
       working-directory: integration_tests
       run: npm install
+  test:
+    needs: build
+    runs-on: self-hosted
     - name: Run unit tests
       run: cargo test --verbose -- --test-threads=1
     - name: Run integration tests
       run: npm run-script test
       working-directory: integration_tests
+  fmt:
+    needs: build
+    runs-on: self-hosted
+    - name: Check format
+    run: cargo fmt -- --check
