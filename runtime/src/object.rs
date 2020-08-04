@@ -3,7 +3,7 @@
 use crate::heap;
 use crate::heap_types::*;
 use crate::string::StrPtr;
-use crate::{AnyValue};
+use crate::AnyValue;
 
 #[no_mangle]
 pub extern "C" fn object_empty<'a>() -> ObjectPtr<'a> {
@@ -12,10 +12,7 @@ pub extern "C" fn object_empty<'a>() -> ObjectPtr<'a> {
 
 #[no_mangle]
 pub extern "C" fn object_set<'a>(
-    mut object: ObjectPtr<'a>,
-    field: StrPtr,
-    value: AnyValue<'a>,
-    cache: &mut isize,
+    mut object: ObjectPtr<'a>, field: StrPtr, value: AnyValue<'a>, cache: &mut isize,
 ) -> AnyValue<'a> {
     object.insert(heap(), field, value, cache);
     value
@@ -23,9 +20,7 @@ pub extern "C" fn object_set<'a>(
 
 #[no_mangle]
 pub extern "C" fn object_get<'a>(
-    object: ObjectPtr<'a>,
-    field: StrPtr,
-    cache: &mut isize,
+    object: ObjectPtr<'a>, field: StrPtr, cache: &mut isize,
 ) -> AnyValue<'a> {
     object.get(heap(), field, cache).unwrap().into()
 }

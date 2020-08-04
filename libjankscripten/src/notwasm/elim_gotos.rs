@@ -83,12 +83,10 @@ fn is_call(stmt: &Stmt) -> bool {
     use Stmt::*;
     match stmt {
         Assign(_, Expr::Call(..)) => true,
-        Var(var_stmt) => {
-            match var_stmt.named {
-                 Expr::Call(..) => true,
-                 _ => false
-            }
-        }
+        Var(var_stmt) => match var_stmt.named {
+            Expr::Call(..) => true,
+            _ => false,
+        },
         _ => false,
     }
 }

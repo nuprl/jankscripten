@@ -1,5 +1,5 @@
 //! A simplified AST for JavaScript.
-//! 
+//!
 //! This AST supports most of ECMAScript-262, 3rd edition, but excludes some
 //! annoying features, such as `with`.
 

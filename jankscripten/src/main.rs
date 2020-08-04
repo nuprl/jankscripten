@@ -28,9 +28,7 @@ struct Opts {
 }
 
 fn make_output_filename(
-    opt_output: &Option<String>,
-    input_path: &Path,
-    default_extension: &str,
+    opt_output: &Option<String>, input_path: &Path, default_extension: &str,
 ) -> PathBuf {
     match opt_output {
         Some(name) => PathBuf::from(name),
@@ -79,8 +77,8 @@ fn compile(opts: Compile) {
             let wasm_bin = libjankscripten::javascript_to_wasm(&js_code).expect("compile error");
             let output_path = make_output_filename(&opts.output, input_path, "wasm");
             fs::write(output_path, wasm_bin).expect("writing file");
-        }       
-         _ => {
+        }
+        _ => {
             eprintln!("Unsupported extension: .{}", ext);
             process::exit(1);
         }
@@ -91,9 +89,7 @@ fn read_javascript(raw_path: &String) -> String {
     let input_path = Path::new(raw_path);
     let ext = expect_extension(input_path);
     match ext {
-        "js" => {
-            read_file(input_path)
-        }
+        "js" => read_file(input_path),
         _ => {
             eprintln!("Unsupported extension: .{}", ext);
             process::exit(1);
@@ -111,8 +107,9 @@ fn parse_javascript(input: &String, input_path: &String) -> libjankscripten::jav
     }
 }
 
-fn desugar_javascript(stmt: &mut libjankscripten::javascript::Stmt) -> 
-        &libjankscripten::javascript::Stmt {
+fn desugar_javascript(
+    stmt: &mut libjankscripten::javascript::Stmt,
+) -> &libjankscripten::javascript::Stmt {
     let mut name_gen = libjankscripten::javascript::NameGen::default();
     libjankscripten::javascript::desugar(stmt, &mut name_gen);
     stmt

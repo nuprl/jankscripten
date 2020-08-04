@@ -1,11 +1,11 @@
 //! An enum that can store any type known to the runtime
 
 pub use crate::allocator::AnyPtr;
+use crate::heap;
 use crate::string::StrPtr;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
-use crate::heap;
 
 /// this is the actual Any type, however it should never be returned or
 /// accepted as a parameter, because rust will refuse to turn it into an i64
@@ -34,11 +34,10 @@ impl std::fmt::Display for AnyEnum<'_> {
             Bool(b) => write!(f, "Bool({})", b),
             Ptr(_) => write!(f, "Ptr(..)"),
             StrPtr(_) => write!(f, "StrPtr(..)"),
-            Fn(n) => write!(f, "Fn({})", n)
+            Fn(n) => write!(f, "Fn({})", n),
         }
     }
 }
-
 
 #[repr(transparent)]
 #[derive(Clone, Copy)]

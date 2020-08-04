@@ -147,12 +147,8 @@ pub fn translate_parity(mut program: N::Program) -> Module {
 }
 
 fn translate_func(
-    func: &mut N::Function,
-    id_env: &IdEnv,
-    rt_indexes: &HashMap<String, u32>,
-    type_indexes: &FuncTypeMap,
-    name: &N::Id,
-    data: &mut Vec<u8>,
+    func: &mut N::Function, id_env: &IdEnv, rt_indexes: &HashMap<String, u32>,
+    type_indexes: &FuncTypeMap, name: &N::Id, data: &mut Vec<u8>,
 ) -> FunctionDefinition {
     let mut translator = Translate::new(rt_indexes, type_indexes, id_env, data);
 
@@ -251,9 +247,7 @@ enum IdIndex {
 
 impl<'a> Translate<'a> {
     fn new(
-        rt_indexes: &'a HashMap<String, u32>,
-        type_indexes: &'a FuncTypeMap,
-        id_env: &IdEnv,
+        rt_indexes: &'a HashMap<String, u32>, type_indexes: &'a FuncTypeMap, id_env: &IdEnv,
         data: &'a mut Vec<u8>,
     ) -> Self {
         Self {
@@ -272,8 +266,18 @@ impl<'a> Translate<'a> {
     /// dispatch on the type of the GC root.
     fn set_in_current_shadow_frame_slot(&self, ty: &N::Type) -> Instruction {
         match ty {
-            N::Type::Any => Call(*self.rt_indexes.get("set_any_in_current_shadow_frame_slot").unwrap()),
-            _ => Call(*self.rt_indexes.get("set_in_current_shadow_frame_slot").unwrap()),
+            N::Type::Any => Call(
+                *self
+                    .rt_indexes
+                    .get("set_any_in_current_shadow_frame_slot")
+                    .unwrap(),
+            ),
+            _ => Call(
+                *self
+                    .rt_indexes
+                    .get("set_in_current_shadow_frame_slot")
+                    .unwrap(),
+            ),
         }
     }
 
@@ -293,7 +297,7 @@ impl<'a> Translate<'a> {
                 self.get_id(id);
                 self.translate_expr(expr);
                 self.out.push(I32Store(0, 4)); // skip 32 bits for tag in I32Ptr
-            },
+            }
             N::Stmt::Empty => (),
             N::Stmt::Block(ss) => {
                 // don't surround in an actual block, those are only useful
@@ -310,17 +314,19 @@ impl<'a> Translate<'a> {
                 let index = self.next_id;
                 self.next_id += 1;
                 self.locals.push(var_stmt.ty().as_wasm());
-                self.id_env
-                    .insert(var_stmt.id.clone(), IdIndex::Local(index, var_stmt.ty().clone()));
-                
-                // Eager shadow stack: 
+                self.id_env.insert(
+                    var_stmt.id.clone(),
+                    IdIndex::Local(index, var_stmt.ty().clone()),
+                );
+
+                // Eager shadow stack:
                 if var_stmt.ty().is_gc_root() == false {
                     self.out.push(SetLocal(index));
-                }
-                else {
+                } else {
                     self.out.push(TeeLocal(index));
                     self.out.push(I32Const(index.try_into().unwrap()));
-                    self.out.push(self.set_in_current_shadow_frame_slot(var_stmt.ty()));
+                    self.out
+                        .push(self.set_in_current_shadow_frame_slot(var_stmt.ty()));
                 }
             }
             N::Stmt::Expression(expr) => {
@@ -337,13 +343,12 @@ impl<'a> Translate<'a> {
                     IdIndex::Local(n, ty) => {
                         if ty.is_gc_root() == false {
                             self.out.push(SetLocal(*n));
-                        }
-                        else {
+                        } else {
                             self.out.push(TeeLocal(*n));
                             self.out.push(I32Const((*n).try_into().unwrap()));
                             self.out.push(self.set_in_current_shadow_frame_slot(&ty));
                         }
-                    },
+                    }
                     // +1 for JNKS_STRINGS
                     IdIndex::Global(n) => self.out.push(SetGlobal(*n + 1)),
                     IdIndex::Fun(..) => panic!("cannot set function"),
@@ -507,7 +512,7 @@ impl<'a> Translate<'a> {
                 // dereferences are implemented as raw memory reads
                 self.translate_atom(a);
                 self.out.push(I32Load(0, 4)); // skip 32 bits for tag in I32Ptr
-            },
+            }
             N::Atom::Lit(lit) => match lit {
                 N::Lit::I32(i) => self.out.push(I32Const(*i)),
                 N::Lit::F64(f) => self.out.push(F64Const(unsafe { std::mem::transmute(*f) })),
@@ -622,7 +627,7 @@ impl N::Type {
             Array => ValueType::I32,
             DynObject => ValueType::I32,
             Fn(..) => ValueType::I32,
-            Ref(..) => ValueType::I32
+            Ref(..) => ValueType::I32,
         }
     }
 }

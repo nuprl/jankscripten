@@ -73,4 +73,3 @@ pub fn log_any(any: AnyValue) -> AnyValue {
 fn heap() -> &'static Heap {
     unsafe { &HEAP }.as_ref().unwrap()
 }
-

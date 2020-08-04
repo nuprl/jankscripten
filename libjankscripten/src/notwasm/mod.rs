@@ -9,8 +9,8 @@ mod translation;
 mod walk;
 
 mod elim_gotos;
-mod label_apps;
 mod from_jankyscript;
+mod label_apps;
 
 use intern::intern;
 use translation::translate;

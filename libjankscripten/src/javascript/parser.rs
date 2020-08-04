@@ -508,7 +508,7 @@ fn simpl_program<'a>(program: Program<'a>) -> ParseResult<S::Stmt> {
                 // Ensure the outermost statement is always a block, but not a double-nested block.
                 match stmts[0] {
                     S::Stmt::Block(_) => Ok(stmts.pop().unwrap()),
-                    _ => Ok(S::Stmt::Block(vec![stmts.pop().unwrap()]))
+                    _ => Ok(S::Stmt::Block(vec![stmts.pop().unwrap()])),
                 }
             } else {
                 Ok(S::Stmt::Block(stmts))
@@ -528,9 +528,7 @@ fn parse_number(s: &str) -> S::Num {
             .map(|i| S::Num::Int(i as i32))
             // This seems silly. You can write a hex literal that
             // is larger than the largest u32.
-            .or_else(|_err|
-                u64::from_str_radix(&s[2..], 16)
-                .map(|i| S::Num::Float(i as f64)))
+            .or_else(|_err| u64::from_str_radix(&s[2..], 16).map(|i| S::Num::Float(i as f64)))
             .expect(&format!("Ressa did not parse hex value correctly ({})", &s));
     }
 
@@ -566,18 +564,28 @@ fn parse_string<'a>(s: &StringLit<'a>) -> String {
             'v' => buf.push('\x0B'),
             '0' => buf.push('\0'),
             'x' => {
-                let s = format!("{}{}", iter.next().expect("first hex digit after \\x"), iter.next().expect("second hex digit after \\x"));
-                let n = u8::from_str_radix(&s, 16).expect(&format!("invalid escape \\x{} (Ressa issue)", &s));
-                buf.push(n as char);    
+                let s = format!(
+                    "{}{}",
+                    iter.next().expect("first hex digit after \\x"),
+                    iter.next().expect("second hex digit after \\x")
+                );
+                let n = u8::from_str_radix(&s, 16)
+                    .expect(&format!("invalid escape \\x{} (Ressa issue)", &s));
+                buf.push(n as char);
             }
             'u' => {
-                let s = format!("{}{}{}{}", 
-                    iter.next().expect("first hex digit after \\x"), 
+                let s = format!(
+                    "{}{}{}{}",
+                    iter.next().expect("first hex digit after \\x"),
                     iter.next().expect("second hex digit after \\x"),
                     iter.next().expect("third hex digit after \\x"),
-                    iter.next().expect("fourth hex digit after \\x"));
-                let n = u16::from_str_radix(&s, 16).expect(&format!("invalid escape \\u{} (Ressa issue)", &s));
-                buf.push(std::char::from_u32(n as u32).expect("invalid Unicode character from Ressa"));    
+                    iter.next().expect("fourth hex digit after \\x")
+                );
+                let n = u16::from_str_radix(&s, 16)
+                    .expect(&format!("invalid escape \\u{} (Ressa issue)", &s));
+                buf.push(
+                    std::char::from_u32(n as u32).expect("invalid Unicode character from Ressa"),
+                );
             }
             ch => {
                 if ch >= '0' || ch <= '9' {

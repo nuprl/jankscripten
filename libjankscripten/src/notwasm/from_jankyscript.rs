@@ -188,9 +188,7 @@ impl<'a> C<'a> {
 
 /// Compile a vector of expressions, name them, and send their names (in a vector) to a context.
 fn compile_exprs<'a>(
-    s: &'a mut S,
-    exprs: Vec<J::Expr>,
-    cxt: impl FnOnce(&'a mut S, Vec<Id>) -> Rope<Stmt>,
+    s: &'a mut S, exprs: Vec<J::Expr>, cxt: impl FnOnce(&'a mut S, Vec<Id>) -> Rope<Stmt>,
 ) -> Rope<Stmt> {
     let mut ids = Vec::<Id>::new();
     let mut stmts = Rope::new();
@@ -219,7 +217,7 @@ fn coercion_to_prim(c: J::Coercion) -> String {
     use J::Type::*;
     match c {
         Tag(Float) => "f64_to_any".to_string(),
-        _ => todo!("{:?}", c)
+        _ => todo!("{:?}", c),
     }
 }
 
@@ -236,7 +234,8 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
         J::Expr::Coercion(coercion, e) => compile_expr(
             s,
             *e,
-            C::a(move |s, a| cxt.recv_e(s, Expr::PrimCall(coercion_to_prim(coercion), vec![a])))),
+            C::a(move |s, a| cxt.recv_e(s, Expr::PrimCall(coercion_to_prim(coercion), vec![a]))),
+        ),
         J::Expr::Id(x) => cxt.recv_a(s, Atom::Id(x)),
         J::Expr::Func(ret_ty, args_tys, body) => {
             let (param_names, param_tys): (Vec<_>, Vec<_>) = args_tys.into_iter().unzip();
@@ -259,19 +258,18 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 compile_expr(
                     s,
                     *e2,
-                    C::a(|s, a2| {
-                        cxt.recv_a(
-                            s,
-                            Atom::Binary(op, Box::new(a1), Box::new(a2)),
-                        )
-                    }),
+                    C::a(|s, a2| cxt.recv_a(s, Atom::Binary(op, Box::new(a1), Box::new(a2)))),
                 )
             }),
         ),
         J::Expr::PrimCall(prim_name, args) => compile_exprs(s, args, move |s, arg_ids| {
-            cxt.recv_e(s, Expr::PrimCall(
-                prim_name, 
-                arg_ids.into_iter().map(|x| Atom::Id(x)).collect()))
+            cxt.recv_e(
+                s,
+                Expr::PrimCall(
+                    prim_name,
+                    arg_ids.into_iter().map(|x| Atom::Id(x)).collect(),
+                ),
+            )
         }),
         J::Expr::Call(fun, args) => compile_expr(
             s,
@@ -315,7 +313,8 @@ fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
             // We could use a C::e context. However, the C::a context will make generated code
             // easier to understand in trivial examples. A C::e context would discard useless
             // binary operations.
-            C::a(|_s, _a_notwasm| Rope::Nil)),
+            C::a(|_s, _a_notwasm| Rope::Nil),
+        ),
         S::Assign(lv, e) => todo!(),
         S::If(cond, then_branch, else_branch) => todo!(),
         S::While(cond, body) => todo!(),
