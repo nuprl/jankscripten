@@ -6,7 +6,10 @@ pub enum Type {
     Any,
     Float,
     Bool,
-    Function(Vec<Type>, Box<Type>)
+    Function(Vec<Type>, Box<Type>),
+    String,
+    Array,
+    DynObject,
     // TODO: others
 }
 
