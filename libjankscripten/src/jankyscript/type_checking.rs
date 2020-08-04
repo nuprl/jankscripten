@@ -292,6 +292,22 @@ fn type_check_expr(expr: Expr, env: Env) -> TypeCheckingResult<Type> {
             // see Expr::Dot case for why we're returning Any
             Ok(Type::Any)
         },
+        Expr::Object(props) => {
+            // type check each property
+            for (_key, val) in props {
+                type_check_expr(val, env.clone())?;
+            }
+
+            Ok(Type::DynObject)
+        },
+        Expr::Array(vals) => {
+            // type check each element
+            for val in vals {
+                type_check_expr(val, env.clone())?;
+            }
+
+            Ok(Type::Array)
+        }
         _ => unimplemented!()
     }
 }
