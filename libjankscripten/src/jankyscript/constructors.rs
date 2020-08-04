@@ -14,6 +14,10 @@ pub fn lit_(l: Lit) -> Expr {
     Expr::Lit(l)
 }
 
+pub fn bracket_(a: Expr, b: Expr) -> Expr {
+    Expr::Bracket(Box::new(a), Box::new(b))
+}
+
 pub fn binary_(op: super::super::notwasm::syntax::BinaryOp, e1: Expr, e2: Expr) -> Expr {
     Expr::Binary(op, Box::new(e1), Box::new(e2))
 }
@@ -33,6 +37,10 @@ pub fn var_(x: Id, t: Type, e: Expr) -> Stmt {
 
 pub fn block_(stmts: Vec<Stmt>) -> Stmt {
     Stmt::Block(stmts)
+}
+
+pub fn expr_(e: Expr) -> Stmt {
+    Stmt::Expr(Box::new(e))
 }
 
 pub fn if_(c: Expr, t: Stmt, e: Stmt) -> Stmt {

@@ -129,12 +129,15 @@ pub enum Lit {
 #[derive(Debug, PartialEq)]
 pub struct ToAny {
     pub atom: Box<Atom>,
-    ty: Option<Type>
+    ty: Option<Type>,
 }
 
 impl ToAny {
     pub fn new(atom: Atom) -> ToAny {
-        return ToAny { atom: Box::new(atom), ty: None };
+        return ToAny {
+            atom: Box::new(atom),
+            ty: None,
+        };
     }
 
     pub fn set_ty(&mut self, ty: Type) {
@@ -174,6 +177,7 @@ pub enum Atom {
 #[derive(Debug, PartialEq)]
 pub enum Expr {
     HT,
+    // TODO: Give Array initial capacity
     Array,
     Push(Atom, Atom),
     HTSet(Atom, Atom, Atom),
@@ -191,12 +195,16 @@ pub enum Expr {
 pub struct VarStmt {
     pub id: Id,
     pub named: Expr,
-    ty: Option<Type>
+    ty: Option<Type>,
 }
 
 impl VarStmt {
     pub fn new(id: Id, named: Expr) -> VarStmt {
-        VarStmt { id, named, ty: None }
+        VarStmt {
+            id,
+            named,
+            ty: None,
+        }
     }
 
     pub fn set_ty(&mut self, ty: Type) {

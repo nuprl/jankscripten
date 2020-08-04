@@ -104,7 +104,7 @@ parser! {
         .or(
             lang.reserved("any")
                 .with(lang.parens(atom(lang)))
-                .map(|a| ctor::to_any(a)))
+                .map(|a| ctor::to_any_(a)))
         .or(lit(lang).map(|l| Atom::Lit(l)))
         .or(attempt(id(lang)
             .skip(lang.reserved_op("."))

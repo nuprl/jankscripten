@@ -81,7 +81,7 @@ where
     );
 }
 
-fn expect_notwasm<T>(expected: T, program: Program)
+pub fn expect_notwasm<T>(expected: T, program: Program)
 where
     T: Debug + FromStr + PartialEq,
     <T as FromStr>::Err: Debug,
