@@ -172,27 +172,6 @@ where
 }
 
 impl Stmt {
-    /// walk the ast, calling relevant visitor methods when appropriate
-    ///
-    /// strictly depth-first, ltr. see [Visitor] for more info
-    ///
-    /// ```
-    /// # use libjankscripten::javascript::{Stmt, Expr};
-    /// # let mut stmt = Stmt::Empty;
-    /// use libjankscripten::javascript::Visitor;
-    /// struct EmptyToBlock;
-    /// impl Visitor for EmptyToBlock {
-    ///     fn enter_stmt(&mut self, stmt: &mut Stmt) {
-    ///         match stmt {
-    ///             Stmt::Empty => {
-    ///                 let old = stmt.take();
-    ///                 *stmt = Stmt::Block(vec![]);
-    ///             }
-    ///             _ => (),
-    ///         }
-    ///     }
-    /// }
-    /// ```
     pub fn walk(&mut self, v: &mut impl Visitor) {
         let mut vs = VisitorState::new(v);
         let mut loc = Loc::Top;
