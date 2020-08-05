@@ -140,3 +140,22 @@ pub enum Stmt {
     Func(Id, Vec<Id>, Box<Stmt>),
     Return(Box<Expr>),
 }
+
+impl Expr {
+    /// Produces `true` if the expression can be freely copied without altering the order of
+    /// effects or invalidating object identities.
+    pub fn is_essentially_atom(&self) -> bool {
+        match self {
+            Expr::Lit(_) => true,
+            Expr::This => true,
+            Expr::Id(_) => true,
+            Expr::Dot(e, _) => e.is_essentially_atom(),
+            Expr::Bracket(e1, e2) => e1.is_essentially_atom() && e2.is_essentially_atom(),
+            // Copying an object, array, or function will alter their identity.
+            Expr::Array(_) => false,
+            Expr::Object(_) => false,
+            Expr::Func(..) => false,
+            _ => false,
+        }
+    }
+}
