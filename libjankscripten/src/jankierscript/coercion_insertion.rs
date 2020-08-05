@@ -138,7 +138,7 @@ impl InsertCoercions {
                 let (janky_e, _) = self.expr_and_type(*e, env)?;
                 Ok(Janky::Stmt::Expr(Box::new(janky_e)))
             }
-            _ => unimplemented!(),
+            _ => todo!("stmt({:?})", stmt),
         }
     }
 
@@ -220,7 +220,7 @@ impl InsertCoercions {
     fn lit(&self, lit: Janky::Lit) -> CoercionResult<(Janky::Lit, Type)> {
         match lit {
             Janky::Lit::Num(n) => Ok((Janky_::num_(n), Type::Float)),
-            _ => unimplemented!(),
+            _ => todo!("{:?}", lit),
         }
     }
 
@@ -232,7 +232,7 @@ impl InsertCoercions {
                 (true, true) => self.coerce_ground_types(t1, t2),
                 (true, false) => self.coerce_ground_and_t(t1, t2),
                 (false, true) => self.coerce_t_and_ground(t1, t2),
-                _ => unimplemented!(),
+                _ => todo!("coerce({:?}, {:?})", t1, t2),
             }
         }
     }
@@ -241,7 +241,7 @@ impl InsertCoercions {
         match (g1, g2) {
             (Type::Any, g2) => Coercion::Untag(g2),
             (g1, Type::Any) => Coercion::Tag(g1),
-            _ => unimplemented!(),
+            (g1, g2) => todo!("coerce_ground_types({:?}, {:?})", g1, g2),
         }
     }
 
