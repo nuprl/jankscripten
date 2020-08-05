@@ -164,6 +164,14 @@ impl InsertCoercions {
                 ),
                 Type::Array,
             )),
+            Expr::Object(kvs) => Ok((
+                Janky::Expr::Object(
+                    kvs.into_iter()
+                        .map(|(k, v)| self.expr(v, Type::Any, env).and_then(|v| Ok((k, v))))
+                        .collect::<Result<_, _>>()?,
+                ),
+                Type::DynObject,
+            )),
             Expr::Id(id) => {
                 if let Some(EnvItem::JsId(ty)) = env.env.get(&id.clone().to_pretty(80)) {
                     Ok((Janky::Expr::Id(id), ty.clone()))
@@ -179,6 +187,11 @@ impl InsertCoercions {
                 let f = self.expr(*field, Type::Int, env)?;
                 // all containers yield Any
                 Ok((Janky_::bracket_(cont, f), Type::Any))
+            }
+            Expr::Dot(container, field) => {
+                let cont = self.expr(*container, Type::DynObject, env)?;
+                // all containers yield Any
+                Ok((Janky_::dot_(cont, field), Type::Any))
             }
             Expr::Binary(op, e1, e2) => {
                 let (e1, t1) = self.expr_and_type(*e1, env)?;
