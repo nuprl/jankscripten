@@ -320,7 +320,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
         Expr::This => Ok(Type::Any),
 
         Expr::Dot(obj, _prop) => {
-            let obj_type = type_check_expr(*obj, env)?;
+            let obj_type = type_check_expr(obj, env)?;
 
             ensure(
                 "property lookup done on real object",
@@ -335,7 +335,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             Ok(Type::Any)
         }
         Expr::Bracket(obj, dyn_prop) => {
-            let obj_type = type_check_expr(*obj, env.clone())?;
+            let obj_type = type_check_expr(obj, env.clone())?;
 
             ensure(
                 "property lookup done on real object",
@@ -343,7 +343,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
                 obj_type,
             )?;
 
-            let dyn_prop_type = type_check_expr(*dyn_prop, env)?;
+            let dyn_prop_type = type_check_expr(dyn_prop, env)?;
 
             ensure(
                 "property lookup needs string index",
