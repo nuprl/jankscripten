@@ -317,6 +317,24 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 )
             }),
         ),
+        J::Expr::Assign(lv, e) => compile_expr(
+            s,
+            *e,
+            // TODO(luna): if we change Assign to an expression, we can make
+            // this C::e and drop the clone which will generate less useless
+            // locals; but it will mean sometimes dropping values. we
+            // could also change Assign to an atom, which would mean
+            // introducing new locals for assignment expressions
+            // but differently. see this discussion on slack:
+            // https://plasma.slack.com/archives/C013E3BK7QA/p1596656877066800
+            C::a(|s, a| match *lv {
+                J::LValue::Id(id) => {
+                    Rope::singleton(Stmt::Assign(id, atom_(a.clone()))).append(cxt.recv_a(s, a))
+                }
+                J::LValue::Dot(..) => todo!(),
+                J::LValue::Bracket(..) => todo!(),
+            }),
+        ),
         J::Expr::PrimCall(prim_name, args) => compile_exprs(s, args, move |s, arg_ids| {
             cxt.recv_e(
                 s,
@@ -338,6 +356,8 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
     }
 }
 
+// TODO(luna): remove this when we think we've completed this
+#[allow(unused)]
 fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
     use J::Stmt as S;
     match stmt {
@@ -369,15 +389,6 @@ fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
             // easier to understand in trivial examples. A C::e context would discard useless
             // binary operations.
             C::a(|_s, _a_notwasm| Rope::Nil),
-        ),
-        S::Assign(lv, e) => compile_expr(
-            s,
-            *e,
-            C::e(|_s, e| match *lv {
-                J::LValue::Id(id) => Rope::singleton(Stmt::Assign(id, e)),
-                J::LValue::Dot(..) => todo!(),
-                J::LValue::Bracket(..) => todo!(),
-            }),
         ),
         S::If(cond, then_branch, else_branch) => todo!(),
         S::While(cond, body) => todo!(),

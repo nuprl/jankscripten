@@ -101,41 +101,6 @@ fn type_check_stmt(stmt: Stmt, env: Env, ret_ty: &Option<Type>) -> TypeCheckingR
 
             Ok(env)
         }
-        Stmt::Assign(lval, rval) => {
-            // rval should be well typed
-            let rval_ty = type_check_expr(*rval, env.clone())?;
-
-            // whether or not rval can go in lval depends on what lval is
-            match *lval {
-                LValue::Id(id) => {
-                    // what type is id?
-                    let id_ty = lookup(&env, &id)?;
-                    ensure("variable assignment", id_ty, rval_ty)?;
-                    Ok(env)
-                }
-                LValue::Dot(e, _id) => {
-                    // e should be well typed
-                    type_check_expr(e, env.clone())?;
-
-                    // TODO: can we do any further typechecking than this? do
-                    //       our object types include info about their props?
-
-                    Ok(env)
-                }
-                LValue::Bracket(e, computed_prop) => {
-                    // e should be well typed
-                    type_check_expr(e, env.clone())?;
-
-                    // computed_prop should be well typed
-                    type_check_expr(computed_prop, env.clone())?;
-
-                    // TODO: can we do any further typechecking than this? do
-                    //       our object types include info about their props?
-
-                    Ok(env)
-                }
-            }
-        }
         Stmt::While(cond, body) => {
             // make sure cond is a bool
             let cond_ty = type_check_expr(*cond, env.clone())?;
@@ -224,6 +189,44 @@ fn type_check_expr(expr: Expr, env: Env) -> TypeCheckingResult<Type> {
                 args.into_iter().map(|(_, ty)| ty).collect(),
                 Box::new(return_type),
             ))
+        }
+        Expr::Assign(lval, rval) => {
+            // rval should be well typed
+            let rval_ty = type_check_expr(*rval, env.clone())?;
+
+            // whether or not rval can go in lval depends on what lval is
+            match *lval {
+                LValue::Id(id) => {
+                    // what type is id?
+                    let id_ty = lookup(&env, &id)?;
+                    ensure("variable assignment", id_ty, rval_ty.clone())?;
+                    Ok(rval_ty)
+                }
+                LValue::Dot(e, _id) => {
+                    // e should be well typed
+                    type_check_expr(e, env.clone())?;
+
+                    // TODO: can we do any further typechecking than this? do
+                    //       our object types include info about their props?
+                    // depending on how much type checking is supposed to
+                    // duplicate with coercion insertion(?) we can ensure that
+                    // rval is Any
+
+                    Ok(rval_ty)
+                }
+                LValue::Bracket(e, computed_prop) => {
+                    // e should be well typed
+                    type_check_expr(e, env.clone())?;
+
+                    // computed_prop should be well typed
+                    type_check_expr(computed_prop, env.clone())?;
+
+                    // TODO: can we do any further typechecking than this? do
+                    //       our object types include info about their props?
+
+                    Ok(rval_ty)
+                }
+            }
         }
         Expr::Call(fun, args) => {
             // ensure that `fun` is a function.

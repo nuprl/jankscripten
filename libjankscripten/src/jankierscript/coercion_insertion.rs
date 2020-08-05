@@ -207,6 +207,20 @@ impl InsertCoercions {
                 };
                 Ok((coerced_expr, result_ty))
             }
+            Expr::Assign(lv, e) => match *lv {
+                LValue::Id(id) => {
+                    let (_, into_ty) = self.expr_and_type(Expr::Id(id.clone()), env)?;
+                    Ok((
+                        Janky_::assign_(
+                            Janky::LValue::Id(id),
+                            self.expr(*e, into_ty.clone(), env)?,
+                        ),
+                        into_ty,
+                    ))
+                }
+                LValue::Dot(..) => todo!(),
+                LValue::Bracket(..) => todo!(),
+            },
             Expr::Call(f, args) => {
                 // Special case for a primitive function call. JavaScript, and thus JankierScript
                 // do not distinguish primitive calls from calls to user-defined functions. However,
