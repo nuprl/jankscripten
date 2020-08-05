@@ -270,12 +270,12 @@ parser! {
             .and(block(lang))
             .map(|(test,body)| ctor::while_(test, body));
 
-        let store = lang.reserved_op("*") 
+        let store = lang.reserved_op("*")
             .with(id(lang))
             .skip(lang.reserved_op("="))
             .and(expr(lang))
             .skip(lang.reserved_op(";"))
-            .map(|(id, expr)| Stmt::Store(id, expr)); 
+            .map(|(id, expr)| Stmt::Store(id, expr));
 
         let expression = expr(lang).map(|e| Stmt::Expression(e));
 

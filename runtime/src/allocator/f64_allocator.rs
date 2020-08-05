@@ -1,4 +1,4 @@
-const LEN : usize = 1000;
+const LEN: usize = 1000;
 
 /// An `F64Allocator` is a heap that only stores f64s.  When we allocate an f64,
 /// it returns a `*const f64`. Since pointers are 32-bits wide in WebAssembly,
@@ -11,16 +11,19 @@ pub struct F64Allocator {
     // TODO(arjun): No more that one thousand floats.
     current_space: Box<[f64; LEN]>,
     other_space: Box<[f64; LEN]>,
-    next_slot: usize
+    next_slot: usize,
 }
 
 impl F64Allocator {
-
     pub fn new() -> Self {
         let next_slot = 0;
         let current_space = Box::new([0.0; LEN]);
         let other_space = Box::new([0.0; LEN]);
-        return F64Allocator { current_space, other_space, next_slot };
+        return F64Allocator {
+            current_space,
+            other_space,
+            next_slot,
+        };
     }
 
     /// Note that we don't have a function to read the value of a float.
@@ -31,9 +34,7 @@ impl F64Allocator {
         if self.next_slot == LEN {
             return None;
         }
-        let f64_ref = unsafe {
-            self.current_space.get_unchecked_mut(index)
-        };
+        let f64_ref = unsafe { self.current_space.get_unchecked_mut(index) };
         *f64_ref = value;
         return Some(f64_ref as *const f64);
     }
@@ -44,5 +45,4 @@ impl F64Allocator {
         std::mem::swap(&mut self.current_space, &mut self.other_space);
         self.next_slot = 0;
     }
-
 }

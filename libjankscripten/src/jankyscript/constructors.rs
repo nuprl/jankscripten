@@ -33,7 +33,7 @@ pub fn unary_(op: super::super::notwasm::syntax::UnaryOp, e1: Expr) -> Expr {
 pub fn coercion_(c: Coercion, e: Expr) -> Expr {
     match c {
         Coercion::Id(_) => e,
-        _ => Expr::Coercion(c, Box::new(e))
+        _ => Expr::Coercion(c, Box::new(e)),
     }
 }
 

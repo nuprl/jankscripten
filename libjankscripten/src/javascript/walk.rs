@@ -12,7 +12,7 @@ use std::cell::RefCell;
 /// To build a visitor, you need to define a type `T` that holds the visitor
 /// state, and then write `impl Visitor for T { ... }`. Note that you need
 /// to define a new type *for stateless visitors too*. For example:
-/// 
+///
 /// ```
 /// use libjankscripten::javascript::Visitor;
 /// struct T;
@@ -105,7 +105,7 @@ pub enum Context<'a> {
 /// For example, in a call to `enter_stmt(&mut self, stmt, loc)`, if `loc`
 /// is `Loc::Node(Block(...), ...)`, then `stmt` is immediately within a a
 /// block statement.
-/// 
+///
 /// See the `Context` type for the various kinds of contexts available.
 /// TODO(arjun): Now that this is immutable, we might as well use a `Vec`.
 #[derive(Debug)]
@@ -115,12 +115,11 @@ pub enum Loc<'a> {
 }
 
 impl<'a> Loc<'a> {
-
     pub fn enclosing_block(&self) -> Option<&'a BlockContext> {
         match self {
             Loc::Top => None,
             Loc::Node(Context::Block(cxt), _) => Some(cxt),
-            Loc::Node(_, rest) => rest.enclosing_block()
+            Loc::Node(_, rest) => rest.enclosing_block(),
         }
     }
 
@@ -131,15 +130,12 @@ impl<'a> Loc<'a> {
             Loc::Top => panic!("the top-level program is not a block"),
             Loc::Node(Context::Block(cxt), rest) => match *rest {
                 Loc::Top => cxt,
-                Loc::Node(Context::FunctionBody, _) => {
-                    cxt
-                },
-                Loc::Node(_, rest) => rest.body_of_enclosing_function_or_program()
-            }
-            Loc::Node(_, rest) => rest.body_of_enclosing_function_or_program()
+                Loc::Node(Context::FunctionBody, _) => cxt,
+                Loc::Node(_, rest) => rest.body_of_enclosing_function_or_program(),
+            },
+            Loc::Node(_, rest) => rest.body_of_enclosing_function_or_program(),
         }
     }
-
 }
 impl<'v, V> VisitorState<'v, V>
 where

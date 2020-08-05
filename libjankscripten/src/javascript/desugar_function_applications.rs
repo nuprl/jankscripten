@@ -1,9 +1,11 @@
+use super::constructors::*;
 use super::syntax::*;
 use super::*;
-use super::constructors::*;
 
-// Naming the result of all function applications 
-struct NameFunctionCalls <'a> { ng: &'a mut NameGen }
+// Naming the result of all function applications
+struct NameFunctionCalls<'a> {
+    ng: &'a mut NameGen,
+}
 
 impl Visitor for NameFunctionCalls<'_> {
     fn exit_expr(&mut self, expr: &mut Expr, loc: &Loc) {
@@ -12,10 +14,10 @@ impl Visitor for NameFunctionCalls<'_> {
                 match loc {
                     Loc::Node(Context::VarDeclRhs, _) => {
                         // already being named, so no worries
-                    },
+                    }
                     Loc::Node(Context::AssignRhs(AssignOp::Equal), _) => {
                         // already being named, so no worries
-                    },
+                    }
                     _ => {
                         let block_ctx = loc.enclosing_block().expect("Block context expected");
                         let name = self.ng.fresh("f_call");
@@ -32,6 +34,6 @@ impl Visitor for NameFunctionCalls<'_> {
 }
 
 pub fn desugar_function_applications(program: &mut Stmt, namegen: &mut NameGen) {
-    let mut v = NameFunctionCalls {ng: namegen};
+    let mut v = NameFunctionCalls { ng: namegen };
     program.walk(&mut v);
 }

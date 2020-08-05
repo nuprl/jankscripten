@@ -313,12 +313,7 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 compile_expr(
                     s,
                     *e2,
-                    C::a(|s, a2| {
-                        cxt.recv_a(
-                            s,
-                            Atom::Binary(op, Box::new(a1), Box::new(a2)),
-                        )
-                    }),
+                    C::a(|s, a2| cxt.recv_a(s, Atom::Binary(op, Box::new(a1), Box::new(a2)))),
                 )
             }),
         ),
