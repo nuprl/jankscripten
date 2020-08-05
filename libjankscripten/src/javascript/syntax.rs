@@ -159,3 +159,49 @@ impl Expr {
         }
     }
 }
+
+impl LValue {
+    pub fn is_essentially_atom(&self) -> bool {
+        match self {
+            LValue::Id(_) => true,
+            LValue::Dot(e, _) => e.is_essentially_atom(),
+            LValue::Bracket(e1, e2) => e1.is_essentially_atom() && e2.is_essentially_atom(),
+        }
+    }
+
+    pub fn take(&mut self) -> Self {
+        std::mem::replace(
+            self,
+            LValue::Id(Id::Generated(
+                "bogus identifier inserted by LValue::take",
+                0,
+            )),
+        )
+    }
+}
+
+impl UnaryAssignOp {
+    pub fn is_prefix(&self) -> bool {
+        use UnaryAssignOp::*;
+        match self {
+            PreDec | PreInc => true,
+            PostDec | PostInc => false,
+        }
+    }
+
+    pub fn binop(&self) -> BinOp {
+        use UnaryAssignOp::*;
+        match self {
+            PostInc | PreInc => BinOp::BinaryOp(resast::BinaryOp::Plus),
+            PostDec | PreDec => BinOp::BinaryOp(resast::BinaryOp::Minus),
+        }
+    }
+
+    pub fn other_binop(&self) -> BinOp {
+        use UnaryAssignOp::*;
+        match self {
+            PostInc | PreInc => BinOp::BinaryOp(resast::BinaryOp::Minus),
+            PostDec | PreDec => BinOp::BinaryOp(resast::BinaryOp::Plus),
+        }
+    }
+}
