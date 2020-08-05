@@ -13,6 +13,8 @@ pub enum LValue {
     Bracket(Expr, Expr),
 }
 
+pub type BinOp = resast::BinaryOp;
+
 #[derive(Debug)]
 pub enum Expr {
     Lit(super::super::javascript::Lit),
@@ -23,7 +25,7 @@ pub enum Expr {
     Dot(Box<Expr>, Id),
     Bracket(Box<Expr>, Box<Expr>),
     Unary(super::super::javascript::UnaryOp, Box<Expr>),
-    Binary(super::super::javascript::BinOp, Box<Expr>, Box<Expr>),
+    Binary(BinOp, Box<Expr>, Box<Expr>),
     Assign(Box<LValue>, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
     New(Option<Type>, Box<Expr>, Vec<Expr>),
