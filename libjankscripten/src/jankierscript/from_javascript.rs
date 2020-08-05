@@ -1,8 +1,9 @@
 use super::super::javascript::syntax as Js;
 use super::syntax::*;
 
-// if any of these functions panic, desugaring was not run or failed!
-/// sfsfdsfdsfsfsdflkdsjafhlasfhjaksjf
+fn unexpected(e: impl std::fmt::Debug) -> ! {
+    panic!("JavaScript is not desugared correctly. Found {:?}", e);
+}
 
 fn lvalue(lval: Js::LValue) -> LValue {
     use Js::LValue as Js;
@@ -31,9 +32,10 @@ fn expr(e: Js::Expr) -> Expr {
         E::Binary(BinOp::BinaryOp(op), e1, e2) => {
             Binary(op, Box::new(expr(*e1)), Box::new(expr(*e2)))
         }
-        E::Binary(BinOp::LogicalOp(_), _, _) => panic!("all logical operators should be desugared"),
-        E::UnaryAssign(_, _) => panic!(),
-        E::If(_, _, _) => panic!(),
+        E::Binary(BinOp::LogicalOp(_), _, _) => unexpected(&e),
+        E::UnaryAssign(_, _) => unexpected(&e),
+        // Note that this is the ternary operator, not an if statement.
+        E::If(_, _, _) => unexpected(&e),
         E::Assign(_, lval, e) => Assign(Box::new(lvalue(*lval)), Box::new(expr(*e))),
         E::Call(e, es) => Call(
             Box::new(expr(*e)),
@@ -44,7 +46,7 @@ fn expr(e: Js::Expr) -> Expr {
             args.into_iter().map(|x| (x, None)).collect(),
             Box::new(stmt(*body)),
         ),
-        E::Seq(_) => panic!(),
+        E::Seq(_) => unexpected(&e),
     }
 }
 
@@ -59,11 +61,11 @@ fn stmt(s: Js::Stmt) -> Stmt {
         Js::ForIn(_, _, _, _) => todo!(),
         Js::Label(x, s) => Label(x, Box::new(stmt(*s))),
         Js::Break(x) => Break(x.unwrap()),
-        Js::Continue(_) => panic!(),
-        Js::Switch(_, _, _) => panic!(),
+        Js::Continue(_) => unexpected(&s),
+        Js::Switch(_, _, _) => unexpected(&s),
         Js::While(c, body) => While(Box::new(expr(*c)), Box::new(stmt(*body))),
-        Js::DoWhile(stmt, cond) => panic!(),
-        Js::For(_, _, _, _) => panic!(),
+        Js::DoWhile(_, _) => unexpected(&s),
+        Js::For(_, _, _, _) => unexpected(&s),
         Js::Catch(try_body, exception_name, catch_body) => Catch(
             Box::new(stmt(*try_body)),
             exception_name,
@@ -73,8 +75,13 @@ fn stmt(s: Js::Stmt) -> Stmt {
             Finally(Box::new(stmt(*try_body)), Box::new(stmt(*finally_body)))
         }
         Js::Throw(e) => Throw(Box::new(expr(*e))),
-        Js::VarDecl(mut decls) => vardecl(decls.remove(0)),
-        Js::Func(_, _, _) => panic!(),
+        Js::VarDecl(mut decls) => {
+            if decls.len() != 1 {
+                unexpected("multi-variable declaration");
+            }
+            vardecl(decls.remove(0))
+        }
+        Js::Func(_, _, _) => unexpected(&s),
         Js::Return(e) => Return(Box::new(expr(*e))),
     }
 }
@@ -83,6 +90,7 @@ fn vardecl(decl: Js::VarDecl) -> Stmt {
     Stmt::Var(decl.name, None, Box::new(expr(*decl.named)))
 }
 
+/// Consumes a desugared JavaScript AST and transforms it into JavaScript.
 pub fn from_javascript(js_prog: Js::Stmt) -> Stmt {
     stmt(js_prog)
 }
