@@ -331,8 +331,35 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 J::LValue::Id(id) => {
                     Rope::singleton(Stmt::Assign(id, atom_(a.clone()))).append(cxt.recv_a(s, a))
                 }
-                J::LValue::Dot(..) => todo!(),
-                J::LValue::Bracket(..) => todo!(),
+                J::LValue::Dot(container, field) => {
+                    // TODO(luna): don't assume bracket is array
+                    compile_expr(
+                        s,
+                        container,
+                        // TODO(luna): support array set in notwasm, i can't
+                        // believe we don't yet
+                        C::a(move |s, cont| {
+                            cxt.recv_e(
+                                s,
+                                Expr::ObjectSet(
+                                    cont,
+                                    Atom::Lit(Lit::String(field.to_pretty(80))),
+                                    a,
+                                ),
+                            )
+                        }),
+                    )
+                }
+                J::LValue::Bracket(container, field) => {
+                    // TODO(luna): don't assume bracket is array
+                    compile_expr(
+                        s,
+                        container,
+                        // TODO(luna): support array set in notwasm, i can't
+                        // believe we don't yet
+                        C::a(|s, cont| compile_expr(s, field, C::a(|s, f| cxt.recv_e(s, todo!())))),
+                    )
+                }
             }),
         ),
         J::Expr::PrimCall(prim_name, args) => compile_exprs(s, args, move |s, arg_ids| {

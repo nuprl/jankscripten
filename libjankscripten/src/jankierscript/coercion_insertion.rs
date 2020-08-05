@@ -218,8 +218,27 @@ impl InsertCoercions {
                         into_ty,
                     ))
                 }
-                LValue::Dot(..) => todo!(),
-                LValue::Bracket(..) => todo!(),
+                LValue::Dot(container, field) => {
+                    let cont = self.expr(container, Type::DynObject, env)?;
+                    let expr = self.expr(*e, Type::Any, env)?;
+                    // all containers yield Any
+                    Ok((
+                        Janky_::assign_(Janky::LValue::Dot(cont, field), expr),
+                        Type::Any,
+                    ))
+                }
+                LValue::Bracket(container, field) => {
+                    // TODO(luna): don't assume bracket is an array (could
+                    // be dynamic field with object)
+                    let cont = self.expr(container, Type::Array, env)?;
+                    let f = self.expr(field, Type::Int, env)?;
+                    let expr = self.expr(*e, Type::Any, env)?;
+                    // array assign yields the rvalue
+                    Ok((
+                        Janky_::assign_(Janky::LValue::Bracket(cont, f), expr),
+                        Type::Any,
+                    ))
+                }
             },
             Expr::Call(f, args) => {
                 // Special case for a primitive function call. JavaScript, and thus JankierScript
@@ -324,7 +343,6 @@ impl InsertCoercions {
 }
 
 pub fn insert_coercions(jankier_prog: Stmt) -> CoercionResult<Janky::Stmt> {
-    eprintln!("{:?}", jankier_prog);
     let coercions = InsertCoercions::default();
     let janky_prog = coercions.stmt(jankier_prog, &mut Env::new())?;
     Ok(janky_prog)
