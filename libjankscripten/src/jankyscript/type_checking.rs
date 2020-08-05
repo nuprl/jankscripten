@@ -104,7 +104,7 @@ fn type_check_stmt(stmt: &Stmt, env: Env, ret_ty: &Option<Type>) -> TypeChecking
         Stmt::Assign(lval, rval) => {
             // rval should be well typed
             let rval_ty = type_check_expr(&rval, env.clone())?;
-            
+
             // whether or not rval can go in lval depends on what lval is
             match &**lval {
                 LValue::Id(id) => {
@@ -167,15 +167,13 @@ fn type_check_stmt(stmt: &Stmt, env: Env, ret_ty: &Option<Type>) -> TypeChecking
             ensure(
                 "variable declaration matches given type",
                 t.clone(),
-                type_check_expr(e, env.clone())?)?;
+                type_check_expr(e, env.clone())?,
+            )?;
 
             Ok(env.update(x.clone(), t.clone()))
-        },
+        }
         Stmt::If(c, t, e) => {
-            ensure("if condition", 
-                Type::Bool, 
-                type_check_expr(c, env.clone())?,
-            )?;
+            ensure("if condition", Type::Bool, type_check_expr(c, env.clone())?)?;
 
             type_check_stmt(&t, env.clone(), ret_ty)?;
             type_check_stmt(&e, env.clone(), ret_ty)?;
@@ -219,15 +217,17 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             type_check_stmt(&body, function_env, &Some(return_type.clone()))?;
 
             Ok(Type::Function(
-                args.into_iter().map(|(_, ty)| ty.clone()).collect(), 
-                Box::new(return_type.clone())))
-        },
+                args.into_iter().map(|(_, ty)| ty.clone()).collect(),
+                Box::new(return_type.clone()),
+            ))
+        }
         Expr::Call(fun, args) => {
             // ensure that `fun` is a function.
             // get its expected argument types.
-            let (expected_arg_types, return_type) = 
-                ensure_function("expected function for function call",
-                    type_check_expr(fun, env.clone())?)?;
+            let (expected_arg_types, return_type) = ensure_function(
+                "expected function for function call",
+                type_check_expr(fun, env.clone())?,
+            )?;
 
             // derive types for the actual arguments.
             let actual_arg_types: Vec<TypeCheckingResult<Type>> = args
@@ -265,7 +265,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
 
             // we can, so we will have the output type of the coercion
             Ok(to)
-        },
+        }
         Expr::Lit(l) => Ok(type_check_lit(&l)),
         Expr::Id(id) => lookup(&env, &id),
 
@@ -276,7 +276,11 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
         Expr::Dot(obj, _prop) => {
             let obj_type = type_check_expr(obj, env)?;
 
-            ensure("property lookup done on real object", Type::DynObject, obj_type)?;
+            ensure(
+                "property lookup done on real object",
+                Type::DynObject,
+                obj_type,
+            )?;
 
             // we don't know anything about the type we're returning.
             // even if this property doesn't exist on the given object,
@@ -287,15 +291,23 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
         Expr::Bracket(obj, dyn_prop) => {
             let obj_type = type_check_expr(obj, env.clone())?;
 
-            ensure("property lookup done on real object", Type::DynObject, obj_type)?;
+            ensure(
+                "property lookup done on real object",
+                Type::DynObject,
+                obj_type,
+            )?;
 
             let dyn_prop_type = type_check_expr(dyn_prop, env)?;
 
-            ensure("property lookup needs string index", Type::String, dyn_prop_type)?;
+            ensure(
+                "property lookup needs string index",
+                Type::String,
+                dyn_prop_type,
+            )?;
 
             // see Expr::Dot case for why we're returning Any
             Ok(Type::Any)
-        },
+        }
         Expr::Object(props) => {
             // type check each property
             for (_key, val) in props {
@@ -303,7 +315,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             }
 
             Ok(Type::DynObject)
-        },
+        }
         Expr::Array(vals) => {
             // type check each element
             for val in vals {
@@ -390,9 +402,9 @@ fn type_check_coercion(c: &Coercion) -> TypeCheckingResult<(Type, Type)> {
 
             // put them together
             Ok((from, to))
-        },
+        }
         Coercion::Id(to_type) => Ok((to_type.clone(), to_type.clone())),
-        Coercion::Seq(t1, t2) => { 
+        Coercion::Seq(t1, t2) => {
             let (t2_from, t2_to) = type_check_coercion(t2)?;
             let (t1_from, t1_to) = type_check_coercion(t1)?;
 
