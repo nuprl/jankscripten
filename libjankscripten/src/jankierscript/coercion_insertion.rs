@@ -156,12 +156,29 @@ impl InsertCoercions {
                 let (l, t) = self.lit(l)?;
                 Ok((Janky_::lit_(l), t))
             }
+            Expr::Array(es) => Ok((
+                Janky::Expr::Array(
+                    es.into_iter()
+                        .map(|e| self.expr(e, Type::Any, env))
+                        .collect::<Result<_, _>>()?,
+                ),
+                Type::Array,
+            )),
             Expr::Id(id) => {
                 if let Some(EnvItem::JsId(ty)) = env.env.get(&id.clone().to_pretty(80)) {
                     Ok((Janky::Expr::Id(id), ty.clone()))
                 } else {
                     todo!("primitive ID ({:?})", env)
                 }
+            }
+            Expr::Bracket(container, field) => {
+                // container is either array or object. for now, i'm going
+                // to assume it's an array because introducing OR into here
+                // seems pretty messy (TODO(luna))
+                let cont = self.expr(*container, Type::Array, env)?;
+                let f = self.expr(*field, Type::Int, env)?;
+                // all containers yield Any
+                Ok((Janky_::bracket_(cont, f), Type::Any))
             }
             Expr::Binary(op, e1, e2) => {
                 let (e1, t1) = self.expr_and_type(*e1, env)?;
@@ -219,7 +236,13 @@ impl InsertCoercions {
 
     fn lit(&self, lit: Janky::Lit) -> CoercionResult<(Janky::Lit, Type)> {
         match lit {
-            Janky::Lit::Num(n) => Ok((Janky_::num_(n), Type::Float)),
+            Janky::Lit::Num(n) => Ok((
+                Janky_::num_(n),
+                match n {
+                    Janky::Num::Float(_) => Type::Float,
+                    Janky::Num::Int(_) => Type::Int,
+                },
+            )),
             _ => todo!("{:?}", lit),
         }
     }
@@ -274,6 +297,7 @@ impl InsertCoercions {
 }
 
 pub fn insert_coercions(jankier_prog: Stmt) -> CoercionResult<Janky::Stmt> {
+    eprintln!("{:?}", jankier_prog);
     let coercions = InsertCoercions::default();
     let janky_prog = coercions.stmt(jankier_prog, &mut Env::new())?;
     Ok(janky_prog)
