@@ -20,7 +20,7 @@ use std::cell::RefCell;
 /// ```
 pub trait Visitor {
     /// called before recursing on a statement
-    fn enter_stmt(&mut self, _stmt: &mut Stmt) {}
+    fn enter_stmt(&mut self, _stmt: &mut Stmt, _loc: &Loc) {}
     /// called before recursing on an expression
     fn enter_expr(&mut self, _expr: &mut Expr, _loc: &Loc) {}
     /// called after recursing on a statement, with the new value
@@ -87,6 +87,8 @@ pub enum Context<'a> {
     /// that allow the visitor to add statements to the block.
     Block(&'a BlockContext),
     VarDeclRhs,
+    Switch,
+    Loop,
     /// Within the context of a statement of an unknown kind.
     Stmt,
     /// Within the right-hand side of an assignment expression. The context
@@ -115,6 +117,18 @@ pub enum Loc<'a> {
 }
 
 impl<'a> Loc<'a> {
+    /// Produces 'true' if the current node is within a 'switch', but not nested inside a loop or a
+    /// function. Thus, a 'break;' will break out of the 'switch'.
+    pub fn in_switch_block(&self) -> bool {
+        match self {
+            Loc::Top => false,
+            Loc::Node(Context::Switch, _) => true,
+            Loc::Node(Context::Loop, _) => false,
+            Loc::Node(Context::FunctionBody, _) => false,
+            Loc::Node(_, rest) => rest.in_switch_block(),
+        }
+    }
+
     pub fn enclosing_block(&self) -> Option<&'a BlockContext> {
         match self {
             Loc::Top => None,
@@ -147,7 +161,7 @@ where
 
     pub fn walk_stmt(&mut self, stmt: &mut Stmt, loc: &Loc) {
         use Stmt::*;
-        self.visitor.enter_stmt(stmt);
+        self.visitor.enter_stmt(stmt, loc);
         // recurse
         match stmt {
             // 0
@@ -190,7 +204,7 @@ where
             }
             // 1xExpr, 1xStmt
             DoWhile(s, e) | ForIn(.., e, s) | While(e, s) => {
-                let loc = Loc::Node(Context::Stmt, loc);
+                let loc = Loc::Node(Context::Loop, loc);
                 self.walk_expr(e, &loc);
                 self.walk_stmt(s, &loc);
             }
@@ -203,7 +217,7 @@ where
             }
             // 1xExpr, 1xStmt, 1x[(Expr,Stmt)]
             Switch(e, es_ss, s) => {
-                let loc = Loc::Node(Context::Stmt, &loc);
+                let loc = Loc::Node(Context::Switch, &loc);
                 self.walk_expr(e, &loc);
                 es_ss.iter_mut().for_each(|(e, s)| {
                     self.walk_expr(e, &loc);
@@ -213,7 +227,7 @@ where
             }
             // 2xExpr, 1xStmt
             For(_, ea, eb, s) => {
-                let loc = Loc::Node(Context::Stmt, &loc);
+                let loc = Loc::Node(Context::Loop, &loc);
                 self.walk_expr(ea, &loc);
                 self.walk_expr(eb, &loc);
                 self.walk_stmt(s, &loc);
@@ -315,10 +329,10 @@ impl Stmt {
     /// ```
     /// # use libjankscripten::javascript::{Stmt, Expr};
     /// # let mut stmt = Stmt::Empty;
-    /// use libjankscripten::javascript::Visitor;
+    /// use libjankscripten::javascript::{Visitor, Loc};
     /// struct EmptyToBlock;
     /// impl Visitor for EmptyToBlock {
-    ///     fn enter_stmt(&mut self, stmt: &mut Stmt) {
+    ///     fn enter_stmt(&mut self, stmt: &mut Stmt, _loc: &Loc) {
     ///         match stmt {
     ///             Stmt::Empty => {
     ///                 let old = stmt.take();
