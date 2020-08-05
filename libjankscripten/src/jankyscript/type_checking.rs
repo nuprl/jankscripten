@@ -70,7 +70,7 @@ fn lookup(env: &Env, id: &Id) -> TypeCheckingResult<Type> {
 }
 
 // type check an entire program.
-pub fn type_check(stmt: Stmt) -> TypeCheckingResult<()> {
+pub fn type_check(stmt: &Stmt) -> TypeCheckingResult<()> {
     
     match type_check_stmt(stmt, HashMap::new(), &None) {
         Ok(_) => Ok(()),
@@ -78,38 +78,38 @@ pub fn type_check(stmt: Stmt) -> TypeCheckingResult<()> {
     }
 }
 
-fn type_check_stmt(stmt: Stmt, env: Env, ret_ty: &Option<Type>) -> TypeCheckingResult<Env> {
+fn type_check_stmt(stmt: &Stmt, env: Env, ret_ty: &Option<Type>) -> TypeCheckingResult<Env> {
     match stmt {
         Stmt::Empty => Ok(env),
         Stmt::Expr(e) => {
-            type_check_expr(*e, env.clone())?;
+            type_check_expr(&e, env.clone())?;
             Ok(env)
         }
         Stmt::Finally(try_body, finally_body) => {
             // try_body should be well-typed
-            type_check_stmt(*try_body, env.clone(), ret_ty)?;
+            type_check_stmt(&try_body, env.clone(), ret_ty)?;
 
             // finally_body should be well-typed
-            type_check_stmt(*finally_body, env.clone(), ret_ty)?;
+            type_check_stmt(&finally_body, env.clone(), ret_ty)?;
 
             Ok(env)
         },
         Stmt::Catch(try_body, ex_name, catch_body) => {
             // try_body should be well-typed
-            type_check_stmt(*try_body, env.clone(), ret_ty)?;
+            type_check_stmt(&try_body, env.clone(), ret_ty)?;
 
             // catch_body should be well-typed, when ex_name is bound to Any?
-            let catch_body_env = env.clone().update(ex_name, Type::Any);
-            type_check_stmt(*catch_body, catch_body_env, ret_ty)?;
+            let catch_body_env = env.clone().update(ex_name.clone(), Type::Any);
+            type_check_stmt(&catch_body, catch_body_env, ret_ty)?;
 
             Ok(env)
         },
         Stmt::Assign(lval, rval) => {
             // rval should be well typed
-            let rval_ty = type_check_expr(*rval, env.clone())?;
+            let rval_ty = type_check_expr(&rval, env.clone())?;
             
             // whether or not rval can go in lval depends on what lval is
-            match *lval {
+            match &**lval {
                 LValue::Id(id) => {
                     // what type is id?
                     let id_ty = lookup(&env, &id)?;
@@ -118,7 +118,7 @@ fn type_check_stmt(stmt: Stmt, env: Env, ret_ty: &Option<Type>) -> TypeCheckingR
                 },
                 LValue::Dot(e, _id) => {
                     // e should be well typed
-                    type_check_expr(e, env.clone())?;
+                    type_check_expr(&e, env.clone())?;
 
                     // TODO: can we do any further typechecking than this? do
                     //       our object types include info about their props?
@@ -127,10 +127,10 @@ fn type_check_stmt(stmt: Stmt, env: Env, ret_ty: &Option<Type>) -> TypeCheckingR
                 },
                 LValue::Bracket(e, computed_prop) => {
                     // e should be well typed
-                    type_check_expr(e, env.clone())?;
+                    type_check_expr(&e, env.clone())?;
 
                     // computed_prop should be well typed
-                    type_check_expr(computed_prop, env.clone())?;
+                    type_check_expr(&computed_prop, env.clone())?;
 
                     // TODO: can we do any further typechecking than this? do
                     //       our object types include info about their props?
@@ -141,17 +141,17 @@ fn type_check_stmt(stmt: Stmt, env: Env, ret_ty: &Option<Type>) -> TypeCheckingR
         },
         Stmt::While(cond, body) => {
             // make sure cond is a bool
-            let cond_ty = type_check_expr(*cond, env.clone())?;
+            let cond_ty = type_check_expr(&cond, env.clone())?;
             ensure("while loop conditional", Type::Bool, cond_ty)?;
 
             // type check body in a new scope
-            type_check_stmt(*body, env.clone(), ret_ty)?;
+            type_check_stmt(&body, env.clone(), ret_ty)?;
 
             Ok(env)
         },
         Stmt::Throw(e) => {
             // expression we're throwing should be well-typed
-            type_check_expr(*e, env.clone())?;
+            type_check_expr(&e, env.clone())?;
 
             Ok(env)
         },
@@ -162,24 +162,24 @@ fn type_check_stmt(stmt: Stmt, env: Env, ret_ty: &Option<Type>) -> TypeCheckingR
         Stmt::Label(_id, stmt) => {
             // TODO: label checking
 
-            type_check_stmt(*stmt, env.clone(), ret_ty)?;
+            type_check_stmt(&stmt, env.clone(), ret_ty)?;
 
             Ok(env)
         },
         Stmt::Var(x, t, e) => {
             ensure("variable declaration matches given type",
                 t.clone(),
-                type_check_expr(*e, env.clone())?)?;
+                type_check_expr(e, env.clone())?)?;
 
-            Ok(env.update(x, t))
+            Ok(env.update(x.clone(), t.clone()))
         },
         Stmt::If(c, t, e) => {
             ensure("if condition", 
                 Type::Bool, 
-                type_check_expr(*c, env.clone())?)?;
+                type_check_expr(c, env.clone())?)?;
 
-            type_check_stmt(*t, env.clone(), ret_ty)?;
-            type_check_stmt(*e, env.clone(), ret_ty)?;
+            type_check_stmt(&t, env.clone(), ret_ty)?;
+            type_check_stmt(&e, env.clone(), ret_ty)?;
 
             Ok(env)
         },
@@ -188,7 +188,7 @@ fn type_check_stmt(stmt: Stmt, env: Env, ret_ty: &Option<Type>) -> TypeCheckingR
             Ok(env)
         },
         Stmt::Return(e) => {
-            let e_type = type_check_expr(*e, env.clone())?;
+            let e_type = type_check_expr(e, env.clone())?;
 
             match ret_ty {
                 None => Err(TypeCheckingError::UnexpectedReturn(e_type)),
@@ -201,7 +201,7 @@ fn type_check_stmt(stmt: Stmt, env: Env, ret_ty: &Option<Type>) -> TypeCheckingR
     }
 }
 
-fn type_check_stmts(stmts: Vec<Stmt>, env: Env, ret_ty: &Option<Type>) -> TypeCheckingResult<Env> {
+fn type_check_stmts(stmts: &Vec<Stmt>, env: Env, ret_ty: &Option<Type>) -> TypeCheckingResult<Env> {
     let mut env = env;
     for s in stmts {
         env = type_check_stmt(s, env, ret_ty)?;
@@ -209,7 +209,7 @@ fn type_check_stmts(stmts: Vec<Stmt>, env: Env, ret_ty: &Option<Type>) -> TypeCh
     Ok(env)
 }
 
-fn type_check_expr(expr: Expr, env: Env) -> TypeCheckingResult<Type> {
+fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
     match expr {
         Expr::Func(return_type, args, body) => {
             // type check body under assumption that args have the specified
@@ -217,18 +217,18 @@ fn type_check_expr(expr: Expr, env: Env) -> TypeCheckingResult<Type> {
             let mut function_env = env.clone();
             function_env.extend(args.clone().into_iter());
 
-            type_check_stmt(*body, function_env, &Some(return_type.clone()))?;
+            type_check_stmt(&body, function_env, &Some(return_type.clone()))?;
 
             Ok(Type::Function(
-                args.into_iter().map(|(_, ty)| ty).collect(), 
-                Box::new(return_type)))
+                args.into_iter().map(|(_, ty)| ty.clone()).collect(), 
+                Box::new(return_type.clone())))
         },
         Expr::Call(fun, args) => {
             // ensure that `fun` is a function.
             // get its expected argument types.
             let (expected_arg_types, return_type) = 
                 ensure_function("expected function for function call",
-                    type_check_expr(*fun, env.clone())?)?;
+                    type_check_expr(fun, env.clone())?)?;
 
             // derive types for the actual arguments.
             let actual_arg_types: Vec<TypeCheckingResult<Type>> = 
@@ -251,7 +251,7 @@ fn type_check_expr(expr: Expr, env: Env) -> TypeCheckingResult<Type> {
         Expr::Coercion(coercion, e) => {
             // type the expression. regardless of the coercion, the expression
             // needs to be well-typed.
-            let actual_type = type_check_expr(*e, env)?;
+            let actual_type = type_check_expr(e, env)?;
 
             // find the types the coercion is going from and to
             let (from, to) = type_check_coercion(coercion)?;
@@ -270,7 +270,7 @@ fn type_check_expr(expr: Expr, env: Env) -> TypeCheckingResult<Type> {
         Expr::This => Ok(Type::Any),
 
         Expr::Dot(obj, _prop) => {
-            let obj_type = type_check_expr(*obj, env)?;
+            let obj_type = type_check_expr(obj, env)?;
 
             ensure("property lookup done on real object", Type::DynObject, obj_type)?;
 
@@ -281,11 +281,11 @@ fn type_check_expr(expr: Expr, env: Env) -> TypeCheckingResult<Type> {
             Ok(Type::Any)
         }
         Expr::Bracket(obj, dyn_prop) => {
-            let obj_type = type_check_expr(*obj, env.clone())?;
+            let obj_type = type_check_expr(obj, env.clone())?;
 
             ensure("property lookup done on real object", Type::DynObject, obj_type)?;
 
-            let dyn_prop_type = type_check_expr(*dyn_prop, env)?;
+            let dyn_prop_type = type_check_expr(dyn_prop, env)?;
 
             ensure("property lookup needs string index", Type::String, dyn_prop_type)?;
 
@@ -314,13 +314,13 @@ fn type_check_expr(expr: Expr, env: Env) -> TypeCheckingResult<Type> {
 
 // ensures the given coercion is well-formed, and returns its input and output
 // types.
-fn type_check_coercion(c: Coercion) -> TypeCheckingResult<(Type, Type)> {
+fn type_check_coercion(c: &Coercion) -> TypeCheckingResult<(Type, Type)> {
     match c {
         Coercion::Tag(from_type) => {
-            Ok((from_type, Type::Any))
+            Ok((from_type.clone(), Type::Any))
         },
         Coercion::Untag(to_type) => {
-            Ok((Type::Any, to_type))
+            Ok((Type::Any, to_type.clone()))
         },
         Coercion::Fun(args_to_type, ret_to_type) => {
             // type check the arguments' coercions
@@ -338,7 +338,7 @@ fn type_check_coercion(c: Coercion) -> TypeCheckingResult<(Type, Type)> {
             }
 
             // get the original and new return type
-            let (ret_from, ret_to) = type_check_coercion(*ret_to_type)?;
+            let (ret_from, ret_to) = type_check_coercion(ret_to_type)?;
 
             // construct "from" function type
             let from = Type::Function(args_from, Box::new(ret_from));
@@ -350,11 +350,11 @@ fn type_check_coercion(c: Coercion) -> TypeCheckingResult<(Type, Type)> {
             Ok((from, to))
         },
         Coercion::Id(to_type) => {
-            Ok((to_type.clone(), to_type))
+            Ok((to_type.clone(), to_type.clone()))
         },
         Coercion::Seq(t1, t2) => { 
-            let (t2_from, t2_to) = type_check_coercion(*t2)?;
-            let (t1_from, t1_to) = type_check_coercion(*t1)?;
+            let (t2_from, t2_to) = type_check_coercion(t2)?;
+            let (t1_from, t1_to) = type_check_coercion(t1)?;
 
             ensure("sequence composition", t1_to, t2_from)?;
 
