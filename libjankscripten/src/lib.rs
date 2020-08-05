@@ -16,6 +16,7 @@ pub fn javascript_to_wasm(js_code: &str) -> Result<Vec<u8>, Box<dyn std::error::
     javascript::desugar(&mut js_ast, &mut ng);
     let jankier_ast = jankierscript::from_javascript(js_ast);
     let janky_ast = jankierscript::insert_coercions(jankier_ast)?;
+    jankyscript::type_checking::type_check(&janky_ast)?;
     let notwasm_ast = notwasm::from_jankyscript(janky_ast);
     let wasm_bin = notwasm::compile(notwasm_ast)?;
     Ok(wasm_bin)

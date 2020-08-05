@@ -4,28 +4,36 @@
 
 use super::syntax::*;
 
+use thiserror::Error;
+
 use im_rc::HashMap;
 
 type Env = HashMap<Id, Type>;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum TypeCheckingError {
     // Expected expression to have the first type, but it had the second
+    #[error("{0} expected type {1}, but received {2}")]
     TypeMismatch(String, Type, Type),
 
     // Expected an expression to have a function type
+    #[error("{0} expected an expression to have a function type, but received {1}")]
     ExpectedFunction(String, Type),
 
     // Tried to tag a value of the first type, but it had the second
+    #[error("tried to tag a value of type {0}, but received {1}")]
     TagTypeMismatch(Type, Type),
 
     // Expected a ground type
+    #[error("{0} expected a ground type but got {1}")]
     ExpectedGround(String, Type),
 
     // A return statement was used outside of a function
+    #[error("unexpected return of type {0}")]
     UnexpectedReturn(Type),
 
     // A variable was referenced that does not exist
+    #[error("a variable named {0} was referenced that doesn't exist")]
     NoSuchVariable(Id),
 }
 
