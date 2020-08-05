@@ -332,7 +332,10 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             // see Expr::Dot case for why we're returning Any
             Ok(Type::Any)
         }
-        _ => unimplemented!(),
+        Expr::Unary(..) => unimplemented!(),
+        Expr::Binary(..) => unimplemented!(),
+        Expr::PrimCall(..) => unimplemented!(),
+        Expr::New(..) => unimplemented!(),
     }
 }
 
