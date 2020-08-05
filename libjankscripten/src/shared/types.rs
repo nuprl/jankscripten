@@ -5,6 +5,7 @@
 pub enum Type {
     Any,
     Float,
+    Int,
     Bool,
     Function(Vec<Type>, Box<Type>),
     String,
@@ -27,11 +28,11 @@ impl Type {
                             }
                         }
                         return true;
-                    },
-                    _ => false
+                    }
+                    _ => false,
                 }
-            },
-            _ => true
+            }
+            _ => true,
         }
     }
 

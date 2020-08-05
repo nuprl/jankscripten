@@ -240,6 +240,11 @@ impl Id {
                 .append(D::as_string(i)),
         }
     }
+    pub fn to_pretty(&self, width: usize) -> String {
+        let mut w = Vec::new();
+        self.to_doc().render(width, &mut w).unwrap();
+        String::from_utf8(w).unwrap()
+    }
 }
 
 // can't impl foreign type

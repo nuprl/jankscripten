@@ -1,7 +1,7 @@
 use super::syntax::*;
-use thiserror::Error;
 use im_rc::HashMap;
 use std::rc::Rc;
+use thiserror::Error;
 
 #[derive(Clone, Debug)]
 pub struct Env {
@@ -10,18 +10,16 @@ pub struct Env {
 }
 
 impl Env {
-
     pub fn new() -> Env {
-        Env { 
+        Env {
             env: HashMap::new(),
-            prim_env: Rc::new(super::rt_bindings::get_rt_bindings())
+            prim_env: Rc::new(super::rt_bindings::get_rt_bindings()),
         }
     }
 
     pub fn get(&self, id: &Id) -> Option<&Type> {
         self.env.get(id)
     }
-
 
     #[deprecated(note = "Refactor to use .update instead")]
     pub fn insert(&mut self, id: Id, ty: Type) -> Option<Type> {
@@ -83,7 +81,10 @@ macro_rules! error {
 }
 
 fn invalid_in_context<T>(message: impl Into<String>, ty: &Type) -> TypeCheckingResult<T> {
-    return Err(TypeCheckingError::InvalidInContext(message.into(), ty.clone()));
+    return Err(TypeCheckingError::InvalidInContext(
+        message.into(),
+        ty.clone(),
+    ));
 }
 
 fn lookup(env: &Env, id: &Id) -> TypeCheckingResult<Type> {
@@ -114,7 +115,10 @@ pub fn type_check(p: &mut Program) -> TypeCheckingResult<()> {
     // Top-level type environment, including checks for duplicate identifiers.
     let mut env: Env = Env::new();
     for (id, f) in p.functions.iter() {
-        if env.insert(id.clone(), f.fn_type.clone().to_type()).is_some() {
+        if env
+            .insert(id.clone(), f.fn_type.clone().to_type())
+            .is_some()
+        {
             return Err(TypeCheckingError::MultiplyDefined(id.clone()));
         }
     }
@@ -126,7 +130,7 @@ pub fn type_check(p: &mut Program) -> TypeCheckingResult<()> {
 
     for (id, f) in p.functions.iter_mut() {
         type_check_function(env.clone(), id, f)?;
-    }    
+    }
 
     return Ok(());
 }
@@ -157,11 +161,7 @@ fn type_check_function(mut env: Env, id: &Id, f: &mut Function) -> TypeCheckingR
     Ok(())
 }
 
-fn type_check_stmt(
-    env: Env,
-    s: &mut Stmt,
-    ret_ty: &Option<Type>,
-) -> TypeCheckingResult<Env> {
+fn type_check_stmt(env: Env, s: &mut Stmt, ret_ty: &Option<Type>) -> TypeCheckingResult<Env> {
     match s {
         Stmt::Empty => Ok(env),
         Stmt::Var(var_stmt) => {
@@ -175,7 +175,7 @@ fn type_check_stmt(
                     return Ok(env);
                 }
             }
-            
+
             if lookup(&env, id).is_ok() {
                 Err(TypeCheckingError::MultiplyDefined(id.clone()))
             } else {
@@ -196,7 +196,7 @@ fn type_check_stmt(
             let _ = ensure("ref store", type_pointed_to, got_expr)?;
 
             Ok(env)
-        },
+        }
         Stmt::Assign(id, e) => {
             let got_id = lookup(&env, id)?;
             let got_expr = type_check_expr(&env, e)?;
@@ -293,29 +293,39 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             Ok(Type::String)
         }
         Expr::PrimCall(prim, args) => {
-            match env.get_prim(prim).ok_or_else(|| error(format!("invalid primitive ({})", prim)))? {
+            match env
+                .get_prim(prim)
+                .ok_or_else(|| error(format!("invalid primitive ({})", prim)))?
+            {
                 Type::Fn(fn_ty) => {
-                    let arg_tys = args.into_iter().map(|a| type_check_atom(env, a)).collect::<Result<Vec<_>, _>>()?;
+                    let arg_tys = args
+                        .into_iter()
+                        .map(|a| type_check_atom(env, a))
+                        .collect::<Result<Vec<_>, _>>()?;
                     if arg_tys.len() != fn_ty.args.len() {
-                        error!("primitive {} expected {} arguments, but received {}", prim,
-                            fn_ty.args.len(), arg_tys.len())
-                    }
-                    else if arg_tys.iter().zip(fn_ty.args.iter()).any(|(t1, t2)| t1 != t2) {
+                        error!(
+                            "primitive {} expected {} arguments, but received {}",
+                            prim,
+                            fn_ty.args.len(),
+                            arg_tys.len()
+                        )
+                    } else if arg_tys
+                        .iter()
+                        .zip(fn_ty.args.iter())
+                        .any(|(t1, t2)| t1 != t2)
+                    {
                         error!("primitive {} applied to wrong argument type", prim)
-                    }
-                    else {
+                    } else {
                         // ??? MMG do we need a void/unit type?
                         Ok(match &fn_ty.result {
                             None => Type::Any,
-                            Some(t) => *t.clone()
+                            Some(t) => *t.clone(),
                         })
                     }
                 }
-                _ => {
-                    error!("primitive is not a function ({})", prim)
-                }
+                _ => error!("primitive is not a function ({})", prim),
             }
-        },
+        }
         Expr::Call(id_f, actuals) => {
             let got_f = lookup(env, id_f)?;
             if let Type::Fn(fn_ty) = got_f {
@@ -347,7 +357,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             }
         }
         Expr::NewRef(a) => Ok(Type::Ref(Box::new(type_check_atom(env, a)?))),
-        Expr::Atom(a) => type_check_atom(env, a)
+        Expr::Atom(a) => type_check_atom(env, a),
     }
 }
 
@@ -366,7 +376,7 @@ fn assert_variant_of_any(ty: &Type) -> TypeCheckingResult<()> {
         Type::HT => Ok(()),
         Type::Array => Ok(()),
         Type::DynObject => Ok(()),
-        Type::Ref(..) => todo!()
+        Type::Ref(..) => todo!(),
     }
 }
 

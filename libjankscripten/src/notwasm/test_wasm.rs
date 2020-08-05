@@ -10,13 +10,11 @@ use std::sync::Once;
 
 static COMPILE_RUNTIME: Once = Once::new();
 
-fn test_wasm<T>(expected: T, program: Program)
+pub fn expect_wasm<T>(expected: T, wasm: Vec<u8>)
 where
     T: Debug + FromStr + PartialEq,
     <T as FromStr>::Err: Debug,
 {
-    println!("{:?}", program);
-    let wasm = compile(program).expect("could not compile");
     // NOTE(arjun): It is temption to make the runtime system a dev-dependency
     // in Cargo.toml. However, I do not believe that will work. I assume that
     // dev-dependencies are compiled with the same target as the primary crate.
@@ -72,12 +70,23 @@ where
     let stderr = String::from_utf8_lossy(&out.stderr);
     let stdout = String::from_utf8_lossy(&out.stdout);
     println!("Standard out:{}\n\nStandard error:{}", stdout, stderr);
-    let result = stderr.lines().last().expect("no lines of output");
     assert_eq!(
         expected,
         // exclude trailing newline
-        result.trim_end().parse::<T>().expect(&format!("number expected, got {}", &stderr)),
+        stdout
+            .trim_end()
+            .parse::<T>()
+            .expect(&format!("number expected, got {}", &stdout)),
     );
+}
+
+pub fn expect_notwasm<T>(expected: T, program: Program)
+where
+    T: Debug + FromStr + PartialEq,
+    <T as FromStr>::Err: Debug,
+{
+    let wasm = compile(program).expect("could not compile");
+    expect_wasm(expected, wasm)
 }
 
 use super::constructors::*;
@@ -95,7 +104,7 @@ fn test_ht() {
         }
         "#,
     );
-    test_wasm(1, program);
+    expect_notwasm(1, program);
 }
 
 #[test]
@@ -112,7 +121,7 @@ fn objects() {
         }
         "#,
     );
-    test_wasm(1, program);
+    expect_notwasm(1, program);
 }
 
 #[test]
@@ -128,7 +137,7 @@ fn array_push_index() {
         }
         ",
     );
-    test_wasm(98, program);
+    expect_notwasm(98, program);
 }
 
 #[test]
@@ -140,7 +149,7 @@ fn binary_ops() {
         }
     "#,
     );
-    test_wasm(12, program);
+    expect_notwasm(12, program);
 }
 
 #[test]
@@ -157,7 +166,7 @@ fn functions() {
         }
     "#,
     );
-    test_wasm(9, program);
+    expect_notwasm(9, program);
 }
 
 #[test]
@@ -174,7 +183,7 @@ fn break_block() {
         Stmt::Return(get_id_("x")),
     ]);
     let program = test_program_(body);
-    test_wasm(0, program);
+    expect_notwasm(0, program);
 }
 
 #[test]
@@ -196,7 +205,7 @@ fn big_sum() {
         }
     "#,
     );
-    test_wasm(1597, program);
+    expect_notwasm(1597, program);
 }
 
 #[test]
@@ -215,7 +224,7 @@ fn trivial_direct_call() {
     "#,
     );
 
-    test_wasm(100, program);
+    expect_notwasm(100, program);
 }
 
 #[test]
@@ -235,7 +244,7 @@ fn trivial_indirect_call() {
     "#,
     );
 
-    test_wasm(103, program);
+    expect_notwasm(103, program);
 }
 
 #[test]
@@ -246,10 +255,10 @@ fn basic_ref() {
             var r = newRef(150);
             return *r;
         }
-        "#
+        "#,
     );
 
-    test_wasm(150, program);
+    expect_notwasm(150, program);
 }
 
 #[test]
@@ -261,10 +270,10 @@ fn basic_ref_mutation() {
             *r = 130;
             return *r;
         }
-        "#
+        "#,
     );
 
-    test_wasm(130, program);
+    expect_notwasm(130, program);
 }
 
 #[test]
@@ -283,10 +292,10 @@ fn ref_doesnt_mutate_variables() {
             // return original variable, which should be unchanged
             return x;
         }
-        "#
+        "#,
     );
 
-    test_wasm(100, program);
+    expect_notwasm(100, program);
 }
 
 #[test]
@@ -304,7 +313,7 @@ fn goto_skips_stuff() {
         Stmt::Return(get_id_("x")),
     ]);
     let program = program2_(func_i32_(main_body), skip_to_here);
-    test_wasm(5, program);
+    expect_notwasm(5, program);
 }
 #[test]
 #[ignore]
@@ -321,7 +330,7 @@ fn goto_skips_loop() {
         Stmt::Return(get_id_("x")),
     ]);
     let program = program2_(func_i32_(main_body), skip_to_here);
-    test_wasm(5, program);
+    expect_notwasm(5, program);
 }
 #[test]
 #[ignore]
@@ -341,7 +350,7 @@ fn goto_enters_if() {
         Stmt::Return(get_id_("x")),
     ]);
     let program = program2_(func_i32_(main_body), skip_to_here);
-    test_wasm(5, program);
+    expect_notwasm(5, program);
 }
 
 #[test]
@@ -351,7 +360,7 @@ fn strings() {
         Stmt::Return(len_(get_id_("s"))),
     ]);
     let program = test_program_(body);
-    test_wasm(11, program);
+    expect_notwasm(11, program);
 }
 
 #[test]
@@ -365,7 +374,7 @@ fn globals() {
             atom: i32_(5),
         },
     );
-    test_wasm(5, program);
+    expect_notwasm(5, program);
 }
 
 #[test]
@@ -377,7 +386,7 @@ fn simple_prec() {
         }
         ",
     );
-    test_wasm(13, program);
+    expect_notwasm(13, program);
 }
 
 const ITER_COUNT: usize = 1000;
@@ -415,7 +424,7 @@ fn will_gc() {
         ",
         ALLOC_PROG, ITER_COUNT,
     ));
-    test_wasm(5, program);
+    expect_notwasm(5, program);
 }
 #[test]
 #[should_panic]
@@ -433,7 +442,7 @@ fn oom_if_no_gc() {
         ",
         ITER_COUNT, ALLOC_PROG
     ));
-    test_wasm(5, program);
+    expect_notwasm(5, program);
 }
 
 #[test]
@@ -447,7 +456,7 @@ fn identical_interned_string_identity() {
         }"#,
     );
     intern(&mut program);
-    test_wasm(1, program);
+    expect_notwasm(1, program);
 }
 
 #[test]
@@ -462,7 +471,7 @@ fn float_in_any() {
         }"#,
     );
     intern(&mut program);
-    test_wasm(1, program);
+    expect_notwasm(1, program);
 }
 
 #[test]
@@ -479,6 +488,7 @@ fn gc_float_in_any() {
             }
             return 5;
         }
-        "#);
-    test_wasm(5, program);            
+        "#,
+    );
+    expect_notwasm(5, program);
 }

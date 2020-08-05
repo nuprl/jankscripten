@@ -1,11 +1,11 @@
 //! An enum that can store any type known to the runtime
 
 pub use crate::allocator::AnyPtr;
+use crate::heap;
 use crate::string::StrPtr;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
-use crate::heap;
 
 /// this is the actual Any type, however it should never be returned or
 /// accepted as a parameter, because rust will refuse to turn it into an i64
@@ -15,7 +15,7 @@ use crate::heap;
 ///
 /// don't put anything bigger than 32 bits in here. in order for Any to be
 /// an immediate value we need them to be 64 bits due to wasm restrictions.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum AnyEnum<'a> {
     I32(i32),
     F64(*const f64),
@@ -25,20 +25,32 @@ pub enum AnyEnum<'a> {
     Fn(u32),
 }
 
-impl std::fmt::Display for AnyEnum<'_> {
+impl std::fmt::Debug for AnyEnum<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         use AnyEnum::*;
         match self {
             I32(n) => write!(f, "I32({})", n),
             F64(ptr) => write!(f, "F64({})", unsafe { ptr.read() }),
             Bool(b) => write!(f, "Bool({})", b),
-            Ptr(_) => write!(f, "Ptr(..)"),
-            StrPtr(_) => write!(f, "StrPtr(..)"),
-            Fn(n) => write!(f, "Fn({})", n)
+            Ptr(ptr) => write!(f, "{:?}", ptr.view()),
+            StrPtr(s) => write!(f, "StrPtr({})", s),
+            Fn(n) => write!(f, "Fn({})", n),
         }
     }
 }
-
+impl std::fmt::Display for AnyEnum<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use AnyEnum::*;
+        match self {
+            I32(n) => write!(f, "{}", n),
+            F64(ptr) => write!(f, "{}", unsafe { ptr.read() }),
+            Bool(b) => write!(f, "{}", b),
+            Ptr(_) => write!(f, "{:?}", self), // TODO: impl Display for HeapPtr
+            StrPtr(s) => write!(f, "{}", s),
+            Fn(_) => write!(f, "{:?}", self),
+        }
+    }
+}
 
 #[repr(transparent)]
 #[derive(Clone, Copy)]

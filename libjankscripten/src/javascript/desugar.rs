@@ -1,14 +1,16 @@
 use super::*;
 
 pub fn desugar(stmt: &mut Stmt, ng: &mut NameGen) {
-    stmt.walk(&mut super::desugar_function_stmts::DesugarFunctionStmts { });
+    stmt.walk(&mut super::desugar_function_stmts::DesugarFunctionStmts {});
     desugar_switch::desugar_switch(stmt, ng);
     // rdep: do..while uses ||
-    // dep: desugar_loops needs to come after desugar_switch 
+    // dep: desugar_loops needs to come after desugar_switch
     desugar_loops::desugar_loops(stmt, ng);
     // dep: desugar_logical needs loop conds to be simple
     desugar_logical::desugar_logical(stmt, ng);
     desugar_function_applications::desugar_function_applications(stmt, ng);
+    //dep: desugar_vardecls needs desugar_loops to be simple
+    desugar_vardecls::desugar_vardecls(stmt, ng);
     //dep: desugar_updates needs desugar_function_applications to work properly
     desugar_updates::desugar_updates(stmt, ng);
 }
@@ -56,7 +58,7 @@ mod test {
     }
 
     #[test]
-    fn desugar_parse_pluseq() {    
+    fn desugar_parse_pluseq() {
         let prog = r#"
             var MyObject =  { x: 1};
             function f () {
@@ -64,7 +66,7 @@ mod test {
             }
             f().x += 1;
         "#;
-        
+
         okay(prog);
     }
 
@@ -74,7 +76,7 @@ mod test {
             var x = 5;
             x -= 1;
         "#;
-        
+
         okay(prog);
     }
 
@@ -84,7 +86,7 @@ mod test {
             var x = 5;
             x *= 1;
         "#;
-        
+
         okay(prog);
     }
 
@@ -94,7 +96,7 @@ mod test {
             var x = 5;
             x /= 1;
         "#;
-        
+
         okay(prog);
     }
 
@@ -104,7 +106,7 @@ mod test {
             var x = 5;
             x %= 1;
         "#;
-        
+
         okay(prog);
     }
 
@@ -124,7 +126,7 @@ mod test {
             var x = 5;
             x >>= 1;
         "#;
-        
+
         okay(prog);
     }
 
@@ -134,7 +136,7 @@ mod test {
             var x = 5;
             x >>>= 1;
         "#;
-        
+
         okay(prog);
     }
 
@@ -144,7 +146,7 @@ mod test {
             var x = 5;
             x **= 1;
         "#;
-        
+
         okay(prog);
     }
 
@@ -154,7 +156,7 @@ mod test {
             var x = false;
             x |= true;
         "#;
-        
+
         okay(prog);
     }
 
@@ -164,7 +166,7 @@ mod test {
             var x = true;
             x ^= true;
         "#;
-        
+
         okay(prog);
     }
 
@@ -249,7 +251,7 @@ mod test {
 
     #[test]
     fn desugar_name_call_fancyupdate() {
-        let prog =r#"
+        let prog = r#"
             function f(arg) {
                 return arg;
             }
@@ -262,7 +264,7 @@ mod test {
 
     #[test]
     fn desugar_name_call_dot() {
-        let prog =r#"
+        let prog = r#"
             var obj = { x: 1 }
             function f() {
                 return obj;
@@ -333,8 +335,7 @@ mod test {
 
     #[test]
     fn desugar_test_for_to_while() {
-        let program =
-            "var r=0;
+        let program = "var r=0;
             for (var i=0; i<10; ++i) {
                 ++r;
             }
@@ -344,8 +345,7 @@ mod test {
 
     #[test]
     fn desugar_nested_loops() {
-        let program = 
-            "while (true) {
+        let program = "while (true) {
                 while (false) {}
                 break;
             }
@@ -355,8 +355,7 @@ mod test {
 
     #[test]
     fn desugar_continue_labeled_loop() {
-        let program = 
-            "var r=0;
+        let program = "var r=0;
             program_label: while (r === 0) {
                 while (true) {
                     ++r;
@@ -369,8 +368,7 @@ mod test {
 
     #[test]
     fn desugar_simple_while() {
-        let program = 
-            "var x = 0;
+        let program = "var x = 0;
             while (x < 10) {
                 ++x;
             }
@@ -433,7 +431,7 @@ mod test {
             x;";
         okay(program);
     }
-    
+
     #[test]
     fn desugar_do_while_continue() {
         let program = "
@@ -468,7 +466,36 @@ mod test {
                 r = false;
                 break;
             }
-            r;"
+            r;",
+        );
+    }
+
+    #[test]
+    fn desugar_vardecls_simple() {
+        okay(
+            "
+            var x = 1, y = 2;
+            y;
+        ",
+        );
+    }
+
+    #[test]
+    fn desugar_vardecls_dep() {
+        okay(
+            "var x = 1, y = x, z = 3, a = x + y + 4;
+            a;",
+        );
+    }
+
+    #[test]
+    fn desugar_vardecls_forloop() {
+        okay(
+            "var sum = 0;
+            for (var x = 1, y = x; x + y < 10; y++) {
+                sum +=  x+y;
+            }
+            sum;",
         );
     }
 }

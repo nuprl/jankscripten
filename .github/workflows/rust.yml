@@ -1,4 +1,4 @@
-name: Build and test
+name: CI
 
 on:
   push:
@@ -8,18 +8,18 @@ on:
 
 jobs:
   build:
-
     runs-on: self-hosted
-
     steps:
-    - uses: actions/checkout@v2
-    - name: Build
-      run: cargo build --verbose
-    - name: Build integration testing tool
-      working-directory: integration_tests
-      run: npm install
-    - name: Run unit tests
-      run: cargo test --verbose -- --test-threads=1
-    - name: Run integration tests
-      run: npm run-script test
-      working-directory: integration_tests
+      - uses: actions/checkout@v2
+      - name: Build
+        run: cargo build --verbose
+      - name: Build integration testing tool
+        working-directory: integration_tests
+        run: npm install
+      - name: Run unit tests
+        run: cargo test --verbose -- --test-threads=1
+      - name: Run integration tests
+        run: npm run-script test
+        working-directory: integration_tests
+      - name: Check format
+        run: cargo fmt -- --check

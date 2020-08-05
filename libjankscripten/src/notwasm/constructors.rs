@@ -18,17 +18,19 @@ pub fn loop_(a: Stmt) -> Stmt {
 pub fn label_<L: Into<Label>>(a: L, b: Stmt) -> Stmt {
     Stmt::Label(a.into(), Box::new(b))
 }
-pub fn get_id_<S: Into<String>>(a: S) -> Atom {
-    Atom::Id(id_(a))
+pub fn var_<S: Into<String>>(a: S, b: Expr) -> Stmt {
+    Stmt::Var(VarStmt::new(id_(a), b))
 }
 
 /// NOTE: This function constructions a `ToAny` that lacks the type annotation
 /// that is necessary for code generation. We must use the type-checker to fill
 /// in the annotation before trying to generate code.
-pub fn to_any(a: Atom) -> Atom {
+pub fn get_id_<S: Into<String>>(a: S) -> Atom {
+    Atom::Id(id_(a))
+}
+pub fn to_any_(a: Atom) -> Atom {
     Atom::ToAny(ToAny::new(a))
 }
-
 pub fn from_any_(a: Atom, ty: Type) -> Atom {
     Atom::FromAny(Box::new(a), ty)
 }
