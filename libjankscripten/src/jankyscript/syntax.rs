@@ -32,7 +32,7 @@ pub enum Expr {
     ),
     Call(Box<Expr>, Vec<Expr>),
     PrimCall(String, Vec<Expr>),
-    New(Type, Box<Expr>, Vec<Expr>),
+    New(Box<Expr>, Vec<Expr>),
     Func(Type, Vec<(Id, Type)>, Box<Stmt>),
     Coercion(Coercion, Box<Expr>),
 }

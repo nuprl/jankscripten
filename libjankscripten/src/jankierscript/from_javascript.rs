@@ -26,8 +26,10 @@ fn expr(e: Js::Expr) -> Expr {
         E::Id(id) => Id(id),
         E::Dot(e, x) => Dot(Box::new(expr(*e)), x),
         E::Bracket(e1, e2) => Bracket(Box::new(expr(*e1)), Box::new(expr(*e2))),
-        // We need to think about New
-        E::New(_, _) => todo!(),
+        E::New(ctor, args) => New(
+            Box::new(expr(*ctor)),
+            args.into_iter().map(|e| expr(e)).collect(),
+        ),
         E::Unary(op, e) => Unary(op, Box::new(expr(*e))),
         E::Binary(BinOp::BinaryOp(op), e1, e2) => {
             Binary(op, Box::new(expr(*e1)), Box::new(expr(*e2)))

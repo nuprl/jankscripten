@@ -271,7 +271,7 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
         J::Expr::Unary(op, expr) => {
             compile_expr(s, *expr, C::a(move |s, a| cxt.recv_a(s, unary_(op, a))))
         }
-        J::Expr::New(_, _, _) => todo!("new -- need deep thought"),
+        J::Expr::New(_, _) => todo!("new -- need deep thought"),
         // TODO(luna): i think JankyScript bracket supports like
         // object/hashtable fetch by name, so we have to descriminate based
         // on type or something(?)
