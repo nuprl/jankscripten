@@ -272,42 +272,6 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
         // `this` might not be an object. using Function.call you can
         // bind `this` to an arbitrary value, including null.
         Expr::This => Ok(Type::Any),
-
-        Expr::Dot(obj, _prop) => {
-            let obj_type = type_check_expr(obj, env)?;
-
-            ensure(
-                "property lookup done on real object",
-                Type::DynObject,
-                obj_type,
-            )?;
-
-            // we don't know anything about the type we're returning.
-            // even if this property doesn't exist on the given object,
-            // it'll return undefined (in non-strict mode).
-
-            Ok(Type::Any)
-        }
-        Expr::Bracket(obj, dyn_prop) => {
-            let obj_type = type_check_expr(obj, env.clone())?;
-
-            ensure(
-                "property lookup done on real object",
-                Type::DynObject,
-                obj_type,
-            )?;
-
-            let dyn_prop_type = type_check_expr(dyn_prop, env)?;
-
-            ensure(
-                "property lookup needs string index",
-                Type::String,
-                dyn_prop_type,
-            )?;
-
-            // see Expr::Dot case for why we're returning Any
-            Ok(Type::Any)
-        }
         Expr::Object(props) => {
             // type check each property
             for (_key, val) in props {
