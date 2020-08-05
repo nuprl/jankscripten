@@ -280,6 +280,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
         // `this` might not be an object. using Function.call you can
         // bind `this` to an arbitrary value, including null.
         Expr::This => Ok(Type::Any),
+
         Expr::Object(props) => {
             // type check each property
             for (_key, val) in props {
@@ -296,13 +297,6 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
 
             Ok(Type::Array)
         }
-        Expr::Lit(l) => Ok(type_check_lit(&l)),
-        Expr::Id(id) => lookup(&env, &id),
-
-        // `this` might not be an object. using Function.call you can
-        // bind `this` to an arbitrary value, including null.
-        Expr::This => Ok(Type::Any),
-
         Expr::Dot(obj, _prop) => {
             let obj_type = type_check_expr(obj, env)?;
 
