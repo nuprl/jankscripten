@@ -459,6 +459,7 @@ mod test {
     use super::from_jankyscript;
     use crate::jankyscript::constructors::*;
     use crate::jankyscript::syntax::*;
+    use crate::rts_function::RTSFunction;
     #[test]
     fn unary() {
         let program = Stmt::Block(vec![
@@ -473,7 +474,7 @@ mod test {
                 unary_(crate::notwasm::syntax::UnaryOp::Sqrt, Expr::Id("a".into())),
             ),
             expr_(Expr::PrimCall(
-                "log_any".into(),
+                RTSFunction::LogAny,
                 vec![coercion_(Coercion::Tag(Type::Float), Expr::Id("b".into()))],
             )),
         ]);
