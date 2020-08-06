@@ -459,67 +459,22 @@ mod test {
     use super::from_jankyscript;
     use crate::jankyscript::constructors::*;
     use crate::jankyscript::syntax::*;
-    fn any_bool(b: bool) -> Expr {
-        coercion_(Coercion::Tag(Type::Bool), lit_(Lit::Bool(b)))
-    }
     #[test]
-    fn test_array() {
-        let program = Stmt::Block(vec![
-            var_(
-                "arr".into(),
-                Type::Array,
-                Expr::Array(vec![any_bool(false), any_bool(true)]),
-            ),
-            var_(
-                "res".into(),
-                Type::Any,
-                bracket_(Expr::Id("arr".into()), lit_(Lit::Num(Num::Int(1)))),
-            ),
-            expr_(Expr::PrimCall(
-                "log_any".into(),
-                vec![Expr::Id("res".into())],
-            )),
-        ]);
-        expect_notwasm("Bool(true)".to_string(), from_jankyscript(program));
-    }
-    #[test]
-    fn test_obj() {
-        let program = Stmt::Block(vec![
-            var_(
-                "obj".into(),
-                Type::DynObject,
-                Expr::Object(vec![
-                    (Key::Str("false_".into()), any_bool(false)),
-                    (Key::Str("true_".into()), any_bool(true)),
-                ]),
-            ),
-            var_(
-                "res".into(),
-                Type::Any,
-                dot_(Expr::Id("obj".into()), "true_"),
-            ),
-            expr_(Expr::PrimCall(
-                "log_any".into(),
-                vec![Expr::Id("res".into())],
-            )),
-        ]);
-        expect_notwasm("Bool(true)".to_string(), from_jankyscript(program));
-    }
-    #[test]
-    fn unary_and_assign() {
+    fn unary() {
         let program = Stmt::Block(vec![
             var_(
                 "a".into(),
                 Type::Float,
                 Expr::Lit(Lit::Num(Num::Float(25.))),
             ),
-            assign_var_(
-                "a".into(),
+            var_(
+                "b".into(),
+                Type::Float,
                 unary_(crate::notwasm::syntax::UnaryOp::Sqrt, Expr::Id("a".into())),
             ),
             expr_(Expr::PrimCall(
                 "log_any".into(),
-                vec![coercion_(Coercion::Tag(Type::Float), Expr::Id("a".into()))],
+                vec![coercion_(Coercion::Tag(Type::Float), Expr::Id("b".into()))],
             )),
         ]);
         expect_notwasm("F64(5)".to_string(), from_jankyscript(program));
