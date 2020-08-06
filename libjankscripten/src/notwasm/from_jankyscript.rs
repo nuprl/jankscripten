@@ -317,6 +317,51 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 )
             }),
         ),
+        J::Expr::Assign(lv, e) => compile_expr(
+            s,
+            *e,
+            // TODO(luna): if we change Assign to an expression, we can make
+            // this C::e and drop the clone which will generate less useless
+            // locals; but it will mean sometimes dropping values. we
+            // could also change Assign to an atom, which would mean
+            // introducing new locals for assignment expressions
+            // but differently. see this discussion on slack:
+            // https://plasma.slack.com/archives/C013E3BK7QA/p1596656877066800
+            C::a(|s, a| match *lv {
+                J::LValue::Id(id) => {
+                    Rope::singleton(Stmt::Assign(id, atom_(a.clone()))).append(cxt.recv_a(s, a))
+                }
+                J::LValue::Dot(container, field) => {
+                    // TODO(luna): don't assume bracket is array
+                    compile_expr(
+                        s,
+                        container,
+                        // TODO(luna): support array set in notwasm, i can't
+                        // believe we don't yet
+                        C::a(move |s, cont| {
+                            cxt.recv_e(
+                                s,
+                                Expr::ObjectSet(
+                                    cont,
+                                    Atom::Lit(Lit::String(field.to_pretty(80))),
+                                    a,
+                                ),
+                            )
+                        }),
+                    )
+                }
+                J::LValue::Bracket(container, field) => {
+                    // TODO(luna): don't assume bracket is array
+                    compile_expr(
+                        s,
+                        container,
+                        // TODO(luna): support array set in notwasm, i can't
+                        // believe we don't yet
+                        C::a(|s, cont| compile_expr(s, field, C::a(|s, f| cxt.recv_e(s, todo!())))),
+                    )
+                }
+            }),
+        ),
         J::Expr::PrimCall(prim_name, args) => compile_exprs(s, args, move |s, arg_ids| {
             cxt.recv_e(
                 s,
@@ -338,6 +383,8 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
     }
 }
 
+// TODO(luna): remove this when we think we've completed this
+#[allow(unused)]
 fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
     use J::Stmt as S;
     match stmt {
@@ -369,15 +416,6 @@ fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
             // easier to understand in trivial examples. A C::e context would discard useless
             // binary operations.
             C::a(|_s, _a_notwasm| Rope::Nil),
-        ),
-        S::Assign(lv, e) => compile_expr(
-            s,
-            *e,
-            C::e(|_s, e| match *lv {
-                J::LValue::Id(id) => Rope::singleton(Stmt::Assign(id, e)),
-                J::LValue::Dot(..) => todo!(),
-                J::LValue::Bracket(..) => todo!(),
-            }),
         ),
         S::If(cond, then_branch, else_branch) => todo!(),
         S::While(cond, body) => todo!(),
@@ -421,67 +459,22 @@ mod test {
     use super::from_jankyscript;
     use crate::jankyscript::constructors::*;
     use crate::jankyscript::syntax::*;
-    fn any_bool(b: bool) -> Expr {
-        coercion_(Coercion::Tag(Type::Bool), lit_(Lit::Bool(b)))
-    }
     #[test]
-    fn test_array() {
-        let program = Stmt::Block(vec![
-            var_(
-                "arr".into(),
-                Type::Array,
-                Expr::Array(vec![any_bool(false), any_bool(true)]),
-            ),
-            var_(
-                "res".into(),
-                Type::Any,
-                bracket_(Expr::Id("arr".into()), lit_(Lit::Num(Num::Int(1)))),
-            ),
-            expr_(Expr::PrimCall(
-                "log_any".into(),
-                vec![Expr::Id("res".into())],
-            )),
-        ]);
-        expect_notwasm("Bool(true)".to_string(), from_jankyscript(program));
-    }
-    #[test]
-    fn test_obj() {
-        let program = Stmt::Block(vec![
-            var_(
-                "obj".into(),
-                Type::DynObject,
-                Expr::Object(vec![
-                    (Key::Str("false_".into()), any_bool(false)),
-                    (Key::Str("true_".into()), any_bool(true)),
-                ]),
-            ),
-            var_(
-                "res".into(),
-                Type::Any,
-                dot_(Expr::Id("obj".into()), "true_"),
-            ),
-            expr_(Expr::PrimCall(
-                "log_any".into(),
-                vec![Expr::Id("res".into())],
-            )),
-        ]);
-        expect_notwasm("Bool(true)".to_string(), from_jankyscript(program));
-    }
-    #[test]
-    fn unary_and_assign() {
+    fn unary() {
         let program = Stmt::Block(vec![
             var_(
                 "a".into(),
                 Type::Float,
                 Expr::Lit(Lit::Num(Num::Float(25.))),
             ),
-            assign_var_(
-                "a".into(),
+            var_(
+                "b".into(),
+                Type::Float,
                 unary_(crate::notwasm::syntax::UnaryOp::Sqrt, Expr::Id("a".into())),
             ),
             expr_(Expr::PrimCall(
                 "log_any".into(),
-                vec![coercion_(Coercion::Tag(Type::Float), Expr::Id("a".into()))],
+                vec![coercion_(Coercion::Tag(Type::Float), Expr::Id("b".into()))],
             )),
         ]);
         expect_notwasm("F64(5)".to_string(), from_jankyscript(program));

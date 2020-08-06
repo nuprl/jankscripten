@@ -156,12 +156,42 @@ impl InsertCoercions {
                 let (l, t) = self.lit(l)?;
                 Ok((Janky_::lit_(l), t))
             }
+            Expr::Array(es) => Ok((
+                Janky::Expr::Array(
+                    es.into_iter()
+                        .map(|e| self.expr(e, Type::Any, env))
+                        .collect::<Result<_, _>>()?,
+                ),
+                Type::Array,
+            )),
+            Expr::Object(kvs) => Ok((
+                Janky::Expr::Object(
+                    kvs.into_iter()
+                        .map(|(k, v)| self.expr(v, Type::Any, env).and_then(|v| Ok((k, v))))
+                        .collect::<Result<_, _>>()?,
+                ),
+                Type::DynObject,
+            )),
             Expr::Id(id) => {
                 if let Some(EnvItem::JsId(ty)) = env.env.get(&id.clone().to_pretty(80)) {
                     Ok((Janky::Expr::Id(id), ty.clone()))
                 } else {
                     todo!("primitive ID ({:?})", env)
                 }
+            }
+            Expr::Bracket(container, field) => {
+                // container is either array or object. for now, i'm going
+                // to assume it's an array because introducing OR into here
+                // seems pretty messy (TODO(luna))
+                let cont = self.expr(*container, Type::Array, env)?;
+                let f = self.expr(*field, Type::Int, env)?;
+                // all containers yield Any
+                Ok((Janky_::bracket_(cont, f), Type::Any))
+            }
+            Expr::Dot(container, field) => {
+                let cont = self.expr(*container, Type::DynObject, env)?;
+                // all containers yield Any
+                Ok((Janky_::dot_(cont, field), Type::Any))
             }
             Expr::Binary(op, e1, e2) => {
                 let (e1, t1) = self.expr_and_type(*e1, env)?;
@@ -177,6 +207,39 @@ impl InsertCoercions {
                 };
                 Ok((coerced_expr, result_ty))
             }
+            Expr::Assign(lv, e) => match *lv {
+                LValue::Id(id) => {
+                    let (_, into_ty) = self.expr_and_type(Expr::Id(id.clone()), env)?;
+                    Ok((
+                        Janky_::assign_(
+                            Janky::LValue::Id(id),
+                            self.expr(*e, into_ty.clone(), env)?,
+                        ),
+                        into_ty,
+                    ))
+                }
+                LValue::Dot(container, field) => {
+                    let cont = self.expr(container, Type::DynObject, env)?;
+                    let expr = self.expr(*e, Type::Any, env)?;
+                    // all containers yield Any
+                    Ok((
+                        Janky_::assign_(Janky::LValue::Dot(cont, field), expr),
+                        Type::Any,
+                    ))
+                }
+                LValue::Bracket(container, field) => {
+                    // TODO(luna): don't assume bracket is an array (could
+                    // be dynamic field with object)
+                    let cont = self.expr(container, Type::Array, env)?;
+                    let f = self.expr(field, Type::Int, env)?;
+                    let expr = self.expr(*e, Type::Any, env)?;
+                    // array assign yields the rvalue
+                    Ok((
+                        Janky_::assign_(Janky::LValue::Bracket(cont, f), expr),
+                        Type::Any,
+                    ))
+                }
+            },
             Expr::Call(f, args) => {
                 // Special case for a primitive function call. JavaScript, and thus JankierScript
                 // do not distinguish primitive calls from calls to user-defined functions. However,
@@ -219,7 +282,13 @@ impl InsertCoercions {
 
     fn lit(&self, lit: Janky::Lit) -> CoercionResult<(Janky::Lit, Type)> {
         match lit {
-            Janky::Lit::Num(n) => Ok((Janky_::num_(n), Type::Float)),
+            Janky::Lit::Num(n) => Ok((
+                Janky_::num_(n),
+                match n {
+                    Janky::Num::Float(_) => Type::Float,
+                    Janky::Num::Int(_) => Type::Int,
+                },
+            )),
             _ => todo!("{:?}", lit),
         }
     }

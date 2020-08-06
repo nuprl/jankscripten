@@ -26,6 +26,13 @@ pub fn binary_(op: super::super::notwasm::syntax::BinaryOp, e1: Expr, e2: Expr) 
     Expr::Binary(op, Box::new(e1), Box::new(e2))
 }
 
+pub fn assign_(lv: LValue, e: Expr) -> Expr {
+    Expr::Assign(Box::new(lv), Box::new(e))
+}
+pub fn assign_var_(x: Id, e: Expr) -> Expr {
+    Expr::Assign(Box::new(LValue::Id(x)), Box::new(e))
+}
+
 pub fn unary_(op: super::super::notwasm::syntax::UnaryOp, e1: Expr) -> Expr {
     Expr::Unary(op, Box::new(e1))
 }
@@ -41,10 +48,6 @@ pub fn coercion_(c: Coercion, e: Expr) -> Expr {
 
 pub fn var_(x: Id, t: Type, e: Expr) -> Stmt {
     Stmt::Var(x, t, Box::new(e))
-}
-
-pub fn assign_var_(x: Id, e: Expr) -> Stmt {
-    Stmt::Assign(Box::new(LValue::Id(x)), Box::new(e))
 }
 
 pub fn block_(stmts: Vec<Stmt>) -> Stmt {

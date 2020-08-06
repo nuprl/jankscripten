@@ -21,7 +21,7 @@ pub enum UnaryAssignOp {
     PostDec,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Num {
     Int(i32),
     Float(f64),
