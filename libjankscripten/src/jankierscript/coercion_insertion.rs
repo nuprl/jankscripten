@@ -29,14 +29,14 @@ enum EnvItem {
 
 #[derive(Debug, Clone)]
 struct Env {
-    env: HashMap<String, EnvItem>,
+    env: HashMap<Id, EnvItem>,
 }
 
 impl Env {
     pub fn new() -> Env {
-        let mut env: HashMap<String, EnvItem> = HashMap::new();
+        let mut env: HashMap<Id, EnvItem> = HashMap::new();
         env.insert(
-            "log_any".to_string(),
+            Id::Named("log_any".to_string()),
             EnvItem::Prim(Type::Function(vec![Type::Any], Box::new(Type::Any))),
         );
         Env { env }
@@ -45,12 +45,18 @@ impl Env {
     /// If `expr` is an identifier that isbound to a primitive, returns its name and type.
     pub fn get_prim_ty(&self, expr: &Expr) -> Option<(String, &Type)> {
         match expr {
-            Expr::Id(Id::Named(name)) => match self.env.get(name) {
-                Some(EnvItem::Prim(ty)) => Some((name.to_owned(), ty)),
+            Expr::Id(id) => match self.env.get(id) {
+                Some(EnvItem::Prim(ty)) => Some((id.clone().into_name(), ty)),
                 _ => None,
             },
             _ => None,
         }
+    }
+
+    pub fn extend(&self, id: Id, ty: Type) -> Self {
+        let mut env = self.clone();
+        env.env.insert(id, EnvItem::JsId(ty));
+        env
     }
 }
 
@@ -108,8 +114,7 @@ impl InsertCoercions {
         match stmt {
             Stmt::Var(x, t, e) => {
                 let (e, t) = self.expr_and_type(*e, env)?;
-                // TODO(luna): make env over Id instead of String to avoid this
-                env.env.insert(x.to_pretty(80), EnvItem::JsId(t.clone()));
+                env.env.insert(x.clone(), EnvItem::JsId(t.clone()));
                 Ok(Janky_::var_(x, t, e))
             }
             Stmt::Block(stmts) => self.stmts(stmts, &mut env.clone()),
@@ -138,7 +143,38 @@ impl InsertCoercions {
                 let (janky_e, _) = self.expr_and_type(*e, env)?;
                 Ok(Janky::Stmt::Expr(Box::new(janky_e)))
             }
-            _ => todo!("stmt({:?})", stmt),
+            Stmt::Label(label, body) => {
+                let coerced_body = self.stmt(*body, env)?;
+                Ok(Janky::Stmt::Label(label, Box::new(coerced_body)))
+            }
+            Stmt::Break(id) => Ok(Janky::Stmt::Break(id)),
+            Stmt::Catch(body, exn_name, catch_body) => {
+                let coerced_body = self.stmt(*body, &mut env.clone())?;
+                let coerced_catch_body =
+                    self.stmt(*catch_body, &mut env.extend(exn_name.clone(), Type::Any))?;
+                Ok(Janky::Stmt::Catch(
+                    Box::new(coerced_body),
+                    exn_name,
+                    Box::new(coerced_catch_body),
+                ))
+            }
+            Stmt::Finally(body, finally_body) => {
+                let coerced_body = self.stmt(*body, &mut env.clone())?;
+                let coerced_finally_body = self.stmt(*finally_body, &mut env.clone())?;
+                Ok(Janky::Stmt::Finally(
+                    Box::new(coerced_body),
+                    Box::new(coerced_finally_body),
+                ))
+            }
+            Stmt::Throw(expr) => {
+                let coerced_expr = self.expr(*expr, Type::Any, &mut env.clone())?;
+                Ok(Janky::Stmt::Throw(Box::new(coerced_expr)))
+            }
+            Stmt::Return(expr) => {
+                // TODO(arjun): This assumes all functions produce any
+                let coerced_expr = self.expr(*expr, Type::Any, &mut env.clone())?;
+                Ok(Janky::Stmt::Return(Box::new(coerced_expr)))
+            }
         }
     }
 
@@ -173,7 +209,7 @@ impl InsertCoercions {
                 Type::DynObject,
             )),
             Expr::Id(id) => {
-                if let Some(EnvItem::JsId(ty)) = env.env.get(&id.clone().to_pretty(80)) {
+                if let Some(EnvItem::JsId(ty)) = env.env.get(&id) {
                     Ok((Janky::Expr::Id(id), ty.clone()))
                 } else {
                     todo!("primitive ID ({:?})", env)
@@ -260,7 +296,11 @@ impl InsertCoercions {
                 let (f, t) = self.expr_and_type(*f, env)?;
                 unimplemented!()
             }
-            _ => todo!("{:?}", expr),
+            // TODO(arjun): Any for this!
+            Expr::This => Ok((Janky::Expr::This, Type::Any)),
+            Expr::Unary(_, _) => todo!("unary operators"),
+            Expr::New(_, _) => todo!("new expressions"),
+            Expr::Func(_, _, _) => todo!("function declarations"),
         }
     }
 
