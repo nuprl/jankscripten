@@ -432,9 +432,14 @@ fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
                 ))
             }),
         ),
-        S::While(cond, body) => todo!(),
-        S::Label(x, body) => todo!(),
-        S::Break(x) => todo!(),
+        S::Loop(body) => Rope::singleton(loop_(Stmt::Block(
+            compile_stmt(s, *body).into_iter().collect(),
+        ))),
+        S::Label(x, body) => Rope::singleton(label_(
+            Label::Named(x.to_pretty(80)),
+            Stmt::Block(compile_stmt(s, *body).into_iter().collect()),
+        )),
+        S::Break(x) => Rope::singleton(Stmt::Break(Label::Named(x.to_pretty(80)))),
         S::Catch(_, _, _) => todo!("NotWasm needs to support exceptions"),
         S::Finally(_, _) => todo!("NotWasm needs to support exceptions"),
         S::Throw(_) => todo!("NotWasm needs to support exceptions"),

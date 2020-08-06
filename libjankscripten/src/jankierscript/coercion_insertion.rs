@@ -114,12 +114,10 @@ impl InsertCoercions {
                     self.stmt(*e, &mut env.clone())?,
                 ))
             }
-            Stmt::While(cond, body) => {
-                // coerce the loop conditional into type Bool
-                let cond = self.expr(*cond, Type::Bool, env)?;
+            Stmt::Loop(body) => {
                 // new scope
                 let body = self.stmt(*body, &mut env.clone())?;
-                Ok(Janky_::while_(cond, body))
+                Ok(Janky_::loop_(body))
             }
             Stmt::Empty => Ok(Janky_::empty_()),
             Stmt::Expr(e) => {
