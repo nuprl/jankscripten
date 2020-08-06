@@ -16,8 +16,9 @@ pub fn get_rt_bindings() -> BindMap {
     insert(m, "ht_set", vec![HT, KEY, Any], Any);
     insert(m, "array_new", vec![], Array);
     insert(m, "array_push", vec![Array, Any], I32); // new length
-    insert(m, "array_index", vec![Type::Array, I32], Any);
-    insert(m, "array_len", vec![Type::Array], I32);
+    insert(m, "array_index", vec![Array, I32], Any);
+    insert(m, "array_set", vec![Array, I32, Any], Any);
+    insert(m, "array_len", vec![Array], I32);
     insert_mono(m, "any_from", vec![&mono], &|_| Any, vec![I32, Bool]);
     insert_mono(m, "any_to", vec![&|_| Any], &mono, vec![I32, Bool]);
     insert(m, "any_from_ptr", vec![I32], Any);

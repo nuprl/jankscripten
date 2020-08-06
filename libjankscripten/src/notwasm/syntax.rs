@@ -180,6 +180,8 @@ pub enum Expr {
     // TODO: Give Array initial capacity
     Array,
     Push(Atom, Atom),
+    /// TODO(luna): we need to detect out-of-bounds and turn into a hashmap
+    ArraySet(Atom, Atom, Atom),
     HTSet(Atom, Atom, Atom),
     Call(Id, Vec<Id>),
     PrimCall(String, Vec<Atom>),
