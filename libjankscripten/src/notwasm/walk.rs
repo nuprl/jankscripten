@@ -136,7 +136,7 @@ where
         self.visitor.enter_expr(expr, loc);
         match expr {
             ObjectEmpty | HT | Array | Call(..) | PrimCall(..) => (),
-            HTSet(ea, eb, ec, ..) | ObjectSet(ea, eb, ec, ..) => {
+            HTSet(ea, eb, ec, ..) | ObjectSet(ea, eb, ec, ..) | ArraySet(ea, eb, ec) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
                 self.walk_atom(ec, loc);

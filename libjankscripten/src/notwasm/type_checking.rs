@@ -261,6 +261,15 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
 
             Ok(Type::I32) // returns length
         }
+        Expr::ArraySet(a_arr, a_idx, a_val) => {
+            let got_arr = type_check_atom(env, a_arr)?;
+            let got_idx = type_check_atom(env, a_idx)?;
+            let got_val = type_check_atom(env, a_val)?;
+            let _ = ensure("array set (index)", Type::I32, got_idx)?;
+            let _ = ensure("array set (array)", Type::Array, got_arr);
+            let _ = ensure("array set (value)", Type::Any, got_val);
+            Ok(Type::Any)
+        }
         Expr::HTSet(a_ht, a_field, a_val) => {
             let got_ht = type_check_atom(env, a_ht)?;
             let got_field = type_check_atom(env, a_field)?;

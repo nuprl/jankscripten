@@ -355,9 +355,13 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                     compile_expr(
                         s,
                         container,
-                        // TODO(luna): support array set in notwasm, i can't
-                        // believe we don't yet
-                        C::a(|s, cont| compile_expr(s, field, C::a(|s, f| cxt.recv_e(s, todo!())))),
+                        C::a(move |s, cont| {
+                            compile_expr(
+                                s,
+                                field,
+                                C::a(move |s, f| cxt.recv_e(s, Expr::ArraySet(cont, f, a))),
+                            )
+                        }),
                     )
                 }
             }),

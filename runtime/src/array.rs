@@ -14,6 +14,16 @@ pub extern "C" fn array_index<'a>(array: ArrayPtr<'a>, index: i32) -> AnyValue<'
 }
 
 #[no_mangle]
+pub extern "C" fn array_set<'a>(
+    mut array: ArrayPtr<'a>,
+    index: i32,
+    val: AnyValue<'a>,
+) -> AnyValue<'a> {
+    array[index as usize] = val;
+    val
+}
+
+#[no_mangle]
 pub extern "C" fn array_len<'a>(array: ArrayPtr<'a>) -> i32 {
     array.len() as i32
 }
