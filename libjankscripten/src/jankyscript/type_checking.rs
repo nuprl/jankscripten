@@ -101,11 +101,7 @@ fn type_check_stmt(stmt: Stmt, env: Env, ret_ty: &Option<Type>) -> TypeCheckingR
 
             Ok(env)
         }
-        Stmt::While(cond, body) => {
-            // make sure cond is a bool
-            let cond_ty = type_check_expr(*cond, env.clone())?;
-            ensure("while loop conditional", Type::Bool, cond_ty)?;
-
+        Stmt::Loop(body) => {
             // type check body in a new scope
             type_check_stmt(*body, env.clone(), ret_ty)?;
 

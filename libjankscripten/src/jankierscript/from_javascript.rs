@@ -1,3 +1,4 @@
+use super::super::javascript::constructors as Js_;
 use super::super::javascript::syntax as Js;
 use super::syntax::*;
 
@@ -65,7 +66,10 @@ fn stmt(s: Js::Stmt) -> Stmt {
         Js::Break(x) => Break(x.unwrap()),
         Js::Continue(_) => unexpected(&s),
         Js::Switch(_, _, _) => unexpected(&s),
-        Js::While(c, body) => While(Box::new(expr(*c)), Box::new(stmt(*body))),
+        Js::While(c, body) => {
+            assert_eq!(*c, Js_::TRUE_, "desugaring should have removed while loops");
+            Loop(Box::new(stmt(*body)))
+        }
         Js::DoWhile(_, _) => unexpected(&s),
         Js::For(_, _, _, _) => unexpected(&s),
         Js::Catch(try_body, exception_name, catch_body) => Catch(

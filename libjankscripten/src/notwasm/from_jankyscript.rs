@@ -421,15 +421,37 @@ fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
             // binary operations.
             C::a(|_s, _a_notwasm| Rope::Nil),
         ),
-        S::If(cond, then_branch, else_branch) => todo!(),
-        S::While(cond, body) => todo!(),
-        S::Label(x, body) => todo!(),
-        S::Break(x) => todo!(),
+        S::If(cond, then_branch, else_branch) => compile_expr(
+            s,
+            *cond,
+            C::a(|s, a| {
+                Rope::singleton(if_(
+                    a,
+                    compile_stmt_block(s, *then_branch),
+                    compile_stmt_block(s, *else_branch),
+                ))
+            }),
+        ),
+        S::Loop(body) => Rope::singleton(loop_(Stmt::Block(
+            compile_stmt(s, *body).into_iter().collect(),
+        ))),
+        S::Label(x, body) => Rope::singleton(label_(
+            Label::Named(x.to_pretty(80)),
+            Stmt::Block(compile_stmt(s, *body).into_iter().collect()),
+        )),
+        S::Break(x) => Rope::singleton(Stmt::Break(Label::Named(x.to_pretty(80)))),
         S::Catch(_, _, _) => todo!("NotWasm needs to support exceptions"),
         S::Finally(_, _) => todo!("NotWasm needs to support exceptions"),
         S::Throw(_) => todo!("NotWasm needs to support exceptions"),
         S::Return(_) => todo!(),
     }
+}
+
+fn compile_stmt_block(s: &mut S, stmt: J::Stmt) -> Stmt {
+    rope_to_block(compile_stmt(s, stmt))
+}
+fn rope_to_block(rope: Rope<Stmt>) -> Stmt {
+    Stmt::Block(rope.into_iter().collect())
 }
 
 pub fn from_jankyscript(janky_program: J::Stmt) -> Program {

@@ -46,7 +46,7 @@ pub enum Stmt {
     Empty,
     Expr(Box<Expr>),
     If(Box<Expr>, Box<Stmt>, Box<Stmt>),
-    While(Box<Expr>, Box<Stmt>),
+    Loop(Box<Stmt>),
     Label(Id, Box<Stmt>),
     Break(Id),
     Catch(Box<Stmt>, Id, Box<Stmt>),

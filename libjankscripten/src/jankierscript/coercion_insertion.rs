@@ -69,44 +69,27 @@ enum Overload {
     RTS(RTSFunction),
 }
 
+fn prim(op: BinaryOp, a: Type, b: Type, c: Type) -> (Overload, Type, Type, Type) {
+    (Overload::Prim(op), a, b, c)
+}
+fn prim_same(op: BinaryOp, homogenous: Type) -> (Overload, Type, Type, Type) {
+    prim(op, homogenous.clone(), homogenous.clone(), homogenous)
+}
 // Given a JavaScript binary operator and the types of its operands, returns
 // either (1) a Wasm operator and its type, and (2) a function in the runtime
 // system and its type.
 fn binop_overload(op: &BinOp, lhs_ty: &Type, rhs_ty: &Type) -> (Overload, Type, Type, Type) {
+    use Type::*;
     match (op, lhs_ty, rhs_ty) {
         // TODO(arjun): This is not accurate. Adding two 32-bit integers in JS
         // can produce a float.
-        (BinOp::Plus, Type::Int, Type::Int) => (
-            Overload::Prim(BinaryOp::I32Add),
-            Type::Int,
-            Type::Int,
-            Type::Int,
-        ),
-        (BinOp::Plus, Type::Float, Type::Float) => (
-            Overload::Prim(BinaryOp::F64Add),
-            Type::Float,
-            Type::Float,
-            Type::Float,
-        ),
-        (BinOp::Plus, Type::Float, Type::Int) => (
-            Overload::Prim(BinaryOp::F64Add),
-            Type::Float,
-            Type::Float,
-            Type::Float,
-        ),
-        (BinOp::Plus, Type::Int, Type::Float) => (
-            Overload::Prim(BinaryOp::F64Add),
-            Type::Float,
-            Type::Float,
-            Type::Float,
-        ),
-        (BinOp::Plus, Type::Int, Type::Float) => (
-            Overload::RTS(RTSFunction::Plus),
-            Type::Any,
-            Type::Any,
-            Type::Any,
-        ),
-        _ => todo!("other binary operators"),
+        (BinOp::Plus, Int, Int) => prim_same(BinaryOp::I32Add, Int),
+        (BinOp::Plus, Float, Float) => prim_same(BinaryOp::F64Add, Float),
+        (BinOp::Plus, Float, Int) => prim_same(BinaryOp::F64Add, Float),
+        (BinOp::Plus, Int, Float) => prim_same(BinaryOp::F64Add, Float),
+        (BinOp::Plus, Int, Float) => (Overload::RTS(RTSFunction::Plus), Any, Any, Any),
+        (BinOp::LessThan, Int, Int) => prim(BinaryOp::I32LT, Int, Int, Bool),
+        other => todo!("binop overload {:?}", other),
     }
 }
 
@@ -131,12 +114,10 @@ impl InsertCoercions {
                     self.stmt(*e, &mut env.clone())?,
                 ))
             }
-            Stmt::While(cond, body) => {
-                // coerce the loop conditional into type Bool
-                let cond = self.expr(*cond, Type::Bool, env)?;
+            Stmt::Loop(body) => {
                 // new scope
                 let body = self.stmt(*body, &mut env.clone())?;
-                Ok(Janky_::while_(cond, body))
+                Ok(Janky_::loop_(body))
             }
             Stmt::Empty => Ok(Janky_::empty_()),
             Stmt::Expr(e) => {
@@ -330,6 +311,7 @@ impl InsertCoercions {
                     Janky::Num::Int(_) => Type::Int,
                 },
             )),
+            Janky::Lit::Bool(b) => Ok((Janky::Lit::Bool(b), Type::Bool)),
             _ => todo!("{:?}", lit),
         }
     }
