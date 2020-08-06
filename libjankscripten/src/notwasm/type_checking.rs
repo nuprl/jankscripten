@@ -70,10 +70,6 @@ pub enum TypeCheckingError {
 
 pub type TypeCheckingResult<T> = Result<T, TypeCheckingError>;
 
-fn error(message: impl Into<String>) -> TypeCheckingError {
-    TypeCheckingError::Other(message.into())
-}
-
 macro_rules! error {
     ($($t:tt)*) => (
         Err(TypeCheckingError::Other(format!($($t)*)))
@@ -302,10 +298,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             Ok(Type::String)
         }
         Expr::PrimCall(prim, args) => {
-            match env
-                .get_prim(prim)
-                .ok_or_else(|| error(format!("invalid primitive ({})", prim)))?
-            {
+            match prim.janky_typ().notwasm_typ() {
                 Type::Fn(fn_ty) => {
                     let arg_tys = args
                         .into_iter()
@@ -313,7 +306,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
                         .collect::<Result<Vec<_>, _>>()?;
                     if arg_tys.len() != fn_ty.args.len() {
                         error!(
-                            "primitive {} expected {} arguments, but received {}",
+                            "primitive {:?} expected {} arguments, but received {}",
                             prim,
                             fn_ty.args.len(),
                             arg_tys.len()
@@ -323,7 +316,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
                         .zip(fn_ty.args.iter())
                         .any(|(t1, t2)| t1 != t2)
                     {
-                        error!("primitive {} applied to wrong argument type", prim)
+                        error!("primitive {:?} applied to wrong argument type", prim)
                     } else {
                         // ??? MMG do we need a void/unit type?
                         Ok(match &fn_ty.result {
@@ -332,7 +325,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
                         })
                     }
                 }
-                _ => error!("primitive is not a function ({})", prim),
+                _ => error!("primitive is not a function ({:?})", prim),
             }
         }
         Expr::Call(id_f, actuals) => {

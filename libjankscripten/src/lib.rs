@@ -5,6 +5,7 @@ pub mod jankyscript;
 pub mod javascript;
 pub mod notwasm;
 mod rope;
+mod rts_function;
 pub mod shared;
 
 #[macro_use]
