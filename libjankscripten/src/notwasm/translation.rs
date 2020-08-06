@@ -425,6 +425,8 @@ impl<'a> Translate<'a> {
             N::BinaryOp::I32Ge => self.out.push(I32GeS),
             N::BinaryOp::I32Le => self.out.push(I32LeS),
             N::BinaryOp::I32Mul => self.out.push(I32Mul),
+            N::BinaryOp::I32Div => self.out.push(I32DivS),
+            N::BinaryOp::I32Rem => self.out.push(I32RemS),
             N::BinaryOp::I32And => self.out.push(I32And),
             N::BinaryOp::I32Or => self.out.push(I32Or),
             N::BinaryOp::F64Add => self.out.push(F64Add),
