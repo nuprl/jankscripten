@@ -98,6 +98,8 @@ pub enum BinaryOp {
     I32Le, // signed
     I32And,
     I32Or,
+    I32Div,
+    I32Rem,
     F64Add,
     F64Sub,
     F64Mul,

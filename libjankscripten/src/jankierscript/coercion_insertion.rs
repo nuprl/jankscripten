@@ -100,6 +100,11 @@ fn binop_overload(op: &BinOp, lhs_ty: &Type, rhs_ty: &Type) -> (Overload, Type, 
         (BinOp::Plus, Int, Float) => prim_same(BinaryOp::F64Add, Float),
         (BinOp::Plus, Int, Float) => (Overload::RTS(RTSFunction::Plus), Any, Any, Any),
         (BinOp::LessThan, Int, Int) => prim(BinaryOp::I32LT, Int, Int, Bool),
+        (BinOp::Over, Int, Int) => prim_same(BinaryOp::I32Div, Int),
+        (BinOp::Mod, Int, Int) => prim_same(BinaryOp::I32Rem, Int),
+        (BinOp::Equal, _, _) if lhs_ty == rhs_ty && lhs_ty != &Any => {
+            prim(BinaryOp::I32Eq, lhs_ty.clone(), rhs_ty.clone(), Bool)
+        }
         other => todo!("binop overload {:?}", other),
     }
 }

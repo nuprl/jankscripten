@@ -475,6 +475,8 @@ fn type_check_binary(op: &BinaryOp) -> (Type, Type) {
         BinaryOp::I32Add
         | BinaryOp::I32Sub
         | BinaryOp::I32Mul
+        | BinaryOp::I32Div
+        | BinaryOp::I32Rem
         | BinaryOp::I32And
         | BinaryOp::I32Or => (Type::I32, Type::I32),
         BinaryOp::F64Add | BinaryOp::F64Sub | BinaryOp::F64Mul | BinaryOp::F64Div => {
