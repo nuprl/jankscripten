@@ -1,5 +1,6 @@
 //! The JankierScript language
 
+use crate::rts_function::RTSFunction;
 pub use crate::shared::coercions::Coercion;
 pub use crate::shared::types::Type;
 
@@ -32,7 +33,7 @@ pub enum Expr {
     ),
     Assign(Box<LValue>, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
-    PrimCall(String, Vec<Expr>),
+    PrimCall(RTSFunction, Vec<Expr>),
     New(Box<Expr>, Vec<Expr>),
     Func(Type, Vec<(Id, Type)>, Box<Stmt>),
     Coercion(Coercion, Box<Expr>),

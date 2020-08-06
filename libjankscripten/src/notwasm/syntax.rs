@@ -21,9 +21,9 @@
 //! - A set of global variables that are initialized to …whataever Wasm
 //!   supports
 
-use std::collections::HashMap;
-
 pub use super::super::javascript::Id;
+use crate::rts_function::RTSFunction;
+use std::collections::HashMap;
 
 /// The types of NotWam. Every value has a unique type, thus we *do not* support
 /// subtyping. The comment for each variant describes the shape of the value
@@ -182,7 +182,7 @@ pub enum Expr {
     Push(Atom, Atom),
     HTSet(Atom, Atom, Atom),
     Call(Id, Vec<Id>),
-    PrimCall(String, Vec<Atom>),
+    PrimCall(RTSFunction, Vec<Atom>),
     ObjectEmpty,
     /// ObjectSet(obj, field_name, value, typ) is obj.field_name: typ = value;
     ObjectSet(Atom, Atom, Atom),

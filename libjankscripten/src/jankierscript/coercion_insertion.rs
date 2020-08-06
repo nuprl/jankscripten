@@ -2,6 +2,7 @@ use super::super::notwasm::syntax::BinaryOp;
 use super::syntax::*;
 use crate::jankyscript::constructors as Janky_;
 use crate::jankyscript::syntax as Janky;
+use crate::rts_function::RTSFunction;
 use crate::shared::coercions::*;
 use crate::shared::types::Type;
 use im_rc::HashMap;
@@ -24,7 +25,7 @@ macro_rules! error {
 #[derive(Debug, Clone)]
 enum EnvItem {
     JsId(Type),
-    Prim(Type),
+    Prim(RTSFunction),
 }
 
 #[derive(Debug, Clone)]
@@ -37,16 +38,16 @@ impl Env {
         let mut env: HashMap<Id, EnvItem> = HashMap::new();
         env.insert(
             Id::Named("log_any".to_string()),
-            EnvItem::Prim(Type::Function(vec![Type::Any], Box::new(Type::Any))),
+            EnvItem::Prim(RTSFunction::LogAny),
         );
         Env { env }
     }
 
     /// If `expr` is an identifier that isbound to a primitive, returns its name and type.
-    pub fn get_prim_ty(&self, expr: &Expr) -> Option<(String, &Type)> {
+    pub fn get_prim_ty(&self, expr: &Expr) -> Option<RTSFunction> {
         match expr {
             Expr::Id(id) => match self.env.get(id) {
-                Some(EnvItem::Prim(ty)) => Some((id.clone().into_name(), ty)),
+                Some(EnvItem::Prim(rts_func)) => Some(*rts_func),
                 _ => None,
             },
             _ => None,
@@ -65,7 +66,7 @@ struct InsertCoercions {}
 
 enum Overload {
     Prim(BinaryOp),
-    RTS(String),
+    RTS(RTSFunction),
 }
 
 // Given a JavaScript binary operator and the types of its operands, returns
@@ -100,7 +101,7 @@ fn binop_overload(op: &BinOp, lhs_ty: &Type, rhs_ty: &Type) -> (Overload, Type, 
             Type::Float,
         ),
         (BinOp::Plus, Type::Int, Type::Float) => (
-            Overload::RTS("janky_plus".to_string()),
+            Overload::RTS(RTSFunction::Plus),
             Type::Any,
             Type::Any,
             Type::Any,
@@ -280,15 +281,15 @@ impl InsertCoercions {
                 // Special case for a primitive function call. JavaScript, and thus JankierScript
                 // do not distinguish primitive calls from calls to user-defined functions. However,
                 // we make the distinction explicit right here.
-                if let Some((prim_name, prim_ty)) = env.get_prim_ty(&f) {
-                    if let Type::Function(arg_typs, result_ty) = prim_ty.clone() {
+                if let Some(rts_func) = env.get_prim_ty(&f) {
+                    if let Type::Function(arg_typs, result_ty) = rts_func.janky_typ() {
                         let result_ty = *result_ty.clone();
                         let coerced_args = args
                             .into_iter()
                             .zip(arg_typs.iter())
                             .map(|(e, t)| self.expr(e, t.clone(), env))
                             .collect::<Result<Vec<_>, _>>()?;
-                        let coerced_e = Janky::Expr::PrimCall(prim_name, coerced_args);
+                        let coerced_e = Janky::Expr::PrimCall(rts_func, coerced_args);
                         return Ok((coerced_e, result_ty));
                     }
                     return error!("primitive is not a function {:?}", f);
