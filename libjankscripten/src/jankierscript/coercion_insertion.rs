@@ -43,6 +43,13 @@ impl Env {
         Env { env }
     }
 
+    pub fn get(&self, id: &Id) -> Option<&Type> {
+        match self.env.get(id) {
+            Some(EnvItem::JsId(t)) => Some(t),
+            _ => None,
+        }
+    }
+
     /// If `expr` is an identifier that isbound to a primitive, returns its name and type.
     pub fn get_prim_ty(&self, expr: &Expr) -> Option<RTSFunction> {
         match expr {
@@ -58,6 +65,10 @@ impl Env {
         let mut env = self.clone();
         env.env.insert(id, EnvItem::JsId(ty));
         env
+    }
+
+    pub fn update(&mut self, id: Id, ty: Type) {
+        self.env.insert(id, EnvItem::JsId(ty));
     }
 }
 
@@ -168,6 +179,19 @@ impl InsertCoercions {
         Ok(Janky_::block_(ret))
     }
 
+    fn exprs(
+        &self,
+        env: &mut Env,
+        exprs: Vec<Expr>,
+        expected_tys: Vec<Type>,
+    ) -> CoercionResult<Vec<Janky::Expr>> {
+        exprs
+            .into_iter()
+            .zip(expected_tys.into_iter())
+            .map(|(e, t)| self.expr(e, t, env))
+            .collect::<Result<Vec<_>, _>>()
+    }
+
     fn expr_and_type(&self, expr: Expr, env: &mut Env) -> CoercionResult<(Janky::Expr, Type)> {
         match expr {
             Expr::Lit(l) => {
@@ -264,25 +288,53 @@ impl InsertCoercions {
                 // we make the distinction explicit right here.
                 if let Some(rts_func) = env.get_prim_ty(&f) {
                     if let Type::Function(arg_typs, result_ty) = rts_func.janky_typ() {
-                        let result_ty = *result_ty.clone();
-                        let coerced_args = args
-                            .into_iter()
-                            .zip(arg_typs.iter())
-                            .map(|(e, t)| self.expr(e, t.clone(), env))
-                            .collect::<Result<Vec<_>, _>>()?;
+                        let coerced_args = self.exprs(&mut env.clone(), args, arg_typs)?;
                         let coerced_e = Janky::Expr::PrimCall(rts_func, coerced_args);
-                        return Ok((coerced_e, result_ty));
+                        return Ok((coerced_e, *result_ty.clone()));
                     }
                     return error!("primitive is not a function {:?}", f);
                 }
-                let (f, t) = self.expr_and_type(*f, env)?;
-                unimplemented!()
+
+                // TODO(arjun): Handle Expr::Call in expr_and_type too, for bidirectionality?
+                let args_with_typs = args
+                    .into_iter()
+                    .map(|e| self.expr_and_type(e, &mut env.clone()))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let (coerced_args, coerced_tys) = args_with_typs.into_iter().unzip();
+
+                let coerced_f = self.expr(
+                    *f,
+                    Type::Function(coerced_tys, Box::new(Type::Any)),
+                    &mut env.clone(),
+                )?;
+                Ok((
+                    Janky::Expr::Call(Box::new(coerced_f), coerced_args),
+                    Type::Any,
+                ))
             }
             // TODO(arjun): Any for this!
             Expr::This => Ok((Janky::Expr::This, Type::Any)),
             Expr::Unary(_, _) => todo!("unary operators"),
             Expr::New(_, _) => todo!("new expressions"),
-            Expr::Func(_, _, _) => todo!("function declarations"),
+            Expr::Func(opt_ret_ty, args_with_opt_tys, body) => {
+                let mut body_env = env.clone();
+                let ret_ty = opt_ret_ty.unwrap_or(Type::Any);
+                let mut arg_tys = Vec::with_capacity(args_with_opt_tys.len());
+                let mut args_with_tys = Vec::with_capacity(args_with_opt_tys.len());
+                for (arg_id, opt_ty) in args_with_opt_tys {
+                    let ty = opt_ty.unwrap_or(Type::Any);
+                    arg_tys.push(ty.clone());
+                    args_with_tys.push((arg_id.clone(), ty.clone()));
+                    body_env.update(arg_id, ty);
+                }
+                // TODO(arjun): Type of "return"
+                let coerced_body = self.stmt(*body, &mut body_env)?;
+                let fn_ty = Type::Function(arg_tys, Box::new(ret_ty.clone()));
+                Ok((
+                    Janky::Expr::Func(ret_ty, args_with_tys, Box::new(coerced_body)),
+                    fn_ty,
+                ))
+            }
         }
     }
 
