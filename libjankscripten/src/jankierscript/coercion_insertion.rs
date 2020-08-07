@@ -2,6 +2,7 @@ use super::super::notwasm::syntax::BinaryOp;
 use super::syntax::*;
 use crate::jankyscript::constructors as Janky_;
 use crate::jankyscript::syntax as Janky;
+use crate::notwasm::syntax as NotWasm;
 use crate::rts_function::RTSFunction;
 use crate::shared::coercions::*;
 use crate::shared::types::Type;
@@ -105,7 +106,12 @@ fn binop_overload(op: &BinOp, lhs_ty: &Type, rhs_ty: &Type) -> (Overload, Type, 
         (BinOp::Equal, _, _) if lhs_ty == rhs_ty && lhs_ty != &Any => {
             prim(BinaryOp::I32Eq, lhs_ty.clone(), rhs_ty.clone(), Bool)
         }
-        other => todo!("binop overload {:?}", other),
+        (_, _, _) => (
+            Overload::RTS(RTSFunction::Todo("unimplemented binop")),
+            Any,
+            Any,
+            Any,
+        ),
     }
 }
 
@@ -223,7 +229,7 @@ impl InsertCoercions {
                 if let Some(EnvItem::JsId(ty)) = env.env.get(&id) {
                     Ok((Janky::Expr::Id(id), ty.clone()))
                 } else {
-                    todo!("primitive ID ({:?})", env)
+                    todo!("Identifier: {:?}", id)
                 }
             }
             Expr::Bracket(container, field) => {
@@ -319,8 +325,90 @@ impl InsertCoercions {
             }
             // TODO(arjun): Any for this!
             Expr::This => Ok((Janky::Expr::This, Type::Any)),
-            Expr::Unary(_, _) => todo!("unary operators"),
-            Expr::New(_, _) => todo!("new expressions"),
+            Expr::Unary(op, e) => {
+                use resast::UnaryOp;
+                let (coerced_e, e_ty) = self.expr_and_type(*e, &mut env.clone())?;
+                match (&op, &e_ty) {
+                    (UnaryOp::Tilde, _) => {
+                        unimplemented!("unary ~: no idea, and probably not needed")
+                    }
+                    (UnaryOp::Plus, Type::Float) => Ok((coerced_e, e_ty)),
+                    (UnaryOp::Plus, Type::Int) => Ok((coerced_e, e_ty)),
+                    (UnaryOp::Plus, _) => Ok((
+                        Janky::Expr::PrimCall(
+                            RTSFunction::Todo("+"),
+                            vec![Janky_::coercion_(self.coerce(e_ty, Type::Any), coerced_e)],
+                        ),
+                        Type::Any,
+                    )),
+                    (UnaryOp::Minus, Type::Float) => Ok((
+                        Janky::Expr::Unary(NotWasm::UnaryOp::Neg, Box::new(coerced_e)),
+                        e_ty,
+                    )),
+                    (UnaryOp::Minus, Type::Int) => Ok((
+                        Janky::Expr::Binary(
+                            NotWasm::BinaryOp::I32Sub,
+                            Box::new(Janky::Expr::Lit(Janky::Lit::Num(
+                                crate::javascript::Num::Int(0),
+                            ))),
+                            Box::new(coerced_e),
+                        ),
+                        e_ty,
+                    )),
+                    (UnaryOp::Minus, _) => Ok((
+                        Janky::Expr::PrimCall(
+                            RTSFunction::Todo("-"),
+                            vec![Janky_::coercion_(self.coerce(e_ty, Type::Any), coerced_e)],
+                        ),
+                        Type::Any,
+                    )),
+                    (UnaryOp::Not, _) => Ok((
+                        Janky::Expr::PrimCall(
+                            RTSFunction::Todo("!"),
+                            vec![Janky_::coercion_(self.coerce(e_ty, Type::Any), coerced_e)],
+                        ),
+                        Type::Any,
+                    )),
+                    (UnaryOp::TypeOf, _) => Ok((
+                        Janky::Expr::PrimCall(
+                            RTSFunction::Todo("typeof"),
+                            vec![Janky_::coercion_(self.coerce(e_ty, Type::Any), coerced_e)],
+                        ),
+                        Type::Any,
+                    )),
+                    (UnaryOp::Void, _) => Ok((
+                        Janky::Expr::PrimCall(
+                            RTSFunction::Todo("void"),
+                            vec![Janky_::coercion_(self.coerce(e_ty, Type::Any), coerced_e)],
+                        ),
+                        Type::Any,
+                    )),
+                    (UnaryOp::Delete, _) => Ok((
+                        Janky::Expr::PrimCall(
+                            RTSFunction::Todo("delete"),
+                            vec![Janky_::coercion_(self.coerce(e_ty, Type::Any), coerced_e)],
+                        ),
+                        Type::Any,
+                    )),
+                }
+            }
+            Expr::New(ctor, args) => {
+                let args_with_typs = args
+                    .into_iter()
+                    .map(|e| self.expr_and_type(e, &mut env.clone()))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let (coerced_args, coerced_tys) = args_with_typs.into_iter().unzip();
+
+                let coerced_ctor = self.expr(
+                    *ctor,
+                    Type::Function(coerced_tys, Box::new(Type::Any)),
+                    &mut env.clone(),
+                )?;
+                Ok((
+                    Janky::Expr::Call(Box::new(coerced_ctor), coerced_args),
+                    Type::Any,
+                ))
+            }
             Expr::Func(opt_ret_ty, args_with_opt_tys, body) => {
                 let mut body_env = env.clone();
                 let ret_ty = opt_ret_ty.unwrap_or(Type::Any);
@@ -359,18 +447,22 @@ impl InsertCoercions {
         }
     }
 
-    fn lit(&self, lit: Janky::Lit) -> CoercionResult<(Janky::Lit, Type)> {
+    fn typeof_lit(&self, lit: &Janky::Lit) -> Type {
+        use Janky::Lit;
         match lit {
-            Janky::Lit::Num(n) => Ok((
-                Janky_::num_(n),
-                match n {
-                    Janky::Num::Float(_) => Type::Float,
-                    Janky::Num::Int(_) => Type::Int,
-                },
-            )),
-            Janky::Lit::Bool(b) => Ok((Janky::Lit::Bool(b), Type::Bool)),
-            _ => todo!("{:?}", lit),
+            Lit::Num(Janky::Num::Float(_)) => Type::Float,
+            Lit::Num(Janky::Num::Int(_)) => Type::Int,
+            Lit::String(_) => Type::String,
+            Lit::Bool(_) => Type::Bool,
+            Lit::Regex(..) => Type::Any,
+            Lit::Undefined => Type::Any,
+            Lit::Null => Type::Any,
         }
+    }
+
+    fn lit(&self, lit: Janky::Lit) -> CoercionResult<(Janky::Lit, Type)> {
+        let ty = self.typeof_lit(&lit);
+        Ok((lit, ty))
     }
 
     fn coerce(&self, t1: Type, t2: Type) -> Coercion {
@@ -390,6 +482,8 @@ impl InsertCoercions {
         match (g1, g2) {
             (Type::Any, g2) => Coercion::Untag(g2),
             (g1, Type::Any) => Coercion::Tag(g1),
+            // TODO(arjun): bogus
+            (Type::Array, Type::DynObject) => Coercion::Tag(Type::DynObject),
             (g1, g2) => todo!("coerce_ground_types({:?}, {:?})", g1, g2),
         }
     }

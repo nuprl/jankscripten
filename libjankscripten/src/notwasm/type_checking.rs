@@ -488,5 +488,6 @@ fn type_check_binary(op: &BinaryOp) -> (Type, Type) {
 fn type_check_unary(op: &UnaryOp) -> (Type, Type) {
     match op {
         UnaryOp::Sqrt => (Type::F64, Type::F64),
+        UnaryOp::Neg => (Type::F64, Type::F64),
     }
 }
