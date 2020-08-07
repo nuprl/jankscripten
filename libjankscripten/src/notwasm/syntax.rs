@@ -25,7 +25,7 @@ pub use super::super::javascript::Id;
 use crate::rts_function::RTSFunction;
 use std::collections::HashMap;
 
-/// The types of NotWam. Every value has a unique type, thus we *do not* support
+/// The types of NotWasm. Every value has a unique type, thus we *do not* support
 /// subtyping. The comment for each variant describes the shape of the value
 /// with the associated type. Note we refer to several types defined in the
 /// runtime system (e.g., `TypeTag`, `Tag`, and `AnyEnum`).
@@ -98,6 +98,8 @@ pub enum BinaryOp {
     I32Le, // signed
     I32And,
     I32Or,
+    I32Div,
+    I32Rem,
     F64Add,
     F64Sub,
     F64Mul,
@@ -108,6 +110,7 @@ pub enum BinaryOp {
 #[derive(Clone, Debug, PartialEq)]
 pub enum UnaryOp {
     Sqrt,
+    Neg,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
