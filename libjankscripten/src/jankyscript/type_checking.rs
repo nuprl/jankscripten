@@ -175,6 +175,41 @@ fn type_check_stmts(stmts: &Vec<Stmt>, env: Env, ret_ty: &Option<Type>) -> TypeC
     Ok(env)
 }
 
+// type checks a function call. this will fail if the given type is not a
+// function. this function returns the type of the function call result.
+fn type_check_fun_call(fun_type: Type,
+        actual_args: &Vec<Expr>, env: Env) -> TypeCheckingResult<Type> {
+    // ensure that `fun_type` is a function type.
+    // get its expected argument types.
+    let (expected_arg_types, return_type) = ensure_function(
+        "expected function for function call",
+        fun_type,
+    )?;
+
+    // derive types for the actual arguments.
+    let actual_arg_types: Vec<TypeCheckingResult<Type>> = actual_args
+        .iter()
+        .map(|e| type_check_expr(e, env.clone()))
+        .collect();
+
+    // now we want to iterate over the expected arg types and
+    // actual arg types. we'll create a zipped iterator to
+    // simultaneously iterate over both.
+    let actual_and_expected_arg_types = actual_arg_types
+        .into_iter()
+        .zip(expected_arg_types.into_iter());
+
+    for (actual, expected) in actual_and_expected_arg_types {
+        ensure(
+            "function argument must match declared type",
+            expected,
+            actual?,
+        )?;
+    }
+
+    Ok(*return_type)
+}
+
 fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
     match expr {
         Expr::Func(return_type, args, body) => {
@@ -229,35 +264,11 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             }
         }
         Expr::Call(fun, args) => {
-            // ensure that `fun` is a function.
-            // get its expected argument types.
-            let (expected_arg_types, return_type) = ensure_function(
-                "expected function for function call",
-                type_check_expr(fun, env.clone())?,
-            )?;
+            // get the type of the given function
+            let fun_type = type_check_expr(fun, env.clone())?;
 
-            // derive types for the actual arguments.
-            let actual_arg_types: Vec<TypeCheckingResult<Type>> = args
-                .into_iter()
-                .map(|e| type_check_expr(e, env.clone()))
-                .collect();
-
-            // now we want to iterate over the expected arg types and
-            // actual arg types. we'll create a zipped iterator to
-            // simultaneously iterate over both.
-            let actual_and_expected_arg_types = actual_arg_types
-                .into_iter()
-                .zip(expected_arg_types.into_iter());
-
-            for (actual, expected) in actual_and_expected_arg_types {
-                ensure(
-                    "function argument must match declared type",
-                    expected,
-                    actual?,
-                )?;
-            }
-
-            Ok(*return_type)
+            // type check this call
+            type_check_fun_call(fun_type, args, env)
         }
         Expr::Coercion(coercion, e) => {
             // type the expression. regardless of the coercion, the expression
@@ -331,9 +342,15 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             // see Expr::Dot case for why we're returning Any
             Ok(Type::Any)
         }
+        Expr::PrimCall(prim, args) => {
+            // get the type of the primitive function we're calling
+            let prim_type = prim.janky_typ();
+
+            // type check this function call
+            type_check_fun_call(prim_type, args, env)
+        }
         Expr::Unary(..) => unimplemented!(),
         Expr::Binary(..) => unimplemented!(),
-        Expr::PrimCall(..) => unimplemented!(),
         Expr::New(..) => unimplemented!(),
     }
 }
