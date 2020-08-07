@@ -66,6 +66,15 @@ impl<T: Into<String>> From<T> for Id {
     }
 }
 
+impl std::fmt::Display for Id {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Id::Named(name) => write!(f, "{}", name),
+            Id::Generated(name, size) => write!(f, "{}-{}", name, size),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum LValue {
     Id(Id),
