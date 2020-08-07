@@ -177,14 +177,15 @@ fn type_check_stmts(stmts: &Vec<Stmt>, env: Env, ret_ty: &Option<Type>) -> TypeC
 
 // type checks a function call. this will fail if the given type is not a
 // function. this function returns the type of the function call result.
-fn type_check_fun_call(fun_type: Type,
-        actual_args: &Vec<Expr>, env: Env) -> TypeCheckingResult<Type> {
+fn type_check_fun_call(
+    fun_type: Type,
+    actual_args: &Vec<Expr>,
+    env: Env,
+) -> TypeCheckingResult<Type> {
     // ensure that `fun_type` is a function type.
     // get its expected argument types.
-    let (expected_arg_types, return_type) = ensure_function(
-        "expected function for function call",
-        fun_type,
-    )?;
+    let (expected_arg_types, return_type) =
+        ensure_function("expected function for function call", fun_type)?;
 
     // derive types for the actual arguments.
     let actual_arg_types: Vec<TypeCheckingResult<Type>> = actual_args

@@ -81,7 +81,8 @@ fn compile(opts: Compile) {
         }
         "js" => {
             let js_code = read_file(input_path);
-            let wasm_bin = libjankscripten::javascript_to_wasm(&js_code, opts.typecheck).expect("compile error");
+            let wasm_bin = libjankscripten::javascript_to_wasm(&js_code, opts.typecheck)
+                .expect("compile error");
             let output_path = make_output_filename(&opts.output, input_path, "wasm");
             fs::write(output_path, wasm_bin).expect("writing file");
         }

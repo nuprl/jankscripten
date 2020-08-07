@@ -11,8 +11,10 @@ pub mod shared;
 #[macro_use]
 extern crate combine;
 
-pub fn javascript_to_wasm(js_code: &str, typecheck: bool) 
-        -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+pub fn javascript_to_wasm(
+    js_code: &str,
+    typecheck: bool,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let mut js_ast = javascript::parse(js_code)?;
     let mut ng = javascript::NameGen::default();
     javascript::desugar(&mut js_ast, &mut ng);
