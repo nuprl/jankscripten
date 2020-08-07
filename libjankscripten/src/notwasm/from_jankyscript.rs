@@ -271,7 +271,7 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
         J::Expr::Unary(op, expr) => {
             compile_expr(s, *expr, C::a(move |s, a| cxt.recv_a(s, unary_(op, a))))
         }
-        J::Expr::New(_, _, _) => todo!("new -- need deep thought"),
+        J::Expr::New(_, _) => todo!("new -- need deep thought"),
         // TODO(luna): i think JankyScript bracket supports like
         // object/hashtable fetch by name, so we have to descriminate based
         // on type or something(?)
@@ -317,6 +317,55 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 )
             }),
         ),
+        J::Expr::Assign(lv, e) => compile_expr(
+            s,
+            *e,
+            // TODO(luna): if we change Assign to an expression, we can make
+            // this C::e and drop the clone which will generate less useless
+            // locals; but it will mean sometimes dropping values. we
+            // could also change Assign to an atom, which would mean
+            // introducing new locals for assignment expressions
+            // but differently. see this discussion on slack:
+            // https://plasma.slack.com/archives/C013E3BK7QA/p1596656877066800
+            C::a(|s, a| match *lv {
+                J::LValue::Id(id) => {
+                    Rope::singleton(Stmt::Assign(id, atom_(a.clone()))).append(cxt.recv_a(s, a))
+                }
+                J::LValue::Dot(container, field) => {
+                    // TODO(luna): don't assume bracket is array
+                    compile_expr(
+                        s,
+                        container,
+                        // TODO(luna): support array set in notwasm, i can't
+                        // believe we don't yet
+                        C::a(move |s, cont| {
+                            cxt.recv_e(
+                                s,
+                                Expr::ObjectSet(
+                                    cont,
+                                    Atom::Lit(Lit::String(field.to_pretty(80))),
+                                    a,
+                                ),
+                            )
+                        }),
+                    )
+                }
+                J::LValue::Bracket(container, field) => {
+                    // TODO(luna): don't assume bracket is array
+                    compile_expr(
+                        s,
+                        container,
+                        C::a(move |s, cont| {
+                            compile_expr(
+                                s,
+                                field,
+                                C::a(move |s, f| cxt.recv_e(s, Expr::ArraySet(cont, f, a))),
+                            )
+                        }),
+                    )
+                }
+            }),
+        ),
         J::Expr::PrimCall(prim_name, args) => compile_exprs(s, args, move |s, arg_ids| {
             cxt.recv_e(
                 s,
@@ -338,6 +387,8 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
     }
 }
 
+// TODO(luna): remove this when we think we've completed this
+#[allow(unused)]
 fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
     use J::Stmt as S;
     match stmt {
@@ -370,24 +421,37 @@ fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
             // binary operations.
             C::a(|_s, _a_notwasm| Rope::Nil),
         ),
-        S::Assign(lv, e) => compile_expr(
+        S::If(cond, then_branch, else_branch) => compile_expr(
             s,
-            *e,
-            C::e(|_s, e| match *lv {
-                J::LValue::Id(id) => Rope::singleton(Stmt::Assign(id, e)),
-                J::LValue::Dot(..) => todo!(),
-                J::LValue::Bracket(..) => todo!(),
+            *cond,
+            C::a(|s, a| {
+                Rope::singleton(if_(
+                    a,
+                    compile_stmt_block(s, *then_branch),
+                    compile_stmt_block(s, *else_branch),
+                ))
             }),
         ),
-        S::If(cond, then_branch, else_branch) => todo!(),
-        S::While(cond, body) => todo!(),
-        S::Label(x, body) => todo!(),
-        S::Break(x) => todo!(),
+        S::Loop(body) => Rope::singleton(loop_(Stmt::Block(
+            compile_stmt(s, *body).into_iter().collect(),
+        ))),
+        S::Label(x, body) => Rope::singleton(label_(
+            Label::Named(x.to_pretty(80)),
+            Stmt::Block(compile_stmt(s, *body).into_iter().collect()),
+        )),
+        S::Break(x) => Rope::singleton(Stmt::Break(Label::Named(x.to_pretty(80)))),
         S::Catch(_, _, _) => todo!("NotWasm needs to support exceptions"),
         S::Finally(_, _) => todo!("NotWasm needs to support exceptions"),
         S::Throw(_) => todo!("NotWasm needs to support exceptions"),
         S::Return(_) => todo!(),
     }
+}
+
+fn compile_stmt_block(s: &mut S, stmt: J::Stmt) -> Stmt {
+    rope_to_block(compile_stmt(s, stmt))
+}
+fn rope_to_block(rope: Rope<Stmt>) -> Stmt {
+    Stmt::Block(rope.into_iter().collect())
 }
 
 pub fn from_jankyscript(janky_program: J::Stmt) -> Program {
@@ -421,67 +485,23 @@ mod test {
     use super::from_jankyscript;
     use crate::jankyscript::constructors::*;
     use crate::jankyscript::syntax::*;
-    fn any_bool(b: bool) -> Expr {
-        coercion_(Coercion::Tag(Type::Bool), lit_(Lit::Bool(b)))
-    }
+    use crate::rts_function::RTSFunction;
     #[test]
-    fn test_array() {
-        let program = Stmt::Block(vec![
-            var_(
-                "arr".into(),
-                Type::Array,
-                Expr::Array(vec![any_bool(false), any_bool(true)]),
-            ),
-            var_(
-                "res".into(),
-                Type::Any,
-                bracket_(Expr::Id("arr".into()), lit_(Lit::Num(Num::Int(1)))),
-            ),
-            expr_(Expr::PrimCall(
-                "log_any".into(),
-                vec![Expr::Id("res".into())],
-            )),
-        ]);
-        expect_notwasm("Bool(true)".to_string(), from_jankyscript(program));
-    }
-    #[test]
-    fn test_obj() {
-        let program = Stmt::Block(vec![
-            var_(
-                "obj".into(),
-                Type::DynObject,
-                Expr::Object(vec![
-                    (Key::Str("false_".into()), any_bool(false)),
-                    (Key::Str("true_".into()), any_bool(true)),
-                ]),
-            ),
-            var_(
-                "res".into(),
-                Type::Any,
-                dot_(Expr::Id("obj".into()), "true_"),
-            ),
-            expr_(Expr::PrimCall(
-                "log_any".into(),
-                vec![Expr::Id("res".into())],
-            )),
-        ]);
-        expect_notwasm("Bool(true)".to_string(), from_jankyscript(program));
-    }
-    #[test]
-    fn unary_and_assign() {
+    fn unary() {
         let program = Stmt::Block(vec![
             var_(
                 "a".into(),
                 Type::Float,
                 Expr::Lit(Lit::Num(Num::Float(25.))),
             ),
-            assign_var_(
-                "a".into(),
+            var_(
+                "b".into(),
+                Type::Float,
                 unary_(crate::notwasm::syntax::UnaryOp::Sqrt, Expr::Id("a".into())),
             ),
             expr_(Expr::PrimCall(
-                "log_any".into(),
-                vec![coercion_(Coercion::Tag(Type::Float), Expr::Id("a".into()))],
+                RTSFunction::LogAny,
+                vec![coercion_(Coercion::Tag(Type::Float), Expr::Id("b".into()))],
             )),
         ]);
         expect_notwasm("F64(5)".to_string(), from_jankyscript(program));

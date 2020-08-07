@@ -548,7 +548,7 @@ fn parse_string<'a>(s: &StringLit<'a>) -> String {
     };
 
     let mut buf = String::with_capacity(literal_chars.len());
-    let mut iter = literal_chars.chars();
+    let mut iter = literal_chars.chars().peekable();
     while let Some(ch) = iter.next() {
         if ch != '\\' {
             buf.push(ch);
@@ -562,7 +562,6 @@ fn parse_string<'a>(s: &StringLit<'a>) -> String {
             'f' => buf.push('\x0C'),
             'b' => buf.push('\x08'),
             'v' => buf.push('\x0B'),
-            '0' => buf.push('\0'),
             'x' => {
                 let s = format!(
                     "{}{}",
@@ -588,11 +587,29 @@ fn parse_string<'a>(s: &StringLit<'a>) -> String {
                 );
             }
             ch => {
-                if ch >= '0' || ch <= '9' {
-                    // These are yet another special case!
-                    panic!("unsupported escape");
+                if ch < '0' || ch > '9' {
+                    // JavaScript allows you to escape any character. If it's not a valid escape
+                    // sequence, you just get the character itself. For example, '\😂' === '😂'.
+                    buf.push(ch);
+                } else {
+                    let mut octal_str = String::with_capacity(2);
+                    // First octal digit
+                    octal_str.push(ch);
+                    // Potentially octal digit
+                    match iter.peek() {
+                        Some(ch) if *ch >= '0' && *ch <= '7' => {
+                            octal_str.push(*ch);
+                            iter.next(); // consume
+                        }
+                        _ => (),
+                    }
+                    let n = u32::from_str_radix(&octal_str, 8).expect(&format!(
+                        "invalid octal escape \\u{} (Ressa issue)",
+                        &octal_str
+                    ));
+                    // 2-digit octal value is in range for UTF-8, thus unwrap should succeed
+                    buf.push(std::char::from_u32(n).unwrap());
                 }
-                buf.push(ch);
             }
         }
     }

@@ -22,7 +22,7 @@ pub fn desugar_loops(script: &mut Stmt, ng: &mut NameGen) {
 /// continues
 struct ForToWhile;
 impl Visitor for ForToWhile {
-    fn enter_stmt(&mut self, node: &mut Stmt) {
+    fn enter_stmt(&mut self, node: &mut Stmt, _loc: &Loc) {
         if let For(init, cond, advance, body) = node {
             let init = match init {
                 ForInit::Expr(e) => expr_(e.take()),
@@ -62,7 +62,7 @@ impl<'a> LabelLoops<'a> {
 }
 impl Visitor for LabelLoops<'_> {
     /// on loops, add their break name to the stack
-    fn enter_stmt(&mut self, node: &mut Stmt) {
+    fn enter_stmt(&mut self, node: &mut Stmt, _loc: &Loc) {
         // if it's already there use that
         if let Label(break_name, labeled) = node {
             if if_loop_then_body(labeled).is_some() {
@@ -82,7 +82,7 @@ impl Visitor for LabelLoops<'_> {
         }
     }
     /// do the actual AST modification
-    fn exit_stmt(&mut self, node: &mut Stmt, _loc: &Loc) {
+    fn exit_stmt(&mut self, node: &mut Stmt, loc: &Loc) {
         match node {
             // break to name needs no change
             // Some(unwrap) ensures we get our label
@@ -96,7 +96,10 @@ impl Visitor for LabelLoops<'_> {
                 // end result:
                 //     break $break_0;
                 *node = Break(Some(
-                    self.breaks_stack.last().expect("no close break").clone(),
+                    self.breaks_stack
+                        .last()
+                        .expect(&format!("no close break at {:?}", loc))
+                        .clone(),
                 ))
             }
             Continue(None) => {

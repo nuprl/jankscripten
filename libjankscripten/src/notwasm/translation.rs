@@ -444,6 +444,12 @@ impl<'a> Translate<'a> {
             N::Expr::Atom(atom) => self.translate_atom(atom),
             N::Expr::HT => self.rt_call("ht_new"),
             N::Expr::Array => self.rt_call("array_new"),
+            N::Expr::ArraySet(arr, index, value) => {
+                self.translate_atom(arr);
+                self.translate_atom(index);
+                self.translate_atom(value);
+                self.rt_call("array_set");
+            }
             N::Expr::HTSet(ht, field, val) => {
                 self.translate_atom(ht);
                 self.translate_atom(field);
@@ -465,11 +471,11 @@ impl<'a> Translate<'a> {
                 self.translate_atom(val);
                 self.rt_call("array_push");
             }
-            N::Expr::PrimCall(name, args) => {
+            N::Expr::PrimCall(rts_func, args) => {
                 for arg in args {
                     self.translate_atom(arg);
                 }
-                self.rt_call(name);
+                self.rt_call(rts_func.name());
             }
             N::Expr::Call(f, args) => {
                 for arg in args {

@@ -28,7 +28,7 @@ pub enum Expr {
     Binary(BinOp, Box<Expr>, Box<Expr>),
     Assign(Box<LValue>, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
-    New(Option<Type>, Box<Expr>, Vec<Expr>),
+    New(Box<Expr>, Vec<Expr>),
     Func(Option<Type>, Vec<(Id, Option<Type>)>, Box<Stmt>),
 }
 
@@ -39,7 +39,7 @@ pub enum Stmt {
     Expr(Box<Expr>),
     Empty,
     If(Box<Expr>, Box<Stmt>, Box<Stmt>),
-    While(Box<Expr>, Box<Stmt>),
+    Loop(Box<Stmt>),
     Label(Id, Box<Stmt>),
     Break(Id),
     Catch(Box<Stmt>, Id, Box<Stmt>),
