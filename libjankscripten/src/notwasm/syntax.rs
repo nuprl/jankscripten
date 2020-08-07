@@ -110,6 +110,7 @@ pub enum BinaryOp {
 #[derive(Clone, Debug, PartialEq)]
 pub enum UnaryOp {
     Sqrt,
+    Neg,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]

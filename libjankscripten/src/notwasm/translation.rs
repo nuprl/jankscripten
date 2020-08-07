@@ -438,6 +438,7 @@ impl<'a> Translate<'a> {
     fn translate_unop(&mut self, op: &N::UnaryOp) {
         match op {
             N::UnaryOp::Sqrt => self.out.push(F64Sqrt),
+            N::UnaryOp::Neg => self.out.push(F64Neg),
         }
     }
 

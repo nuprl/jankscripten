@@ -9,6 +9,7 @@ use super::jankyscript::syntax::Type as JankyTyp;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RTSFunction {
+    Todo(&'static str),
     Typeof,
     Delete,
     Plus,
@@ -20,6 +21,7 @@ impl RTSFunction {
     /// using `[no_mangle]`.
     pub fn name(&self) -> &'static str {
         match self {
+            RTSFunction::Todo(name) => todo!("unimplemented operator: {}", name),
             RTSFunction::Typeof => "janky_typeof",
             RTSFunction::Delete => "janky_delete",
             RTSFunction::Plus => "janky_plus",
@@ -52,6 +54,7 @@ impl RTSFunction {
     /// That sentence makes me want to fall asleep.
     pub fn janky_typ(&self) -> JankyTyp {
         match self {
+            RTSFunction::Todo(name) => todo!("unimplemented operator: {}", name),
             RTSFunction::Typeof => {
                 JankyTyp::Function(vec![JankyTyp::Any], Box::new(JankyTyp::String))
             }
