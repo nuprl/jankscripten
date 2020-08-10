@@ -67,14 +67,13 @@ export function checkPlatypus(loc: string, obj: any, property: any) {
     }
     // this indicates object-access of an object that also serves as an array
     if (typeof property !== "number") {
-        if (typeof obj[0] !== "undefined" && !(arrayPrototype.includes(property))) {
-            record(platypusTypes, loc, `was array, accessed property: ${property}`);
+        if (obj instanceof Array && !(arrayPrototype.includes(property))) {
+            let asString = ("" + property).substring(0, 50);
+            record(platypusTypes, loc, `was array, accessed property: ${asString}`);
         }
     } else {
-        // TODO(luna): there's gotta be a better way to do this
-        let keys = Object.keys(obj).filter(x => isNaN(parseInt(x)));
-        if (keys.length !== 0) {
-            record(platypusTypes, loc, `was object (${keys}); but used as array`);
+        if (!(obj instanceof Array)) {
+            record(platypusTypes, loc, `was object, but used as array`);
         }
     }
 }
