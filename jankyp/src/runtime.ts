@@ -40,7 +40,7 @@ export function checkArgs(loc: string, numFormals: number, numActuals: number) {
     }
 }
 
-export function checkPlatypus(loc: string, obj: any, property: any) {
+export function checkPlatypus(loc: string, obj: any, property: any, isCalled: boolean) {
     const arrayPrototype = [
         // length isn't actually part of the array prototype, it's extremely special,
         // but we still don't want to include it because we'll be specially handling it
@@ -62,9 +62,6 @@ export function checkPlatypus(loc: string, obj: any, property: any) {
         "toSource", "toString", "toUpperCase", "trim", "trimEnd", "trimStart",
         "valueOf",
     ];
-    if (typeof obj === "undefined" || obj === null) {
-        return;
-    }
     // this indicates object-access of an object that also serves as an array
     if (typeof property !== "number") {
         if (obj instanceof Array && !(arrayPrototype.includes(property))) {
@@ -76,11 +73,22 @@ export function checkPlatypus(loc: string, obj: any, property: any) {
             record(platypusTypes, loc, `was object, but used as array`);
         }
     }
+    var rv = obj[property];
+    if (typeof rv === "function" && isCalled) {
+        // by returning obj[property] we un-bind the `this` so it'll be the
+        // global object instead of obj because it doesn't appear in context of
+        // property access. so we bind it so it'll last through the
+        // return. this issue actually happens in practice. however, if the
+        // result is *not* called, it *should* then be un-bound. so we only
+        // bind if it's immediately called
+        rv = rv.bind(obj);
+    }
+    return rv;
 }
 
 process.on('beforeExit', () => {
-    console.log(badArityBehavior);
-    console.log(badOperands);
-    console.log(expectedNumber);
-    console.log(platypusTypes);
+    console.error(badArityBehavior);
+    console.error(badOperands);
+    console.error(expectedNumber);
+    console.error(platypusTypes);
 });
