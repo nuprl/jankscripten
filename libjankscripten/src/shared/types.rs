@@ -58,3 +58,22 @@ impl Type {
         Type::Function(vec![Type::Any; n], Box::new(Type::Any))
     }
 }
+
+impl std::fmt::Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Type::Float => "i32",
+                Type::Int => "f64",
+                Type::String => "string",
+                Type::Array => "array",
+                Type::Bool => "bool",
+                Type::DynObject => "DynObject",
+                Type::Function(..) => "fn",
+                Type::Any => "any",
+            }
+        )
+    }
+}
