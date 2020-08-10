@@ -8,6 +8,8 @@ const badOperands: BadBehavior = new Map();
 
 const expectedNumber: BadBehavior = new Map();
 
+const platypusTypes: BadBehavior = new Map();
+
 function record(theMap: BadBehavior, location: string, message: string) {
     let existingMessages = theMap.get(location);
     if (existingMessages === undefined) {
@@ -38,8 +40,48 @@ export function checkArgs(loc: string, numFormals: number, numActuals: number) {
     }
 }
 
+export function checkPlatypus(loc: string, obj: any, property: any) {
+    const arrayPrototype = [
+        // length isn't actually part of the array prototype, it's extremely special,
+        // but we still don't want to include it because we'll be specially handling it
+        // Array.prototype
+        "length", "concat", "copyWithin", "entries", "every", "fill",
+        "filter", "find", "findIndex", "flat", "flatMap", "forEach",
+        "includes", "indexOf", "join", "keys", "lastIndexOf", "map",
+        "pop", "push", "reduce", "reduceRight", "reverse", "shift",
+        "slice", "some", "sort", "splice", "toLocaleString", "toSource",
+        "toString", "unshift", "values",
+        // so begins String.prototype
+        "anchor", "big", "blink", "bold", "charAt", "charCodeAt",
+        "codePointAt", "concat", "endsWith", "fixed", "fontcolor",
+        "fontsize", "includes", "indexOf", "italics", "lastIndexOf",
+        "link", "localeCompare", "match", "matchAll", "normalize", "padEnd",
+        "padStart", "repeat", "replace", "replaceAll", "search", "slice",
+        "small", "split", "startsWith", "strike", "sub", "substr", "substring",
+        "sup", "toLocaleLowerCase", "toLocaleUpperCase", "toLowerCase",
+        "toSource", "toString", "toUpperCase", "trim", "trimEnd", "trimStart",
+        "valueOf",
+    ];
+    if (typeof obj === "undefined" || obj === null) {
+        return;
+    }
+    // this indicates object-access of an object that also serves as an array
+    if (typeof property !== "number") {
+        if (typeof obj[0] !== "undefined" && !(arrayPrototype.includes(property))) {
+            record(platypusTypes, loc, `was array, accessed property: ${property}`);
+        }
+    } else {
+        // TODO(luna): there's gotta be a better way to do this
+        let keys = Object.keys(obj).filter(x => isNaN(parseInt(x)));
+        if (keys.length !== 0) {
+            record(platypusTypes, loc, `was object (${keys}); but used as array`);
+        }
+    }
+}
+
 process.on('beforeExit', () => {
     console.log(badArityBehavior);
     console.log(badOperands);
     console.log(expectedNumber);
+    console.log(platypusTypes);
 });

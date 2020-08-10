@@ -7,6 +7,12 @@ import * as fs from 'fs';
 
 const qJankyp = t.identifier('$jankyp');
 
+var nextFresh = 0;
+
+function fresh(desc: string) {
+    return `$jankyp_${desc}_${nextFresh++}`;
+}
+
 function qCall(name: string, args: t.Expression[]) {
     return t.callExpression(t.memberExpression(qJankyp, t.identifier(name), false), args);
 }
@@ -29,12 +35,15 @@ const visitor: TraverseOptions = {
         exit(path) {
             path.node.body.unshift(
                 t.variableDeclaration('const',
-                    [t.variableDeclarator(qJankyp, 
+                    [t.variableDeclarator(qJankyp,
                         t.callExpression(t.identifier('require'), [t.stringLiteral('./dist/runtime.js')]))]));
         }
     },
     BinaryExpression: {
         exit(path) {
+            if (typeof path.node.left.loc === "undefined") {
+                return;
+            }
             let op = path.node.operator;
             // Let's assume all (in)equalities are safe.
             if (['==', '!=', '===', '!=='].includes(op)) {
@@ -52,12 +61,12 @@ const visitor: TraverseOptions = {
             }
 
             if (['*', '/', '-', '&', '|', '<<', '>>', '>>>'].includes(op)) {
-                path.node.left = qCall('expectNumber', [ qLoc(path.node.left.loc), path.node.left ]);
-                path.node.right = qCall('expectNumber', [ qLoc(path.node.right.loc), path.node.right ]);
+                path.node.left = qCall('expectNumber', [qLoc(path.node.left.loc), path.node.left]);
+                path.node.right = qCall('expectNumber', [qLoc(path.node.right.loc), path.node.right]);
                 return;
             }
-            path.node.left = qCall('checkOperand', [ qLoc(path.node.left.loc), path.node.left ]);
-            path.node.right = qCall('checkOperand', [ qLoc(path.node.right.loc), path.node.right ]);
+            path.node.left = qCall('checkOperand', [qLoc(path.node.left.loc), path.node.left]);
+            path.node.right = qCall('checkOperand', [qLoc(path.node.right.loc), path.node.right]);
         }
     },
     FunctionExpression: {
@@ -69,8 +78,59 @@ const visitor: TraverseOptions = {
         exit(path) {
             instrumentFunction(path);
         }
-    }
+    },
+    MemberExpression: {
+        exit(path) {
+            // undefineds are statements we inserted; which is fine (important even!)
+            // in this case, but i'm not sure if that's a problem with other insertions
+            // that might be added to jankyp
+            // TODO(luna): technically as a result obj.x.y will never check
+            // if `obj` is platypus, only `obj.x`
+            if (path.node.loc === null || typeof path.node.loc === "undefined") {
+                return;
+            }
+            let property;
+            switch (path.node.property.type) {
+                case "Identifier":
+                    property = t.stringLiteral(path.node.property.name);
+                    break;
+                case "PrivateName":
+                    property = t.stringLiteral(path.node.property.id.name);
+                    break;
+                default:
+                    if (t.isExpression(path.node.property)) {
+                        property = path.node.property;
+                    } else {
+                        console.error("incorrectly typed property. shouldn't be possible");
+                        process.exit(2);
+                    }
+                    break;
+            }
+            // to avoid duplicating side effects,
+            // we have to assign the object and property to fresh names
+            let nodes = [];
+            let obj = path.node.object;
+            let prop: t.Expression = property;
+            if (!t.isIdentifier(obj)) {
+                let objName = fresh("obj");
+                nodes.push(decl(objName, obj));
+                obj = t.identifier(objName);
+            }
+            if (!t.isIdentifier(prop) && !t.isLiteral(prop)) {
+                let propName = fresh("prop");
+                nodes.push(decl(propName, prop));
+                prop = t.identifier(propName);
+            }
+            nodes.push(t.expressionStatement(qCall('checkPlatypus', [qLoc(path.node.loc), obj, prop])));
+            path.node = t.memberExpression(obj, prop, true, path.node.optional);
+            path.getStatementParent().insertBefore(nodes);
+        }
+    },
 };
+
+function decl(name: string, exp: t.Expression): t.Statement {
+    return t.variableDeclaration("const", [t.variableDeclarator(t.identifier(name), exp)]);
+}
 
 function main() {
     let js_str = fs.readFileSync(process.argv[2], { encoding: 'utf-8' });
