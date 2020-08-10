@@ -90,21 +90,11 @@ const visitor: TraverseOptions = {
                 return;
             }
             let property;
-            switch (path.node.property.type) {
-                case "Identifier":
-                    property = t.stringLiteral(path.node.property.name);
-                    break;
-                case "PrivateName":
-                    property = t.stringLiteral(path.node.property.id.name);
-                    break;
-                default:
-                    if (t.isExpression(path.node.property)) {
-                        property = path.node.property;
-                    } else {
-                        console.error("incorrectly typed property. shouldn't be possible");
-                        process.exit(2);
-                    }
-                    break;
+            if (path.node.computed == false) {
+                property = t.stringLiteral((path.node.property as t.Identifier).name);
+            }
+            else {
+                property = path.node.property as t.Expression;
             }
             // to avoid duplicating side effects,
             // we have to assign the object and property to fresh names
