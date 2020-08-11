@@ -67,7 +67,7 @@ fn ensure(msg: &str, expected: Type, got: Type) -> TypeCheckingResult<Type> {
 // ensure the given type is indexable; that is, able to be indexed using
 // braces.
 fn ensure_indexable(msg: &str, got: Type) -> TypeCheckingResult<Type> {
-    let types = [Type::DynObject, Type::Array, Type::String];
+    let types = [Type::DynObject, Type::Array, Type::String, Type::Any];
     for expected_type in &types {
         let result = ensure(msg, expected_type.clone(), got.clone());
         match result {
@@ -88,7 +88,7 @@ fn ensure_indexable(msg: &str, got: Type) -> TypeCheckingResult<Type> {
 
 // ensure the given type is an indexer (e.g. the `x` in arr[x])
 fn ensure_indexer(msg: &str, got: Type) -> TypeCheckingResult<Type> {
-    let types = [Type::String, Type::Int];
+    let types = [Type::String, Type::Int, Type::Any];
     for expected_type in &types {
         let result = ensure(msg, expected_type.clone(), got.clone());
         match result {
