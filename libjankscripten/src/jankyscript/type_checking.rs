@@ -16,6 +16,15 @@ pub enum TypeCheckingError {
     #[error("{0} expected type {1}, but received {2}")]
     TypeMismatch(String, Type, Type),
 
+    // Expected expression to be indexable (either DynObject or Arrray),
+    // but it had the given type
+    #[error("{0} expected indexable type, but received {1}")]
+    ExpectedIndexable(String, Type),
+
+    // Expected an indexer (e.g. the `x` in arr[x]), but it had the given type
+    #[error("{0} expected idexer, but received {1}")]
+    ExpectedIndexer(String, Type),
+
     // Expected an expression to have a function type
     #[error("{0} expected an expression to have a function type, but received {1}")]
     ExpectedFunction(String, Type),
@@ -50,6 +59,52 @@ fn ensure(msg: &str, expected: Type, got: Type) -> TypeCheckingResult<Type> {
             got,
         ))
     }
+}
+
+// TODO(mark): refactor ensure_indexable and ensure_indexer, they have almost
+//             identical logic. i'm just not sure how to do it well in rust
+
+// ensure the given type is indexable; that is, able to be indexed using
+// braces.
+fn ensure_indexable(msg: &str, got: Type) -> TypeCheckingResult<Type> {
+    let types = [Type::DynObject, Type::Array, Type::String];
+    for expected_type in &types {
+        let result = ensure(msg, expected_type.clone(), got.clone());
+        match result {
+            Ok(_) => {
+                return result;
+            }
+            Err(_) => {
+                continue;
+            }
+        }
+    }
+
+    Err(TypeCheckingError::ExpectedIndexable(
+        String::from(msg),
+        got
+    ))
+}
+
+// ensure the given type is an indexer (e.g. the `x` in arr[x])
+fn ensure_indexer(msg: &str, got: Type) -> TypeCheckingResult<Type> {
+    let types = [Type::String, Type::Int];
+    for expected_type in &types {
+        let result = ensure(msg, expected_type.clone(), got.clone());
+        match result {
+            Ok(_) => {
+                return result;
+            }
+            Err(_) => {
+                continue;
+            }
+        }
+    }
+
+    Err(TypeCheckingError::ExpectedIndexable(
+        String::from(msg),
+        got
+    ))
 }
 
 fn ensure_function(msg: &str, got: Type) -> TypeCheckingResult<(Vec<Type>, Box<Type>)> {
@@ -326,18 +381,16 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
         Expr::Bracket(obj, dyn_prop) => {
             let obj_type = type_check_expr(obj, env.clone())?;
 
-            ensure(
-                "property lookup done on real object",
-                Type::DynObject,
+            ensure_indexable(
+                "brackets object",
                 obj_type,
             )?;
 
             let dyn_prop_type = type_check_expr(dyn_prop, env)?;
 
-            ensure(
-                "property lookup needs string index",
-                Type::String,
-                dyn_prop_type,
+            ensure_indexer(
+                "brackets index",
+                dyn_prop_type
             )?;
 
             // see Expr::Dot case for why we're returning Any
