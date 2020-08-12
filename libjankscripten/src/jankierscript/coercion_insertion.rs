@@ -324,17 +324,38 @@ impl InsertCoercions {
                     .into_iter()
                     .map(|e| self.expr_and_type(e, &mut env.clone()))
                     .collect::<Result<Vec<_>, _>>()?;
-                let (coerced_args, coerced_tys) = args_with_typs.into_iter().unzip();
 
-                let coerced_f = self.expr(
-                    *f,
-                    Type::Function(coerced_tys, Box::new(Type::Any)),
-                    &mut env.clone(),
-                )?;
-                Ok((
-                    Janky::Expr::Call(Box::new(coerced_f), coerced_args),
-                    Type::Any,
-                ))
+                let (coerced_f, f_ty) = self.expr_and_type(*f, &mut env.clone())?;
+                let (coerced_f, f_args, f_ret) = match f_ty {
+                    Type::Function(args, ret) => {
+                        if args.len() != args_with_typs.len() {
+                            return error!(
+                                "bad arity applying function {:?}, got {} args",
+                                coerced_f,
+                                args_with_typs.len()
+                            );
+                        }
+
+                        (coerced_f, args, *ret)
+                    }
+                    f_ty => {
+                        let n = args_with_typs.len();
+
+                        (
+                            self.coerce(coerced_f, f_ty, Type::ground_function(n)),
+                            vec![Type::Any; n],
+                            Type::Any,
+                        )
+                    }
+                };
+
+                let coerced_args = args_with_typs
+                    .into_iter()
+                    .zip(f_args.into_iter())
+                    .map(|((e, actual_ty), formal_ty)| self.coerce(e, actual_ty, formal_ty))
+                    .collect();
+
+                Ok((Janky::Expr::Call(Box::new(coerced_f), coerced_args), f_ret))
             }
             // TODO(arjun): Any for this!
             Expr::This => Ok((Janky::Expr::This, Type::Any)),
@@ -385,7 +406,7 @@ impl InsertCoercions {
                     (UnaryOp::TypeOf, _) => Ok((
                         Janky::Expr::PrimCall(
                             RTSFunction::Todo("typeof"),
-                            vec![self.coerce(coerced_e, e_ty, Type::Any),],
+                            vec![self.coerce(coerced_e, e_ty, Type::Any)],
                         ),
                         Type::Any,
                     )),
@@ -476,7 +497,7 @@ impl InsertCoercions {
 
     fn coerce(&self, e: Janky::Expr, t1: Type, t2: Type) -> Janky::Expr {
         Janky_::coercion_(self.coercion(t1, t2), e)
-    }    
+    }
 
     fn coercion(&self, t1: Type, t2: Type) -> Coercion {
         if t1 == t2 {
