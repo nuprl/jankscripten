@@ -473,6 +473,7 @@ fn type_check_lit(l: &Lit) -> Type {
         Lit::F64(_) => Type::F64,
         Lit::String(_) => Type::String,
         Lit::Interned(_) => Type::StrRef,
+        Lit::Undefined => Type::Any,
     }
 }
 
@@ -482,6 +483,7 @@ fn type_check_binary(op: &BinaryOp) -> (Type, Type) {
         BinaryOp::I32Eq | BinaryOp::I32GT | BinaryOp::I32LT | BinaryOp::I32Ge | BinaryOp::I32Le => {
             (Type::I32, Type::Bool)
         }
+        BinaryOp::F64Eq | BinaryOp::F64LT => (Type::F64, Type::Bool),
         BinaryOp::I32Add
         | BinaryOp::I32Sub
         | BinaryOp::I32Mul

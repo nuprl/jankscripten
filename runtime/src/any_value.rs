@@ -23,6 +23,7 @@ pub enum AnyEnum<'a> {
     Ptr(AnyPtr<'a>),
     StrPtr(StrPtr),
     Fn(u32),
+    Undefined,
 }
 
 impl std::fmt::Debug for AnyEnum<'_> {
@@ -35,6 +36,7 @@ impl std::fmt::Debug for AnyEnum<'_> {
             Ptr(ptr) => write!(f, "{:?}", ptr.view()),
             StrPtr(s) => write!(f, "StrPtr({})", s),
             Fn(n) => write!(f, "Fn({})", n),
+            Undefined => write!(f, "undefined"),
         }
     }
 }
@@ -48,6 +50,7 @@ impl std::fmt::Display for AnyEnum<'_> {
             Ptr(_) => write!(f, "{:?}", self), // TODO: impl Display for HeapPtr
             StrPtr(s) => write!(f, "{}", s),
             Fn(_) => write!(f, "{:?}", self),
+            Undefined => write!(f, "{:?}", self),
         }
     }
 }
@@ -125,6 +128,10 @@ pub extern "C" fn f64_to_any(x: f64) -> AnyValue<'static> {
 decl_proj_fns!(any_from_i32, any_to_i32, I32, i32);
 decl_proj_fns!(any_from_bool, any_to_bool, Bool, bool);
 decl_proj_fns!(any_from_ptr, any_to_ptr, Ptr, AnyPtr<'a>);
+
+pub extern "C" fn get_undefined() -> AnyValue<'static> {
+    AnyEnum::Undefined.into()
+}
 
 #[cfg(test)]
 mod test {

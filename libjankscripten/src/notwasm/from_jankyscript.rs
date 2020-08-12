@@ -104,7 +104,7 @@ fn compile_lit(lit: J::Lit) -> Lit {
         J::Lit::Regex(_, _) => todo!("regex not supported anywhere in toolchain"),
         J::Lit::Bool(b) => Lit::Bool(b),
         J::Lit::Null => todo!("NotWasm needs a null primitive"),
-        J::Lit::Undefined => todo!("NotWasm needs an undefined"),
+        J::Lit::Undefined => Lit::Undefined,
         J::Lit::Num(J::Num::Int(n)) => Lit::I32(n),
         J::Lit::Num(J::Num::Float(x)) => Lit::F64(x),
     }

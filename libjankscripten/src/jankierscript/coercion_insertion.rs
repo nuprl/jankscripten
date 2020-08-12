@@ -81,17 +81,22 @@ enum Overload {
     RTS(RTSFunction),
 }
 
-fn prim(op: BinaryOp, a: Type, b: Type, c: Type) -> (Overload, Type, Type, Type) {
+type TypeOverload = (Overload, Type, Type, Type);
+fn prim(op: BinaryOp, a: Type, b: Type, c: Type) -> TypeOverload {
     (Overload::Prim(op), a, b, c)
 }
-fn prim_same(op: BinaryOp, homogenous: Type) -> (Overload, Type, Type, Type) {
+fn prim_same(op: BinaryOp, homogenous: Type) -> TypeOverload {
     prim(op, homogenous.clone(), homogenous.clone(), homogenous)
+}
+fn rts(rts_func: RTSFunction, ret: Type) -> TypeOverload {
+    (Overload::RTS(rts_func), Type::Any, Type::Any, ret)
 }
 // Given a JavaScript binary operator and the types of its operands, returns
 // either (1) a Wasm operator and its type, and (2) a function in the runtime
 // system and its type.
-fn binop_overload(op: &BinOp, lhs_ty: &Type, rhs_ty: &Type) -> (Overload, Type, Type, Type) {
+fn binop_overload(op: &BinOp, lhs_ty: &Type, rhs_ty: &Type) -> TypeOverload {
     use Type::*;
+    let anyish = lhs_ty == &Type::Any || rhs_ty == &Type::Any;
     match (op, lhs_ty, rhs_ty) {
         // TODO(arjun): This is not accurate. Adding two 32-bit integers in JS
         // can produce a float.
@@ -99,15 +104,23 @@ fn binop_overload(op: &BinOp, lhs_ty: &Type, rhs_ty: &Type) -> (Overload, Type, 
         (BinOp::Plus, Float, Float) => prim_same(BinaryOp::F64Add, Float),
         (BinOp::Plus, Float, Int) => prim_same(BinaryOp::F64Add, Float),
         (BinOp::Plus, Int, Float) => prim_same(BinaryOp::F64Add, Float),
-        (BinOp::Plus, Int, Float) => (Overload::RTS(RTSFunction::Plus), Any, Any, Any),
+        (BinOp::Plus, _, _) if anyish => rts(RTSFunction::Plus, Any),
         (BinOp::LessThan, Int, Int) => prim(BinaryOp::I32LT, Int, Int, Bool),
+        (BinOp::LessThan, _, _) => prim(BinaryOp::F64LT, Float, Float, Bool),
         (BinOp::Over, Int, Int) => prim_same(BinaryOp::I32Div, Int),
+        (BinOp::Over, _, _) if anyish => rts(RTSFunction::Over, Float),
+        (BinOp::Over, _, _) => prim_same(BinaryOp::F64Div, Float),
         (BinOp::Mod, Int, Int) => prim_same(BinaryOp::I32Rem, Int),
-        (BinOp::Equal, _, _) if lhs_ty == rhs_ty && lhs_ty != &Any => {
-            prim(BinaryOp::I32Eq, lhs_ty.clone(), rhs_ty.clone(), Bool)
-        }
+        (BinOp::Mod, _, _) if anyish => rts(RTSFunction::Mod, Any),
+        (BinOp::Mod, _, _) => rts(RTSFunction::ModF64, Float),
+        (BinOp::Equal, Float, Float) => prim(BinaryOp::F64Eq, Float, Float, Bool),
+        (BinOp::Equal, Int, Int) => prim(BinaryOp::I32Eq, Int, Int, Bool),
+        (BinOp::Equal, _, _) => rts(RTSFunction::Equal, Bool),
         (_, _, _) => (
-            Overload::RTS(RTSFunction::Todo("unimplemented binop")),
+            Overload::RTS(RTSFunction::Todo(Box::leak(Box::new(format!(
+                "unimplemented binop {:?} {:?} {:?}",
+                op, lhs_ty, rhs_ty
+            ))))),
             Any,
             Any,
             Any,
