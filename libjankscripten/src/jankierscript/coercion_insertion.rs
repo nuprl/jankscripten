@@ -485,6 +485,19 @@ impl InsertCoercions {
 
                 let ret_ty = opt_ret_ty.unwrap_or(Type::Any);
                 let coerced_body = self.stmt(*body, &mut body_env, &ret_ty)?;
+                // TODO(luna): i still don't know how we're dealing with
+                // typed undefineds but this is what i'm doing for now.
+                // this is needed for giving a default return (undefined in JS)
+                let default_for_ty = match ret_ty {
+                    Type::Any => self.coerce(
+                        Janky_::lit_(Janky_::num_(Janky::Num::Int(0))),
+                        Type::Int,
+                        Type::Any,
+                    ),
+                    _ => todo!(),
+                };
+                let coerced_body =
+                    Janky::Stmt::Block(vec![coerced_body, Janky_::return_(default_for_ty)]);
                 let fn_ty = Type::Function(arg_tys, Box::new(ret_ty.clone()));
 
                 Ok((
