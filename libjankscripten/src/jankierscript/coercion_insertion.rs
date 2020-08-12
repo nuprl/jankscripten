@@ -237,7 +237,7 @@ impl InsertCoercions {
                 // to assume it's an array because introducing OR into here
                 // seems pretty messy (TODO(luna))
 
-                // MMG: probably best to have different bracket operations for
+                // michael: probably best to have different bracket operations for
                 // different types. there could be four:
                 //
                 // 1. arrays
@@ -274,6 +274,7 @@ impl InsertCoercions {
             }
             Expr::Assign(lv, e) => match *lv {
                 LValue::Id(id) => {
+                    // TODO(michael) if we're going to allow strong update, some change has to happen here
                     let (_, into_ty) = self.expr_and_type(Expr::Id(id.clone()), env)?;
                     Ok((
                         Janky_::assign_(
@@ -349,7 +350,7 @@ impl InsertCoercions {
                     (UnaryOp::Plus, _) => Ok((
                         Janky::Expr::PrimCall(
                             RTSFunction::Todo("+"),
-                            vec![Janky_::coercion_(self.coercion(e_ty, Type::Any), coerced_e)],
+                            vec![self.coerce(coerced_e, e_ty, Type::Any)],
                         ),
                         Type::Any,
                     )),
@@ -370,35 +371,35 @@ impl InsertCoercions {
                     (UnaryOp::Minus, _) => Ok((
                         Janky::Expr::PrimCall(
                             RTSFunction::Todo("-"),
-                            vec![Janky_::coercion_(self.coercion(e_ty, Type::Any), coerced_e)],
+                            vec![self.coerce(coerced_e, e_ty, Type::Any)],
                         ),
                         Type::Any,
                     )),
                     (UnaryOp::Not, _) => Ok((
                         Janky::Expr::PrimCall(
                             RTSFunction::Todo("!"),
-                            vec![Janky_::coercion_(self.coercion(e_ty, Type::Any), coerced_e)],
+                            vec![self.coerce(coerced_e, e_ty, Type::Any)],
                         ),
                         Type::Any,
                     )),
                     (UnaryOp::TypeOf, _) => Ok((
                         Janky::Expr::PrimCall(
                             RTSFunction::Todo("typeof"),
-                            vec![Janky_::coercion_(self.coercion(e_ty, Type::Any), coerced_e)],
+                            vec![self.coerce(coerced_e, e_ty, Type::Any),],
                         ),
                         Type::Any,
                     )),
                     (UnaryOp::Void, _) => Ok((
                         Janky::Expr::PrimCall(
                             RTSFunction::Todo("void"),
-                            vec![Janky_::coercion_(self.coercion(e_ty, Type::Any), coerced_e)],
+                            vec![self.coerce(coerced_e, e_ty, Type::Any)],
                         ),
                         Type::Any,
                     )),
                     (UnaryOp::Delete, _) => Ok((
                         Janky::Expr::PrimCall(
                             RTSFunction::Todo("delete"),
-                            vec![Janky_::coercion_(self.coercion(e_ty, Type::Any), coerced_e)],
+                            vec![self.coerce(coerced_e, e_ty, Type::Any)],
                         ),
                         Type::Any,
                     )),
@@ -443,18 +444,6 @@ impl InsertCoercions {
         }
     }
 
-    /// Inserts coercions into an expr AND ensures the expr will have the given
-    /// type.
-    fn expr(&self, e: Expr, desired_type: Type, env: &mut Env) -> CoercionResult<Janky::Expr> {
-        // insert coercions into the expression
-        let (e, e_type) = self.expr_and_type(e, env)?;
-
-        // if the expression is already the desired type, then self.coerce will
-        // return `Coercion::Id` and `Janky_::coercion_` won't bother inserting
-        // anything.
-        Ok(Janky_::coercion_(self.coercion(e_type, desired_type), e))
-    }
-
     fn typeof_lit(&self, lit: &Janky::Lit) -> Type {
         use Janky::Lit;
         match lit {
@@ -473,9 +462,21 @@ impl InsertCoercions {
         Ok((lit, ty))
     }
 
+    /// Inserts coercions into an expr AND ensures the expr will have the given
+    /// type.
+    fn expr(&self, e: Expr, desired_type: Type, env: &mut Env) -> CoercionResult<Janky::Expr> {
+        // insert coercions into the expression
+        let (e, e_type) = self.expr_and_type(e, env)?;
+
+        // if the expression is already the desired type, then self.coerce will
+        // return `Coercion::Id` and `Janky_::coercion_` won't bother inserting
+        // anything.
+        Ok(self.coerce(e, e_type, desired_type))
+    }
+
     fn coerce(&self, e: Janky::Expr, t1: Type, t2: Type) -> Janky::Expr {
         Janky_::coercion_(self.coercion(t1, t2), e)
-    }
+    }    
 
     fn coercion(&self, t1: Type, t2: Type) -> Coercion {
         if t1 == t2 {

@@ -51,15 +51,21 @@ impl Coercion {
         }
     }
 
-    fn is_id(&self) -> bool {
-        match self {
-            Coercion::Id(_) => true,
-            _ => false,
-        }
-    }
-
     pub fn fun(cargs: Vec<Coercion>, cret: Coercion) -> Coercion {
-        // TODO MMG possible optimization: see if they're all id, return id
+        // TODO(michael) is there a way to avoid the cloning?
+        if let Coercion::Id(ret) = &cret {
+            if let Some(args) = &cargs
+                .iter()
+                .map(|c| match c {
+                    Coercion::Id(t) => Some(t.clone()),
+                    _ => None,
+                })
+                .collect::<Option<Vec<_>>>()
+            {
+                return Coercion::Id(Type::Function(args.clone(), Box::new(ret.clone())));
+            }
+        }
+
         Coercion::Fun(cargs, Box::new(cret))
     }
 }
