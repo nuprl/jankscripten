@@ -116,14 +116,19 @@ fn binop_overload(op: &BinOp, lhs_ty: &Type, rhs_ty: &Type) -> (Overload, Type, 
 }
 
 impl InsertCoercions {
-    fn stmt(&self, stmt: Stmt, env: &mut Env) -> CoercionResult<Janky::Stmt> {
+    fn stmt(
+        &self,
+        stmt: Stmt,
+        env: &mut Env,
+        ret_ty: &Type,
+    ) -> CoercionResult<Janky::Stmt> {
         match stmt {
             Stmt::Var(x, t, e) => {
                 let (e, t) = self.expr_and_type(*e, env)?;
                 env.env.insert(x.clone(), EnvItem::JsId(t.clone()));
                 Ok(Janky_::var_(x, t, e))
             }
-            Stmt::Block(stmts) => self.stmts(stmts, &mut env.clone()),
+            Stmt::Block(stmts) => self.stmts(stmts, &mut env.clone(), ret_ty),
             Stmt::If(c, t, e) => {
                 // coerce the conditional expression into type Bool
                 let c = self.expr(*c, Type::Bool, env)?;
@@ -132,13 +137,13 @@ impl InsertCoercions {
                 Ok(Janky_::if_(
                     c,
                     // new scopes
-                    self.stmt(*t, &mut env.clone())?,
-                    self.stmt(*e, &mut env.clone())?,
+                    self.stmt(*t, &mut env.clone(), ret_ty)?,
+                    self.stmt(*e, &mut env.clone(), ret_ty)?,
                 ))
             }
             Stmt::Loop(body) => {
                 // new scope
-                let body = self.stmt(*body, &mut env.clone())?;
+                let body = self.stmt(*body, &mut env.clone(), ret_ty)?;
                 Ok(Janky_::loop_(body))
             }
             Stmt::Empty => Ok(Janky_::empty_()),
@@ -148,14 +153,17 @@ impl InsertCoercions {
                 Ok(Janky::Stmt::Expr(Box::new(janky_e)))
             }
             Stmt::Label(label, body) => {
-                let coerced_body = self.stmt(*body, env)?;
+                let coerced_body = self.stmt(*body, env, ret_ty)?;
                 Ok(Janky::Stmt::Label(label, Box::new(coerced_body)))
             }
             Stmt::Break(id) => Ok(Janky::Stmt::Break(id)),
             Stmt::Catch(body, exn_name, catch_body) => {
-                let coerced_body = self.stmt(*body, &mut env.clone())?;
-                let coerced_catch_body =
-                    self.stmt(*catch_body, &mut env.extend(exn_name.clone(), Type::Any))?;
+                let coerced_body = self.stmt(*body, &mut env.clone(), ret_ty)?;
+                let coerced_catch_body = self.stmt(
+                    *catch_body,
+                    &mut env.extend(exn_name.clone(), Type::Any),
+                    ret_ty,
+                )?;
                 Ok(Janky::Stmt::Catch(
                     Box::new(coerced_body),
                     exn_name,
@@ -163,8 +171,8 @@ impl InsertCoercions {
                 ))
             }
             Stmt::Finally(body, finally_body) => {
-                let coerced_body = self.stmt(*body, &mut env.clone())?;
-                let coerced_finally_body = self.stmt(*finally_body, &mut env.clone())?;
+                let coerced_body = self.stmt(*body, &mut env.clone(), ret_ty)?;
+                let coerced_finally_body = self.stmt(*finally_body, &mut env.clone(), ret_ty)?;
                 Ok(Janky::Stmt::Finally(
                     Box::new(coerced_body),
                     Box::new(coerced_finally_body),
@@ -175,17 +183,22 @@ impl InsertCoercions {
                 Ok(Janky::Stmt::Throw(Box::new(coerced_expr)))
             }
             Stmt::Return(expr) => {
-                // TODO(arjun): This assumes all functions produce any
-                let coerced_expr = self.expr(*expr, Type::Any, &mut env.clone())?;
+                let coerced_expr = self.expr(*expr, ret_ty.clone(), &mut env.clone())?;
+
                 Ok(Janky::Stmt::Return(Box::new(coerced_expr)))
             }
         }
     }
 
-    fn stmts(&self, stmts: Vec<Stmt>, env: &mut Env) -> CoercionResult<Janky::Stmt> {
+    fn stmts(
+        &self,
+        stmts: Vec<Stmt>,
+        env: &mut Env,
+        ret_ty: &Type,
+    ) -> CoercionResult<Janky::Stmt> {
         let mut ret = vec![];
         for stmt in stmts.into_iter() {
-            ret.push(self.stmt(stmt, env)?);
+            ret.push(self.stmt(stmt, env, ret_ty)?);
         }
         Ok(Janky_::block_(ret))
     }
@@ -319,7 +332,8 @@ impl InsertCoercions {
                     return error!("primitive is not a function {:?}", f);
                 }
 
-                // TODO(arjun): Handle Expr::Call in expr_and_type too, for bidirectionality?
+                // TODO(arjun): Handle Expr::Call in expr too, for bidirectionality?
+                // michael: eh, no need. if we use inference, it should handle it for us.
                 let args_with_typs = args
                     .into_iter()
                     .map(|e| self.expr_and_type(e, &mut env.clone()))
@@ -469,7 +483,7 @@ impl InsertCoercions {
             }
             Expr::Func(opt_ret_ty, args_with_opt_tys, body) => {
                 let mut body_env = env.clone();
-                let ret_ty = opt_ret_ty.unwrap_or(Type::Any);
+
                 let mut arg_tys = Vec::with_capacity(args_with_opt_tys.len());
                 let mut args_with_tys = Vec::with_capacity(args_with_opt_tys.len());
                 for (arg_id, opt_ty) in args_with_opt_tys {
@@ -478,9 +492,11 @@ impl InsertCoercions {
                     args_with_tys.push((arg_id.clone(), ty.clone()));
                     body_env.update(arg_id, ty);
                 }
-                // TODO(arjun): Type of "return"
-                let coerced_body = self.stmt(*body, &mut body_env)?;
+
+                let ret_ty = opt_ret_ty.unwrap_or(Type::Any);
+                let coerced_body = self.stmt(*body, &mut body_env, &ret_ty)?;
                 let fn_ty = Type::Function(arg_tys, Box::new(ret_ty.clone()));
+
                 Ok((
                     Janky::Expr::Func(ret_ty, args_with_tys, Box::new(coerced_body)),
                     fn_ty,
@@ -571,6 +587,6 @@ impl InsertCoercions {
 
 pub fn insert_coercions(jankier_prog: Stmt) -> CoercionResult<Janky::Stmt> {
     let coercions = InsertCoercions::default();
-    let janky_prog = coercions.stmt(jankier_prog, &mut Env::new())?;
+    let janky_prog = coercions.stmt(jankier_prog, &mut Env::new(), &Type::Any)?;
     Ok(janky_prog)
 }
