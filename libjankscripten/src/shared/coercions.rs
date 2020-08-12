@@ -12,6 +12,12 @@ pub enum Coercion {
     /// Note that untagging will fail if the Any-typed value contains an element
     /// that does not have the type t.
     Untag(Type),
+    /// Coercion::IntToFloat : Int -> Float
+    /// Corresponds to f64.convert_i32_s
+    IntToFloat,
+    /// Coercion::FloatToInt : Float -> Int
+    /// Corresponds to i32.trunc_f64_s
+    FloatToInt,
     /// Coercion::Fun(args, ret)
     ///
     /// Assume exactly one argument:

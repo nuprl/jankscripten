@@ -397,6 +397,16 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             ensure("from_any", Type::Any, got)?;
             Ok(ty.clone())
         }
+        Atom::FloatToInt(a) => {
+            let got = type_check_atom(env, a)?;
+            ensure("float to int", Type::F64, got)?;
+            Ok(Type::I32)
+        }
+        Atom::IntToFloat(a) => {
+            let got = type_check_atom(env, a)?;
+            ensure("int to float", Type::I32, got)?;
+            Ok(Type::F64)
+        }
         Atom::Id(id) => lookup(env, id),
         Atom::StringLen(a) => {
             let ty = type_check_atom(env, a)?;

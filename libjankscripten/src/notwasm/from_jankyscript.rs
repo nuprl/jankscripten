@@ -212,6 +212,8 @@ fn compile_ty(janky_typ: J::Type) -> Type {
     match janky_typ {
         J::Type::Any => Type::Any,
         J::Type::Bool => Type::Bool,
+        J::Type::Int => Type::I32,
+        J::Type::Float => Type::F64,
         _ => todo!("compile_ty"),
     }
 }
@@ -219,11 +221,13 @@ fn compile_ty(janky_typ: J::Type) -> Type {
 fn coercion_to_expr(c: J::Coercion, a: Atom) -> Atom {
     use J::Coercion::*;
     match c {
+        FloatToInt => Atom::FloatToInt(Box::new(a)),
+        IntToFloat => Atom::IntToFloat(Box::new(a)),
         Tag(..) => to_any_(a),
         Untag(ty) => from_any_(a, compile_ty(ty)),
-        Fun(..) => todo!(),
-        Id(..) => todo!(),
-        Seq(..) => todo!(),
+        Fun(..) => todo!(), // TODO(michael) needs to call something that proxies the function
+        Id(..) => a,
+        Seq(c1, c2) => coercion_to_expr(*c2, coercion_to_expr(*c1, a)),
     }
 }
 
