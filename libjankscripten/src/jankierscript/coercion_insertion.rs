@@ -469,49 +469,42 @@ impl InsertCoercions {
         if t1 == t2 {
             Coercion::Id(t1)
         } else {
-            match (t1.is_ground(), t2.is_ground()) {
-                (true, true) => self.coerce_ground_types(t1, t2),
-                (true, false) => self.coerce_ground_and_t(t1, t2),
-                (false, true) => self.coerce_t_and_ground(t1, t2),
-                _ => todo!("coerce({:?}, {:?})", t1, t2),
-            }
-        }
-    }
+            match (t1, t2) {
+                (Type::Any, t2) if t2.is_ground() => Coercion::Untag(t2),
+                (t1, Type::Any) if t1.is_ground() => Coercion::Tag(t1),
+                (Type::Any, Type::Function(args, ret)) => {
+                    let gf = Type::ground_function(args.len());
+                    Coercion::seq(
+                        self.coerce(Type::Any, gf.clone()),
+                        self.coerce(gf, Type::Function(args, ret)),
+                    )
+                }
+                (Type::Any, Type::Function(args, ret)) => {
+                    let gf = Type::ground_function(args.len());
+                    Coercion::seq(
+                        self.coerce(Type::Function(args, ret), gf.clone()),
+                        self.coerce(gf, Type::Any),
+                    )
+                }
+                (Type::Function(args1, ret1), Type::Function(args2, ret2)) => {
+                    if args1.len() != args2.len() {
+                        panic!("Coercing between arities: {:?} to {:?}", args1, args2);
+                    }
 
-    fn coerce_ground_types(&self, g1: Type, g2: Type) -> Coercion {
-        match (g1, g2) {
-            (Type::Any, g2) => Coercion::Untag(g2),
-            (g1, Type::Any) => Coercion::Tag(g1),
-            // TODO(arjun): bogus
-            (Type::Array, Type::DynObject) => Coercion::Tag(Type::DynObject),
-            (g1, g2) => todo!("coerce_ground_types({:?}, {:?})", g1, g2),
-        }
-    }
-
-    fn coerce_ground_and_t(&self, g: Type, t: Type) -> Coercion {
-        match (g, t) {
-            (Type::Any, Type::Function(args, res)) => {
-                let tmp1 = Type::ground_function(args.len());
-                let tmp2 = Type::Function(args.clone(), res.clone());
-                cseq_(
-                    self.coerce(Type::Any, tmp1.clone()),
-                    self.coerce(tmp1, tmp2),
-                )
+                    Coercion::fun(
+                        args1
+                            .into_iter()
+                            .zip(args2.into_iter())
+                            .map(|(arg1, arg2)| self.coerce(arg2, arg1))
+                            .collect(),
+                        self.coerce(*ret1, *ret2),
+                    )
+                }
+                (t1, t2) => {
+                    eprintln!("doing coerce({:?}, {:?}) through Any", t1, t2);
+                    Coercion::seq(self.coerce(t1, Type::Any), self.coerce(Type::Any, t2))
+                }
             }
-            _ => unimplemented!(),
-        }
-    }
-
-    fn coerce_t_and_ground(&self, t: Type, g: Type) -> Coercion {
-        match (t, g) {
-            (Type::Function(args, res), Type::Any) => {
-                let tmp = Type::ground_function(args.len());
-                cseq_(
-                    self.coerce(Type::Function(args, res), tmp.clone()),
-                    self.coerce(tmp, Type::Any),
-                )
-            }
-            _ => unimplemented!(),
         }
     }
 }

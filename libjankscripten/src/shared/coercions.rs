@@ -44,6 +44,18 @@ impl Coercion {
             (c1, c2) => Coercion::Seq(Box::new(c1), Box::new(c2)),
         }
     }
+
+    fn is_id(&self) -> bool {
+        match self {
+            Coercion::Id(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn fun(cargs: Vec<Coercion>, cret: Coercion) -> Coercion {
+        // TODO MMG possible optimization: see if they're all id, return id
+        Coercion::Fun(cargs, Box::new(cret))
+    }
 }
 
 pub fn cseq_(c1: Coercion, c2: Coercion) -> Coercion {
