@@ -116,12 +116,7 @@ fn binop_overload(op: &BinOp, lhs_ty: &Type, rhs_ty: &Type) -> (Overload, Type, 
 }
 
 impl InsertCoercions {
-    fn stmt(
-        &self,
-        stmt: Stmt,
-        env: &mut Env,
-        ret_ty: &Type,
-    ) -> CoercionResult<Janky::Stmt> {
+    fn stmt(&self, stmt: Stmt, env: &mut Env, ret_ty: &Type) -> CoercionResult<Janky::Stmt> {
         match stmt {
             Stmt::Var(x, t, e) => {
                 let (e, t) = self.expr_and_type(*e, env)?;
@@ -190,12 +185,7 @@ impl InsertCoercions {
         }
     }
 
-    fn stmts(
-        &self,
-        stmts: Vec<Stmt>,
-        env: &mut Env,
-        ret_ty: &Type,
-    ) -> CoercionResult<Janky::Stmt> {
+    fn stmts(&self, stmts: Vec<Stmt>, env: &mut Env, ret_ty: &Type) -> CoercionResult<Janky::Stmt> {
         let mut ret = vec![];
         for stmt in stmts.into_iter() {
             ret.push(self.stmt(stmt, env, ret_ty)?);
