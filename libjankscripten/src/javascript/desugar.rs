@@ -13,6 +13,7 @@ pub fn desugar(stmt: &mut Stmt, ng: &mut NameGen) {
     desugar_vardecls::desugar_vardecls(stmt, ng);
     //dep: desugar_updates needs desugar_function_applications to work properly
     desugar_updates::desugar_updates(stmt, ng);
+    lift_vars::lift_vars(stmt);
 }
 
 #[cfg(test)]
