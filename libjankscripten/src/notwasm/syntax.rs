@@ -165,6 +165,8 @@ pub enum Atom {
     ///
     /// Concrete syntax: `<atom> as <ty>`
     FromAny(Box<Atom>, Type),
+    FloatToInt(Box<Atom>), // MMG made these Atoms because they shouldn't ever allocate
+    IntToFloat(Box<Atom>),
     HTGet(Box<Atom>, Box<Atom>),
     ObjectGet(Box<Atom>, Box<Atom>),
     Index(Box<Atom>, Box<Atom>),
