@@ -1,6 +1,7 @@
 //! janky ops: see libjankscripten/rts_function.rs
 
 use super::any_value::*;
+use super::string::*;
 
 type Any = AnyValue<'static>;
 
@@ -32,6 +33,7 @@ fn i32s_or_as_f64s_any(
     )
 }
 
+#[no_mangle]
 pub extern "C" fn janky_plus(a: Any, b: Any) -> Any {
     if let Some(res) = i32s_or_as_f64s_any(a, b, |a, b| a + b, |a, b| a + b) {
         res
@@ -42,12 +44,44 @@ pub extern "C" fn janky_plus(a: Any, b: Any) -> Any {
         panic!("unsupported for +: {:?}, {:?}", a, b)
     }
 }
+#[no_mangle]
 pub extern "C" fn janky_over(a: Any, b: Any) -> f64 {
     i32s_or_as_f64s(a, b, |a, b| a / b, |a, b| a as f64 / b as f64).expect("unsupported for /")
 }
+#[no_mangle]
 pub extern "C" fn janky_mod(a: Any, b: Any) -> Any {
     i32s_or_as_f64s_any(a, b, |a, b| a % b, |a, b| a % b).expect("unsupported for %")
 }
+#[no_mangle]
+pub extern "C" fn janky_mod_f64(a: f64, b: f64) -> f64 {
+    a % b
+}
+#[no_mangle]
 pub extern "C" fn janky_equal(a: Any, b: Any) -> bool {
     a == b
+}
+#[no_mangle]
+pub extern "C" fn janky_typeof(a: Any) -> StrPtr {
+    str_as_ptr(typeof_as_str(a))
+}
+#[no_mangle]
+pub extern "C" fn janky_delete(_a: Any, _b: Any) -> bool {
+    todo!()
+}
+
+fn typeof_as_str(a: Any) -> &'static str {
+    match *a {
+        AnyEnum::I32(_) | AnyEnum::F64(_) => "number",
+        AnyEnum::Bool(_) => "boolean",
+        AnyEnum::Ptr(ptr) => match ptr.view() {
+            HeapRefView::I32(_) => "number",
+            HeapRefView::String(_) => "string",
+            HeapRefView::HT(_) | HeapRefView::Array(_) | HeapRefView::ObjectPtrPtr(_) => "object",
+            HeapRefView::Any(what) => typeof_as_str(*what),
+            HeapRefView::Class(_) => panic!("shouldn't be able to typeof non-value object data"),
+        },
+        AnyEnum::StrPtr(_) => "string",
+        AnyEnum::Fn(_) => "function",
+        AnyEnum::Undefined => "undefined",
+    }
 }

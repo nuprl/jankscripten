@@ -6,8 +6,10 @@
 //! are all defined in this file.
 
 use super::jankyscript::syntax::Type::{self, *};
+use super::notwasm;
+use strum_macros::EnumIter;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, EnumIter)]
 pub enum RTSFunction {
     Todo(&'static str),
     Typeof,
