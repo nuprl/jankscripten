@@ -29,7 +29,6 @@ impl std::fmt::Display for BinaryOp {
             BinaryOp::F64Sub => write!(f, "-"),
             BinaryOp::F64Mul => write!(f, "*"),
             BinaryOp::F64Div => write!(f, "/"),
-
         }
     }
 }
