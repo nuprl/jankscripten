@@ -61,7 +61,7 @@ fn stmt(s: Js::Stmt) -> Stmt {
         Js::Empty => Empty,
         Js::Expr(e) => Expr(Box::new(expr(*e))),
         Js::If(c, t, e) => If(Box::new(expr(*c)), Box::new(stmt(*t)), Box::new(stmt(*e))),
-        Js::ForIn(_, _, _, _) => todo!("for in loops"),
+        Js::ForIn(_, _, _, _) => unexpected(&s),
         Js::Label(x, s) => Label(x, Box::new(stmt(*s))),
         Js::Break(x) => Break(x.unwrap()),
         Js::Continue(_) => unexpected(&s),
