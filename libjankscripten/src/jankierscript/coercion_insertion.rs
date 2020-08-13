@@ -118,11 +118,10 @@ fn binop_overload(op: &BinOp, lhs_ty: &Type, rhs_ty: &Type) -> (Overload, Type, 
 impl InsertCoercions {
     fn stmt(&self, stmt: Stmt, env: &mut Env) -> CoercionResult<Janky::Stmt> {
         match stmt {
-            Stmt::Var(x, _t, e) => {
-                // TODO: strong update???????????????????
-                let e = self.expr(*e, Type::Any, env)?;
-                env.env.insert(x.clone(), EnvItem::JsId(Type::Any));
-                Ok(Janky_::var_(x, Type::Any, e))
+            Stmt::Var(x, t, e) => {
+                let (e, t) = self.expr_and_type(*e, env)?;
+                env.env.insert(x.clone(), EnvItem::JsId(t.clone()));
+                Ok(Janky_::var_(x, t, e))
             }
             Stmt::Block(stmts) => self.stmts(stmts, &mut env.clone()),
             Stmt::If(c, t, e) => {

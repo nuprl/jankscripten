@@ -212,12 +212,6 @@ fn compile_ty(janky_typ: J::Type) -> Type {
     match janky_typ {
         J::Type::Any => Type::Any,
         J::Type::Bool => Type::Bool,
-        J::Type::Float => Type::F64,
-        J::Type::Int => Type::I32,
-        J::Type::DynObject => Type::DynObject,
-        // TODO(mark): compile this correctly
-        // J::Type::Function => Type::Fn,
-        J::Type::Array => Type::Array,
         _ => todo!("compile_ty"),
     }
 }
