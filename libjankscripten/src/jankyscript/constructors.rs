@@ -69,3 +69,7 @@ pub fn loop_(body: Stmt) -> Stmt {
 pub fn empty_() -> Stmt {
     Stmt::Empty
 }
+
+pub fn return_(e: Expr) -> Stmt {
+    Stmt::Return(Box::new(e))
+}

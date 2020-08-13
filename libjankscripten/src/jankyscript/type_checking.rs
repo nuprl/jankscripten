@@ -401,6 +401,8 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
 // types.
 fn type_check_coercion(c: &Coercion) -> TypeCheckingResult<(Type, Type)> {
     match c {
+        Coercion::FloatToInt => Ok((Type::Float, Type::Int)),
+        Coercion::IntToFloat => Ok((Type::Int, Type::Float)),
         Coercion::Tag(from_type) => Ok((from_type.clone(), Type::Any)),
         Coercion::Untag(to_type) => Ok((Type::Any, to_type.clone())),
         Coercion::Fun(args_to_type, ret_to_type) => {

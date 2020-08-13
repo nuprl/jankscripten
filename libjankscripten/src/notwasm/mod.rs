@@ -15,6 +15,7 @@ mod label_apps;
 use intern::intern;
 use translation::translate;
 
+pub mod pretty;
 pub mod syntax;
 pub mod type_checking;
 
