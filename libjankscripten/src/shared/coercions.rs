@@ -73,3 +73,37 @@ impl Coercion {
 pub fn cseq_(c1: Coercion, c2: Coercion) -> Coercion {
     Coercion::Seq(Box::new(c1), Box::new(c2))
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn fun_all_id_is_id() {
+        assert_eq!(
+            Coercion::fun(vec![], Coercion::Id(Type::Bool)),
+            Coercion::Id(Type::Function(vec![], Box::new(Type::Bool)))
+        );
+
+        let args = vec![Type::Bool, Type::Float];
+        assert_eq!(
+            Coercion::fun(
+                args.iter().map(|t| Coercion::Id(t.clone())).collect(),
+                Coercion::Id(Type::Bool)
+            ),
+            Coercion::Id(Type::Function(args, Box::new(Type::Bool)))
+        );
+
+        let args = vec![Coercion::Id(Type::Bool), Coercion::IntToFloat];
+        assert_eq!(
+            Coercion::fun(args.clone(), Coercion::Id(Type::Int)),
+            Coercion::Fun(args, Box::new(Coercion::Id(Type::Int)))
+        );
+
+        let args = vec![Coercion::Id(Type::Bool), Coercion::Id(Type::Float)];
+        assert_eq!(
+            Coercion::fun(args.clone(), Coercion::FloatToInt),
+            Coercion::Fun(args, Box::new(Coercion::FloatToInt))
+        );
+    }
+}
