@@ -13,9 +13,9 @@ function makeTest(filename) {
         cp.execSync(`../bin/jankscripten compile -o ${wasmPath} ${jsPath} `,
             { stdio: 'inherit' });
 
-        let output = String(cp.execSync(`../bin/run-node ${wasmPath}`));
+        let output = String(cp.execSync(`../bin/run-node ${wasmPath}`)).trim();
     
-        let expectedOutput = String(fs.readFileSync(expectedOutputPath));
+        let expectedOutput = String(fs.readFileSync(expectedOutputPath)).trim();
         expect(output).toBe(expectedOutput);
         fs.unlinkSync(wasmPath);
     });
