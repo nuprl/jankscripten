@@ -15,6 +15,7 @@ Building
 
 ```
 cargo build
+(cd runtime && cargo build)
 ```
 
 Running

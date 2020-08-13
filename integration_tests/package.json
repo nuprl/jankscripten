@@ -9,6 +9,6 @@
   "author": "",
   "license": "BSD-3-Clause",
   "dependencies": {
-    "jest": "^26.2.2"
+    "jest": "^25"
   }
 }

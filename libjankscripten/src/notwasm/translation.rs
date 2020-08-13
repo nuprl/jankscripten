@@ -558,6 +558,14 @@ impl<'a> Translate<'a> {
                     _ => self.rt_call("any_to_ptr"),
                 }
             }
+            N::Atom::FloatToInt(a) => {
+                self.translate_atom(a);
+                self.out.push(I32TruncSF64);
+            }
+            N::Atom::IntToFloat(a) => {
+                self.translate_atom(a);
+                self.out.push(F64ConvertSI32);
+            }
             N::Atom::HTGet(ht, field) => {
                 self.translate_atom(ht);
                 self.translate_atom(field);
