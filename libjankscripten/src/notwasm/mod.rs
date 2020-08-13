@@ -16,6 +16,7 @@ use intern::intern;
 use translation::translate;
 
 pub mod syntax;
+pub mod pretty;
 pub mod type_checking;
 
 pub use compile::compile;
