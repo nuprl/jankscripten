@@ -9,6 +9,9 @@ struct Compile {
     output: Option<String>,
     input: String,
 
+    #[clap(short, long)]
+    dump_jankyscript: bool,
+
     /// Typecheck the intermediate JankyScript program to ensure coercions
     /// are inserted correctly.
     #[clap(short, long)]
@@ -81,10 +84,14 @@ fn compile(opts: Compile) {
         }
         "js" => {
             let js_code = read_file(input_path);
-            let wasm_bin = libjankscripten::javascript_to_wasm(&js_code, opts.typecheck)
-                .expect("compile error");
+            let wasm_bin = libjankscripten::javascript_to_wasm(&js_code, opts.typecheck, |janky| {
+                if opts.dump_jankyscript {
+                    eprintln!("{}", janky);
+                }
+            })
+            .expect("compile error");
             let output_path = make_output_filename(&opts.output, input_path, "wasm");
-            fs::write(output_path, wasm_bin).expect("writing file");
+            fs::write(output_path, wasm_bin).expect("writing wasm output");
         }
         _ => {
             eprintln!("Unsupported extension: .{}", ext);
