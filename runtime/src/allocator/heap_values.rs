@@ -42,7 +42,6 @@ impl Tag {
 #[repr(u8)]
 pub enum TypeTag {
     I32,
-    F64,
     String,
     HT,
     Array,
@@ -101,7 +100,6 @@ pub struct AnyPtr<'a> {
 #[derive(Debug, Clone, Copy)]
 pub enum HeapRefView<'a> {
     I32(I32Ptr<'a>),
-    F64(F64Ptr<'a>),
     String(StringPtr<'a>),
     HT(HTPtr<'a>),
     Array(ArrayPtr<'a>),
@@ -115,7 +113,6 @@ impl<'a> HeapRefView<'a> {
     fn heap_ptr(&'a self) -> &'a dyn HeapPtr {
         match self {
             Self::I32(val) => val,
-            Self::F64(val) => val,
             Self::String(val) => val,
             Self::HT(val) => val,
             Self::Array(val) => val,
@@ -127,7 +124,6 @@ impl<'a> HeapRefView<'a> {
     fn heap_ptr_mut(&mut self) -> &mut (dyn HeapPtr + 'a) {
         match self {
             Self::I32(val) => val,
-            Self::F64(val) => val,
             Self::String(val) => val,
             Self::HT(val) => val,
             Self::Array(val) => val,
@@ -169,7 +165,6 @@ impl<'a> AnyPtr<'a> {
         let heap_ref: Tag = unsafe { *self.ptr };
         match heap_ref.type_tag {
             TypeTag::I32 => HeapRefView::I32(unsafe { I32Ptr::new_tag_unchecked(self.ptr) }),
-            TypeTag::F64 => HeapRefView::F64(unsafe { F64Ptr::new_tag_unchecked(self.ptr) }),
             TypeTag::String => {
                 HeapRefView::String(unsafe { StringPtr::new_tag_unchecked(self.ptr) })
             }

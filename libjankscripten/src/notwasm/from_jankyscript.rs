@@ -208,13 +208,21 @@ fn compile_exprs<'a>(
     return stmts.append(cxt(s, ids));
 }
 
-fn compile_ty(janky_typ: J::Type) -> Type {
+pub fn compile_ty(janky_typ: J::Type) -> Type {
     match janky_typ {
         J::Type::Any => Type::Any,
         J::Type::Bool => Type::Bool,
         J::Type::Int => Type::I32,
         J::Type::Float => Type::F64,
-        _ => todo!("compile_ty"),
+        J::Type::DynObject => Type::DynObject,
+        J::Type::Function(params, ret) => fn_ty_(
+            params.into_iter().map(|jt| compile_ty(jt)).collect(),
+            Some(compile_ty(*ret)),
+        ),
+        J::Type::Array => Type::Array,
+        // TODO(luna): this isn't entirely correct
+        J::Type::String => Type::StrRef,
+        _ => todo!("compile_ty {:?}", janky_typ),
     }
 }
 

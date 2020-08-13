@@ -373,7 +373,7 @@ fn assert_variant_of_any(ty: &Type) -> TypeCheckingResult<()> {
         Type::StrRef => Ok(()),
         // We need to think this through. We cannot store arbitrary functions
         // inside an Any.
-        Type::Fn(_) => todo!(),
+        Type::Fn(_) => Ok(()), // TODO(luna): see above
         // The following turn into pointers, and an Any can store a pointer
         Type::HT => Ok(()),
         Type::Array => Ok(()),

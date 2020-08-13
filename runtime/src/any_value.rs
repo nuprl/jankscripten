@@ -1,6 +1,6 @@
 //! An enum that can store any type known to the runtime
 
-pub use crate::allocator::AnyPtr;
+pub use crate::allocator::{AnyPtr, HeapRefView};
 use crate::heap;
 use crate::string::StrPtr;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
@@ -113,11 +113,19 @@ macro_rules! decl_proj_fns {
 
 #[no_mangle]
 pub extern "C" fn any_to_f64(any: AnyValue) -> f64 {
-    let any: AnyEnum = unsafe { std::mem::transmute(any) };
-    if let AnyEnum::F64(ptr) = any.into() {
-        return unsafe { *ptr };
+    match *any {
+        AnyEnum::I32(i) => i as f64,
+        AnyEnum::F64(f) => unsafe { *f },
+        AnyEnum::Bool(b) => b as i32 as f64,
+        AnyEnum::Ptr(ptr) => match ptr.view() {
+            HeapRefView::I32(i) => *i as f64,
+            HeapRefView::String(s) => s.parse().unwrap_or(f64::NAN),
+            _ => f64::NAN,
+        },
+        AnyEnum::StrPtr(s) => crate::string::str_from_ptr(s).parse().unwrap_or(f64::NAN),
+        AnyEnum::Fn(_) => f64::NAN,
+        AnyEnum::Undefined => f64::NAN,
     }
-    panic!("any_to_f64 did not receive an AnyEnum::F64");
 }
 
 #[no_mangle]
@@ -129,6 +137,7 @@ decl_proj_fns!(any_from_i32, any_to_i32, I32, i32);
 decl_proj_fns!(any_from_bool, any_to_bool, Bool, bool);
 decl_proj_fns!(any_from_ptr, any_to_ptr, Ptr, AnyPtr<'a>);
 
+#[no_mangle]
 pub extern "C" fn get_undefined() -> AnyValue<'static> {
     AnyEnum::Undefined.into()
 }

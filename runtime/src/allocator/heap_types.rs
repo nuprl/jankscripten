@@ -22,10 +22,6 @@ pub type I32Ptr<'a> = TypePtr<'a, i32>;
 impl HasTag for i32 {
     const TYPE_TAG: TypeTag = TypeTag::I32;
 }
-pub type F64Ptr<'a> = TypePtr<'a, f64>;
-impl HasTag for f64 {
-    const TYPE_TAG: TypeTag = TypeTag::F64;
-}
 pub type StringPtr<'a> = TypePtr<'a, String>;
 impl HasTag for String {
     const TYPE_TAG: TypeTag = TypeTag::String;
