@@ -80,10 +80,7 @@ fn ensure_indexable(msg: &str, got: Type) -> TypeCheckingResult<Type> {
         }
     }
 
-    Err(TypeCheckingError::ExpectedIndexable(
-        String::from(msg),
-        got
-    ))
+    Err(TypeCheckingError::ExpectedIndexable(String::from(msg), got))
 }
 
 // ensure the given type is an indexer (e.g. the `x` in arr[x])
@@ -101,10 +98,7 @@ fn ensure_indexer(msg: &str, got: Type) -> TypeCheckingResult<Type> {
         }
     }
 
-    Err(TypeCheckingError::ExpectedIndexable(
-        String::from(msg),
-        got
-    ))
+    Err(TypeCheckingError::ExpectedIndexable(String::from(msg), got))
 }
 
 fn ensure_function(msg: &str, got: Type) -> TypeCheckingResult<(Vec<Type>, Box<Type>)> {
@@ -381,17 +375,11 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
         Expr::Bracket(obj, dyn_prop) => {
             let obj_type = type_check_expr(obj, env.clone())?;
 
-            ensure_indexable(
-                "brackets object",
-                obj_type,
-            )?;
+            ensure_indexable("brackets object", obj_type)?;
 
             let dyn_prop_type = type_check_expr(dyn_prop, env)?;
 
-            ensure_indexer(
-                "brackets index",
-                dyn_prop_type
-            )?;
+            ensure_indexer("brackets index", dyn_prop_type)?;
 
             // see Expr::Dot case for why we're returning Any
             Ok(Type::Any)
