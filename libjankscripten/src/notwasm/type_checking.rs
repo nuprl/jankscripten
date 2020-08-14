@@ -465,4 +465,3 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
         }
     }
 }
-

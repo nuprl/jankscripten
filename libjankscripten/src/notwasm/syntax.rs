@@ -148,6 +148,7 @@ pub enum Lit {
     String(String),
     Interned(u32),
     Undefined,
+    Null,
 }
 
 impl Lit {
@@ -159,6 +160,7 @@ impl Lit {
             Lit::String(_) => Type::String,
             Lit::Interned(_) => Type::StrRef,
             Lit::Undefined => Type::Any,
+            Lit::Null => Type::Any,
         }
     }
 }
