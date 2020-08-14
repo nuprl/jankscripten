@@ -433,6 +433,8 @@ impl<'a> Translate<'a> {
             N::BinaryOp::F64Sub => self.out.push(F64Sub),
             N::BinaryOp::F64Mul => self.out.push(F64Mul),
             N::BinaryOp::F64Div => self.out.push(F64Div),
+            N::BinaryOp::F64LT => self.out.push(F64Lt),
+            N::BinaryOp::F64Eq => self.out.push(F64Eq),
         }
     }
     fn translate_unop(&mut self, op: &N::UnaryOp) {
@@ -538,6 +540,7 @@ impl<'a> Translate<'a> {
                 }
                 N::Lit::String(..) => panic!("uninterned string"),
                 N::Lit::Bool(b) => self.out.push(I32Const(*b as i32)),
+                N::Lit::Undefined => self.rt_call("get_undefined"),
             },
             N::Atom::Id(id) => self.get_id(id),
             N::Atom::ToAny(to_any) => {
@@ -557,6 +560,14 @@ impl<'a> Translate<'a> {
                     N::Type::F64 => self.rt_call("any_to_f64"),
                     _ => self.rt_call("any_to_ptr"),
                 }
+            }
+            N::Atom::FloatToInt(a) => {
+                self.translate_atom(a);
+                self.out.push(I32TruncSF64);
+            }
+            N::Atom::IntToFloat(a) => {
+                self.translate_atom(a);
+                self.out.push(F64ConvertSI32);
             }
             N::Atom::HTGet(ht, field) => {
                 self.translate_atom(ht);

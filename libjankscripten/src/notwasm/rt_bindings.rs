@@ -1,6 +1,9 @@
 use super::constructors::*;
+use super::from_jankyscript::compile_ty;
 use super::syntax::Type;
+use crate::rts_function::RTSFunction;
 use std::collections::HashMap;
+use strum::IntoEnumIterator;
 use Type::*;
 
 const KEY: Type = Type::String;
@@ -23,6 +26,7 @@ pub fn get_rt_bindings() -> BindMap {
     insert_mono(m, "any_to", vec![&|_| Any], &mono, vec![I32, Bool]);
     insert(m, "any_from_ptr", vec![I32], Any);
     insert(m, "any_to_ptr", vec![Any], I32);
+    insert(m, "get_undefined", vec![], Any);
     insert(m, "object_empty", vec![], DynObject);
     // I32s are caches here
     insert(m, "object_set", vec![DynObject, StrRef, Any, I32], Any);
@@ -45,6 +49,13 @@ pub fn get_rt_bindings() -> BindMap {
     insert(m, "any_to_f64", vec![Any], F64);
     insert(m, "f64_to_any", vec![F64], Any);
     insert(m, "log_any", vec![Any], Any);
+    for rts in RTSFunction::iter() {
+        if let RTSFunction::Todo(_) = rts {
+            // can't !let
+        } else {
+            m.insert(rts.name().into(), compile_ty(rts.janky_typ()));
+        }
+    }
     map
 }
 

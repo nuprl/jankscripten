@@ -104,7 +104,7 @@ fn compile_lit(lit: J::Lit) -> Lit {
         J::Lit::Regex(_, _) => todo!("regex not supported anywhere in toolchain"),
         J::Lit::Bool(b) => Lit::Bool(b),
         J::Lit::Null => todo!("NotWasm needs a null primitive"),
-        J::Lit::Undefined => todo!("NotWasm needs an undefined"),
+        J::Lit::Undefined => Lit::Undefined,
         J::Lit::Num(J::Num::Int(n)) => Lit::I32(n),
         J::Lit::Num(J::Num::Float(x)) => Lit::F64(x),
     }
@@ -208,22 +208,34 @@ fn compile_exprs<'a>(
     return stmts.append(cxt(s, ids));
 }
 
-fn compile_ty(janky_typ: J::Type) -> Type {
+pub fn compile_ty(janky_typ: J::Type) -> Type {
     match janky_typ {
         J::Type::Any => Type::Any,
         J::Type::Bool => Type::Bool,
-        _ => todo!("compile_ty"),
+        J::Type::Int => Type::I32,
+        J::Type::Float => Type::F64,
+        J::Type::DynObject => Type::DynObject,
+        J::Type::Function(params, ret) => fn_ty_(
+            params.into_iter().map(|jt| compile_ty(jt)).collect(),
+            Some(compile_ty(*ret)),
+        ),
+        J::Type::Array => Type::Array,
+        // TODO(luna): this isn't entirely correct
+        J::Type::String => Type::StrRef,
+        _ => todo!("compile_ty {:?}", janky_typ),
     }
 }
 
 fn coercion_to_expr(c: J::Coercion, a: Atom) -> Atom {
     use J::Coercion::*;
     match c {
+        FloatToInt => Atom::FloatToInt(Box::new(a)),
+        IntToFloat => Atom::IntToFloat(Box::new(a)),
         Tag(..) => to_any_(a),
         Untag(ty) => from_any_(a, compile_ty(ty)),
-        Fun(..) => todo!(),
-        Id(..) => todo!(),
-        Seq(..) => todo!(),
+        Fun(..) => todo!(), // TODO(michael) needs to call something that proxies the function
+        Id(..) => a,
+        Seq(c1, c2) => coercion_to_expr(*c2, coercion_to_expr(*c1, a)),
     }
 }
 
@@ -443,7 +455,7 @@ fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
         S::Catch(_, _, _) => todo!("NotWasm needs to support exceptions"),
         S::Finally(_, _) => todo!("NotWasm needs to support exceptions"),
         S::Throw(_) => todo!("NotWasm needs to support exceptions"),
-        S::Return(_) => todo!(),
+        S::Return(e) => compile_expr(s, *e, C::a(|s, a| Rope::singleton(Stmt::Return(a)))),
     }
 }
 

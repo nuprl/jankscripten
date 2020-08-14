@@ -7,12 +7,6 @@ import * as fs from 'fs';
 
 const qJankyp = t.identifier('$jankyp');
 
-var nextFresh = 0;
-
-function fresh(desc: string) {
-    return `$jankyp_${desc}_${nextFresh++}`;
-}
-
 function qCall(name: string, args: t.Expression[]) {
     return t.callExpression(t.memberExpression(qJankyp, t.identifier(name), false), args);
 }
@@ -41,7 +35,7 @@ const visitor: TraverseOptions = {
     },
     BinaryExpression: {
         exit(path) {
-            if (typeof path.node.left.loc === "undefined") {
+            if (typeof path.node.left.loc === "undefined" || typeof path.node.right.loc === "undefined") {
                 return;
             }
             let op = path.node.operator;
@@ -86,7 +80,11 @@ const visitor: TraverseOptions = {
             // that might be added to jankyp
             // TODO(luna): technically as a result obj.x.y will never check
             // if `obj` is platypus, only `obj.x`
-            if (path.node.loc === null || typeof path.node.loc === "undefined") {
+            // TODO(luna): detect when used as lvals
+            // including the property access in the check method is a hack that works for rvals only
+            // in order to properly support lvals i think we'd need to desugar logical operators
+            // and then we could insert object and property as fresh names
+            if (path.node.loc === null || typeof path.node.loc === "undefined" || isLVal(path)) {
                 return;
             }
             let property;
@@ -96,30 +94,25 @@ const visitor: TraverseOptions = {
             else {
                 property = path.node.property as t.Expression;
             }
-            // to avoid duplicating side effects,
-            // we have to assign the object and property to fresh names
-            let nodes = [];
-            let obj = path.node.object;
-            let prop: t.Expression = property;
-            if (!t.isIdentifier(obj)) {
-                let objName = fresh("obj");
-                nodes.push(decl(objName, obj));
-                obj = t.identifier(objName);
-            }
-            if (!t.isIdentifier(prop) && !t.isLiteral(prop)) {
-                let propName = fresh("prop");
-                nodes.push(decl(propName, prop));
-                prop = t.identifier(propName);
-            }
-            nodes.push(t.expressionStatement(qCall('checkPlatypus', [qLoc(path.node.loc), obj, prop])));
-            path.node = t.memberExpression(obj, prop, true, path.node.optional);
-            path.getStatementParent().insertBefore(nodes);
+            // see the runtime to understand this garbage
+            let isCalled = t.booleanLiteral(immediatelyCalled(path));
+            path.replaceWith(qCall('checkPlatypus', [qLoc(path.node.loc), path.node.object, property, isCalled]));
         }
     },
 };
 
-function decl(name: string, exp: t.Expression): t.Statement {
-    return t.variableDeclaration("const", [t.variableDeclarator(t.identifier(name), exp)]);
+// t.isLVal actually returns true for anything that *can* be an LVal
+function isLVal(path: NodePath<t.MemberExpression>): boolean {
+    let parent = path.parentPath;
+    let assign = parent.isAssignmentExpression() && parent.node.left == path.node;
+    // TODO(luna): should be able to detect these
+    let update = parent.isUpdateExpression();
+    return assign || update;
+}
+
+function immediatelyCalled(path: NodePath<t.MemberExpression>): boolean {
+    let parent = path.parentPath;
+    return parent.isCallExpression();
 }
 
 function main() {

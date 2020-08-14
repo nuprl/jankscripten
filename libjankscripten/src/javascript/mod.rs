@@ -10,6 +10,7 @@ mod desugar_loops;
 mod desugar_switch;
 mod desugar_updates;
 mod desugar_vardecls;
+mod lift_vars;
 pub mod name_gen;
 mod parser;
 pub mod syntax;

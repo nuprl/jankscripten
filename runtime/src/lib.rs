@@ -20,6 +20,7 @@ pub mod any_value;
 pub mod array;
 pub mod ht;
 pub mod object;
+pub mod ops;
 pub mod r#ref; // Rust raw identifier syntax
 pub mod string;
 mod util;

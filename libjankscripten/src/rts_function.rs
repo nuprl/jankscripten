@@ -5,14 +5,20 @@
 //! `RTSFunction`, add fill in its name and type in the '.name' and '.janky_typ' methods, which
 //! are all defined in this file.
 
-use super::jankyscript::syntax::Type as JankyTyp;
+use super::jankyscript::syntax::Type::{self, *};
+use super::notwasm;
+use strum_macros::EnumIter;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, EnumIter)]
 pub enum RTSFunction {
     Todo(&'static str),
     Typeof,
     Delete,
     Plus,
+    Over,
+    Mod,
+    ModF64,
+    Equal,
     LogAny,
 }
 
@@ -25,6 +31,10 @@ impl RTSFunction {
             RTSFunction::Typeof => "janky_typeof",
             RTSFunction::Delete => "janky_delete",
             RTSFunction::Plus => "janky_plus",
+            RTSFunction::Over => "janky_over",
+            RTSFunction::Mod => "janky_mod",
+            RTSFunction::ModF64 => "janky_mod_f64",
+            RTSFunction::Equal => "janky_equal",
             RTSFunction::LogAny => "log_any",
         }
     }
@@ -52,19 +62,17 @@ impl RTSFunction {
     /// false is returned in non-strict mode."
     ///
     /// That sentence makes me want to fall asleep.
-    pub fn janky_typ(&self) -> JankyTyp {
+    pub fn janky_typ(&self) -> Type {
         match self {
             RTSFunction::Todo(name) => todo!("unimplemented operator: {}", name),
-            RTSFunction::Typeof => {
-                JankyTyp::Function(vec![JankyTyp::Any], Box::new(JankyTyp::String))
-            }
-            RTSFunction::Delete => {
-                JankyTyp::Function(vec![JankyTyp::Any, JankyTyp::Any], Box::new(JankyTyp::Bool))
-            }
-            RTSFunction::Plus => {
-                JankyTyp::Function(vec![JankyTyp::Any, JankyTyp::Any], Box::new(JankyTyp::Any))
-            }
-            RTSFunction::LogAny => JankyTyp::Function(vec![JankyTyp::Any], Box::new(JankyTyp::Any)),
+            RTSFunction::Typeof => Function(vec![Any], Box::new(String)),
+            RTSFunction::Delete => Function(vec![Any, Any], Box::new(Bool)),
+            RTSFunction::Plus => Function(vec![Any, Any], Box::new(Any)),
+            RTSFunction::Over => Function(vec![Any, Any], Box::new(Float)),
+            RTSFunction::Mod => Function(vec![Any, Any], Box::new(Any)),
+            RTSFunction::ModF64 => Function(vec![Float, Float], Box::new(Float)),
+            RTSFunction::Equal => Function(vec![Any, Any], Box::new(Bool)),
+            RTSFunction::LogAny => Function(vec![Any], Box::new(Any)),
         }
     }
 }

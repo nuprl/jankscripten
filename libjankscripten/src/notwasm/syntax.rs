@@ -92,18 +92,20 @@ pub enum BinaryOp {
     I32Add,
     I32Sub,
     I32Mul,
+    I32Div,
+    I32Rem,
     I32GT, // signed
     I32LT, // signed
     I32Ge, // signed
     I32Le, // signed
     I32And,
     I32Or,
-    I32Div,
-    I32Rem,
     F64Add,
     F64Sub,
     F64Mul,
     F64Div,
+    F64Eq,
+    F64LT,
 }
 
 /// Unary operators that correspond to primitive WebAssembly instructions.
@@ -127,6 +129,7 @@ pub enum Lit {
     F64(f64),
     String(String),
     Interned(u32),
+    Undefined,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -165,6 +168,8 @@ pub enum Atom {
     ///
     /// Concrete syntax: `<atom> as <ty>`
     FromAny(Box<Atom>, Type),
+    FloatToInt(Box<Atom>), // MMG made these Atoms because they shouldn't ever allocate
+    IntToFloat(Box<Atom>),
     HTGet(Box<Atom>, Box<Atom>),
     ObjectGet(Box<Atom>, Box<Atom>),
     Index(Box<Atom>, Box<Atom>),

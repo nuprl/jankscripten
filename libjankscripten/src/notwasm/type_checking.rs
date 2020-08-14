@@ -373,7 +373,7 @@ fn assert_variant_of_any(ty: &Type) -> TypeCheckingResult<()> {
         Type::StrRef => Ok(()),
         // We need to think this through. We cannot store arbitrary functions
         // inside an Any.
-        Type::Fn(_) => todo!(),
+        Type::Fn(_) => Ok(()), // TODO(luna): see above
         // The following turn into pointers, and an Any can store a pointer
         Type::HT => Ok(()),
         Type::Array => Ok(()),
@@ -396,6 +396,16 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             let got = type_check_atom(env, a)?;
             ensure("from_any", Type::Any, got)?;
             Ok(ty.clone())
+        }
+        Atom::FloatToInt(a) => {
+            let got = type_check_atom(env, a)?;
+            ensure("float to int", Type::F64, got)?;
+            Ok(Type::I32)
+        }
+        Atom::IntToFloat(a) => {
+            let got = type_check_atom(env, a)?;
+            ensure("int to float", Type::I32, got)?;
+            Ok(Type::F64)
         }
         Atom::Id(id) => lookup(env, id),
         Atom::StringLen(a) => {
@@ -463,6 +473,7 @@ fn type_check_lit(l: &Lit) -> Type {
         Lit::F64(_) => Type::F64,
         Lit::String(_) => Type::String,
         Lit::Interned(_) => Type::StrRef,
+        Lit::Undefined => Type::Any,
     }
 }
 
@@ -472,6 +483,7 @@ fn type_check_binary(op: &BinaryOp) -> (Type, Type) {
         BinaryOp::I32Eq | BinaryOp::I32GT | BinaryOp::I32LT | BinaryOp::I32Ge | BinaryOp::I32Le => {
             (Type::I32, Type::Bool)
         }
+        BinaryOp::F64Eq | BinaryOp::F64LT => (Type::F64, Type::Bool),
         BinaryOp::I32Add
         | BinaryOp::I32Sub
         | BinaryOp::I32Mul
