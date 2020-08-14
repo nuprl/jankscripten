@@ -1,4 +1,5 @@
 use super::super::notwasm::syntax::BinaryOp;
+use super::std_lib::get_global_object;
 use super::syntax::*;
 use crate::jankyscript::constructors as Janky_;
 use crate::jankyscript::syntax as Janky;
@@ -41,6 +42,9 @@ impl Env {
             Id::Named("log_any".to_string()),
             EnvItem::Prim(RTSFunction::LogAny),
         );
+        for (k, v) in get_global_object().into_iter() {
+            env.insert(Id::Named(k), EnvItem::JsId(v));
+        }
         Env { env }
     }
 
@@ -380,9 +384,14 @@ impl InsertCoercions {
                 use resast::UnaryOp;
                 let (coerced_e, e_ty) = self.expr_and_type(*e, &mut env.clone())?;
                 match (&op, &e_ty) {
-                    (UnaryOp::Tilde, _) => {
-                        unimplemented!("unary ~: no idea, and probably not needed")
-                    }
+                    // Bitwise not; needed for one particular dart benchmark
+                    (UnaryOp::Tilde, _) => Ok((
+                        Janky::Expr::PrimCall(
+                            RTSFunction::Todo("bitwise not"),
+                            vec![self.coerce(coerced_e, e_ty, Type::Int)],
+                        ),
+                        Type::Int,
+                    )),
                     (UnaryOp::Plus, Type::Float) => Ok((coerced_e, e_ty)),
                     (UnaryOp::Plus, Type::Int) => Ok((coerced_e, e_ty)),
                     (UnaryOp::Plus, _) => Ok((
