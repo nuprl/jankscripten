@@ -391,8 +391,26 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             // type check this function call
             type_check_fun_call(prim_type, args, env)
         }
-        Expr::Unary(..) => unimplemented!(),
-        Expr::Binary(..) => unimplemented!(),
+        Expr::Unary(op, e) => {
+            // ensure expr has expected input type
+            let (ty_in, ty_out) = op.janky_typ();
+            let got = type_check_expr(e, env)?;
+            ensure("unary op", ty_in, got)?;
+
+            // whole operation has output type
+            Ok(ty_out)
+        }
+        Expr::Binary(op, e_l, e_r) => {
+            // ensure exprs have expected input type
+            let (ty_in, ty_out) = op.janky_typ();
+            let got_l = type_check_expr(e_l, env.clone())?;
+            let got_r = type_check_expr(e_r, env.clone())?;
+            ensure("binary op lhs", ty_in.clone(), got_l)?;
+            ensure("binary op rhs", ty_in, got_r)?;
+
+            // whole operation has output type
+            Ok(ty_out)
+        }
         Expr::New(..) => unimplemented!(),
     }
 }
