@@ -499,4 +499,19 @@ mod test {
             sum;",
         );
     }
+
+    #[test]
+    fn desugar_side_effect_assign() {
+        okay(
+            "var rv = 0;
+            var obj = {x: 2};
+            function side_effect() {
+                rv += 1;
+                return obj;
+            }
+            let two = side_effect().x--;
+            let zero = --side_effect().x;
+            two + zero + obj.x + rv;",
+        );
+    }
 }
