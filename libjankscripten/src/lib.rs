@@ -11,13 +11,15 @@ pub mod shared;
 #[macro_use]
 extern crate combine;
 
-pub fn javascript_to_wasm<F>(
+pub fn javascript_to_wasm<F, G>(
     js_code: &str,
     typecheck: bool,
     inspect_janky: F,
+    inspect_notwasm: G
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>>
 where
     F: FnOnce(&jankyscript::syntax::Stmt) -> (),
+    G: FnOnce(&notwasm::syntax::Program) -> (),
 {
     let mut js_ast = javascript::parse(js_code)?;
     let mut ng = javascript::NameGen::default();
@@ -29,6 +31,7 @@ where
         jankyscript::type_checking::type_check(&janky_ast)?;
     }
     let notwasm_ast = notwasm::from_jankyscript(janky_ast);
+    inspect_notwasm(&notwasm_ast);
     let wasm_bin = notwasm::compile(notwasm_ast)?;
     Ok(wasm_bin)
 }

@@ -10,7 +10,9 @@ function makeTest(filename) {
         let wasmPath = jsPath.replace(/\.js$/, '.wasm');
         let expectedOutputPath = jsPath.replace(/.js$/, '.txt');
     
-        cp.execSync(`../bin/jankscripten compile -o ${wasmPath} ${jsPath} `,
+        // Use -j for jankyscript output
+        // Use -n for notwasm output
+        cp.execSync(`../bin/jankscripten compile -o ${wasmPath} ${jsPath}`,
             { stdio: 'inherit' });
 
         let output = String(cp.execSync(`../bin/run-node ${wasmPath}`)).trim();
