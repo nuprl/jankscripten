@@ -25,10 +25,12 @@ impl std::fmt::Display for BinaryOp {
             BinaryOp::I32Or => write!(f, "|"),
             BinaryOp::I32Div => write!(f, "/"),
             BinaryOp::I32Rem => write!(f, "%"),
+            BinaryOp::F64Eq => write!(f, "==="),
             BinaryOp::F64Add => write!(f, "+"),
             BinaryOp::F64Sub => write!(f, "-"),
             BinaryOp::F64Mul => write!(f, "*"),
             BinaryOp::F64Div => write!(f, "/"),
+            BinaryOp::F64LT => write!(f, "<"),
         }
     }
 }
