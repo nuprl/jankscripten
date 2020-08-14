@@ -385,7 +385,7 @@ fn assert_variant_of_any(ty: &Type) -> TypeCheckingResult<()> {
 fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
     match a {
         Atom::Deref(a) => ensure_ref("dereference", type_check_atom(env, a)?),
-        Atom::Lit(l) => Ok(type_check_lit(l)),
+        Atom::Lit(l) => Ok(l.notwasm_type()),
         Atom::ToAny(to_any) => {
             let ty = type_check_atom(env, &mut to_any.atom)?;
             assert_variant_of_any(&ty)?;
@@ -444,7 +444,7 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             Ok(Type::Any)
         }
         Atom::Unary(op, a) => {
-            let (ty_in, ty_out) = type_check_unary(op);
+            let (ty_in, ty_out) = op.notwasm_type();
             let got = type_check_atom(env, a)?;
             let _ = ensure(&format!("unary ({:?})", op), ty_in, got)?;
             Ok(ty_out)
@@ -456,7 +456,7 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             Ok(Type::Bool)
         }
         Atom::Binary(op, a_l, a_r) => {
-            let (ty_in, ty_out) = type_check_binary(op);
+            let (ty_in, ty_out) = op.notwasm_type();
             let got_l = type_check_atom(env, a_l)?;
             let got_r = type_check_atom(env, a_r)?;
             let _ = ensure(&format!("binary ({:?}) lhs", op), ty_in.clone(), got_l)?;
@@ -466,40 +466,3 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
     }
 }
 
-fn type_check_lit(l: &Lit) -> Type {
-    match l {
-        Lit::Bool(_) => Type::Bool,
-        Lit::I32(_) => Type::I32,
-        Lit::F64(_) => Type::F64,
-        Lit::String(_) => Type::String,
-        Lit::Interned(_) => Type::StrRef,
-        Lit::Undefined => Type::Any,
-    }
-}
-
-fn type_check_binary(op: &BinaryOp) -> (Type, Type) {
-    match op {
-        BinaryOp::PtrEq => (Type::Any, Type::Bool), // for completeness; should be special-cased
-        BinaryOp::I32Eq | BinaryOp::I32GT | BinaryOp::I32LT | BinaryOp::I32Ge | BinaryOp::I32Le => {
-            (Type::I32, Type::Bool)
-        }
-        BinaryOp::F64Eq | BinaryOp::F64LT => (Type::F64, Type::Bool),
-        BinaryOp::I32Add
-        | BinaryOp::I32Sub
-        | BinaryOp::I32Mul
-        | BinaryOp::I32Div
-        | BinaryOp::I32Rem
-        | BinaryOp::I32And
-        | BinaryOp::I32Or => (Type::I32, Type::I32),
-        BinaryOp::F64Add | BinaryOp::F64Sub | BinaryOp::F64Mul | BinaryOp::F64Div => {
-            (Type::F64, Type::F64)
-        }
-    }
-}
-
-fn type_check_unary(op: &UnaryOp) -> (Type, Type) {
-    match op {
-        UnaryOp::Sqrt => (Type::F64, Type::F64),
-        UnaryOp::Neg => (Type::F64, Type::F64),
-    }
-}

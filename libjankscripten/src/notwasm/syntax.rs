@@ -108,11 +108,42 @@ pub enum BinaryOp {
     F64LT,
 }
 
+impl BinaryOp {
+    pub fn notwasm_type(self: &BinaryOp) -> (Type, Type) {
+        match self {
+            BinaryOp::PtrEq => (Type::Any, Type::Bool), // for completeness; should be special-cased
+            BinaryOp::I32Eq | BinaryOp::I32GT | BinaryOp::I32LT | BinaryOp::I32Ge | BinaryOp::I32Le => {
+                (Type::I32, Type::Bool)
+            }
+            BinaryOp::F64Eq | BinaryOp::F64LT => (Type::F64, Type::Bool),
+            BinaryOp::I32Add
+            | BinaryOp::I32Sub
+            | BinaryOp::I32Mul
+            | BinaryOp::I32Div
+            | BinaryOp::I32Rem
+            | BinaryOp::I32And
+            | BinaryOp::I32Or => (Type::I32, Type::I32),
+            BinaryOp::F64Add | BinaryOp::F64Sub | BinaryOp::F64Mul | BinaryOp::F64Div => {
+                (Type::F64, Type::F64)
+            }
+        }
+    }
+}
+
 /// Unary operators that correspond to primitive WebAssembly instructions.
 #[derive(Clone, Debug, PartialEq)]
 pub enum UnaryOp {
     Sqrt,
     Neg,
+}
+
+impl UnaryOp {
+    pub fn notwasm_type(self: &UnaryOp) -> (Type, Type) {
+        match self {
+            UnaryOp::Sqrt => (Type::F64, Type::F64),
+            UnaryOp::Neg => (Type::F64, Type::F64),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
@@ -130,6 +161,19 @@ pub enum Lit {
     String(String),
     Interned(u32),
     Undefined,
+}
+
+impl Lit {
+    pub fn notwasm_type(self: &Lit) -> Type {
+        match self {
+            Lit::Bool(_) => Type::Bool,
+            Lit::I32(_) => Type::I32,
+            Lit::F64(_) => Type::F64,
+            Lit::String(_) => Type::String,
+            Lit::Interned(_) => Type::StrRef,
+            Lit::Undefined => Type::Any,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
