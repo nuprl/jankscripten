@@ -130,6 +130,7 @@ pub enum Lit {
     String(String),
     Interned(u32),
     Undefined,
+    Null,
 }
 
 #[derive(Debug, PartialEq, Clone)]
