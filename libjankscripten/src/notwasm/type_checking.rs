@@ -474,6 +474,7 @@ fn type_check_lit(l: &Lit) -> Type {
         Lit::String(_) => Type::String,
         Lit::Interned(_) => Type::StrRef,
         Lit::Undefined => Type::Any,
+        Lit::Null => Type::Any,
     }
 }
 
