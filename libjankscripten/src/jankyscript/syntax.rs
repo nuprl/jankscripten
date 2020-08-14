@@ -16,9 +16,11 @@ impl BinaryOp {
     pub fn janky_typ(self: &BinaryOp) -> (Type, Type) {
         match self {
             BinaryOp::PtrEq => (Type::Any, Type::Bool), // for completeness; should be special-cased
-            BinaryOp::I32Eq | BinaryOp::I32GT | BinaryOp::I32LT | BinaryOp::I32Ge | BinaryOp::I32Le => {
-                (Type::Int, Type::Bool)
-            }
+            BinaryOp::I32Eq
+            | BinaryOp::I32GT
+            | BinaryOp::I32LT
+            | BinaryOp::I32Ge
+            | BinaryOp::I32Le => (Type::Int, Type::Bool),
             BinaryOp::F64Eq | BinaryOp::F64LT => (Type::Float, Type::Bool),
             BinaryOp::I32Add
             | BinaryOp::I32Sub
@@ -60,11 +62,7 @@ pub enum Expr {
     Dot(Box<Expr>, Id),
     Bracket(Box<Expr>, Box<Expr>),
     Unary(UnaryOp, Box<Expr>),
-    Binary(
-        BinaryOp,
-        Box<Expr>,
-        Box<Expr>,
-    ),
+    Binary(BinaryOp, Box<Expr>, Box<Expr>),
     Assign(Box<LValue>, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
     PrimCall(RTSFunction, Vec<Expr>),
