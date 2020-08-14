@@ -83,5 +83,6 @@ fn typeof_as_str(a: Any) -> &'static str {
         AnyEnum::StrPtr(_) => "string",
         AnyEnum::Fn(_) => "function",
         AnyEnum::Undefined => "undefined",
+        AnyEnum::Null => "object",
     }
 }

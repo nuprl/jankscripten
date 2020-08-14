@@ -541,6 +541,7 @@ impl<'a> Translate<'a> {
                 N::Lit::String(..) => panic!("uninterned string"),
                 N::Lit::Bool(b) => self.out.push(I32Const(*b as i32)),
                 N::Lit::Undefined => self.rt_call("get_undefined"),
+                N::Lit::Null => self.rt_call("get_null"),
             },
             N::Atom::Id(id) => self.get_id(id),
             N::Atom::ToAny(to_any) => {
