@@ -87,15 +87,20 @@ fn compile(opts: Compile) {
         }
         "js" => {
             let js_code = read_file(input_path);
-            let wasm_bin = libjankscripten::javascript_to_wasm(&js_code, opts.typecheck, |janky| {
-                if opts.jankyscript_dump {
-                    eprintln!("{}", janky);
-                }
-            }, |notwasm| {
-                if opts.notwasm_dump {
-                    eprintln!("{}", notwasm);
-                }
-            })
+            let wasm_bin = libjankscripten::javascript_to_wasm(
+                &js_code,
+                opts.typecheck,
+                |janky| {
+                    if opts.jankyscript_dump {
+                        eprintln!("{}", janky);
+                    }
+                },
+                |notwasm| {
+                    if opts.notwasm_dump {
+                        eprintln!("{}", notwasm);
+                    }
+                },
+            )
             .expect("compile error");
             let output_path = make_output_filename(&opts.output, input_path, "wasm");
             fs::write(output_path, wasm_bin).expect("writing wasm output");
