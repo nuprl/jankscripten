@@ -136,7 +136,7 @@ pub enum Lit {
 #[derive(Debug, PartialEq, Clone)]
 pub struct ToAny {
     pub atom: Box<Atom>,
-    ty: Option<Type>,
+    pub ty: Option<Type>,
 }
 
 impl ToAny {
@@ -206,7 +206,7 @@ pub enum Expr {
 pub struct VarStmt {
     pub id: Id,
     pub named: Expr,
-    ty: Option<Type>,
+    pub ty: Option<Type>,
 }
 
 impl VarStmt {
