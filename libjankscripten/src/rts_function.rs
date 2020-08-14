@@ -91,7 +91,7 @@ impl std::fmt::Display for RTSFunction {
                 Mod => "%",
                 ModF64 => "%64",
                 Equal => "==",
-                LogAny => "logany"
+                LogAny => "logany",
             }
         )
     }

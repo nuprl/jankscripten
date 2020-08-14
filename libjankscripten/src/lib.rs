@@ -15,7 +15,7 @@ pub fn javascript_to_wasm<F, G>(
     js_code: &str,
     typecheck: bool,
     inspect_janky: F,
-    inspect_notwasm: G
+    inspect_notwasm: G,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>>
 where
     F: FnOnce(&jankyscript::syntax::Stmt) -> (),

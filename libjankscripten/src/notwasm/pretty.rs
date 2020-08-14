@@ -20,11 +20,8 @@ impl Pretty for Type {
             Type::Bool => pp.text("bool"),
             Type::DynObject => pp.text("DynObject"),
             Type::Any => pp.text("any"),
-            Type::Ref(t) => pp.concat(vec![
-                pp.text("ref"),
-                t.pretty(pp).parens()
-            ]),
-            Type::Fn(fn_t) => fn_t.pretty(pp)
+            Type::Ref(t) => pp.concat(vec![pp.text("ref"), t.pretty(pp).parens()]),
+            Type::Fn(fn_t) => fn_t.pretty(pp),
         }
     }
 }
@@ -37,12 +34,18 @@ impl Pretty for FnType {
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
         pp.concat(vec![
-            pp.intersperse(self.args.iter().map(|t| t.pretty(pp)), pp.text(",").append(pp.space()))
-                .parens(),
+            pp.intersperse(
+                self.args.iter().map(|t| t.pretty(pp)),
+                pp.text(",").append(pp.space()),
+            )
+            .parens(),
             pp.space(),
             pp.text("->"),
             pp.space(),
-            self.result.as_ref().map(|t| t.pretty(pp)).unwrap_or(pp.text("none"))
+            self.result
+                .as_ref()
+                .map(|t| t.pretty(pp))
+                .unwrap_or(pp.text("none")),
         ])
     }
 }
@@ -101,11 +104,7 @@ impl Pretty for Label {
     {
         match self {
             Label::Named(s) => pp.text(s),
-            Label::App(n) => pp.concat(vec![
-                pp.text("app"),
-                pp.space(),
-                pp.as_string(n)
-            ])
+            Label::App(n) => pp.concat(vec![pp.text("app"), pp.space(), pp.as_string(n)]),
         }
     }
 }
@@ -122,12 +121,9 @@ impl Pretty for Lit {
             Lit::I32(n) => pp.as_string(n),
             Lit::F64(n) => pp.as_string(n),
             Lit::String(s) => pp.text(s),
-            Lit::Interned(u) => pp.concat(vec![
-                pp.text("interned"),
-                pp.as_string(u).parens()
-            ]),
+            Lit::Interned(u) => pp.concat(vec![pp.text("interned"), pp.as_string(u).parens()]),
             Lit::Undefined => pp.text("undefined"),
-            Lit::Null => pp.text("null")
+            Lit::Null => pp.text("null"),
         }
     }
 }
@@ -142,7 +138,10 @@ impl Pretty for ToAny {
         pp.concat(vec![
             self.atom.pretty(pp),
             pp.text("_to_"),
-            self.ty.as_ref().map(|t| t.pretty(pp)).unwrap_or(pp.text("none"))
+            self.ty
+                .as_ref()
+                .map(|t| t.pretty(pp))
+                .unwrap_or(pp.text("none")),
         ])
     }
 }
@@ -164,56 +163,33 @@ impl Pretty for Atom {
                     pp.space(),
                     pp.text("as"),
                     pp.space(),
-                    t.pretty(pp)
+                    t.pretty(pp),
                 ]),
-                Atom::FloatToInt(a) => pp.concat(vec![
-                    pp.text("float_to_int"),
-                    pp.space(),
-                    a.pretty(pp)
-                ]),
-                Atom::IntToFloat(a) => pp.concat(vec![
-                    pp.text("int_to_float"),
-                    pp.space(),
-                    a.pretty(pp)
-                ]),
-                Atom::HTGet(l, r) => pp.concat(vec![
-                    l.pretty(pp),
-                    pp.text(".htget"),
-                    r.pretty(pp).parens()
-                ]),
+                Atom::FloatToInt(a) => {
+                    pp.concat(vec![pp.text("float_to_int"), pp.space(), a.pretty(pp)])
+                }
+                Atom::IntToFloat(a) => {
+                    pp.concat(vec![pp.text("int_to_float"), pp.space(), a.pretty(pp)])
+                }
+                Atom::HTGet(l, r) => {
+                    pp.concat(vec![l.pretty(pp), pp.text(".htget"), r.pretty(pp).parens()])
+                }
                 Atom::ObjectGet(l, r) => pp.concat(vec![
                     l.pretty(pp),
                     pp.text(".objget"),
-                    r.pretty(pp).parens()
+                    r.pretty(pp).parens(),
                 ]),
-                Atom::Index(l, r) => pp.concat(vec![
-                    l.pretty(pp),
-                    r.pretty(pp).brackets()
-                ]),
-                Atom::ArrayLen(a) => pp.concat(vec![
-                    a.pretty(pp),
-                    pp.text(".array_len()")
-                ]),
+                Atom::Index(l, r) => pp.concat(vec![l.pretty(pp), r.pretty(pp).brackets()]),
+                Atom::ArrayLen(a) => pp.concat(vec![a.pretty(pp), pp.text(".array_len()")]),
                 Atom::Id(id) => pp.as_string(id),
-                Atom::StringLen(a) => pp.concat(vec![
-                    a.pretty(pp),
-                    pp.text(".string_len()")
-                ]),
-                Atom::Unary(op, a) => pp.concat(vec![
-                    op.pretty(pp),
-                    a.pretty(pp)
-                ]),
-                Atom::Binary(op, l, r) => pp.concat(vec![
-                    l.pretty(pp),
-                    op.pretty(pp),
-                    r.pretty(pp)
-                ]),
-                Atom::Deref(a) => pp.concat(vec![
-                    pp.text("*"),
-                    a.pretty(pp)
-                ]),
+                Atom::StringLen(a) => pp.concat(vec![a.pretty(pp), pp.text(".string_len()")]),
+                Atom::Unary(op, a) => pp.concat(vec![op.pretty(pp), a.pretty(pp)]),
+                Atom::Binary(op, l, r) => {
+                    pp.concat(vec![l.pretty(pp), op.pretty(pp), r.pretty(pp)])
+                }
+                Atom::Deref(a) => pp.concat(vec![pp.text("*"), a.pretty(pp)]),
             }),
-            pp.text("⚛️")
+            pp.text("⚛️"),
         ])
     }
 }
@@ -228,11 +204,9 @@ impl Pretty for Expr {
         match self {
             Expr::HT => pp.text("ht"),
             Expr::Array => pp.text("array"),
-            Expr::Push(l, r) => pp.concat(vec![
-                l.pretty(pp),
-                pp.text(".push"),
-                r.pretty(pp).parens()
-            ]),
+            Expr::Push(l, r) => {
+                pp.concat(vec![l.pretty(pp), pp.text(".push"), r.pretty(pp).parens()])
+            }
             Expr::ArraySet(a, b, c) => pp.concat(vec![
                 pp.text("array_set"),
                 pp.concat(vec![
@@ -240,8 +214,9 @@ impl Pretty for Expr {
                     pp.text(", "),
                     b.pretty(pp),
                     pp.text(", "),
-                    c.pretty(pp)
-                ]).braces()
+                    c.pretty(pp),
+                ])
+                .braces(),
             ]),
             Expr::HTSet(a, b, c) => pp.concat(vec![
                 pp.text("ht_set"),
@@ -250,22 +225,25 @@ impl Pretty for Expr {
                     pp.text(", "),
                     b.pretty(pp),
                     pp.text(", "),
-                    c.pretty(pp)
-                ]).braces()
+                    c.pretty(pp),
+                ])
+                .braces(),
             ]),
             Expr::Call(f, args) => pp.concat(vec![
                 pp.as_string(f),
                 pp.intersperse(
                     args.iter().map(|a| pp.as_string(a)),
                     pp.text(",").append(pp.space()),
-                ).parens(),
+                )
+                .parens(),
             ]),
             Expr::PrimCall(rtsfun, args) => pp.concat(vec![
                 pp.as_string(rtsfun),
                 pp.intersperse(
                     args.iter().map(|a| a.pretty(pp)),
                     pp.text(",").append(pp.space()),
-                ).parens(),
+                )
+                .parens(),
             ]),
             Expr::ObjectEmpty => pp.text("{}"),
             Expr::ObjectSet(a, b, c) => pp.concat(vec![
@@ -275,17 +253,12 @@ impl Pretty for Expr {
                     pp.text(", "),
                     b.pretty(pp),
                     pp.text(", "),
-                    c.pretty(pp)
-                ]).braces()
+                    c.pretty(pp),
+                ])
+                .braces(),
             ]),
-            Expr::NewRef(a) => pp.concat(vec![
-                pp.text("new_ref"),
-                a.pretty(pp).parens()
-            ]),
-            Expr::ToString(a) => pp.concat(vec![
-                a.pretty(pp),
-                pp.text(".to_string()")
-            ]),
+            Expr::NewRef(a) => pp.concat(vec![pp.text("new_ref"), a.pretty(pp).parens()]),
+            Expr::ToString(a) => pp.concat(vec![a.pretty(pp), pp.text(".to_string()")]),
             Expr::Atom(a) => a.pretty(pp),
         }
     }
@@ -303,12 +276,15 @@ impl Pretty for VarStmt {
             pp.space(),
             pp.as_string(self.id.clone()),
             pp.text(": "),
-            self.ty.as_ref().map(|t| t.pretty(pp)).unwrap_or(pp.text("none")),
+            self.ty
+                .as_ref()
+                .map(|t| t.pretty(pp))
+                .unwrap_or(pp.text("none")),
             pp.space(),
             pp.text("="),
             pp.space(),
             self.named.pretty(pp),
-            pp.text(";")
+            pp.text(";"),
         ])
     }
 }
@@ -330,7 +306,7 @@ impl Pretty for Stmt {
                 pp.text("="),
                 pp.space(),
                 expr.pretty(pp),
-                pp.text(";")
+                pp.text(";"),
             ]),
             Stmt::Store(x, expr) => pp.concat(vec![
                 pp.text("*"),
@@ -339,7 +315,7 @@ impl Pretty for Stmt {
                 pp.text("="),
                 pp.space(),
                 expr.pretty(pp),
-                pp.text(";")
+                pp.text(";"),
             ]),
             Stmt::If(e, s1, s2) => pp.intersperse(
                 vec![
@@ -351,16 +327,12 @@ impl Pretty for Stmt {
                 ],
                 pp.hardline(),
             ),
-            Stmt::Loop(s) => pp.concat(vec![
-                pp.text("loop"),
-                pp.hardline(),
-                s.pretty(pp)
-            ]),
+            Stmt::Loop(s) => pp.concat(vec![pp.text("loop"), pp.hardline(), s.pretty(pp)]),
             Stmt::Label(lbl, s) => pp.concat(vec![
                 lbl.pretty(pp),
                 pp.text(":"),
                 pp.line(),
-                s.pretty(pp).brackets().nest(2)
+                s.pretty(pp).brackets().nest(2),
             ]),
             Stmt::Break(lbl) => pp.concat(vec![
                 pp.text("break"),
@@ -372,23 +344,25 @@ impl Pretty for Stmt {
                 pp.text("return"),
                 pp.space(),
                 e.pretty(pp),
-                pp.text(";")
+                pp.text(";"),
             ]),
-            Stmt::Block(stmts) => pp.concat(vec![
-                pp.hardline(),
-                pp.intersperse(
-                    stmts.iter().map(|s| s.pretty(pp).nest(2).group()),
+            Stmt::Block(stmts) => pp
+                .concat(vec![
                     pp.hardline(),
-                ),
-                pp.hardline(),
-            ]).braces(),
+                    pp.intersperse(
+                        stmts.iter().map(|s| s.pretty(pp).nest(2).group()),
+                        pp.hardline(),
+                    ),
+                    pp.hardline(),
+                ])
+                .braces(),
             Stmt::Trap => pp.text("trap"),
             Stmt::Goto(lbl) => pp.concat(vec![
                 pp.text("goto"),
                 pp.space(),
                 lbl.pretty(pp),
-                pp.text(";")
-            ])
+                pp.text(";"),
+            ]),
         }
     }
 }
@@ -407,8 +381,9 @@ impl Pretty for Global {
             self.ty.pretty(pp),
             pp.text(","),
             pp.space(),
-            self.atom.pretty(pp)
-        ]).angles()
+            self.atom.pretty(pp),
+        ])
+        .angles()
     }
 }
 
@@ -425,13 +400,14 @@ impl Pretty for Function {
             pp.intersperse(
                 self.params.iter().map(|p| pp.as_string(p)),
                 pp.text(",").append(pp.space()),
-            ).parens(),
+            )
+            .parens(),
             pp.space(),
             pp.text(":"),
             pp.space(),
             self.fn_type.pretty(pp),
             pp.space(),
-            self.body.pretty(pp)
+            self.body.pretty(pp),
         ])
     }
 }
@@ -447,31 +423,37 @@ impl Pretty for Program {
             pp.text("FUNCTIONS:"),
             pp.hardline(),
             pp.intersperse(
-                self.functions.iter().map(|(k, v)| pp.concat(vec![
-                    pp.as_string(k),
-                    pp.text(":"),
-                    pp.space(),
-                    v.pretty(pp)
-                ])),
-                pp.hardline()
-            ).nest(2),
+                self.functions.iter().map(|(k, v)| {
+                    pp.concat(vec![
+                        pp.as_string(k),
+                        pp.text(":"),
+                        pp.space(),
+                        v.pretty(pp),
+                    ])
+                }),
+                pp.hardline(),
+            )
+            .nest(2),
             pp.hardline(),
             pp.hardline(),
             pp.text("GLOBALS:"),
             pp.hardline(),
             pp.intersperse(
-                self.globals.iter().map(|(k, v)| pp.concat(vec![
-                    pp.as_string(k),
-                    pp.text(":"),
-                    pp.space(),
-                    v.pretty(pp)
-                ])),
-                pp.hardline()
-            ).nest(2),
+                self.globals.iter().map(|(k, v)| {
+                    pp.concat(vec![
+                        pp.as_string(k),
+                        pp.text(":"),
+                        pp.space(),
+                        v.pretty(pp),
+                    ])
+                }),
+                pp.hardline(),
+            )
+            .nest(2),
             pp.hardline(),
             pp.hardline(),
             pp.text("DATA:"),
-            pp.text(std::str::from_utf8(&self.data).unwrap_or("error converting data to string"))
+            pp.text(std::str::from_utf8(&self.data).unwrap_or("error converting data to string")),
         ])
     }
 }
