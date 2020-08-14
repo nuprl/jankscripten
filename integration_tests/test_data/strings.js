@@ -1,1 +1,2 @@
-log_any("hi");
+let x = "hi";
+log_any(x);

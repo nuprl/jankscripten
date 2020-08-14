@@ -29,6 +29,7 @@ where
         jankyscript::type_checking::type_check(&janky_ast)?;
     }
     let notwasm_ast = notwasm::from_jankyscript(janky_ast);
+    //println!("{:?}", notwasm_ast);
     let wasm_bin = notwasm::compile(notwasm_ast)?;
     Ok(wasm_bin)
 }
