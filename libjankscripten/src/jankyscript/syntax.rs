@@ -9,6 +9,30 @@ pub type Lit = super::super::javascript::Lit;
 pub type Num = super::super::javascript::Num;
 pub type Key = super::super::javascript::Key;
 
+pub type BinaryOp = super::super::notwasm::syntax::BinaryOp;
+
+impl BinaryOp {
+    pub fn janky_typ(self: &BinaryOp) -> (Type, Type) {
+        match self {
+            BinaryOp::PtrEq => (Type::Any, Type::Bool), // for completeness; should be special-cased
+            BinaryOp::I32Eq | BinaryOp::I32GT | BinaryOp::I32LT | BinaryOp::I32Ge | BinaryOp::I32Le => {
+                (Type::Int, Type::Bool)
+            }
+            BinaryOp::F64Eq | BinaryOp::F64LT => (Type::Float, Type::Bool),
+            BinaryOp::I32Add
+            | BinaryOp::I32Sub
+            | BinaryOp::I32Mul
+            | BinaryOp::I32Div
+            | BinaryOp::I32Rem
+            | BinaryOp::I32And
+            | BinaryOp::I32Or => (Type::Int, Type::Int),
+            BinaryOp::F64Add | BinaryOp::F64Sub | BinaryOp::F64Mul | BinaryOp::F64Div => {
+                (Type::Float, Type::Float)
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum LValue {
     Id(Id),
@@ -27,7 +51,7 @@ pub enum Expr {
     Bracket(Box<Expr>, Box<Expr>),
     Unary(super::super::notwasm::syntax::UnaryOp, Box<Expr>),
     Binary(
-        super::super::notwasm::syntax::BinaryOp,
+        BinaryOp,
         Box<Expr>,
         Box<Expr>,
     ),

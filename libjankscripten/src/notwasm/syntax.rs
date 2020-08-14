@@ -109,24 +109,11 @@ pub enum BinaryOp {
 }
 
 impl BinaryOp {
-    pub fn notwasm_type(self: &BinaryOp) -> (Type, Type) {
-        match self {
-            BinaryOp::PtrEq => (Type::Any, Type::Bool), // for completeness; should be special-cased
-            BinaryOp::I32Eq | BinaryOp::I32GT | BinaryOp::I32LT | BinaryOp::I32Ge | BinaryOp::I32Le => {
-                (Type::I32, Type::Bool)
-            }
-            BinaryOp::F64Eq | BinaryOp::F64LT => (Type::F64, Type::Bool),
-            BinaryOp::I32Add
-            | BinaryOp::I32Sub
-            | BinaryOp::I32Mul
-            | BinaryOp::I32Div
-            | BinaryOp::I32Rem
-            | BinaryOp::I32And
-            | BinaryOp::I32Or => (Type::I32, Type::I32),
-            BinaryOp::F64Add | BinaryOp::F64Sub | BinaryOp::F64Mul | BinaryOp::F64Div => {
-                (Type::F64, Type::F64)
-            }
-        }
+    pub fn notwasm_typ(self: &BinaryOp) -> (Type, Type) {
+        // these binops are used in jankyscript too, so we can derive
+        // their notwasm types from them
+        let (janky_in_type, janky_out_type) = self.janky_typ();
+        (janky_in_type.notwasm_typ(), janky_out_type.notwasm_typ())
     }
 }
 
@@ -164,7 +151,7 @@ pub enum Lit {
 }
 
 impl Lit {
-    pub fn notwasm_type(self: &Lit) -> Type {
+    pub fn notwasm_typ(self: &Lit) -> Type {
         match self {
             Lit::Bool(_) => Type::Bool,
             Lit::I32(_) => Type::I32,

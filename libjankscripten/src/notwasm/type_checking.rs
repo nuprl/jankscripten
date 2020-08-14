@@ -385,7 +385,7 @@ fn assert_variant_of_any(ty: &Type) -> TypeCheckingResult<()> {
 fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
     match a {
         Atom::Deref(a) => ensure_ref("dereference", type_check_atom(env, a)?),
-        Atom::Lit(l) => Ok(l.notwasm_type()),
+        Atom::Lit(l) => Ok(l.notwasm_typ()),
         Atom::ToAny(to_any) => {
             let ty = type_check_atom(env, &mut to_any.atom)?;
             assert_variant_of_any(&ty)?;
@@ -444,7 +444,7 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             Ok(Type::Any)
         }
         Atom::Unary(op, a) => {
-            let (ty_in, ty_out) = op.notwasm_type();
+            let (ty_in, ty_out) = op.notwasm_typ();
             let got = type_check_atom(env, a)?;
             let _ = ensure(&format!("unary ({:?})", op), ty_in, got)?;
             Ok(ty_out)
@@ -456,7 +456,7 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             Ok(Type::Bool)
         }
         Atom::Binary(op, a_l, a_r) => {
-            let (ty_in, ty_out) = op.notwasm_type();
+            let (ty_in, ty_out) = op.notwasm_typ();
             let got_l = type_check_atom(env, a_l)?;
             let got_r = type_check_atom(env, a_r)?;
             let _ = ensure(&format!("binary ({:?}) lhs", op), ty_in.clone(), got_l)?;
