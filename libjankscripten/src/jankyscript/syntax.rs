@@ -10,6 +10,7 @@ pub type Num = super::super::javascript::Num;
 pub type Key = super::super::javascript::Key;
 
 pub type BinaryOp = super::super::notwasm::syntax::BinaryOp;
+pub type UnaryOp = super::super::notwasm::syntax::UnaryOp;
 
 impl BinaryOp {
     pub fn janky_typ(self: &BinaryOp) -> (Type, Type) {
@@ -33,6 +34,15 @@ impl BinaryOp {
     }
 }
 
+impl UnaryOp {
+    pub fn janky_typ(self: &UnaryOp) -> (Type, Type) {
+        match self {
+            UnaryOp::Sqrt => (Type::Float, Type::Float),
+            UnaryOp::Neg => (Type::Float, Type::Float),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum LValue {
     Id(Id),
@@ -49,7 +59,7 @@ pub enum Expr {
     Id(Id),
     Dot(Box<Expr>, Id),
     Bracket(Box<Expr>, Box<Expr>),
-    Unary(super::super::notwasm::syntax::UnaryOp, Box<Expr>),
+    Unary(UnaryOp, Box<Expr>),
     Binary(
         BinaryOp,
         Box<Expr>,

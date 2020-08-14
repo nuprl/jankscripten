@@ -125,11 +125,11 @@ pub enum UnaryOp {
 }
 
 impl UnaryOp {
-    pub fn notwasm_type(self: &UnaryOp) -> (Type, Type) {
-        match self {
-            UnaryOp::Sqrt => (Type::F64, Type::F64),
-            UnaryOp::Neg => (Type::F64, Type::F64),
-        }
+    pub fn notwasm_typ(self: &UnaryOp) -> (Type, Type) {
+        // these unaryops are used in jankyscript too, so we can derive
+        // their notwasm types from them
+        let (janky_in_type, janky_out_type) = self.janky_typ();
+        (janky_in_type.notwasm_typ(), janky_out_type.notwasm_typ())
     }
 }
 
