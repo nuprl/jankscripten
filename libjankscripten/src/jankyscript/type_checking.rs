@@ -125,7 +125,11 @@ fn lookup(env: &Env, id: &Id) -> TypeCheckingResult<Type> {
 }
 
 // type check an entire program.
-pub fn type_check(stmt: &Stmt) -> TypeCheckingResult<()> {
+pub fn type_check(stmt: &mut Stmt) -> TypeCheckingResult<()> {
+    // NOTE(arjun): This is a somewhat odd place to call free_variables. However, I think we should
+    // have a function in the jankyscript submodule that does all the "necessary" stuff to the
+    // program, including type-checking and annotating the program with free variables.
+    let _fvs = super::fv::free_vars(stmt);
     match type_check_stmt(stmt, HashMap::new(), &None) {
         Ok(_) => Ok(()),
         Err(error) => Err(error),
