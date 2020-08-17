@@ -522,10 +522,7 @@ impl InsertCoercions {
                     Janky::Stmt::Block(vec![coerced_body, Janky_::return_(default_for_ty)]);
                 let fn_ty = Type::Function(arg_tys, Box::new(ret_ty.clone()));
 
-                Ok((
-                    Janky_::func(args_with_tys, ret_ty, coerced_body),
-                    fn_ty,
-                ))
+                Ok((Janky_::func(args_with_tys, ret_ty, coerced_body), fn_ty))
             }
         }
     }
