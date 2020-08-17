@@ -108,11 +108,29 @@ pub enum BinaryOp {
     F64LT,
 }
 
+impl BinaryOp {
+    pub fn notwasm_typ(self: &BinaryOp) -> (Type, Type) {
+        // these binops are used in jankyscript too, so we can derive
+        // their notwasm types from them
+        let (janky_in_type, janky_out_type) = self.janky_typ();
+        (janky_in_type.notwasm_typ(), janky_out_type.notwasm_typ())
+    }
+}
+
 /// Unary operators that correspond to primitive WebAssembly instructions.
 #[derive(Clone, Debug, PartialEq)]
 pub enum UnaryOp {
     Sqrt,
     Neg,
+}
+
+impl UnaryOp {
+    pub fn notwasm_typ(self: &UnaryOp) -> (Type, Type) {
+        // these unaryops are used in jankyscript too, so we can derive
+        // their notwasm types from them
+        let (janky_in_type, janky_out_type) = self.janky_typ();
+        (janky_in_type.notwasm_typ(), janky_out_type.notwasm_typ())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
@@ -131,6 +149,20 @@ pub enum Lit {
     Interned(u32),
     Undefined,
     Null,
+}
+
+impl Lit {
+    pub fn notwasm_typ(self: &Lit) -> Type {
+        match self {
+            Lit::Bool(_) => Type::Bool,
+            Lit::I32(_) => Type::I32,
+            Lit::F64(_) => Type::F64,
+            Lit::String(_) => Type::String,
+            Lit::Interned(_) => Type::StrRef,
+            Lit::Undefined => Type::Any,
+            Lit::Null => Type::Any,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
