@@ -146,7 +146,7 @@ impl<'a> Loc<'a> {
             Loc::Node(Context::Block(cxt), rest) => match *rest {
                 Loc::Top => cxt,
                 Loc::Node(Context::FunctionBody, _) => cxt,
-                Loc::Node(_, rest) => rest.body_of_enclosing_function_or_program(),
+                Loc::Node(_, _) => rest.body_of_enclosing_function_or_program(),
             },
             Loc::Node(_, rest) => rest.body_of_enclosing_function_or_program(),
         }

@@ -289,7 +289,7 @@ mod test {
             function g() {
                 return 5;
             }
-            console.log(f(g()));
+            f(g());
         "#;
 
         okay(prog);
@@ -527,9 +527,9 @@ mod test {
             function get_this_x() {
                 return this.x;
             }
-            let obj = { x: 5, get_this_x };
-            let five = obj.get_this_x();
-            let three = get_this_x();
+            var obj = { x: 5, get_this_x: get_this_x };
+            var five = obj.get_this_x();
+            var three = get_this_x();
             five + three;",
         );
     }

@@ -15,6 +15,3 @@ im-rc = "15.0.0"
 combine-language = "*"
 strum = "0.19"
 strum_macros = "0.19"
-
-[dev-dependencies]
-rusty_v8 = "^0.4.2"

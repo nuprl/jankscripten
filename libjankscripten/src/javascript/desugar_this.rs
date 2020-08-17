@@ -21,13 +21,8 @@ impl Visitor for ThisParameter<'_> {
                     *obj = Box::new(id_(obj_name.clone()));
                     args.insert(0, id_(obj_name));
                 }
-                // for the rest, we'll hand the global object
-                // now this can be fetched with either global or window,
-                // depending on node / web. i'm going to
-                // use global for now because we're using node but TODO(luna):
-                // we need to handle this somehow
-                // using named id is again correct because global is handled
-                // specially (hopefully)
+                // for the rest, we'll hand the global object. we assign
+                // global to window if it's undefined to make this easier
                 _ => args.insert(0, id_(Id::Named("global".to_string()))),
             },
             Expr::Func(_, params, _) => {

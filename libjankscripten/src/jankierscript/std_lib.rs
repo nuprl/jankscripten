@@ -1,13 +1,12 @@
 use crate::shared::types::Type;
-use std::collections::HashMap;
 use Type::*;
 
 /// these get merged into a hashmap so no reason to hash twice
-type BindMap = Vec<(std::string::String, Type)>;
+pub type BindMap = Vec<(std::string::String, Type)>;
 
 /// TODO(luna): we should eventually give these actual types rather than all Any
 pub fn get_global_object() -> BindMap {
-    let mut map = BindMap::new();
+    let mut map = BindMap::with_capacity(64);
     let m = &mut map;
 
     // i don't know where this would be documented but i know we need it
@@ -34,6 +33,7 @@ pub fn get_global_object() -> BindMap {
     // these i'm inserting. eventually we should be generating an actual window
     // object and looking inside it for these functions, but for now this is
     // a stopgap
+    insert(m, "global", Any);
     insert(m, "window", Any);
     // Properties
     insert(m, "console", Any);
