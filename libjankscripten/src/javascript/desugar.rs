@@ -8,6 +8,10 @@ pub fn desugar(stmt: &mut Stmt, ng: &mut NameGen) {
     desugar_loops::desugar_loops(stmt, ng);
     // dep: desugar_logical needs loop conds to be simple
     desugar_logical::desugar_logical(stmt, ng);
+    // rdep: desugar_function_applications loses data about whether
+    // object/array accesses are immediately applied
+    desugar_this::desugar_this(stmt, ng);
+    // accesses are immediately applied
     desugar_function_applications::desugar_function_applications(stmt, ng);
     //dep: desugar_vardecls needs desugar_loops to be simple
     desugar_vardecls::desugar_vardecls(stmt, ng);
@@ -512,6 +516,21 @@ mod test {
             let two = side_effect().x--;
             let zero = --side_effect().x;
             two + zero + obj.x + rv;",
+        );
+    }
+
+    #[test]
+    fn desugar_this() {
+        okay(
+            "
+            var x = 3;
+            function get_this_x() {
+                return this.x;
+            }
+            let obj = { x: 5, get_this_x };
+            let five = obj.get_this_x();
+            let three = get_this_x();
+            five + three;",
         );
     }
 }

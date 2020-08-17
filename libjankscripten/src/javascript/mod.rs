@@ -8,6 +8,7 @@ mod desugar_function_stmts;
 mod desugar_logical;
 mod desugar_loops;
 mod desugar_switch;
+mod desugar_this;
 mod desugar_updates;
 mod desugar_vardecls;
 mod lift_vars;
