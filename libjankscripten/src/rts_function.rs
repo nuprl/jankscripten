@@ -6,7 +6,6 @@
 //! are all defined in this file.
 
 use super::jankyscript::syntax::Type::{self, *};
-use super::notwasm;
 use strum_macros::EnumIter;
 
 #[derive(Debug, Clone, Copy, PartialEq, EnumIter)]
@@ -74,5 +73,26 @@ impl RTSFunction {
             RTSFunction::Equal => Function(vec![Any, Any], Box::new(Bool)),
             RTSFunction::LogAny => Function(vec![Any], Box::new(Any)),
         }
+    }
+}
+
+impl std::fmt::Display for RTSFunction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use RTSFunction::*;
+        write!(
+            f,
+            "{}",
+            match self {
+                Todo(s) => s,
+                Typeof => "typeof",
+                Delete => "delete",
+                Plus => "+",
+                Over => "over",
+                Mod => "%",
+                ModF64 => "%64",
+                Equal => "==",
+                LogAny => "logany",
+            }
+        )
     }
 }

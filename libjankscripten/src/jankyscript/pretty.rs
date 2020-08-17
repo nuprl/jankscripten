@@ -43,7 +43,7 @@ impl Pretty for Coercion {
         match self {
             Coercion::Id(t) => pp.text("id").append(t.pretty(pp).parens()),
             Coercion::Tag(t) => t.pretty(pp).append(pp.text("!")),
-            Coercion::Untag(t) => t.pretty(pp).append(pp.text("!")),
+            Coercion::Untag(t) => t.pretty(pp).append(pp.text("?")),
             Coercion::IntToFloat => pp.text("i32_to_f64"),
             Coercion::FloatToInt => pp.text("f64_to_i32"),
             Coercion::Fun(args, ret) => pp.concat(vec![
@@ -152,11 +152,11 @@ impl Pretty for Expr {
                 pp.as_string(id),
             ]),
             Expr::Bracket(e1, e2) => pp.concat(vec![e1.pretty(pp), e2.pretty(pp).brackets()]),
-            Expr::Unary(op, e) => pp.as_string(op).append(e.pretty(pp).parens()),
+            Expr::Unary(op, e) => op.pretty(pp).append(e.pretty(pp).parens()),
             Expr::Binary(op, e1, e2) => pp.intersperse(
                 vec![
                     e1.pretty(pp).parens(), // TODO(michael) sometimes omit parens?
-                    pp.as_string(op),
+                    op.pretty(pp),
                     e2.pretty(pp).parens(),
                 ],
                 pp.line(),
