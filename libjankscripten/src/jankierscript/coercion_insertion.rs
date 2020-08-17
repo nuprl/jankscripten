@@ -523,7 +523,7 @@ impl InsertCoercions {
                 let fn_ty = Type::Function(arg_tys, Box::new(ret_ty.clone()));
 
                 Ok((
-                    Janky::Expr::Func(ret_ty, args_with_tys, Box::new(coerced_body)),
+                    Janky_::func(args_with_tys, ret_ty, coerced_body),
                     fn_ty,
                 ))
             }

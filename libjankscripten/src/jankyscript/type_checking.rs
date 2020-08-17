@@ -262,17 +262,17 @@ fn type_check_fun_call(
 
 fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
     match expr {
-        Expr::Func(return_type, args, body) => {
+        Expr::Func(f) => {
             // type check body under assumption that args have the specified
             // types
             let mut function_env = env.clone();
-            function_env.extend(args.clone().into_iter());
+            function_env.extend(f.args_with_typs.clone().into_iter());
 
-            type_check_stmt(&body, function_env, &Some(return_type.clone()))?;
+            type_check_stmt(&f.body, function_env, &Some(f.result_typ.clone()))?;
 
             Ok(Type::Function(
-                args.into_iter().map(|(_, ty)| ty.clone()).collect(),
-                Box::new(return_type.clone()),
+                f.arg_typs().cloned().collect(),
+                Box::new(f.result_typ.clone()),
             ))
         }
         Expr::Assign(lval, rval) => {

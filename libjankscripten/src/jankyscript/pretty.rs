@@ -194,10 +194,10 @@ impl Pretty for Expr {
                 )
                 .parens(),
             ]),
-            Expr::Func(ret, args, e) => pp.concat(vec![
+            Expr::Func(f) => pp.concat(vec![
                 pp.text("function"),
                 pp.intersperse(
-                    args.iter().map(|(x, t)| {
+                    f.args_with_typs.iter().map(|(x, t)| {
                         pp.concat(vec![
                             pp.as_string(x),
                             pp.space(),
@@ -212,9 +212,9 @@ impl Pretty for Expr {
                 .parens(),
                 pp.line(),
                 pp.text("->"),
-                ret.pretty(pp),
+                f.result_typ.pretty(pp),
                 pp.line(),
-                e.pretty(pp).nest(2).braces(),
+                f.body.pretty(pp).nest(2).braces(),
             ]),
             Expr::Coercion(c, e) => {
                 pp.concat(vec![c.pretty(pp).brackets(), pp.line(), e.pretty(pp)])
