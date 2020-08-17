@@ -53,6 +53,26 @@ pub enum LValue {
 }
 
 #[derive(Debug)]
+pub struct Func {
+    pub result_typ: Type,
+    pub args_with_typs: Vec<(Id, Type)>,
+    pub body: Box<Stmt>
+}
+
+impl Func {
+
+    pub fn new(args_with_typs: Vec<(Id, Type)>, result_typ: Type, body: Stmt) -> Self {
+        let body = Box::new(body);
+        Func { args_with_typs, result_typ, body }
+    }
+
+    pub fn arg_typs(&self) -> impl Iterator<Item = &Type> {
+        self.args_with_typs.iter().map(|(_, t)| t)
+    }
+}
+
+
+#[derive(Debug)]
 pub enum Expr {
     Lit(Lit),
     Array(Vec<Expr>),
@@ -67,7 +87,7 @@ pub enum Expr {
     Call(Box<Expr>, Vec<Expr>),
     PrimCall(RTSFunction, Vec<Expr>),
     New(Box<Expr>, Vec<Expr>),
-    Func(Type, Vec<(Id, Type)>, Box<Stmt>),
+    Func(Func),
     Coercion(Coercion, Box<Expr>),
 }
 
