@@ -21,8 +21,7 @@ impl Visitor for ThisParameter<'_> {
                     *obj = Box::new(id_(obj_name.clone()));
                     args.insert(0, id_(obj_name));
                 }
-                // for the rest, we'll hand the global object. we assign
-                // global to window if it's undefined to make this easier
+                // for the rest, we'll hand the global object
                 _ => args.insert(0, id_(Id::Named("global".to_string()))),
             },
             Expr::Func(_, params, _) => {

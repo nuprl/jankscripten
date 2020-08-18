@@ -97,7 +97,7 @@ pub struct AnyPtr<'a> {
 
 /// We can safely turn an `AnyPtr` into a more specific type of pointer using
 /// the `view` method, which produces a `HeapRefView`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub enum HeapRefView<'a> {
     I32(I32Ptr<'a>),
     String(StringPtr<'a>),
@@ -253,7 +253,7 @@ impl<'a, T> TypePtr<'a, T> {
 
     // safety: Tag must match T, value must be immediately initialized
     // with write
-    pub unsafe fn new_tag_unchecked(ptr: *mut Tag) -> Self {
+    pub const unsafe fn new_tag_unchecked(ptr: *mut Tag) -> Self {
         TypePtr {
             ptr,
             _phantom: PhantomData,

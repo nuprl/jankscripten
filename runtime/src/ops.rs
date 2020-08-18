@@ -3,7 +3,7 @@
 use super::any_value::*;
 use super::string::*;
 
-type Any = AnyValue<'static>;
+type Any = AnyValue;
 
 fn i32s_or_as_f64s<T, F, I>(a: Any, b: Any, floats: F, ints: I) -> Option<T>
 where

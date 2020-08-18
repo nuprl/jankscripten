@@ -1,11 +1,11 @@
 use super::super::notwasm::syntax::BinaryOp;
-use super::std_lib::get_global_object;
 use super::syntax::*;
 use crate::jankyscript::constructors as Janky_;
 use crate::jankyscript::syntax as Janky;
 use crate::notwasm::syntax as NotWasm;
 use crate::rts_function::RTSFunction;
 use crate::shared::coercions::*;
+use crate::shared::std_lib::get_global_object;
 use crate::shared::types::Type;
 use im_rc::HashMap;
 use thiserror::Error;

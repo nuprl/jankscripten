@@ -33,7 +33,7 @@ pub fn get_global_object() -> BindMap {
     // these i'm inserting. eventually we should be generating an actual window
     // object and looking inside it for these functions, but for now this is
     // a stopgap
-    insert(m, "global", Any);
+    insert(m, "global", DynObject);
     insert(m, "window", Any);
     // Properties
     insert(m, "console", Any);

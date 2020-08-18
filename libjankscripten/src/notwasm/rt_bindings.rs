@@ -49,7 +49,6 @@ pub fn get_rt_bindings() -> BindMap {
     );
     insert(m, "any_to_f64", vec![Any], F64);
     insert(m, "f64_to_any", vec![F64], Any);
-    insert(m, "log_any", vec![Any], Any);
     for rts in RTSFunction::iter() {
         if let RTSFunction::Todo(_) = rts {
             // can't !let
@@ -57,6 +56,9 @@ pub fn get_rt_bindings() -> BindMap {
             m.insert(rts.name().into(), compile_ty(rts.janky_typ()));
         }
     }
+    // TODO(luna): as global functions are actually added to the runtime,
+    // they should be bound here, but hopefully just by copying them from the
+    // std_lib version
     map
 }
 

@@ -3,10 +3,9 @@
 //! correctly.
 
 use super::syntax::*;
-
-use thiserror::Error;
-
+use crate::shared::std_lib::get_global_object;
 use im_rc::HashMap;
+use thiserror::Error;
 
 type Env = HashMap<Id, Type>;
 
@@ -126,7 +125,14 @@ fn lookup(env: &Env, id: &Id) -> TypeCheckingResult<Type> {
 
 // type check an entire program.
 pub fn type_check(stmt: &Stmt) -> TypeCheckingResult<()> {
-    match type_check_stmt(stmt, HashMap::new(), &None) {
+    match type_check_stmt(
+        stmt,
+        get_global_object()
+            .into_iter()
+            .map(|(k, v)| (Id::Named(k), v))
+            .collect(),
+        &None,
+    ) {
         Ok(_) => Ok(()),
         Err(error) => Err(error),
     }

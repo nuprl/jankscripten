@@ -512,7 +512,13 @@ mod test {
             ),
             expr_(Expr::PrimCall(
                 RTSFunction::LogAny,
-                vec![coercion_(Coercion::Tag(Type::Float), Expr::Id("b".into()))],
+                vec![
+                    coercion_(
+                        Coercion::Tag(Type::DynObject),
+                        Expr::Id(Id::Named("global".into())),
+                    ),
+                    coercion_(Coercion::Tag(Type::Float), Expr::Id("b".into())),
+                ],
             )),
         ]);
         expect_notwasm("F64(5)".to_string(), from_jankyscript(program));

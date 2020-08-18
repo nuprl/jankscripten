@@ -14,9 +14,9 @@ pub extern "C" fn object_empty<'a>() -> ObjectPtr<'a> {
 pub extern "C" fn object_set<'a>(
     mut object: ObjectPtr<'a>,
     field: StrPtr,
-    value: AnyValue<'a>,
+    value: AnyValue,
     cache: &mut isize,
-) -> AnyValue<'a> {
+) -> AnyValue {
     object.insert(heap(), field, value, cache);
     value
 }
@@ -26,6 +26,6 @@ pub extern "C" fn object_get<'a>(
     object: ObjectPtr<'a>,
     field: StrPtr,
     cache: &mut isize,
-) -> AnyValue<'a> {
+) -> AnyValue {
     object.get(heap(), field, cache).unwrap().into()
 }

@@ -30,11 +30,33 @@ pub fn translate_parity(mut program: N::Program) -> Module {
             IdIndex::Fun(index.try_into().expect("too many functions")),
         );
     }
-    for (i, name) in program.globals.keys().enumerate() {
-        global_env.insert(name.clone(), IdIndex::Global(i as u32));
-    }
 
     let mut module = module();
+    // TODO(luna): these should eventually be enumerated separately in
+    // something like rt_bindings
+    // JNKS_STRINGS isn't used, it's looked up by the const JNKS_STRINGS_IDX,
+    // but it should still be enumerated in the importing, so we give it a fake
+    // env name
+    let rt_globals = vec![
+        ("__JNKS_STRINGS", "JNKS_STRINGS", N::Type::I32),
+        ("global", "GLOBAL", N::Type::DynObject),
+    ];
+    for (_, rt_name, ty) in &rt_globals {
+        module = module
+            .import()
+            .path("runtime", rt_name)
+            .with_external(External::Global(GlobalType::new(ty.as_wasm(), false)))
+            .build();
+    }
+    for (i, name) in rt_globals
+        .iter()
+        .map(|(name, _, _)| N::Id::Named(name.to_string()))
+        .chain(program.globals.keys().cloned())
+        .enumerate()
+    {
+        global_env.insert(name, IdIndex::Global(i as u32));
+    }
+
     let rt_types = get_rt_bindings();
     let mut rt_indexes = HashMap::new();
     // build up indexes for mutual recursion first
@@ -78,12 +100,6 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         type_indexes.entry(func_ty).or_insert(next_index);
     }
     // data segment
-    // right now there's only one global, if that changes we can refactor
-    module = module
-        .import()
-        .path("runtime", "JNKS_STRINGS")
-        .with_external(External::Global(GlobalType::new(ValueType::I32, false)))
-        .build();
     for global in program.globals.values_mut() {
         // can't use functions anyway so no need to worry
         let empty = HashMap::new();
@@ -344,7 +360,7 @@ impl<'a> Translate<'a> {
                 match self
                     .id_env
                     .get(id)
-                    .expect(&format!("unbound identifier {:?}", id))
+                    .expect(&format!("unbound identifier {:?} in = {:?}", id, expr))
                 {
                     IdIndex::Local(n, ty) => {
                         if ty.is_gc_root() == false {
@@ -355,8 +371,7 @@ impl<'a> Translate<'a> {
                             self.out.push(self.set_in_current_shadow_frame_slot(&ty));
                         }
                     }
-                    // +1 for JNKS_STRINGS
-                    IdIndex::Global(n) => self.out.push(SetGlobal(*n + 1)),
+                    IdIndex::Global(n) => self.out.push(SetGlobal(*n)),
                     IdIndex::Fun(..) => panic!("cannot set function"),
                 }
             }
@@ -620,8 +635,7 @@ impl<'a> Translate<'a> {
             .expect(&format!("unbound identifier {:?}", id))
         {
             IdIndex::Local(n, _) => self.out.push(GetLocal(*n)),
-            // +1 for JNKS_STRINGS
-            IdIndex::Global(n) => self.out.push(GetGlobal(*n + 1)),
+            IdIndex::Global(n) => self.out.push(GetGlobal(*n)),
             IdIndex::Fun(n) => self.out.push(I32Const(*n as i32)),
         }
     }

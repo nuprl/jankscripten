@@ -71,7 +71,7 @@ impl RTSFunction {
             RTSFunction::Mod => Function(vec![Any, Any], Box::new(Any)),
             RTSFunction::ModF64 => Function(vec![Float, Float], Box::new(Float)),
             RTSFunction::Equal => Function(vec![Any, Any], Box::new(Bool)),
-            RTSFunction::LogAny => Function(vec![Any], Box::new(Any)),
+            RTSFunction::LogAny => Function(vec![Any, Any], Box::new(Any)),
         }
     }
 }

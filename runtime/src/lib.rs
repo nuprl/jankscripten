@@ -18,6 +18,7 @@ macro_rules! log {
 
 pub mod any_value;
 pub mod array;
+pub mod global;
 pub mod ht;
 pub mod object;
 pub mod ops;
@@ -31,6 +32,7 @@ use allocator::*;
 use any_value::AnyEnum;
 use any_value::AnyValue;
 use string::StrPtr;
+
 static mut HEAP: Option<Heap> = None;
 
 #[no_mangle]
@@ -41,6 +43,7 @@ pub static JNKS_STRINGS: [u8; 65536] = [0; 65536];
 pub extern "C" fn init() {
     unsafe {
         HEAP = Some(Heap::new(65535));
+        global::GLOBAL = object::object_empty();
     }
 }
 
@@ -65,7 +68,7 @@ pub fn set_any_in_current_shadow_frame_slot(any: AnyValue, slot: usize) {
 }
 
 #[no_mangle]
-pub fn log_any(any: AnyValue) -> AnyValue {
+pub fn log_any(_this: AnyValue, any: AnyValue) -> AnyValue {
     let any: AnyEnum = *any;
     log!("{:?}", any);
     AnyEnum::I32(42).into()
