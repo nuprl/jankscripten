@@ -57,7 +57,6 @@ pub enum Expr {
     Lit(Lit),
     Array(Vec<Expr>),
     Object(Vec<(Key, Expr)>),
-    This,
     Id(Id),
     Dot(Box<Expr>, Id),
     Bracket(Box<Expr>, Box<Expr>),

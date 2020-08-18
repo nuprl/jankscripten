@@ -274,7 +274,6 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 rv.append(cxt.recv_a(s, Atom::Id(obj_name)))
             })
         }
-        J::Expr::This => todo!("we need to think more deeply about this"),
         J::Expr::Dot(obj, field) => compile_expr(
             s,
             *obj,

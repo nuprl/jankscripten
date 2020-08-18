@@ -20,7 +20,6 @@ pub enum Expr {
     Lit(super::super::javascript::Lit),
     Array(Vec<Expr>),
     Object(Vec<(super::super::javascript::Key, Expr)>),
-    This,
     Id(Id),
     Dot(Box<Expr>, Id),
     Bracket(Box<Expr>, Box<Expr>),

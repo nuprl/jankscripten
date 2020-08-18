@@ -23,7 +23,7 @@ fn expr(e: Js::Expr) -> Expr {
         E::Lit(lit) => Lit(lit),
         E::Array(es) => Array(es.into_iter().map(|e| expr(e)).collect()),
         E::Object(kvs) => Object(kvs.into_iter().map(|(k, e)| (k, expr(e))).collect()),
-        E::This => This,
+        E::This => unexpected(&e),
         E::Id(id) => Id(id),
         E::Dot(e, x) => Dot(Box::new(expr(*e)), x),
         E::Bracket(e1, e2) => Bracket(Box::new(expr(*e1)), Box::new(expr(*e2))),

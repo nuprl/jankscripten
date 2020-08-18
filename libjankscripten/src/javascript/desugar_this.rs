@@ -30,8 +30,8 @@ impl Visitor for ThisParameter<'_> {
                 // it's a special name that may or may not be used by the body
                 params.insert(0, self.this_name.clone());
             }
-            Expr::Id(id @ Id::Named(_)) if id == &Id::from("this") => {
-                *id = self.this_name.clone();
+            Expr::This => {
+                *expr = id_(self.this_name.clone());
             }
             _ => (),
         }

@@ -143,7 +143,6 @@ impl Pretty for Expr {
                     pp.text(",").append(pp.line()),
                 )
                 .braces(),
-            Expr::This => pp.text("this"),
             Expr::Id(id) => pp.as_string(id),
             Expr::Dot(e, id) => pp.concat(vec![
                 e.pretty(pp),
