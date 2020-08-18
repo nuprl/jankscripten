@@ -80,5 +80,64 @@ fn parse_stmts(stmts: Vec<swc::Stmt>) -> ParseResult<Vec<S::Stmt>> {
 }
 
 fn parse_stmt(stmt: swc::Stmt) -> ParseResult<S::Stmt> {
-    Ok(S::Stmt::Empty)
+    use swc::Stmt::*;
+    match stmt {
+        Block(BlockStmt) => {
+            todo!();
+        }
+        Empty(EmptyStmt) => {
+            todo!();
+        }
+        Debugger(DebuggerStmt) => {
+            todo!();
+        }
+        With(WithStmt) => {
+            todo!();
+        }
+        Return(ReturnStmt) => {
+            todo!();
+        }
+        Labeled(LabeledStmt) => {
+            todo!();
+        }
+        Break(BreakStmt) => {
+            todo!();
+        }
+        Continue(ContinueStmt) => {
+            todo!();
+        }
+        If(IfStmt) => {
+            todo!();
+        }
+        Switch(SwitchStmt) => {
+            todo!();
+        }
+        Throw(ThrowStmt) => {
+            todo!();
+        }
+        Try(TryStmt) => {
+            todo!();
+        }
+        While(WhileStmt) => {
+            todo!();
+        }
+        DoWhile(DoWhileStmt) => {
+            todo!();
+        }
+        For(ForStmt) => {
+            todo!();
+        }
+        ForIn(ForInStmt) => {
+            todo!();
+        }
+        ForOf(ForOfStmt) => {
+            todo!();
+        }
+        Decl(decl) => {
+            todo!();
+        }
+        Expr(ExprStmt) => {
+            todo!();
+        }
+    }
 }
