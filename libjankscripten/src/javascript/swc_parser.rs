@@ -27,6 +27,12 @@ pub enum ParseError {
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
+impl From<swc_ecma_parser::error::Error> for ParseError {
+    fn from(e: swc_ecma_parser::error::Error) -> ParseError {
+        ParseError::SWC(e)
+    }
+}
+
 pub fn parse(js_code: &str) -> ParseResult<S::Stmt> {
     let cm: Lrc<SourceMap> = Default::default();
 
@@ -49,6 +55,8 @@ pub fn parse(js_code: &str) -> ParseResult<S::Stmt> {
     );
 
     let mut parser = Parser::new_from(lexer);
+
+    let ast = parser.parse_script()?;
 
     // return simpl_program(ast);
 
