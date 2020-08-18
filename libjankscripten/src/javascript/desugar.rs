@@ -533,4 +533,15 @@ mod test {
             five + three;",
         );
     }
+    #[test]
+    fn desugar_new() {
+        okay(
+            "
+            function ObjOfAges() {
+                this.x = 5;
+            }
+            var myObj = new ObjOfAges();
+            myObj.x;",
+        );
+    }
 }

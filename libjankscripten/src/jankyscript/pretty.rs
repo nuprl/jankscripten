@@ -183,16 +183,6 @@ impl Pretty for Expr {
                 )
                 .parens(),
             ]),
-            Expr::New(e, args) => pp.concat(vec![
-                pp.text("new"),
-                pp.space(),
-                e.pretty(pp),
-                pp.intersperse(
-                    args.iter().map(|e| e.pretty(pp).group()),
-                    pp.text(",").append(pp.line()),
-                )
-                .parens(),
-            ]),
             Expr::Func(ret, args, e) => pp.concat(vec![
                 pp.text("function"),
                 pp.intersperse(

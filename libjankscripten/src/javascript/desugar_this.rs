@@ -24,6 +24,18 @@ impl Visitor for ThisParameter<'_> {
                 // for the rest, we'll hand the global object
                 _ => args.insert(0, id_(Id::Named("global".to_string()))),
             },
+            Expr::New(closure, args) => {
+                // new MyFunc() => var fresh = Object.create({}), MyFunc(fresh), fresh
+                let cxt = loc.enclosing_block().unwrap();
+                let obj_name = self.ng.fresh("new");
+                // Object.create({})
+                let new_obj = call_(dot_(id_("Object"), "create"), vec![Expr::Object(vec![])]);
+                cxt.insert(cxt.index, vardecl1_(obj_name.clone(), new_obj));
+                args.insert(0, id_(obj_name.clone()));
+                let new_call = call_(closure.take(), std::mem::replace(args, vec![]));
+                cxt.insert(cxt.index, expr_(new_call));
+                *expr = id_(obj_name);
+            }
             Expr::Func(_, params, _) => {
                 // yes for once using a named id is correct here, because
                 // it's a special name that may or may not be used by the body

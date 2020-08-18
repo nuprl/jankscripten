@@ -65,7 +65,6 @@ pub enum Expr {
     Assign(Box<LValue>, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
     PrimCall(RTSFunction, Vec<Expr>),
-    New(Box<Expr>, Vec<Expr>),
     Func(Type, Vec<(Id, Type)>, Box<Stmt>),
     Coercion(Coercion, Box<Expr>),
 }

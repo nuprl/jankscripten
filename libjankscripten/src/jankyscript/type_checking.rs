@@ -412,7 +412,6 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             // whole operation has output type
             Ok(ty_out)
         }
-        Expr::New(..) => unimplemented!(),
     }
 }
 

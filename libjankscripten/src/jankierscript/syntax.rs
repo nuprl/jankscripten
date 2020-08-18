@@ -27,7 +27,6 @@ pub enum Expr {
     Binary(BinOp, Box<Expr>, Box<Expr>),
     Assign(Box<LValue>, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
-    New(Box<Expr>, Vec<Expr>),
     Func(Option<Type>, Vec<(Id, Option<Type>)>, Box<Stmt>),
 }
 
