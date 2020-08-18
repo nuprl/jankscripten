@@ -12,13 +12,13 @@ mod desugar_updates;
 mod desugar_vardecls;
 mod lift_vars;
 pub mod name_gen;
-mod parser;
+mod swc_parser;
 pub mod syntax;
 pub mod walk;
 
 pub use desugar::*;
 pub use name_gen::*;
-pub use parser::*;
+pub use swc_parser::*;
 pub use syntax::*;
 pub use walk::*;
 
