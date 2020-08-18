@@ -72,5 +72,13 @@ fn unsupported_message<T>(msg: &str) -> Result<T, ParseError> {
 }
 
 fn parse_script(script: swc::Script) -> ParseResult<S::Stmt> {
+    Ok(S::Stmt::Block(parse_stmts(script.body)?))
+}
+
+fn parse_stmts(stmts: Vec<swc::Stmt>) -> ParseResult<Vec<S::Stmt>> {
+    stmts.into_iter().map(|stmt| parse_stmt(stmt)).collect()
+}
+
+fn parse_stmt(stmt: swc::Stmt) -> ParseResult<S::Stmt> {
     Ok(S::Stmt::Empty)
 }
