@@ -3,13 +3,13 @@
 
 use super::constructors::*;
 use super::syntax as S;
-use swc_ecma_parser::*;
 use swc_ecma_parser::{lexer, Parser, StringInput, Syntax};
 use swc_common::{
     errors::{ColorConfig, Handler},
     FileName, FilePathMapping, SourceMap,
     sync::Lrc,
 };
+use swc_ecma_ast as swc;
 
 use thiserror::Error;
 
@@ -56,10 +56,21 @@ pub fn parse(js_code: &str) -> ParseResult<S::Stmt> {
 
     let mut parser = Parser::new_from(lexer);
 
-    let ast = parser.parse_script()?;
+    let script = parser.parse_script()?;
 
     // return simpl_program(ast);
 
-    Ok(S::Stmt::Empty)
+    parse_script(script)
 }
 
+fn unsupported<T>() -> Result<T, ParseError> {
+    return Err(ParseError::Unsupported("".to_string()));
+}
+
+fn unsupported_message<T>(msg: &str) -> Result<T, ParseError> {
+    return Err(ParseError::Unsupported(msg.to_string()));
+}
+
+fn parse_script(script: swc::Script) -> ParseResult<S::Stmt> {
+    Ok(S::Stmt::Empty)
+}
