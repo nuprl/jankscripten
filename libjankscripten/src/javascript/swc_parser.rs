@@ -82,61 +82,61 @@ fn parse_stmts(stmts: Vec<swc::Stmt>) -> ParseResult<Vec<S::Stmt>> {
 fn parse_stmt(stmt: swc::Stmt) -> ParseResult<S::Stmt> {
     use swc::Stmt::*;
     match stmt {
-        Block(BlockStmt) => {
+        Block(block_stmt) => {
             todo!();
         }
-        Empty(EmptyStmt) => {
+        Empty(empty_stmt) => {
             todo!();
         }
-        Debugger(DebuggerStmt) => {
+        Debugger(debugger_stmt) => {
             todo!();
         }
-        With(WithStmt) => {
+        With(with_stmt) => {
             todo!();
         }
-        Return(ReturnStmt) => {
+        Return(return_stmt) => {
             todo!();
         }
-        Labeled(LabeledStmt) => {
+        Labeled(labeled_stmt) => {
             todo!();
         }
-        Break(BreakStmt) => {
+        Break(break_stmt) => {
             todo!();
         }
-        Continue(ContinueStmt) => {
+        Continue(continue_stmt) => {
             todo!();
         }
-        If(IfStmt) => {
+        If(if_stmt) => {
             todo!();
         }
-        Switch(SwitchStmt) => {
+        Switch(switch_stmt) => {
             todo!();
         }
-        Throw(ThrowStmt) => {
+        Throw(throw_stmt) => {
             todo!();
         }
-        Try(TryStmt) => {
+        Try(try_stmt) => {
             todo!();
         }
-        While(WhileStmt) => {
+        While(while_stmt) => {
             todo!();
         }
-        DoWhile(DoWhileStmt) => {
+        DoWhile(do_while_stmt) => {
             todo!();
         }
-        For(ForStmt) => {
+        For(for_stmt) => {
             todo!();
         }
-        ForIn(ForInStmt) => {
+        ForIn(for_in_stmt) => {
             todo!();
         }
-        ForOf(ForOfStmt) => {
+        ForOf(for_of_stmt) => {
             todo!();
         }
         Decl(decl) => {
             todo!();
         }
-        Expr(ExprStmt) => {
+        Expr(expr_stmt) => {
             todo!();
         }
     }
