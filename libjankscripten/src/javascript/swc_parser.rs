@@ -91,10 +91,10 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
         }
         Empty(empty_stmt) => Ok(S::Stmt::Empty),
         Debugger(debugger_stmt) => {
-            todo!();
+            unsupported(debugger_stmt.span, source_map)
         }
         With(with_stmt) => {
-            todo!();
+            unsupported(with_stmt.span, source_map)
         }
         Return(return_stmt) => {
             todo!();
