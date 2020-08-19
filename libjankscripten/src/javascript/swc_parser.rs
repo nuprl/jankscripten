@@ -96,7 +96,7 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
         Empty(empty_stmt) => Ok(S::Stmt::Empty),
         Debugger(debugger_stmt) => unsupported(debugger_stmt.span, source_map),
         With(with_stmt) => unsupported(with_stmt.span, source_map),
-        Return(return_stmt) => Ok(S::Stmt::Return(parse_maybe_expr(
+        Return(return_stmt) => Ok(return_(parse_opt_expr(
             return_stmt.arg,
             source_map,
         )?)),
@@ -110,7 +110,16 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
             todo!();
         }
         If(if_stmt) => {
-            todo!();
+            // test
+            let cond_expr = parse_expr(*if_stmt.test, source_map)?;
+
+            // consequent
+            let then_stmt = parse_stmt(*if_stmt.cons, source_map)?;
+            
+            // alternate
+            let else_stmt = parse_opt_stmt(if_stmt.alt, source_map)?;
+
+            Ok(if_(cond_expr, then_stmt, else_stmt))
         }
         Switch(switch_stmt) => {
             todo!();
@@ -147,13 +156,13 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
 
 // this function receives and returns Boxed expressions because optional
 // expression are boxed in both the parser and our AST.
-fn parse_maybe_expr(
-    maybe_expr: Option<Box<swc::Expr>>,
+fn parse_opt_stmt(
+    opt_stmt: Option<Box<swc::Stmt>>,
     source_map: &SourceMap,
-) -> ParseResult<Box<S::Expr>> {
-    match maybe_expr {
-        None => Ok(Box::new(UNDEFINED_)),
-        Some(expr) => Ok(Box::new(parse_expr(*expr, source_map)?)),
+) -> ParseResult<S::Stmt> {
+    match opt_stmt {
+        None => Ok(S::Stmt::Empty),
+        Some(stmt) => Ok(parse_stmt(*stmt, source_map)?),
     }
 }
 
@@ -268,5 +277,17 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
         Invalid(invalid) => {
             todo!();
         }
+    }
+}
+
+// this function receives and returns Boxed expressions because optional
+// expression are boxed in both the parser and our AST.
+fn parse_opt_expr(
+    opt_expr: Option<Box<swc::Expr>>,
+    source_map: &SourceMap,
+) -> ParseResult<S::Expr> {
+    match opt_expr {
+        None => Ok(UNDEFINED_),
+        Some(expr) => Ok(parse_expr(*expr, source_map)?),
     }
 }
