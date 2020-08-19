@@ -43,8 +43,8 @@ pub static JNKS_STRINGS: [u8; 65536] = [0; 65536];
 pub extern "C" fn init() {
     unsafe {
         HEAP = Some(Heap::new(65535));
-        global::GLOBAL = object::object_empty();
     }
+    global::init();
 }
 
 #[no_mangle]

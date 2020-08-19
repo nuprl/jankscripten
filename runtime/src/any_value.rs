@@ -130,9 +130,11 @@ macro_rules! decl_proj_fns {
         #[no_mangle]
         pub extern "C" fn $to_name<'a>(val: AnyValue) -> $ty {
             if let AnyEnum::$any_name(inner) = *val {
+                log!("giving {}", *val);
                 inner
             } else {
-                panic!("unwrap incorrect type {}", stringify!($any_name));
+                log!("cannot unwrap {:?} as {}", *val, stringify!($any_name));
+                panic!();
             }
         }
     };
@@ -164,6 +166,7 @@ pub extern "C" fn f64_to_any(x: f64) -> AnyValue {
 decl_proj_fns!(any_from_i32, any_to_i32, I32, i32);
 decl_proj_fns!(any_from_bool, any_to_bool, Bool, bool);
 decl_proj_fns!(any_from_ptr, any_to_ptr, Ptr, AnyPtr<'a>);
+decl_proj_fns!(any_from_fn, any_to_fn, Fn, u32);
 
 #[no_mangle]
 pub extern "C" fn get_undefined() -> AnyValue {

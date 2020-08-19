@@ -13,6 +13,7 @@ use crate::util::*;
 
 pub mod heap_types;
 pub use heap_values::AnyPtr;
+pub use heap_values::HeapPtr;
 pub use heap_values::HeapRefView;
 mod f64_allocator;
 

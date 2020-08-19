@@ -40,21 +40,25 @@ pub fn translate_parity(mut program: N::Program) -> Module {
     let rt_globals = vec![
         ("__JNKS_STRINGS", "JNKS_STRINGS", N::Type::I32),
         ("global", "GLOBAL", N::Type::DynObject),
+        ("Object", "Object", N::Type::DynObject),
     ];
     for (_, rt_name, ty) in &rt_globals {
         module = module
             .import()
             .path("runtime", rt_name)
+            // runtime globals are never mutable because they're a mutable
+            // pointer to the value which may or may not be mutable
             .with_external(External::Global(GlobalType::new(ty.as_wasm(), false)))
             .build();
     }
-    for (i, name) in rt_globals
-        .iter()
-        .map(|(name, _, _)| N::Id::Named(name.to_string()))
-        .chain(program.globals.keys().cloned())
-        .enumerate()
-    {
-        global_env.insert(name, IdIndex::Global(i as u32));
+    let mut index = 0;
+    for (name, _, ty) in rt_globals {
+        global_env.insert(N::Id::Named(name.into()), IdIndex::RTGlobal(index, ty));
+        index += 1;
+    }
+    for name in program.globals.keys().cloned() {
+        global_env.insert(name, IdIndex::Global(index));
+        index += 1;
     }
 
     let rt_types = get_rt_bindings();
@@ -262,6 +266,9 @@ enum TranslateLabel {
 enum IdIndex {
     Local(u32, N::Type),
     Global(u32),
+    /// runtime globals are handled differently because rust exports statics
+    /// as the memory address of the actual value
+    RTGlobal(u32, N::Type),
     Fun(u32),
 }
 
@@ -356,22 +363,36 @@ impl<'a> Translate<'a> {
                 self.out.push(Drop); // side-effects only, please
             }
             N::Stmt::Assign(id, expr) => {
-                self.translate_expr(expr);
                 match self
                     .id_env
                     .get(id)
                     .expect(&format!("unbound identifier {:?} in = {:?}", id, expr))
+                    .clone()
                 {
                     IdIndex::Local(n, ty) => {
+                        self.translate_expr(expr);
                         if ty.is_gc_root() == false {
-                            self.out.push(SetLocal(*n));
+                            self.out.push(SetLocal(n));
                         } else {
-                            self.out.push(TeeLocal(*n));
-                            self.out.push(I32Const((*n).try_into().unwrap()));
+                            self.out.push(TeeLocal(n));
+                            self.out.push(I32Const((n).try_into().unwrap()));
                             self.out.push(self.set_in_current_shadow_frame_slot(&ty));
                         }
                     }
-                    IdIndex::Global(n) => self.out.push(SetGlobal(*n)),
+                    IdIndex::Global(n) => {
+                        self.translate_expr(expr);
+                        self.out.push(SetGlobal(n));
+                    }
+                    IdIndex::RTGlobal(n, ty) => {
+                        self.out.push(GetGlobal(n));
+                        self.translate_expr(expr);
+                        match ty.as_wasm() {
+                            ValueType::I32 => self.out.push(I32Store(2, 0)),
+                            ValueType::I64 => self.out.push(I64Store(2, 0)),
+                            ValueType::F32 => self.out.push(F32Store(2, 0)),
+                            ValueType::F64 => self.out.push(F64Store(2, 0)),
+                        }
+                    }
                     IdIndex::Fun(..) => panic!("cannot set function"),
                 }
             }
@@ -565,6 +586,7 @@ impl<'a> Translate<'a> {
                     N::Type::I32 => self.rt_call("any_from_i32"),
                     N::Type::Bool => self.rt_call("any_from_bool"),
                     N::Type::F64 => self.rt_call("f64_to_any"),
+                    N::Type::Fn(..) => self.rt_call("any_from_fn"),
                     _ => self.rt_call("any_from_ptr"),
                 }
             }
@@ -574,6 +596,7 @@ impl<'a> Translate<'a> {
                     N::Type::I32 => self.rt_call("any_to_i32"),
                     N::Type::Bool => self.rt_call("any_to_bool"),
                     N::Type::F64 => self.rt_call("any_to_f64"),
+                    N::Type::Fn(..) => self.rt_call("any_to_fn"),
                     _ => self.rt_call("any_to_ptr"),
                 }
             }
@@ -636,6 +659,15 @@ impl<'a> Translate<'a> {
         {
             IdIndex::Local(n, _) => self.out.push(GetLocal(*n)),
             IdIndex::Global(n) => self.out.push(GetGlobal(*n)),
+            IdIndex::RTGlobal(n, ty) => {
+                self.out.push(GetGlobal(*n));
+                match ty.as_wasm() {
+                    ValueType::I32 => self.out.push(I32Load(2, 0)),
+                    ValueType::I64 => self.out.push(I64Load(2, 0)),
+                    ValueType::F32 => self.out.push(F32Load(2, 0)),
+                    ValueType::F64 => self.out.push(F64Load(2, 0)),
+                }
+            }
             IdIndex::Fun(n) => self.out.push(I32Const(*n as i32)),
         }
     }

@@ -137,11 +137,11 @@ impl Pretty for ToAny {
     {
         pp.concat(vec![
             self.atom.pretty(pp),
-            pp.text("_to_"),
+            pp.text(" as any::"),
             self.ty
                 .as_ref()
                 .map(|t| t.pretty(pp))
-                .unwrap_or(pp.text("none")),
+                .unwrap_or(pp.text("_")),
         ])
     }
 }

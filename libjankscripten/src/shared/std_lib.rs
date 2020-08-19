@@ -77,7 +77,7 @@ pub fn get_global_object() -> BindMap {
     insert(m, "Math", Any);
     insert(m, "NaN", Any);
     insert(m, "Number", Any);
-    insert(m, "Object", Any);
+    insert(m, "Object", DynObject);
     // maybe clojurescript?
     insert(m, "Promise", Any);
     insert(m, "RangeError", Any);
