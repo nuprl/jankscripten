@@ -96,9 +96,10 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
         Empty(empty_stmt) => Ok(S::Stmt::Empty),
         Debugger(debugger_stmt) => unsupported(debugger_stmt.span, source_map),
         With(with_stmt) => unsupported(with_stmt.span, source_map),
-        Return(return_stmt) => {
-            todo!();
-        }
+        Return(return_stmt) => Ok(S::Stmt::Return(parse_maybe_expr(
+            return_stmt.arg,
+            source_map,
+        )?)),
         Labeled(labeled_stmt) => {
             todo!();
         }
@@ -141,6 +142,18 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
         Expr(expr_stmt) => {
             todo!();
         }
+    }
+}
+
+// this function receives and returns Boxed expressions because optional
+// expression are boxed in both the parser and our AST.
+fn parse_maybe_expr(
+    maybe_expr: Option<Box<swc::Expr>>,
+    source_map: &SourceMap,
+) -> ParseResult<Box<S::Expr>> {
+    match maybe_expr {
+        None => Ok(Box::new(UNDEFINED_)),
+        Some(expr) => Ok(Box::new(parse_expr(*expr, source_map)?)),
     }
 }
 
