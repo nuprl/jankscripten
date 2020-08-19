@@ -96,10 +96,7 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
         Empty(empty_stmt) => Ok(S::Stmt::Empty),
         Debugger(debugger_stmt) => unsupported(debugger_stmt.span, source_map),
         With(with_stmt) => unsupported(with_stmt.span, source_map),
-        Return(return_stmt) => Ok(return_(parse_opt_expr(
-            return_stmt.arg,
-            source_map,
-        )?)),
+        Return(return_stmt) => Ok(return_(parse_opt_expr(return_stmt.arg, source_map)?)),
         Labeled(labeled_stmt) => {
             todo!();
         }
@@ -115,7 +112,7 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
 
             // consequent
             let then_stmt = parse_stmt(*if_stmt.cons, source_map)?;
-            
+
             // alternate
             let else_stmt = parse_opt_stmt(if_stmt.alt, source_map)?;
 
@@ -124,11 +121,39 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
         Switch(switch_stmt) => {
             todo!();
         }
-        Throw(throw_stmt) => {
-            todo!();
-        }
+        Throw(throw_stmt) => Ok(throw_(parse_expr(*throw_stmt.arg, source_map)?)),
         Try(try_stmt) => {
-            todo!();
+            // deal with each possible part of the try statement separately,
+            // wrap them as we encounter the different layers.
+
+            // 1. block
+            let stmt = parse_block(try_stmt.block, source_map)?;
+
+            // 2. handler
+            let stmt = match try_stmt.handler {
+                None => stmt,
+
+                Some(swc::CatchClause {
+                    param: Some(pattern),
+                    body,
+                    span,
+                }) => catch_(
+                    stmt,
+                    parse_pattern(pattern, span, source_map)?,
+                    parse_block(body, source_map)?,
+                ),
+
+                Some(_) => return unsupported(try_stmt.span, source_map),
+            };
+
+            // 3. finalizer
+            let stmt = match try_stmt.finalizer {
+                None => stmt,
+                Some(block) => finally_(stmt, parse_block(block, source_map)?),
+            };
+
+            // we're done
+            Ok(stmt)
         }
         While(while_stmt) => {
             todo!();
@@ -289,5 +314,21 @@ fn parse_opt_expr(
     match opt_expr {
         None => Ok(UNDEFINED_),
         Some(expr) => Ok(parse_expr(*expr, source_map)?),
+    }
+}
+
+fn parse_block(block: swc::BlockStmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
+    Ok(S::Stmt::Block(parse_stmts(block.stmts, source_map)?))
+}
+
+// span is the source location of the surrounding expr/stmt
+fn parse_pattern(pattern: swc::Pat, span: Span, source_map: &SourceMap) -> ParseResult<S::Id> {
+    use swc::Pat::*;
+    match pattern {
+        Ident(ident) => {
+            Ok(S::Id::Named(ident.sym.to_string()))
+            // Ok(ident.name.into()),
+        }
+        _ => unsupported(span, source_map),
     }
 }
