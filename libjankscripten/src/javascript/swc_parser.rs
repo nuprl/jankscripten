@@ -87,7 +87,8 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
     use swc::Stmt::*;
     match stmt {
         Block(block_stmt) => {
-            todo!();
+            let parsed_stmts = parse_stmts(block_stmt.stmts, source_map)?;
+            Ok(S::Stmt::Block(parsed_stmts))
         }
         Empty(empty_stmt) => Ok(S::Stmt::Empty),
         Debugger(debugger_stmt) => {
