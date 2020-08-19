@@ -37,11 +37,7 @@ pub fn translate_parity(mut program: N::Program) -> Module {
     // JNKS_STRINGS isn't used, it's looked up by the const JNKS_STRINGS_IDX,
     // but it should still be enumerated in the importing, so we give it a fake
     // env name
-    let rt_globals = vec![
-        ("__JNKS_STRINGS", "JNKS_STRINGS", N::Type::I32),
-        ("global", "GLOBAL", N::Type::DynObject),
-        ("Object", "Object", N::Type::DynObject),
-    ];
+    let rt_globals = vec![("__JNKS_STRINGS", "JNKS_STRINGS", N::Type::I32)];
     for (_, rt_name, ty) in &rt_globals {
         module = module
             .import()
@@ -129,16 +125,22 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         module = partial_global.build();
     }
     // fsr we need an identity table to call indirect
-    let mut table_build = module.table().with_min(program.functions.len() as u32);
-    let offset = rt_indexes.len() as u32;
+    let mut table_build = module
+        .table()
+        .with_min(rt_indexes.len() as u32 + program.functions.len() as u32);
     let mut main_index = None;
-    for (notwasm_index, name) in program.functions.keys().enumerate() {
-        let wasm_index = notwasm_index as u32 + offset;
+    for (index, name) in rt_indexes
+        .keys()
+        .map(|h| N::Id::Named(h.clone()))
+        .chain(program.functions.keys().cloned())
+        .enumerate()
+    {
+        let index = index as u32;
         // find main
-        if name == &N::Id::Named("main".to_string()) {
-            main_index = Some(wasm_index)
+        if name == N::Id::Named("main".to_string()) {
+            main_index = Some(index)
         }
-        table_build = table_build.with_element(notwasm_index as u32, vec![wasm_index]);
+        table_build = table_build.with_element(index, vec![index]);
     }
     let mut module = table_build.build();
     for (name, func) in program.functions.iter_mut() {
@@ -190,9 +192,16 @@ fn translate_func(
     // generate the actual code
     translator.translate_rec(&mut env, &mut func.body);
     let mut insts = vec![];
-    // before the code, if this is main we have to call rt init()
+    // before the code, if this is main we have to call init()
     if name == &N::Id::Named("main".to_string()) {
-        insts = vec![Call(*rt_indexes.get("init").expect("no init"))];
+        if let (Some(IdIndex::Fun(jnks_init)), Some(init)) = (
+            id_env.get(&N::Id::Named("jnks_init".to_string())),
+            rt_indexes.get("init"),
+        ) {
+            insts = vec![Call(*init), Call(*jnks_init + rt_indexes.len() as u32)];
+        } else {
+            panic!("where's jnks_init?");
+        }
     }
 
     // Eager shadow stack: The runtime system needs to create a shadow stack
@@ -524,11 +533,9 @@ impl<'a> Translate<'a> {
                 }
                 match self.id_env.get(f) {
                     Some(IdIndex::Fun(i)) => {
-                        // this one's a little weird. we index in notwasm
-                        // by 0 = first user function. but wasm indexes by 0 =
-                        // first rt function. se we have to offset. but only
-                        // on direct calls, because our function table takes
-                        // care of it on indirect calls
+                        // we index in notwasm by 0 = first user function. but
+                        // wasm indexes by 0 = first rt function. so we have
+                        // to offset
                         self.out.push(Call(i + self.rt_indexes.len() as u32));
                     }
                     Some(IdIndex::Local(i, t)) => {
@@ -545,7 +552,7 @@ impl<'a> Translate<'a> {
                             .expect("function type was not indexed");
                         self.out.push(CallIndirect(*ty_index, 0));
                     }
-                    _ => panic!("expected Func ID"),
+                    _ => panic!("expected Func ID ({})", f),
                 };
             }
             N::Expr::ToString(a) => {
@@ -580,6 +587,16 @@ impl<'a> Translate<'a> {
                 N::Lit::Null => self.rt_call("get_null"),
             },
             N::Atom::Id(id) => self.get_id(id),
+            N::Atom::GetPrimFunc(id) => {
+                // TODO(luna): i honestly for the life of me can't remember
+                // why we accept an &mut Atom instead of an Atom, which
+                // would avoid this clone
+                if let Some(i) = self.rt_indexes.get(&id.clone().into_name()) {
+                    self.out.push(I32Const(*i as i32));
+                } else {
+                    panic!("cannot find rt {}", id);
+                }
+            }
             N::Atom::ToAny(to_any) => {
                 self.translate_atom(&mut to_any.atom);
                 match to_any.ty() {
@@ -668,7 +685,10 @@ impl<'a> Translate<'a> {
                     ValueType::F64 => self.out.push(F64Load(2, 0)),
                 }
             }
-            IdIndex::Fun(n) => self.out.push(I32Const(*n as i32)),
+            // notwasm indexes from our functions, wasm indexes from rt
+            IdIndex::Fun(n) => self
+                .out
+                .push(I32Const(*n as i32 + self.rt_indexes.len() as i32)),
         }
     }
 

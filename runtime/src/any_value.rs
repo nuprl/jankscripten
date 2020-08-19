@@ -130,7 +130,6 @@ macro_rules! decl_proj_fns {
         #[no_mangle]
         pub extern "C" fn $to_name<'a>(val: AnyValue) -> $ty {
             if let AnyEnum::$any_name(inner) = *val {
-                log!("giving {}", *val);
                 inner
             } else {
                 log!("cannot unwrap {:?} as {}", *val, stringify!($any_name));

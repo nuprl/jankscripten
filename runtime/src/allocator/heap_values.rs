@@ -78,6 +78,10 @@ pub trait HeapPtr {
     fn get_gc_f64s(&mut self, _heap: &Heap) -> Vec<*mut *const f64> {
         vec![]
     }
+    /// easily cast any heap pointer to an any pointer (provided)
+    fn as_any_ptr<'a>(&self) -> AnyPtr<'a> {
+        unsafe { AnyPtr::new(self.get_ptr()) }
+    }
 }
 
 /// Returns a pointer to the data that follows the tag.

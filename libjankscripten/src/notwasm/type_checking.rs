@@ -1,5 +1,4 @@
 use super::syntax::*;
-use crate::shared::std_lib::get_global_object;
 use im_rc::HashMap;
 use thiserror::Error;
 
@@ -10,14 +9,9 @@ pub struct Env {
 
 impl Env {
     pub fn new() -> Env {
-        let env = get_global_object()
+        let env = super::rt_bindings::get_rt_bindings()
             .into_iter()
-            .map(|(k, v)| (Id::Named(k), super::from_jankyscript::compile_ty(v)))
-            .chain(
-                super::rt_bindings::get_rt_bindings()
-                    .into_iter()
-                    .map(|(k, v)| (Id::Named(k), v)),
-            )
+            .map(|(k, v)| (Id::Named(k), v))
             .collect();
         Env { env }
     }
@@ -408,6 +402,7 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             Ok(Type::F64)
         }
         Atom::Id(id) => lookup(env, id),
+        Atom::GetPrimFunc(id) => lookup(env, id),
         Atom::StringLen(a) => {
             let ty = type_check_atom(env, a)?;
             let _ = ensure("string len", Type::String, ty)?;

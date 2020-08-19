@@ -8,6 +8,7 @@ where
 {
     //label_apps(&mut program);
     //elim_gotos(&mut program);
+    program.merge_in(get_notwasm_rt());
     type_checking::type_check(&mut program).expect("type-checking failed");
     inspect(&program);
     intern(&mut program);

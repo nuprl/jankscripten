@@ -182,6 +182,7 @@ impl Pretty for Atom {
                 Atom::Index(l, r) => pp.concat(vec![l.pretty(pp), r.pretty(pp).brackets()]),
                 Atom::ArrayLen(a) => pp.concat(vec![a.pretty(pp), pp.text(".array_len()")]),
                 Atom::Id(id) => pp.as_string(id),
+                Atom::GetPrimFunc(id) => pp.concat(vec![pp.text("rt"), pp.as_string(id).parens()]),
                 Atom::StringLen(a) => pp.concat(vec![a.pretty(pp), pp.text(".string_len()")]),
                 Atom::Unary(op, a) => pp.concat(vec![op.pretty(pp), a.pretty(pp)]),
                 Atom::Binary(op, l, r) => {

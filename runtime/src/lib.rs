@@ -18,7 +18,6 @@ macro_rules! log {
 
 pub mod any_value;
 pub mod array;
-pub mod global;
 pub mod ht;
 pub mod object;
 pub mod ops;
@@ -44,7 +43,6 @@ pub extern "C" fn init() {
     unsafe {
         HEAP = Some(Heap::new(65535));
     }
-    global::init();
 }
 
 #[no_mangle]
