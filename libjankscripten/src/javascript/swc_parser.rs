@@ -144,3 +144,152 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
         }
     }
 }
+
+fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
+    use swc::Expr::*;
+    match expr {
+        This(this_expr) => {
+            todo!();
+        }
+
+        Array(array_lit) => {
+            todo!();
+        }
+
+        Object(object_lit) => {
+            todo!();
+        }
+
+        Fn(fn_expr) => {
+            todo!();
+        }
+
+        Unary(unary_expr) => {
+            todo!();
+        }
+
+        Update(update_expr) => {
+            todo!();
+        }
+
+        Bin(bin_expr) => {
+            todo!();
+        }
+
+        Assign(assign_expr) => {
+            todo!();
+        }
+
+        Member(member_expr) => {
+            todo!();
+        }
+
+        Cond(cond_expr) => {
+            todo!();
+        }
+
+        Call(call_expr) => {
+            todo!();
+        }
+
+        New(new_expr) => {
+            todo!();
+        }
+
+        Seq(seq_expr) => {
+            todo!();
+        }
+
+        Ident(ident) => {
+            todo!();
+        }
+
+        Lit(lit) => {
+            todo!();
+        }
+
+        Tpl(tpl) => {
+            todo!();
+        }
+
+        TaggedTpl(tagged_tpl) => {
+            todo!();
+        }
+
+        Arrow(arrow_expr) => {
+            todo!();
+        }
+
+        Class(class_expr) => {
+            todo!();
+        }
+
+        Yield(yield_expr) => {
+            todo!();
+        }
+
+        MetaProp(meta_prop_expr) => {
+            todo!();
+        }
+
+        Await(await_expr) => {
+            todo!();
+        }
+
+        Paren(paren_expr) => {
+            todo!();
+        }
+
+        JSXMember(jsx_member_expr) => {
+            todo!();
+        }
+
+        JSXNamespacedName(jsx_namespaced_name) => {
+            todo!();
+        }
+
+        JSXEmpty(jsx_empty) => {
+            todo!();
+        }
+
+        JSXElement(jsx_element) => {
+            todo!();
+        }
+
+        JSXFragment(jsx_fragment) => {
+            todo!();
+        }
+
+        TsTypeAssertion(ts_type_assertion) => {
+            todo!();
+        }
+
+        TsConstAssertion(ts_const_assertion) => {
+            todo!();
+        }
+
+        TsNonNull(ts_non_null_expr) => {
+            todo!();
+        }
+
+        TsTypeCast(ts_type_cast_expr) => {
+            todo!();
+        }
+
+        TsAs(ts_as_expr) => {
+            todo!();
+        }
+
+        PrivateName(private_name) => {
+            todo!();
+        }
+
+        OptChain(opt_chain_expr) => {
+            todo!();
+        }
+
+        Invalid(invalid) => {
+            todo!();
+        }
+    }
+}
