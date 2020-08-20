@@ -131,7 +131,7 @@ pub enum Stmt {
     DoWhile(Box<Stmt>, Box<Expr>),
     For(ForInit, Box<Expr>, Box<Expr>, Box<Stmt>),
     /// `ForIn(true, x, ..)` indicates `for (var x ...`.
-    /// `ForIn(true, x, ..)` indicates `for (x ...`.
+    /// `ForIn(false, x, ..)` indicates `for (x ...`.
     ForIn(bool, Id, Box<Expr>, Box<Stmt>),
     Label(Id, Box<Stmt>),
     Break(Option<Id>),
