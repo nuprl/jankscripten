@@ -27,24 +27,27 @@ pub enum ParseError {
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
+/// Turn errors from swc, the parsing library, into our parse errors
 impl From<swc_ecma_parser::error::Error> for ParseError {
     fn from(e: swc_ecma_parser::error::Error) -> ParseError {
         ParseError::SWC(e)
     }
 }
 
+/// Parse a full JavaScript program from source code into our JavaScript AST.
 pub fn parse(js_code: &str) -> ParseResult<S::Stmt> {
+    // The SourceMap keeps track of all the source files given to the parser.
+    // All sourcespans given to us by the parser library are actually indices
+    // into this source map.
     let source_map: SourceMap = Default::default();
 
-    // Real usage
-    // let fm = cm
-    //     .load_file(Path::new("test.js"))
-    //     .expect("failed to load test.js");
+    // Register our JavaScript file with the source map
     let source_file = source_map.new_source_file(
         FileName::Anon, // TODO(mark): give it the real filename
         js_code.into(),
     );
 
+    // Create a lexer for the parser
     let lexer = lexer::Lexer::new(
         // We want to parse ecmascript
         Syntax::Es(Default::default()),
@@ -54,19 +57,23 @@ pub fn parse(js_code: &str) -> ParseResult<S::Stmt> {
         None,
     );
 
+    // Create the actual parser
     let mut parser = Parser::new_from(lexer);
 
+    // Parse our script into the library's AST
     let script = parser.parse_script()?;
 
-    // return simpl_program(ast);
-
+    // Parse the library's AST into our AST
     parse_script(script, &source_map)
 }
 
+/// A parsing result used for an unsupported feature of JavaScript.
 fn unsupported<T>(span: Span, source_map: &SourceMap) -> Result<T, ParseError> {
     unsupported_message("unsupported feature", span, source_map)
 }
 
+/// A parsing result used for an unsupported feature of JavaScript, with a
+/// customizable message.
 fn unsupported_message<T>(msg: &str, span: Span, source_map: &SourceMap) -> Result<T, ParseError> {
     Err(ParseError::Unsupported(format!(
         "{} at {}",
@@ -75,10 +82,12 @@ fn unsupported_message<T>(msg: &str, span: Span, source_map: &SourceMap) -> Resu
     )))
 }
 
+/// Parse an entire swc script
 fn parse_script(script: swc::Script, source_map: &SourceMap) -> ParseResult<S::Stmt> {
     Ok(S::Stmt::Block(parse_stmts(script.body, source_map)?))
 }
 
+/// Parse multiple swc statements.
 fn parse_stmts(stmts: Vec<swc::Stmt>, source_map: &SourceMap) -> ParseResult<Vec<S::Stmt>> {
     stmts
         .into_iter()
@@ -86,6 +95,7 @@ fn parse_stmts(stmts: Vec<swc::Stmt>, source_map: &SourceMap) -> ParseResult<Vec
         .collect()
 }
 
+/// Parse an swc statement.
 fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
     use swc::Stmt::*;
     match stmt {
@@ -156,10 +166,14 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
             Ok(stmt)
         }
         While(while_stmt) => {
-            todo!();
+            let test = parse_expr(*while_stmt.test, source_map)?;
+            let body = parse_stmt(*while_stmt.body, source_map)?;
+            Ok(while_(test, body))
         }
         DoWhile(do_while_stmt) => {
-            todo!();
+            let body = parse_stmt(*do_while_stmt.body, source_map)?;
+            let test = parse_expr(*do_while_stmt.test, source_map)?;
+            Ok(dowhile_(body, test))
         }
         For(for_stmt) => {
             todo!();
@@ -179,8 +193,8 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
     }
 }
 
-// this function receives and returns Boxed expressions because optional
-// expression are boxed in both the parser and our AST.
+/// Parse an optional swc statement. This function receives Boxed stmts 
+/// because optional stmts are boxed in swc.
 fn parse_opt_stmt(
     opt_stmt: Option<Box<swc::Stmt>>,
     source_map: &SourceMap,
@@ -191,6 +205,7 @@ fn parse_opt_stmt(
     }
 }
 
+/// Parse an swc expression.
 fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
     use swc::Expr::*;
     match expr {
@@ -305,8 +320,9 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
     }
 }
 
-// this function receives and returns Boxed expressions because optional
-// expression are boxed in both the parser and our AST.
+/// Parse an optional expression. This function receives and returns Boxed 
+/// expressions because optional expression are boxed in both the parser and 
+/// our AST.
 fn parse_opt_expr(
     opt_expr: Option<Box<swc::Expr>>,
     source_map: &SourceMap,
@@ -317,11 +333,13 @@ fn parse_opt_expr(
     }
 }
 
+/// Parse an swc block statement.
 fn parse_block(block: swc::BlockStmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
     Ok(S::Stmt::Block(parse_stmts(block.stmts, source_map)?))
 }
 
-// span is the source location of the surrounding expr/stmt
+/// Parse an swc pattern. `span` should be the source location of the 
+/// surrounding expr/stmt. `span` is used for error reporting purposes.
 fn parse_pattern(pattern: swc::Pat, span: Span, source_map: &SourceMap) -> ParseResult<S::Id> {
     use swc::Pat::*;
     match pattern {
