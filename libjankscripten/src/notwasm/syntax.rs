@@ -180,10 +180,7 @@ impl ToAny {
     }
 
     pub fn set_ty(&mut self, ty: Type) {
-        assert!(
-            self.ty.is_none() || self.ty.as_ref() == Some(&ty),
-            "called set_typ twice on ToAny"
-        );
+        assert!(self.ty.is_none(), "called set_typ twice on ToAny");
         self.ty = Some(ty);
     }
 

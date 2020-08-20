@@ -512,10 +512,8 @@ mod test {
             expr_(Expr::PrimCall(
                 RTSFunction::LogAny,
                 vec![
-                    coercion_(
-                        Coercion::Tag(Type::DynObject),
-                        Expr::Id(Id::Named("global".into())),
-                    ),
+                    // mandatory `this` argument
+                    Expr::Lit(Lit::Undefined),
                     coercion_(Coercion::Tag(Type::Float), Expr::Id("b".into())),
                 ],
             )),
