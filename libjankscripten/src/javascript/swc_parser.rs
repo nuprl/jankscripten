@@ -510,7 +510,7 @@ fn parse_var_declarator(
 
 fn parse_switch_case(
     case: swc::SwitchCase,
-    source_map: &SourceMap
+    source_map: &SourceMap,
 ) -> ParseResult<(Option<S::Expr>, S::Stmt)> {
     let test = match case.test {
         None => None,
