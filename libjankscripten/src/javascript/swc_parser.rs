@@ -241,8 +241,95 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
                 parse_stmt(*for_stmt.body, source_map)?,
             ))
         }
-        ForIn(for_in_stmt) => {
-            todo!();
+        ForIn(swc::ForInStmt {
+            left,
+            right,
+            body,
+            span,
+        }) => {
+            // figure out if we're declaring a variable as part of this for in,
+            // or if we're reusing an already-bound identifier. if it's neither
+            // of these, we don't support it.
+            let (is_var, id) = match left {
+                // re-using an already-bound identifier
+                swc::VarDeclOrPat::Pat(swc::Pat::Ident(ident)) => (false, ident),
+                swc::VarDeclOrPat::Pat(swc::Pat::Expr(boxed_expr)) => {
+                    // nested match because you can't match inside boxes without
+                    // nightly rust
+                    match *boxed_expr {
+                        swc::Expr::Ident(ident) => (false, ident),
+                        other => {
+                            return unsupported_message(
+                                "unsupported expression in a for-in loop declaration",
+                                span,
+                                source_map,
+                            );
+                        }
+                    }
+                }
+
+                // var case
+                swc::VarDeclOrPat::VarDecl(decl) => {
+                    // a few conditions have to be met for this to be a
+                    // var decl we support.
+
+                    // 1. it has to be a `var`, not a `let`
+                    if decl.kind != swc::VarDeclKind::Var {
+                        return unsupported_message(
+                            "only var-declared variables are supported",
+                            decl.span,
+                            source_map,
+                        );
+                    }
+
+                    // 2. only one declaration is allowed
+                    if decl.decls.len() != 1 {
+                        return unsupported_message(
+                            "only 1 declaration is allowed",
+                            decl.span,
+                            source_map,
+                        );
+                    }
+
+                    // 3. it can't initialize the var with a default value
+                    if let Some(_) = decl.decls[0].init {
+                        return unsupported_message(
+                            "variable can't have initialization",
+                            decl.span,
+                            source_map,
+                        );
+                    }
+
+                    // 4. the variable declaration has to be an identifier,
+                    //    with no syntactic sugar for destructuring or anything
+                    if let swc::Pat::Ident(ident) = decl.decls[0].name {
+                        // we're all set
+                        (true, ident)
+                    } else {
+                        return unsupported_message(
+                            "only simple identifiers can be declared",
+                            decl.span,
+                            source_map,
+                        );
+                    }
+                }
+
+                // The program may pattern match on the index, which we do not support.
+                other => {
+                    return unsupported_message(
+                        &format!("unsupported index in a for-in loop: {:?}", other),
+                        span,
+                        source_map,
+                    );
+                }
+            };
+
+            Ok(forin_(
+                is_var,
+                id,
+                parse_expr(*right, source_map)?,
+                parse_stmt(*body, source_map)?,
+            ))
         }
         ForOf(for_of_stmt) => {
             todo!();
