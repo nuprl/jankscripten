@@ -82,6 +82,12 @@ fn unsupported_message<T>(msg: &str, span: Span, source_map: &SourceMap) -> Resu
     )))
 }
 
+impl From<swc::Ident> for S::Id {
+    fn from(ident: swc::Ident) -> S::Id {
+        S::Id::Named(ident.sym.to_string())
+    }
+}
+
 /// Parse an entire swc script
 fn parse_script(script: swc::Script, source_map: &SourceMap) -> ParseResult<S::Stmt> {
     Ok(S::Stmt::Block(parse_stmts(script.body, source_map)?))
@@ -111,7 +117,7 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
             todo!();
         }
         Break(break_stmt) => {
-            todo!();
+            Ok(break_(break_stmt.label))
         }
         Continue(continue_stmt) => {
             todo!();
@@ -344,9 +350,9 @@ fn parse_pattern(pattern: swc::Pat, span: Span, source_map: &SourceMap) -> Parse
     use swc::Pat::*;
     match pattern {
         Ident(ident) => {
-            Ok(S::Id::Named(ident.sym.to_string()))
-            // Ok(ident.name.into()),
+            Ok(ident)
         }
         _ => unsupported(span, source_map),
     }
 }
+
