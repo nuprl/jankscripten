@@ -21,8 +21,9 @@ impl Visitor for ThisParameter<'_> {
                     *obj = Box::new(id_(obj_name.clone()));
                     args.insert(0, id_(obj_name));
                 }
-                // for the rest, we'll hand the global object
-                _ => args.insert(0, id_(Id::Named("global".to_string()))),
+                // for the rest, we'll hand undefined. all our benchmarks
+                // play nice with "use strict";
+                _ => args.insert(0, UNDEFINED_),
             },
             Expr::New(closure, args) => {
                 // new MyFunc() => var fresh = Object.create({}), MyFunc(fresh), fresh

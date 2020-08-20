@@ -523,14 +523,12 @@ mod test {
     fn desugar_this() {
         okay(
             "
-            var x = 3;
             function get_this_x() {
                 return this.x;
             }
             var obj = { x: 5, get_this_x: get_this_x };
             var five = obj.get_this_x();
-            var three = get_this_x();
-            five + three;",
+            five;",
         );
     }
 }
