@@ -269,50 +269,20 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
                 }
 
                 // var case
-                swc::VarDeclOrPat::VarDecl(decl) => {
-                    // a few conditions have to be met for this to be a
-                    // var decl we support.
-
-                    // 1. it has to be a `var`, not a `let`
-                    if decl.kind != swc::VarDeclKind::Var {
-                        return unsupported_message(
-                            "only var-declared variables are supported",
-                            decl.span,
-                            source_map,
-                        );
-                    }
-
-                    // 2. only one declaration is allowed
-                    if decl.decls.len() != 1 {
-                        return unsupported_message(
-                            "only 1 declaration is allowed",
-                            decl.span,
-                            source_map,
-                        );
-                    }
-
-                    // 3. it can't initialize the var with a default value
-                    if let Some(_) = decl.decls[0].init {
-                        return unsupported_message(
-                            "variable can't have initialization",
-                            decl.span,
-                            source_map,
-                        );
-                    }
-
-                    // 4. the variable declaration has to be an identifier,
-                    //    with no syntactic sugar for destructuring or anything
-                    if let swc::Pat::Ident(ident) = decl.decls[0].name {
-                        // we're all set
-                        (true, ident)
-                    } else {
-                        return unsupported_message(
-                            "only simple identifiers can be declared",
-                            decl.span,
-                            source_map,
-                        );
-                    }
-                }
+                swc::VarDeclOrPat::VarDecl(swc::VarDecl {
+                    span,
+                    kind: swc::VarDeclKind::Var, // no `let`
+                    declare: _,
+                    decls,
+                }) => match decls[..] {
+                    // a single decl
+                    [swc::VarDeclarator {
+                        span: _,
+                        init: None,                   // no initializer
+                        name: swc::Pat::Ident(ident), // no obj destructuring
+                        definite: _,
+                    }] => (true, ident),
+                },
 
                 // The program may pattern match on the index, which we do not support.
                 other => {
