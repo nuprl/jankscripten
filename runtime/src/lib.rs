@@ -23,9 +23,11 @@ pub mod object;
 pub mod ops;
 pub mod r#ref; // Rust raw identifier syntax
 pub mod string;
-mod util;
 
 mod allocator;
+mod coercions;
+mod util;
+
 use crate::allocator::Tag;
 use allocator::*;
 use any_value::AnyEnum;

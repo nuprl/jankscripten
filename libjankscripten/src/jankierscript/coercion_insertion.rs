@@ -109,17 +109,45 @@ fn binop_overload(op: &BinOp, lhs_ty: &Type, rhs_ty: &Type) -> TypeOverload {
         (BinOp::Plus, Float, Int) => prim_same(BinaryOp::F64Add, Float),
         (BinOp::Plus, Int, Float) => prim_same(BinaryOp::F64Add, Float),
         (BinOp::Plus, _, _) if anyish => rts(RTSFunction::Plus, Any),
+        (BinOp::Minus, Int, Int) => prim_same(BinaryOp::I32Sub, Int),
+        (BinOp::Minus, _, _) if anyish => rts(RTSFunction::Minus, Any),
+        (BinOp::Minus, _, _) => prim_same(BinaryOp::F64Sub, Float),
+        // TODO(luna): string ordering is a thing, but is it used?
         (BinOp::LessThan, Int, Int) => prim(BinaryOp::I32LT, Int, Int, Bool),
         (BinOp::LessThan, _, _) => prim(BinaryOp::F64LT, Float, Float, Bool),
-        (BinOp::Over, Int, Int) => prim_same(BinaryOp::I32Div, Int),
+        (BinOp::LessThanEqual, Int, Int) => prim(BinaryOp::I32Le, Int, Int, Bool),
+        (BinOp::LessThanEqual, _, _) => prim(BinaryOp::F64Le, Float, Float, Bool),
+        (BinOp::GreaterThan, Int, Int) => prim(BinaryOp::I32GT, Int, Int, Bool),
+        (BinOp::GreaterThan, _, _) => prim(BinaryOp::F64GT, Float, Float, Bool),
+        (BinOp::GreaterThanEqual, Int, Int) => prim(BinaryOp::I32Ge, Int, Int, Bool),
+        (BinOp::GreaterThanEqual, _, _) => prim(BinaryOp::F64Ge, Float, Float, Bool),
+        (BinOp::Times, Int, Int) => prim_same(BinaryOp::I32Mul, Int),
+        (BinOp::Times, _, _) if anyish => rts(RTSFunction::Times, Any),
+        (BinOp::Times, _, _) => prim_same(BinaryOp::F64Mul, Float),
         (BinOp::Over, _, _) if anyish => rts(RTSFunction::Over, Float),
         (BinOp::Over, _, _) => prim_same(BinaryOp::F64Div, Float),
         (BinOp::Mod, Int, Int) => prim_same(BinaryOp::I32Rem, Int),
         (BinOp::Mod, _, _) if anyish => rts(RTSFunction::Mod, Any),
         (BinOp::Mod, _, _) => rts(RTSFunction::ModF64, Float),
-        (BinOp::Equal, Float, Float) => prim(BinaryOp::F64Eq, Float, Float, Bool),
-        (BinOp::Equal, Int, Int) => prim(BinaryOp::I32Eq, Int, Int, Bool),
+        (BinOp::Equal, Float, Float) | (BinOp::StrictEqual, Float, Float) => {
+            prim(BinaryOp::F64Eq, Float, Float, Bool)
+        }
+        (BinOp::Equal, Int, Int) | (BinOp::StrictEqual, Int, Int) => {
+            prim(BinaryOp::I32Eq, Int, Int, Bool)
+        }
         (BinOp::Equal, _, _) => rts(RTSFunction::Equal, Bool),
+        (BinOp::StrictEqual, _, _) => rts(RTSFunction::StrictEqual, Bool),
+        (BinOp::StrictNotEqual, Float, Float) | (BinOp::NotEqual, Float, Float) => {
+            prim(BinaryOp::F64Ne, Float, Float, Bool)
+        }
+        (BinOp::StrictNotEqual, Int, Int) | (BinOp::NotEqual, Int, Int) => {
+            prim(BinaryOp::I32Ne, Int, Int, Bool)
+        }
+        (BinOp::NotEqual, _, _) => rts(RTSFunction::NotEqual, Bool),
+        (BinOp::StrictNotEqual, _, _) => rts(RTSFunction::StrictNotEqual, Bool),
+        (BinOp::Or, _, _) => prim_same(BinaryOp::I32Or, Int),
+        (BinOp::LeftShift, _, _) => prim_same(BinaryOp::I32Shl, Int),
+        (BinOp::RightShift, _, _) => prim_same(BinaryOp::I32Shr, Int),
         (_, _, _) => (
             Overload::RTS(RTSFunction::Todo(Box::leak(Box::new(format!(
                 "unimplemented binop {:?} {:?} {:?}",
@@ -394,8 +422,11 @@ impl InsertCoercions {
                     (UnaryOp::Plus, Type::Int) => Ok((coerced_e, e_ty)),
                     (UnaryOp::Plus, _) => Ok((
                         Janky::Expr::PrimCall(
-                            RTSFunction::Todo("+"),
-                            vec![self.coerce(coerced_e, e_ty, Type::Any)],
+                            RTSFunction::Plus,
+                            vec![
+                                Janky::Expr::Lit(Janky::Lit::Num(Janky::Num::Int(0))),
+                                self.coerce(coerced_e, e_ty, Type::Any),
+                            ],
                         ),
                         Type::Any,
                     )),
@@ -415,28 +446,31 @@ impl InsertCoercions {
                     )),
                     (UnaryOp::Minus, _) => Ok((
                         Janky::Expr::PrimCall(
-                            RTSFunction::Todo("-"),
-                            vec![self.coerce(coerced_e, e_ty, Type::Any)],
+                            RTSFunction::Minus,
+                            vec![
+                                Janky::Expr::Lit(Janky::Lit::Num(Janky::Num::Int(0))),
+                                self.coerce(coerced_e, e_ty, Type::Any),
+                            ],
                         ),
                         Type::Any,
                     )),
                     (UnaryOp::Not, _) => Ok((
-                        Janky::Expr::PrimCall(
-                            RTSFunction::Todo("!"),
-                            vec![self.coerce(coerced_e, e_ty, Type::Any)],
+                        Janky::Expr::Unary(
+                            NotWasm::UnaryOp::Eqz,
+                            Box::new(self.coerce(coerced_e, e_ty, Type::Bool)),
                         ),
-                        Type::Any,
+                        Type::Bool,
                     )),
                     (UnaryOp::TypeOf, _) => Ok((
                         Janky::Expr::PrimCall(
-                            RTSFunction::Todo("typeof"),
+                            RTSFunction::Typeof,
                             vec![self.coerce(coerced_e, e_ty, Type::Any)],
                         ),
                         Type::Any,
                     )),
                     (UnaryOp::Void, _) => Ok((
                         Janky::Expr::PrimCall(
-                            RTSFunction::Todo("void"),
+                            RTSFunction::Void,
                             vec![self.coerce(coerced_e, e_ty, Type::Any)],
                         ),
                         Type::Any,

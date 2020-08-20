@@ -460,32 +460,41 @@ impl<'a> Translate<'a> {
     }
 
     fn translate_binop(&mut self, op: &N::BinaryOp) {
+        use N::BinaryOp as NO;
         match op {
-            N::BinaryOp::PtrEq => self.out.push(I32Eq),
-            N::BinaryOp::I32Eq => self.out.push(I32Eq),
-            N::BinaryOp::I32Add => self.out.push(I32Add),
-            N::BinaryOp::I32Sub => self.out.push(I32Sub),
-            N::BinaryOp::I32GT => self.out.push(I32GtS),
-            N::BinaryOp::I32LT => self.out.push(I32LtS),
-            N::BinaryOp::I32Ge => self.out.push(I32GeS),
-            N::BinaryOp::I32Le => self.out.push(I32LeS),
-            N::BinaryOp::I32Mul => self.out.push(I32Mul),
-            N::BinaryOp::I32Div => self.out.push(I32DivS),
-            N::BinaryOp::I32Rem => self.out.push(I32RemS),
-            N::BinaryOp::I32And => self.out.push(I32And),
-            N::BinaryOp::I32Or => self.out.push(I32Or),
-            N::BinaryOp::F64Add => self.out.push(F64Add),
-            N::BinaryOp::F64Sub => self.out.push(F64Sub),
-            N::BinaryOp::F64Mul => self.out.push(F64Mul),
-            N::BinaryOp::F64Div => self.out.push(F64Div),
-            N::BinaryOp::F64LT => self.out.push(F64Lt),
-            N::BinaryOp::F64Eq => self.out.push(F64Eq),
+            NO::PtrEq => self.out.push(I32Eq),
+            NO::I32Eq => self.out.push(I32Eq),
+            NO::I32Ne => self.out.push(I32Ne),
+            NO::I32Add => self.out.push(I32Add),
+            NO::I32Sub => self.out.push(I32Sub),
+            NO::I32GT => self.out.push(I32GtS),
+            NO::I32LT => self.out.push(I32LtS),
+            NO::I32Ge => self.out.push(I32GeS),
+            NO::I32Le => self.out.push(I32LeS),
+            NO::I32Mul => self.out.push(I32Mul),
+            NO::I32Div => self.out.push(I32DivS),
+            NO::I32Rem => self.out.push(I32RemS),
+            NO::I32And => self.out.push(I32And),
+            NO::I32Or => self.out.push(I32Or),
+            NO::I32Shl => self.out.push(I32Shl),
+            NO::I32Shr => self.out.push(I32ShrS),
+            NO::F64Add => self.out.push(F64Add),
+            NO::F64Sub => self.out.push(F64Sub),
+            NO::F64Mul => self.out.push(F64Mul),
+            NO::F64Div => self.out.push(F64Div),
+            NO::F64LT => self.out.push(F64Lt),
+            NO::F64GT => self.out.push(F64Gt),
+            NO::F64Le => self.out.push(F64Le),
+            NO::F64Ge => self.out.push(F64Ge),
+            NO::F64Eq => self.out.push(F64Eq),
+            NO::F64Ne => self.out.push(F64Ne),
         }
     }
     fn translate_unop(&mut self, op: &N::UnaryOp) {
         match op {
             N::UnaryOp::Sqrt => self.out.push(F64Sqrt),
             N::UnaryOp::Neg => self.out.push(F64Neg),
+            N::UnaryOp::Eqz => self.out.push(I32Eqz),
         }
     }
 

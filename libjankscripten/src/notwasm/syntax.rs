@@ -85,27 +85,36 @@ pub struct FnType {
 /// Binary operators that correspond to primitive WebAssembly instructions.
 /// Other than `PtrEq`, none of these operators can be applied to `Any`-typed
 /// values.
+///
+/// Note that all I32s are signed in jankyscript
 #[derive(Clone, Debug, PartialEq)]
 pub enum BinaryOp {
     PtrEq,
     I32Eq,
+    I32Ne,
     I32Add,
     I32Sub,
     I32Mul,
     I32Div,
     I32Rem,
-    I32GT, // signed
-    I32LT, // signed
-    I32Ge, // signed
-    I32Le, // signed
+    I32GT,
+    I32LT,
+    I32Ge,
+    I32Le,
     I32And,
     I32Or,
+    I32Shl,
+    I32Shr,
     F64Add,
     F64Sub,
     F64Mul,
     F64Div,
     F64Eq,
+    F64Ne,
     F64LT,
+    F64Le,
+    F64GT,
+    F64Ge,
 }
 
 impl BinaryOp {
@@ -122,6 +131,7 @@ impl BinaryOp {
 pub enum UnaryOp {
     Sqrt,
     Neg,
+    Eqz,
 }
 
 impl UnaryOp {

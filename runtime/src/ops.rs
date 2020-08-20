@@ -1,37 +1,8 @@
 //! janky ops: see libjankscripten/rts_function.rs
 
-use super::any_value::*;
-use super::string::*;
-
-type Any = AnyValue;
-
-fn i32s_or_as_f64s<T, F, I>(a: Any, b: Any, floats: F, ints: I) -> Option<T>
-where
-    F: FnOnce(f64, f64) -> T,
-    I: FnOnce(i32, i32) -> T,
-{
-    match (*a, *b) {
-        (AnyEnum::F64(a), AnyEnum::F64(b)) => Some(floats(unsafe { *a }, unsafe { *b })),
-        (AnyEnum::I32(a), AnyEnum::F64(b)) => Some(floats(a as f64, unsafe { *b })),
-        (AnyEnum::F64(a), AnyEnum::I32(b)) => Some(floats(unsafe { *a }, b as f64)),
-        (AnyEnum::I32(a), AnyEnum::I32(b)) => Some(ints(a, b)),
-        _ => None,
-    }
-}
-
-fn i32s_or_as_f64s_any(
-    a: Any,
-    b: Any,
-    floats: fn(f64, f64) -> f64,
-    ints: fn(i32, i32) -> i32,
-) -> Option<Any> {
-    i32s_or_as_f64s(
-        a,
-        b,
-        |a, b| f64_to_any(floats(a, b)),
-        |a, b| any_from_i32(ints(a, b)),
-    )
-}
+use crate::any_value::{AnyValue as Any, *};
+use crate::coercions::*;
+use crate::string::*;
 
 #[no_mangle]
 pub extern "C" fn janky_plus(a: Any, b: Any) -> Any {
@@ -43,6 +14,14 @@ pub extern "C" fn janky_plus(a: Any, b: Any) -> Any {
         // TODO(luna): these panics in this file should be exceptions, when we support those
         panic!("unsupported for +: {:?}, {:?}", a, b)
     }
+}
+#[no_mangle]
+pub extern "C" fn janky_minus(a: Any, b: Any) -> Any {
+    i32s_or_as_f64s_any(a, b, |a, b| a - b, |a, b| a - b).expect("unsupported for -")
+}
+#[no_mangle]
+pub extern "C" fn janky_times(a: Any, b: Any) -> Any {
+    i32s_or_as_f64s_any(a, b, |a, b| a * b, |a, b| a * b).expect("unsupported for *")
 }
 #[no_mangle]
 pub extern "C" fn janky_over(a: Any, b: Any) -> f64 {
@@ -57,8 +36,20 @@ pub extern "C" fn janky_mod_f64(a: f64, b: f64) -> f64 {
     a % b
 }
 #[no_mangle]
-pub extern "C" fn janky_equal(a: Any, b: Any) -> bool {
+pub extern "C" fn janky_strict_equal(a: Any, b: Any) -> bool {
     a == b
+}
+#[no_mangle]
+pub extern "C" fn janky_equal(a: Any, b: Any) -> bool {
+    abstract_eq(*a, *b)
+}
+#[no_mangle]
+pub extern "C" fn janky_strict_not_equal(a: Any, b: Any) -> bool {
+    a != b
+}
+#[no_mangle]
+pub extern "C" fn janky_not_equal(a: Any, b: Any) -> bool {
+    !abstract_eq(*a, *b)
 }
 #[no_mangle]
 pub extern "C" fn janky_typeof(a: Any) -> StrPtr {
@@ -67,6 +58,10 @@ pub extern "C" fn janky_typeof(a: Any) -> StrPtr {
 #[no_mangle]
 pub extern "C" fn janky_delete(_a: Any, _b: Any) -> bool {
     todo!()
+}
+#[no_mangle]
+pub extern "C" fn janky_void(_: Any) -> Any {
+    AnyEnum::Undefined.into()
 }
 
 fn typeof_as_str(a: Any) -> &'static str {
