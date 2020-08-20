@@ -349,9 +349,7 @@ fn parse_block(block: swc::BlockStmt, source_map: &SourceMap) -> ParseResult<S::
 fn parse_pattern(pattern: swc::Pat, span: Span, source_map: &SourceMap) -> ParseResult<S::Id> {
     use swc::Pat::*;
     match pattern {
-        Ident(ident) => {
-            Ok(ident)
-        }
+        Ident(ident) => Ok(S::Id::from(ident)),
         _ => unsupported(span, source_map),
     }
 }
