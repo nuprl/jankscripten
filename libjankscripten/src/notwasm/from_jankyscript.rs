@@ -302,14 +302,14 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             C::a(move |s, a| cxt.recv_a(s, coercion_to_expr(coercion, a))),
         ),
         J::Expr::Id(x) => cxt.recv_a(s, Atom::Id(x)),
-        J::Expr::Func(ret_ty, args_tys, body) => {
-            let (param_names, param_tys): (Vec<_>, Vec<_>) = args_tys.into_iter().unzip();
+        J::Expr::Func(f) => {
+            let (param_names, param_tys): (Vec<_>, Vec<_>) = f.args_with_typs.into_iter().unzip();
             let function = Function {
-                body: Stmt::Block(compile_stmt(s, *body).into_iter().collect()),
+                body: Stmt::Block(compile_stmt(s, *f.body).into_iter().collect()),
                 params: param_names,
                 fn_type: FnType {
                     args: param_tys.into_iter().map(|t| compile_ty(t)).collect(),
-                    result: Some(Box::new(compile_ty(ret_ty))),
+                    result: Some(Box::new(compile_ty(f.result_typ))),
                 },
             };
             let f = s.fresh();

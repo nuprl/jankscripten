@@ -3,6 +3,7 @@
 use crate::rts_function::RTSFunction;
 pub use crate::shared::coercions::Coercion;
 pub use crate::shared::types::Type;
+use im_rc::HashSet as ImmHashSet;
 
 pub type Id = super::super::javascript::Id;
 pub type Lit = super::super::javascript::Lit;
@@ -53,6 +54,35 @@ pub enum LValue {
 }
 
 #[derive(Debug)]
+pub struct Func {
+    pub result_typ: Type,
+    pub args_with_typs: Vec<(Id, Type)>,
+    pub body: Box<Stmt>,
+    pub free_vars: ImmHashSet<Id>,
+}
+
+impl Func {
+    pub fn new(args_with_typs: Vec<(Id, Type)>, result_typ: Type, body: Stmt) -> Self {
+        let body = Box::new(body);
+        let free_vars = ImmHashSet::new();
+        Func {
+            args_with_typs,
+            result_typ,
+            body,
+            free_vars,
+        }
+    }
+
+    pub fn arg_typs(&self) -> impl Iterator<Item = &Type> {
+        self.args_with_typs.iter().map(|(_, t)| t)
+    }
+
+    pub fn arg_names(&self) -> impl Iterator<Item = &Id> {
+        self.args_with_typs.iter().map(|(x, _)| x)
+    }
+}
+
+#[derive(Debug)]
 pub enum Expr {
     Lit(Lit),
     Array(Vec<Expr>),
@@ -65,7 +95,7 @@ pub enum Expr {
     Assign(Box<LValue>, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
     PrimCall(RTSFunction, Vec<Expr>),
-    Func(Type, Vec<(Id, Type)>, Box<Stmt>),
+    Func(Func),
     Coercion(Coercion, Box<Expr>),
 }
 

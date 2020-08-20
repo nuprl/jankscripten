@@ -99,6 +99,16 @@ const visitor: TraverseOptions = {
             path.replaceWith(qCall('checkPlatypus', [qLoc(path.node.loc), path.node.object, property, isCalled]));
         }
     },
+    TryStatement: {
+        exit(path) {
+            if (path.node.loc === null) {
+                return;
+            }
+            if (path.node.handler !== null) {
+                path.node.handler.body.body.unshift(t.expressionStatement(qCall('checkException', [qLoc(path.node.loc)])));
+            }
+        }
+    }
 };
 
 // t.isLVal actually returns true for anything that *can* be an LVal

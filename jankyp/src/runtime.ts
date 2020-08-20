@@ -10,6 +10,8 @@ const expectedNumber: BadBehavior = new Map();
 
 const platypusTypes: BadBehavior = new Map();
 
+const exceptions: BadBehavior = new Map();
+
 function record(theMap: BadBehavior, location: string, message: string) {
     let existingMessages = theMap.get(location);
     if (existingMessages === undefined) {
@@ -86,9 +88,14 @@ export function checkPlatypus(loc: string, obj: any, property: any, isCalled: bo
     return rv;
 }
 
+export function checkException(loc: string) {
+    record(exceptions, loc, `exception`);
+}
+
 process.on('beforeExit', () => {
     console.error(badArityBehavior);
     console.error(badOperands);
     console.error(expectedNumber);
     console.error(platypusTypes);
+    console.error(exceptions);
 });

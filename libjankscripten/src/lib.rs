@@ -13,7 +13,6 @@ extern crate combine;
 
 pub fn javascript_to_wasm<F, G>(
     js_code: &str,
-    typecheck: bool,
     inspect_janky: F,
     inspect_notwasm: G,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>>
@@ -25,11 +24,9 @@ where
     let mut ng = javascript::NameGen::default();
     javascript::desugar(&mut js_ast, &mut ng);
     let jankier_ast = jankierscript::from_javascript(js_ast);
-    let janky_ast = jankierscript::insert_coercions(jankier_ast)?;
+    let mut janky_ast = jankierscript::insert_coercions(jankier_ast)?;
     inspect_janky(&janky_ast);
-    if typecheck {
-        jankyscript::type_checking::type_check(&janky_ast)?;
-    }
+    jankyscript::type_checking::type_check(&mut janky_ast)?;
     let notwasm_ast = notwasm::from_jankyscript(janky_ast);
     let wasm_bin = notwasm::compile(notwasm_ast, inspect_notwasm)?;
     Ok(wasm_bin)

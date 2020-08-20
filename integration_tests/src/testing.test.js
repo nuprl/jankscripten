@@ -12,7 +12,7 @@ function makeTest(filename) {
     
         // Use -j for jankyscript output
         // Use -n for notwasm output
-        cp.execSync(`../bin/jankscripten compile --typecheck -n -o ${wasmPath} ${jsPath}`,
+        cp.execSync(`../bin/jankscripten compile -o ${wasmPath} ${jsPath}`,
             { stdio: 'inherit' });
 
         let output;

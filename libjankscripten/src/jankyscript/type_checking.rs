@@ -124,7 +124,11 @@ fn lookup(env: &Env, id: &Id) -> TypeCheckingResult<Type> {
 }
 
 // type check an entire program.
-pub fn type_check(stmt: &Stmt) -> TypeCheckingResult<()> {
+pub fn type_check(stmt: &mut Stmt) -> TypeCheckingResult<()> {
+    // NOTE(arjun): This is a somewhat odd place to call free_variables. However, I think we should
+    // have a function in the jankyscript submodule that does all the "necessary" stuff to the
+    // program, including type-checking and annotating the program with free variables.
+    let _fvs = super::fv::free_vars(stmt);
     match type_check_stmt(
         stmt,
         get_global_object()
@@ -268,17 +272,17 @@ fn type_check_fun_call(
 
 fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
     match expr {
-        Expr::Func(return_type, args, body) => {
+        Expr::Func(f) => {
             // type check body under assumption that args have the specified
             // types
             let mut function_env = env.clone();
-            function_env.extend(args.clone().into_iter());
+            function_env.extend(f.args_with_typs.clone().into_iter());
 
-            type_check_stmt(&body, function_env, &Some(return_type.clone()))?;
+            type_check_stmt(&f.body, function_env, &Some(f.result_typ.clone()))?;
 
             Ok(Type::Function(
-                args.into_iter().map(|(_, ty)| ty.clone()).collect(),
-                Box::new(return_type.clone()),
+                f.arg_typs().cloned().collect(),
+                Box::new(f.result_typ.clone()),
             ))
         }
         Expr::Assign(lval, rval) => {

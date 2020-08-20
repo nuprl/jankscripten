@@ -14,11 +14,6 @@ struct Compile {
 
     #[clap(short, long)]
     notwasm_dump: bool,
-
-    /// Typecheck the intermediate JankyScript program to ensure coercions
-    /// are inserted correctly.
-    #[clap(short, long)]
-    typecheck: bool,
 }
 
 #[derive(Clap)]
@@ -89,7 +84,6 @@ fn compile(opts: Compile) {
             let js_code = read_file(input_path);
             let wasm_bin = libjankscripten::javascript_to_wasm(
                 &js_code,
-                opts.typecheck,
                 |janky| {
                     if opts.jankyscript_dump {
                         eprintln!("{}", janky);

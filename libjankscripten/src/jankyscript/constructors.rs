@@ -10,6 +10,10 @@ pub fn num_(n: Num) -> Lit {
 
 // Expressions
 
+pub fn func(args_with_typs: Vec<(Id, Type)>, result_typ: Type, body: Stmt) -> Expr {
+    Expr::Func(Func::new(args_with_typs, result_typ, body))
+}
+
 pub fn lit_(l: Lit) -> Expr {
     Expr::Lit(l)
 }
