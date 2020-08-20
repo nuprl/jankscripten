@@ -10,7 +10,7 @@ struct ThisParameter<'a> {
 impl Visitor for ThisParameter<'_> {
     fn exit_expr(&mut self, expr: &mut Expr, loc: &Loc) {
         match expr {
-            Expr::Call(closure, args) => match &mut **closure {
+            Expr::Call(f, args) => match &mut **f {
                 // only syntactically immediate bracket/dot preserves the
                 // object as `this`
                 Expr::Bracket(obj, _) | Expr::Dot(obj, _) => {
@@ -25,7 +25,7 @@ impl Visitor for ThisParameter<'_> {
                 // play nice with "use strict";
                 _ => args.insert(0, UNDEFINED_),
             },
-            Expr::New(closure, args) => {
+            Expr::New(f, args) => {
                 // new MyFunc() => var fresh = Object.create({}), MyFunc(fresh), fresh
                 let cxt = loc.enclosing_block().unwrap();
                 let obj_name = self.ng.fresh("new");
@@ -33,7 +33,7 @@ impl Visitor for ThisParameter<'_> {
                 let new_obj = call_(dot_(id_("Object"), "create"), vec![Expr::Object(vec![])]);
                 cxt.insert(cxt.index, vardecl1_(obj_name.clone(), new_obj));
                 args.insert(0, id_(obj_name.clone()));
-                let new_call = call_(closure.take(), std::mem::replace(args, vec![]));
+                let new_call = call_(f.take(), std::mem::replace(args, vec![]));
                 cxt.insert(cxt.index, expr_(new_call));
                 *expr = id_(obj_name);
             }

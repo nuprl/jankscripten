@@ -87,7 +87,6 @@ pub enum Context<'a> {
     /// that allow the visitor to add statements to the block.
     Block(&'a BlockContext),
     VarDeclRhs,
-    ClosureOfCall,
     Switch,
     Loop,
     /// Within the context of a statement of an unknown kind.
@@ -280,11 +279,10 @@ where
             }
             // 1xExpr, 1x[Expr]
             New(e, es) | Call(e, es) => {
-                let expr_loc = Loc::Node(Context::Expr, loc);
-                let func_loc = Loc::Node(Context::ClosureOfCall, loc);
-                self.walk_expr(e, &func_loc);
+                let loc = Loc::Node(Context::Expr, loc);
+                self.walk_expr(e, &loc);
                 for e in es {
-                    self.walk_expr(e, &expr_loc);
+                    self.walk_expr(e, &loc);
                 }
             }
             // 2xExpr
