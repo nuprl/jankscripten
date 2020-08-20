@@ -113,13 +113,12 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
         Debugger(debugger_stmt) => unsupported(debugger_stmt.span, source_map),
         With(with_stmt) => unsupported(with_stmt.span, source_map),
         Return(return_stmt) => Ok(return_(parse_opt_expr(return_stmt.arg, source_map)?)),
-        Labeled(labeled_stmt) => {
-            todo!();
-        }
+        Labeled(labeled_stmt) => Ok(label_(
+            labeled_stmt.label,
+            parse_stmt(*labeled_stmt.body, source_map)?,
+        )),
         Break(break_stmt) => Ok(break_(break_stmt.label)),
-        Continue(continue_stmt) => {
-            todo!();
-        }
+        Continue(continue_stmt) => Ok(continue_(continue_stmt.label)),
         If(if_stmt) => {
             // test
             let cond_expr = parse_expr(*if_stmt.test, source_map)?;
@@ -180,7 +179,37 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
             Ok(dowhile_(body, test))
         }
         For(for_stmt) => {
-            todo!();
+            let init = match for_stmt.init {
+                None => S::ForInit::Expr(Box::new(UNDEFINED_)),
+                Some(swc::VarDeclOrExpr::Expr(e)) => {
+                    S::ForInit::Expr(Box::new(parse_expr(*e, source_map)?))
+                }
+                Some(swc::VarDeclOrExpr::VarDecl(swc::VarDecl {
+                    span,
+                    kind,
+                    declare,
+                    decls,
+                })) => {
+                    if kind != swc::VarDeclKind::Var {
+                        return unsupported_message(
+                            "only var-declared variables are supported",
+                            span,
+                            source_map,
+                        );
+                    }
+                    let decls: ParseResult<Vec<_>> = decls
+                        .into_iter()
+                        .map(|d| parse_var_declarator(d, source_map))
+                        .collect();
+                    S::ForInit::Decl(decls?)
+                }
+            };
+            Ok(for_(
+                init,
+                parse_opt_expr(for_stmt.test, source_map)?,
+                parse_opt_expr(for_stmt.update, source_map)?,
+                parse_stmt(*for_stmt.body, source_map)?,
+            ))
         }
         ForIn(for_in_stmt) => {
             todo!();
@@ -350,4 +379,14 @@ fn parse_pattern(pattern: swc::Pat, span: Span, source_map: &SourceMap) -> Parse
         Ident(ident) => Ok(S::Id::from(ident)),
         _ => unsupported(span, source_map),
     }
+}
+
+fn parse_var_declarator(
+    var_decl: swc::VarDeclarator,
+    source_map: &SourceMap,
+) -> ParseResult<S::VarDecl> {
+    Ok(S::VarDecl {
+        name: parse_pattern(var_decl.name, var_decl.span, source_map)?,
+        named: Box::new(parse_opt_expr(var_decl.init, source_map)?),
+    })
 }
