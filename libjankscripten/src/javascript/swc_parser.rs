@@ -131,8 +131,38 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
 
             Ok(if_(cond_expr, then_stmt, else_stmt))
         }
-        Switch(switch_stmt) => {
-            todo!();
+        Switch(swc::SwitchStmt {
+            discriminant,
+            cases,
+            span,
+        }) => {
+            // parse cases
+            let cases: Result<Vec<_>, _> = cases
+                .into_iter()
+                .map(|c| parse_switch_case(c, source_map))
+                .collect();
+
+            // partition cases into two groups:
+            // 1. regular cases
+            // 2. default cases (should only be one)
+            let (cases, mut default_case) = cases?
+                .into_iter()
+                .partition::<Vec<_>, _>(|(test, _)| test.is_some());
+
+            // try to separate out the default case from the regular cases
+            let default_case = match default_case.len() {
+                0 => S::Stmt::Empty,
+                1 => default_case.remove(0).1,
+                _ => panic!("switch with multiple default cases"),
+            };
+            let cases = cases.into_iter().map(|(test, body)| (test.unwrap(), body));
+
+            // put it all together
+            Ok(switch_(
+                parse_expr(*discriminant, source_map)?,
+                cases.collect(),
+                default_case,
+            ))
         }
         Throw(throw_stmt) => Ok(throw_(parse_expr(*throw_stmt.arg, source_map)?)),
         Try(try_stmt) => {
@@ -389,4 +419,15 @@ fn parse_var_declarator(
         name: parse_pattern(var_decl.name, var_decl.span, source_map)?,
         named: Box::new(parse_opt_expr(var_decl.init, source_map)?),
     })
+}
+
+fn parse_switch_case(
+    case: swc::SwitchCase,
+    source_map: &SourceMap
+) -> ParseResult<(Option<S::Expr>, S::Stmt)> {
+    let test = match case.test {
+        None => None,
+        Some(e) => Some(parse_expr(*e, source_map)?),
+    };
+    Ok((test, S::Stmt::Block(parse_stmts(case.cons, source_map)?)))
 }
