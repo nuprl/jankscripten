@@ -78,6 +78,10 @@ pub trait HeapPtr {
     fn get_gc_f64s(&mut self, _heap: &Heap) -> Vec<*mut *const f64> {
         vec![]
     }
+    /// easily cast any heap pointer to an any pointer (provided)
+    fn as_any_ptr<'a>(&self) -> AnyPtr<'a> {
+        unsafe { AnyPtr::new(self.get_ptr()) }
+    }
 }
 
 /// Returns a pointer to the data that follows the tag.
@@ -97,7 +101,7 @@ pub struct AnyPtr<'a> {
 
 /// We can safely turn an `AnyPtr` into a more specific type of pointer using
 /// the `view` method, which produces a `HeapRefView`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub enum HeapRefView<'a> {
     I32(I32Ptr<'a>),
     String(StringPtr<'a>),
@@ -253,7 +257,7 @@ impl<'a, T> TypePtr<'a, T> {
 
     // safety: Tag must match T, value must be immediately initialized
     // with write
-    pub unsafe fn new_tag_unchecked(ptr: *mut Tag) -> Self {
+    pub const unsafe fn new_tag_unchecked(ptr: *mut Tag) -> Self {
         TypePtr {
             ptr,
             _phantom: PhantomData,

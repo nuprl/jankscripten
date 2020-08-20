@@ -157,7 +157,7 @@ impl Lit {
             Lit::Bool(_) => Type::Bool,
             Lit::I32(_) => Type::I32,
             Lit::F64(_) => Type::F64,
-            Lit::String(_) => Type::String,
+            Lit::String(_) => Type::StrRef,
             Lit::Interned(_) => Type::StrRef,
             Lit::Undefined => Type::Any,
             Lit::Null => Type::Any,
@@ -180,7 +180,10 @@ impl ToAny {
     }
 
     pub fn set_ty(&mut self, ty: Type) {
-        assert!(self.ty.is_none(), "called set_typ twice on ToAny");
+        assert!(
+            self.ty.is_none() || self.ty.as_ref() == Some(&ty),
+            "called set_typ twice on ToAny"
+        );
         self.ty = Some(ty);
     }
 
@@ -208,6 +211,7 @@ pub enum Atom {
     Index(Box<Atom>, Box<Atom>),
     ArrayLen(Box<Atom>),
     Id(Id),
+    GetPrimFunc(Id),
     StringLen(Box<Atom>),
     Unary(UnaryOp, Box<Atom>),
     Binary(BinaryOp, Box<Atom>, Box<Atom>),
@@ -307,6 +311,14 @@ pub struct Program {
     pub globals: HashMap<Id, Global>,
     /// no need to initialize, populated by intern
     pub data: Vec<u8>,
+}
+
+impl Program {
+    pub fn merge_in(&mut self, other: Program) {
+        self.functions.extend(other.functions.into_iter());
+        self.globals.extend(other.globals.into_iter());
+        assert_eq!(other.data.len(), 0, "can't merge data segments");
+    }
 }
 
 impl FnType {

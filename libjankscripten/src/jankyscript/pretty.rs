@@ -143,7 +143,6 @@ impl Pretty for Expr {
                     pp.text(",").append(pp.line()),
                 )
                 .braces(),
-            Expr::This => pp.text("this"),
             Expr::Id(id) => pp.as_string(id),
             Expr::Dot(e, id) => pp.concat(vec![
                 e.pretty(pp),
@@ -180,16 +179,6 @@ impl Pretty for Expr {
                 pp.text(rts.name()),
                 pp.intersperse(
                     args.iter().map(|e| e.pretty(pp)),
-                    pp.text(",").append(pp.line()),
-                )
-                .parens(),
-            ]),
-            Expr::New(e, args) => pp.concat(vec![
-                pp.text("new"),
-                pp.space(),
-                e.pretty(pp),
-                pp.intersperse(
-                    args.iter().map(|e| e.pretty(pp).group()),
                     pp.text(",").append(pp.line()),
                 )
                 .parens(),

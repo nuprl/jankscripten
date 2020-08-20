@@ -9,16 +9,12 @@ pub extern "C" fn array_new<'a>() -> ArrayPtr<'a> {
 }
 
 #[no_mangle]
-pub extern "C" fn array_index<'a>(array: ArrayPtr<'a>, index: i32) -> AnyValue<'a> {
+pub extern "C" fn array_index<'a>(array: ArrayPtr<'a>, index: i32) -> AnyValue {
     array[index as usize].clone()
 }
 
 #[no_mangle]
-pub extern "C" fn array_set<'a>(
-    mut array: ArrayPtr<'a>,
-    index: i32,
-    val: AnyValue<'a>,
-) -> AnyValue<'a> {
+pub extern "C" fn array_set<'a>(mut array: ArrayPtr<'a>, index: i32, val: AnyValue) -> AnyValue {
     array[index as usize] = val;
     val
 }
@@ -29,7 +25,7 @@ pub extern "C" fn array_len<'a>(array: ArrayPtr<'a>) -> i32 {
 }
 
 #[no_mangle]
-pub extern "C" fn array_push<'a>(mut array: ArrayPtr<'a>, value: AnyValue<'a>) -> i32 {
+pub extern "C" fn array_push<'a>(mut array: ArrayPtr<'a>, value: AnyValue) -> i32 {
     array.push(value);
     array.len() as i32
 }

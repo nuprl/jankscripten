@@ -13,6 +13,7 @@ use crate::util::*;
 
 pub mod heap_types;
 pub use heap_values::AnyPtr;
+pub use heap_values::HeapPtr;
 pub use heap_values::HeapRefView;
 mod f64_allocator;
 
@@ -152,7 +153,7 @@ impl Heap {
 
     // NOTE(arjun): It is now clear to me that the lifetime parameter on heap values
     // is pointless.
-    pub fn f64_to_any(&self, x: f64) -> AnyValue<'static> {
+    pub fn f64_to_any(&self, x: f64) -> AnyValue {
         let mut opt_ptr = self.f64_allocator.borrow_mut().alloc(x);
         if let None = opt_ptr {
             self.gc();

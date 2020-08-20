@@ -137,11 +137,11 @@ impl Pretty for ToAny {
     {
         pp.concat(vec![
             self.atom.pretty(pp),
-            pp.text("_to_"),
+            pp.text(" as any::"),
             self.ty
                 .as_ref()
                 .map(|t| t.pretty(pp))
-                .unwrap_or(pp.text("none")),
+                .unwrap_or(pp.text("_")),
         ])
     }
 }
@@ -182,6 +182,7 @@ impl Pretty for Atom {
                 Atom::Index(l, r) => pp.concat(vec![l.pretty(pp), r.pretty(pp).brackets()]),
                 Atom::ArrayLen(a) => pp.concat(vec![a.pretty(pp), pp.text(".array_len()")]),
                 Atom::Id(id) => pp.as_string(id),
+                Atom::GetPrimFunc(id) => pp.concat(vec![pp.text("rt"), pp.as_string(id).parens()]),
                 Atom::StringLen(a) => pp.concat(vec![a.pretty(pp), pp.text(".string_len()")]),
                 Atom::Unary(op, a) => pp.concat(vec![op.pretty(pp), a.pretty(pp)]),
                 Atom::Binary(op, l, r) => {

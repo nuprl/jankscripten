@@ -87,7 +87,6 @@ pub enum Expr {
     Lit(Lit),
     Array(Vec<Expr>),
     Object(Vec<(Key, Expr)>),
-    This,
     Id(Id),
     Dot(Box<Expr>, Id),
     Bracket(Box<Expr>, Box<Expr>),
@@ -96,7 +95,6 @@ pub enum Expr {
     Assign(Box<LValue>, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
     PrimCall(RTSFunction, Vec<Expr>),
-    New(Box<Expr>, Vec<Expr>),
     Func(Func),
     Coercion(Coercion, Box<Expr>),
 }

@@ -20,7 +20,6 @@ pub enum Expr {
     Lit(super::super::javascript::Lit),
     Array(Vec<Expr>),
     Object(Vec<(super::super::javascript::Key, Expr)>),
-    This,
     Id(Id),
     Dot(Box<Expr>, Id),
     Bracket(Box<Expr>, Box<Expr>),
@@ -28,7 +27,6 @@ pub enum Expr {
     Binary(BinOp, Box<Expr>, Box<Expr>),
     Assign(Box<LValue>, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
-    New(Box<Expr>, Vec<Expr>),
     Func(Option<Type>, Vec<(Id, Option<Type>)>, Box<Stmt>),
 }
 

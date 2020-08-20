@@ -1,20 +1,19 @@
 use super::syntax::*;
 use im_rc::HashMap;
-use std::rc::Rc;
 use thiserror::Error;
 
 #[derive(Clone, Debug)]
 pub struct Env {
     env: HashMap<Id, Type>,
-    prim_env: Rc<std::collections::HashMap<String, Type>>,
 }
 
 impl Env {
     pub fn new() -> Env {
-        Env {
-            env: HashMap::new(),
-            prim_env: Rc::new(super::rt_bindings::get_rt_bindings()),
-        }
+        let env = super::rt_bindings::get_rt_bindings()
+            .into_iter()
+            .map(|(k, v)| (Id::Named(k), v))
+            .collect();
+        Env { env }
     }
 
     pub fn get(&self, id: &Id) -> Option<&Type> {
@@ -29,12 +28,7 @@ impl Env {
     pub fn update(&self, id: Id, ty: Type) -> Self {
         Env {
             env: self.env.update(id, ty),
-            prim_env: Rc::clone(&self.prim_env),
         }
-    }
-
-    pub fn get_prim(&self, name: &str) -> Option<&Type> {
-        self.prim_env.get(name)
     }
 }
 
@@ -408,6 +402,7 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             Ok(Type::F64)
         }
         Atom::Id(id) => lookup(env, id),
+        Atom::GetPrimFunc(id) => lookup(env, id),
         Atom::StringLen(a) => {
             let ty = type_check_atom(env, a)?;
             let _ = ensure("string len", Type::String, ty)?;

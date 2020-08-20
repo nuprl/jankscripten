@@ -274,7 +274,6 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 rv.append(cxt.recv_a(s, Atom::Id(obj_name)))
             })
         }
-        J::Expr::This => todo!("we need to think more deeply about this"),
         J::Expr::Dot(obj, field) => compile_expr(
             s,
             *obj,
@@ -283,7 +282,6 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
         J::Expr::Unary(op, expr) => {
             compile_expr(s, *expr, C::a(move |s, a| cxt.recv_a(s, unary_(op, a))))
         }
-        J::Expr::New(_, _) => todo!("new -- need deep thought"),
         // TODO(luna): i think JankyScript bracket supports like
         // object/hashtable fetch by name, so we have to descriminate based
         // on type or something(?)
@@ -513,7 +511,13 @@ mod test {
             ),
             expr_(Expr::PrimCall(
                 RTSFunction::LogAny,
-                vec![coercion_(Coercion::Tag(Type::Float), Expr::Id("b".into()))],
+                vec![
+                    coercion_(
+                        Coercion::Tag(Type::DynObject),
+                        Expr::Id(Id::Named("global".into())),
+                    ),
+                    coercion_(Coercion::Tag(Type::Float), Expr::Id("b".into())),
+                ],
             )),
         ]);
         expect_notwasm("F64(5)".to_string(), from_jankyscript(program));

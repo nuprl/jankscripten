@@ -22,8 +22,20 @@ pub fn get_rt_bindings() -> BindMap {
     insert(m, "array_index", vec![Array, I32], Any);
     insert(m, "array_set", vec![Array, I32, Any], Any);
     insert(m, "array_len", vec![Array], I32);
-    insert_mono(m, "any_from", vec![&mono], &|_| Any, vec![I32, Bool]);
-    insert_mono(m, "any_to", vec![&|_| Any], &mono, vec![I32, Bool]);
+    insert_mono(
+        m,
+        "any_from",
+        vec![&mono],
+        &|_| Any,
+        vec![I32, Bool, fn_ty_(vec![], None)],
+    );
+    insert_mono(
+        m,
+        "any_to",
+        vec![&|_| Any],
+        &mono,
+        vec![I32, Bool, fn_ty_(vec![], None)],
+    );
     insert(m, "any_from_ptr", vec![I32], Any);
     insert(m, "any_to_ptr", vec![Any], I32);
     insert(m, "get_undefined", vec![], Any);
@@ -32,6 +44,7 @@ pub fn get_rt_bindings() -> BindMap {
     // I32s are caches here
     insert(m, "object_set", vec![DynObject, StrRef, Any, I32], Any);
     insert(m, "object_get", vec![DynObject, StrRef, I32], Any);
+    insert(m, "object_create", vec![Any], Any);
     insert(m, "string_from_ptr", vec![StrRef], String);
     insert(m, "string_len", vec![String], I32);
     insert(m, "ref_new", vec![I32], I32);
@@ -49,7 +62,6 @@ pub fn get_rt_bindings() -> BindMap {
     );
     insert(m, "any_to_f64", vec![Any], F64);
     insert(m, "f64_to_any", vec![F64], Any);
-    insert(m, "log_any", vec![Any], Any);
     for rts in RTSFunction::iter() {
         if let RTSFunction::Todo(_) = rts {
             // can't !let
@@ -57,6 +69,9 @@ pub fn get_rt_bindings() -> BindMap {
             m.insert(rts.name().into(), compile_ty(rts.janky_typ()));
         }
     }
+    // TODO(luna): as global functions are actually added to the runtime,
+    // they should be bound here, but hopefully just by copying them from the
+    // std_lib version
     map
 }
 

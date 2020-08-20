@@ -105,6 +105,8 @@ parser! {
             lang.reserved("any")
                 .with(lang.parens(atom(lang)))
                 .map(|a| ctor::to_any_(a)))
+        .or(lang.reserved("rt").with(lang.parens(id(lang)))
+            .map(|id| Atom::GetPrimFunc(id)))
         .or(lit(lang).map(|l| Atom::Lit(l)))
         .or(attempt(id(lang)
             .skip(lang.reserved_op("."))
@@ -178,10 +180,10 @@ parser! {
             .or(lang.reserved("bool").with(value(Type::Bool)))
             .or(lang.parens(sep_by(type_(lang), lang.reserved_op(",")))
                 .skip(lang.reserved_op("->"))
-                .and(type_(lang))
+                .and(type_(lang).map(|t| Some(Box::new(t))).or(lang.reserved("void").map(|_| None)))
                 .map(|(args, result)| Type::Fn(FnType {
                     args,
-                    result: Some(Box::new(result))
+                    result
                 })))
             .or(lang.reserved("f64").with(value(Type::F64)))
             .or(lang.reserved("any").with(value(Type::Any)))
@@ -198,10 +200,11 @@ parser! {
     {
         let var = lang.reserved("var")
             .with(id(lang))
+            .and(optional(lang.reserved_op(":").with(type_(lang))))
             .skip(lang.reserved_op("="))
             .and(expr(lang))
             .skip(lang.reserved_op(";"))
-            .map(|(x,e)| Stmt::Var(VarStmt::new(x, e)));
+            .map(|((id, ty), named)| Stmt::Var(VarStmt { id, named, ty }));
 
         enum IdRhsInStmt {
             Expr(Expr),
@@ -277,7 +280,7 @@ parser! {
             .skip(lang.reserved_op(";"))
             .map(|(id, expr)| Stmt::Store(id, expr));
 
-        let expression = expr(lang).map(|e| Stmt::Expression(e));
+        let expression = expr(lang).skip(lang.reserved_op(";")).map(|e| Stmt::Expression(e));
 
         choice((
             var,
@@ -289,7 +292,7 @@ parser! {
             break_,
             assign_or_label,
             ht_set,
-            object_set,
+            attempt(object_set),
             store,
             expression
         ))
@@ -336,8 +339,7 @@ parser! {
         .with(id(lang))
         .and(lang.parens(
             sep_by(id(lang).skip(lang.reserved_op(":")).and(type_(lang)), lang.reserved_op(","))))
-        .skip(lang.reserved_op(":"))
-        .and(type_(lang))
+        .and(optional(lang.reserved_op(":").with(type_(lang))))
         .and(block(lang))
         .map(|(((f, params_tys), ret_ty), body): (((_, Vec<(Id, Type)>), _), _)| {
             let mut args = Vec::new();
@@ -349,7 +351,7 @@ parser! {
             // TODO(luna): support void
             (f, Function {
                 body,
-                fn_type: FnType { args, result: Some(Box::new(ret_ty)) },
+                fn_type: FnType { args, result: ret_ty.and_then(|t| Some(Box::new(t))) },
                 params
             })
         })
@@ -400,6 +402,7 @@ pub fn parse(input: &str) -> Program {
                 "arrayPush",
                 "strlen",
                 "any",
+                "rt",
             ]
             .iter()
             .map(|x| (*x).into())

@@ -1,10 +1,8 @@
 //! provides a few useful functions for testing using v8 and pretty-printing
 
 use crate::javascript as js;
-use rusty_v8::*;
-use std::sync::Once;
-
-static START: Once = Once::new();
+use std::io::Write;
+use std::process::{Command, Stdio};
 
 const WIDTH: usize = 80;
 
@@ -13,50 +11,40 @@ const WIDTH: usize = 80;
 /// nature of "result" / "value" as understood by V8
 // mostly copied from rusty_v8 crate-level docs
 pub fn expect_same(original: &js::Stmt, modified: &js::Stmt) {
-    START.call_once(|| {
-        // initializing multiple times is not just a performance problem it causes a panic
-        let platform = new_default_platform().unwrap();
-        V8::initialize_platform(platform);
-        V8::initialize();
-    });
-
-    let mut isolate = Isolate::new(Default::default());
-
-    let mut handle_scope = HandleScope::new(&mut isolate);
-    let handle_scope = handle_scope.enter();
-
-    let context = Context::new(handle_scope);
-    let mut context_scope = ContextScope::new(handle_scope, context);
-
-    let entered_scope = context_scope.enter();
-
-    // i can't figure out these types and lifetimes so closures to the
-    // rescue right haha ugh
-    let mut run_script = |script| {
-        let script = String::new(entered_scope, script).unwrap();
-        println!("javascript: {}", script.to_rust_string_lossy(entered_scope));
-
-        let mut script = Script::compile(entered_scope, context, script, None).unwrap();
-        script.run(entered_scope, context).unwrap()
-    };
-
     let original_script = original.to_pretty(WIDTH);
     let modified_script = modified.to_pretty(WIDTH);
+    println!(
+        "original script: {}\n desugared: {}",
+        original_script, modified_script
+    );
     let original_res = run_script(&original_script);
     let modified_res = run_script(&modified_script);
-    println!(
-        "original value:\n{:?}",
-        original_res
-            .to_string(entered_scope)
-            .and_then(|x| Some(x.to_rust_string_lossy(entered_scope)))
-    );
-    println!(
-        "modified value:\n{:?}",
-        modified_res
-            .to_string(entered_scope)
-            .and_then(|x| Some(x.to_rust_string_lossy(entered_scope)))
-    );
-    assert!(original_res.strict_equals(modified_res));
+    assert_eq!(original_res, modified_res);
+}
+
+fn run_script(script: &str) -> String {
+    let mut run = Command::new("node")
+        // this prints the final expression
+        .arg("-p")
+        // avoids needing tmp file which is test threading mess
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("failed to run tester binary");
+    // https://doc.rust-lang.org/std/process/struct.Stdio.html
+    {
+        run.stdin
+            .as_mut()
+            .expect("no stdin")
+            .write_all(script.as_bytes())
+            .expect("couldn't write");
+    }
+    let out = run.wait_with_output().expect("no stdout");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    println!("standard error: {}", stderr);
+    stdout.to_string()
 }
 
 /// execute the program, then desugar it using `f` and execute it again. assert

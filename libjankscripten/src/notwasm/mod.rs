@@ -3,6 +3,7 @@ mod compile;
 #[allow(dead_code)]
 mod constructors;
 mod intern;
+mod notwasm_rt;
 mod parser;
 mod rt_bindings;
 mod translation;
@@ -20,6 +21,7 @@ pub mod syntax;
 pub mod type_checking;
 
 pub use compile::compile;
+pub use notwasm_rt::get_notwasm_rt;
 pub use parser::parse;
 
 #[cfg(test)]

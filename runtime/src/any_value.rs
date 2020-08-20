@@ -4,7 +4,6 @@ pub use crate::allocator::{AnyPtr, HeapRefView};
 use crate::heap;
 use crate::string::StrPtr;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
-use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 /// this is the actual Any type, however it should never be returned or
@@ -49,47 +48,74 @@ impl std::fmt::Display for AnyEnum<'_> {
             I32(n) => write!(f, "{}", n),
             F64(ptr) => write!(f, "{}", unsafe { ptr.read() }),
             Bool(b) => write!(f, "{}", b),
-            Ptr(_) => write!(f, "{:?}", self), // TODO: impl Display for HeapPtr
+            Ptr(p) => write!(f, "{}", p.view()),
             StrPtr(s) => write!(f, "{}", s),
             Fn(_) | Undefined | Null => write!(f, "{:?}", self),
+        }
+    }
+}
+impl std::fmt::Display for HeapRefView<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use HeapRefView::*;
+        match *self {
+            I32(i) => write!(f, "{}", *i),
+            String(s) => write!(f, "{}", *s),
+            HT(ht) => write!(f, "{:?}", *ht),
+            Array(a) => write!(f, "{:?}", *a),
+            Any(a) => write!(f, "{}", **a),
+            Class(_) => panic!("shouldn't have object data as value"),
+            ObjectPtrPtr(_o) => todo!("TODO(luna): toString"),
+        }
+    }
+}
+impl std::fmt::Debug for HeapRefView<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use HeapRefView::*;
+        match *self {
+            I32(_) => write!(f, "HeapI32({})", self),
+            String(_) => write!(f, "String({})", self),
+            HT(_) => write!(f, "HT({})", self),
+            Array(_) => write!(f, "Array({})", self),
+            Any(_) => write!(f, "Any({})", self),
+            Class(_) => panic!("shouldn't have object data as value"),
+            ObjectPtrPtr(_) => write!(f, "DynObject({})", self),
         }
     }
 }
 
 #[repr(transparent)]
 #[derive(Clone, Copy)]
-pub struct AnyValue<'a> {
+pub struct AnyValue {
     #[cfg(target_pointer_width = "32")]
     val: u64,
     #[cfg(target_pointer_width = "64")]
     val: u128,
-    _phantom: PhantomData<&'a ()>,
 }
 
-impl<'a> Deref for AnyValue<'a> {
-    type Target = AnyEnum<'a>;
+impl Deref for AnyValue {
+    type Target = AnyEnum<'static>;
     fn deref(&self) -> &Self::Target {
         let ptr = self as *const Self as *const Self::Target;
         unsafe { &*ptr }
     }
 }
-impl<'a> DerefMut for AnyValue<'a> {
+impl<'a> DerefMut for AnyValue {
     fn deref_mut(&mut self) -> &mut Self::Target {
         let ptr = self as *mut Self as *mut Self::Target;
         unsafe { &mut *ptr }
     }
 }
-impl Debug for AnyValue<'_> {
+impl Debug for AnyValue {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         write!(f, "{:?} ({})", **self, self.val)
     }
 }
-impl<'a> From<AnyEnum<'a>> for AnyValue<'a> {
+impl<'a> From<AnyEnum<'a>> for AnyValue {
     fn from(val: AnyEnum) -> Self {
         unsafe { std::mem::transmute(val) }
     }
 }
-impl<'a> PartialEq<Self> for AnyValue<'a> {
+impl<'a> PartialEq<Self> for AnyValue {
     fn eq(&self, other: &Self) -> bool {
         **self == **other
     }
@@ -98,15 +124,16 @@ impl<'a> PartialEq<Self> for AnyValue<'a> {
 macro_rules! decl_proj_fns {
     ($from_name:ident, $to_name:ident, $any_name:ident, $ty:ty) => {
         #[no_mangle]
-        pub extern "C" fn $from_name<'a>(val: $ty) -> AnyValue<'a> {
+        pub extern "C" fn $from_name<'a>(val: $ty) -> AnyValue {
             AnyEnum::$any_name(val).into()
         }
         #[no_mangle]
-        pub extern "C" fn $to_name<'a>(val: AnyValue<'a>) -> $ty {
+        pub extern "C" fn $to_name<'a>(val: AnyValue) -> $ty {
             if let AnyEnum::$any_name(inner) = *val {
                 inner
             } else {
-                panic!("unwrap incorrect type {}", stringify!($any_name));
+                log!("cannot unwrap {:?} as {}", *val, stringify!($any_name));
+                panic!();
             }
         }
     };
@@ -131,20 +158,21 @@ pub extern "C" fn any_to_f64(any: AnyValue) -> f64 {
 }
 
 #[no_mangle]
-pub extern "C" fn f64_to_any(x: f64) -> AnyValue<'static> {
+pub extern "C" fn f64_to_any(x: f64) -> AnyValue {
     return heap().f64_to_any(x);
 }
 
 decl_proj_fns!(any_from_i32, any_to_i32, I32, i32);
 decl_proj_fns!(any_from_bool, any_to_bool, Bool, bool);
 decl_proj_fns!(any_from_ptr, any_to_ptr, Ptr, AnyPtr<'a>);
+decl_proj_fns!(any_from_fn, any_to_fn, Fn, u32);
 
 #[no_mangle]
-pub extern "C" fn get_undefined() -> AnyValue<'static> {
+pub extern "C" fn get_undefined() -> AnyValue {
     AnyEnum::Undefined.into()
 }
 #[no_mangle]
-pub extern "C" fn get_null() -> AnyValue<'static> {
+pub extern "C" fn get_null() -> AnyValue {
     AnyEnum::Null.into()
 }
 

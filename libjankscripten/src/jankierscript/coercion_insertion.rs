@@ -1,11 +1,11 @@
 use super::super::notwasm::syntax::BinaryOp;
-use super::std_lib::get_global_object;
 use super::syntax::*;
 use crate::jankyscript::constructors as Janky_;
 use crate::jankyscript::syntax as Janky;
 use crate::notwasm::syntax as NotWasm;
 use crate::rts_function::RTSFunction;
 use crate::shared::coercions::*;
+use crate::shared::std_lib::get_global_object;
 use crate::shared::types::Type;
 use im_rc::HashMap;
 use thiserror::Error;
@@ -378,8 +378,6 @@ impl InsertCoercions {
 
                 Ok((Janky::Expr::Call(Box::new(coerced_f), coerced_args), f_ret))
             }
-            // TODO(arjun): Any for this!
-            Expr::This => Ok((Janky::Expr::This, Type::Any)),
             Expr::Unary(op, e) => {
                 use resast::UnaryOp;
                 let (coerced_e, e_ty) = self.expr_and_type(*e, &mut env.clone())?;
@@ -451,47 +449,6 @@ impl InsertCoercions {
                         Type::Any,
                     )),
                 }
-            }
-            Expr::New(ctor, args) => {
-                let args_with_typs = args
-                    .into_iter()
-                    .map(|e| self.expr_and_type(e, &mut env.clone()))
-                    .collect::<Result<Vec<_>, _>>()?;
-
-                let (coerced_ctor, ctor_ty) = self.expr_and_type(*ctor, &mut env.clone())?;
-                let (coerced_ctor, ctor_args, ctor_ret) = match ctor_ty {
-                    Type::Function(args, ret) => {
-                        if args.len() != args_with_typs.len() {
-                            return error!(
-                                "bad arity applying constructor {:?}, got {} args",
-                                coerced_ctor,
-                                args_with_typs.len()
-                            );
-                        }
-
-                        (coerced_ctor, args, *ret)
-                    }
-                    ctor_ty => {
-                        let n = args_with_typs.len();
-
-                        (
-                            self.coerce(coerced_ctor, ctor_ty, Type::ground_function(n)),
-                            vec![Type::Any; n],
-                            Type::Any,
-                        )
-                    }
-                };
-
-                let coerced_args = args_with_typs
-                    .into_iter()
-                    .zip(ctor_args.into_iter())
-                    .map(|((e, actual_ty), formal_ty)| self.coerce(e, actual_ty, formal_ty))
-                    .collect();
-
-                Ok((
-                    Janky::Expr::Call(Box::new(coerced_ctor), coerced_args),
-                    ctor_ret,
-                ))
             }
             Expr::Func(opt_ret_ty, args_with_opt_tys, body) => {
                 let mut body_env = env.clone();

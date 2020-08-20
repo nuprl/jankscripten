@@ -10,12 +10,12 @@ pub extern "C" fn ht_new<'a>() -> HTPtr<'a> {
 }
 
 #[no_mangle]
-pub extern "C" fn ht_get<'a>(ht: HTPtr<'a>, field: Key) -> AnyValue<'a> {
+pub extern "C" fn ht_get<'a>(ht: HTPtr<'a>, field: Key) -> AnyValue {
     HashMap::get(&ht, &field).unwrap().clone()
 }
 
 #[no_mangle]
-pub extern "C" fn ht_set<'a>(mut ht: HTPtr<'a>, field: Key, value: AnyValue<'a>) -> AnyValue<'a> {
+pub extern "C" fn ht_set<'a>(mut ht: HTPtr<'a>, field: Key, value: AnyValue) -> AnyValue {
     ht.insert(field, value.clone());
     value
 }

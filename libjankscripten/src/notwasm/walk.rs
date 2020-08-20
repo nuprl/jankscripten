@@ -155,7 +155,7 @@ where
         self.visitor.enter_atom(atom, loc);
         match atom {
             // 0
-            Lit(..) | Id(..) | Deref(..) => (),
+            Lit(..) | Id(..) | GetPrimFunc(..) | Deref(..) => (),
             ToAny(to_any) => {
                 self.walk_atom(to_any.atom.as_mut(), loc);
             }

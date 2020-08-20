@@ -138,7 +138,7 @@ impl<'a> ObjectDataPtr<'a> {
 }
 
 impl<'a> ObjectPtr<'a> {
-    pub unsafe fn new(ptr: *mut Tag) -> Self {
+    pub const unsafe fn new(ptr: *mut Tag) -> Self {
         Self {
             ptr,
             _phantom: PhantomData,
@@ -153,7 +153,7 @@ impl<'a> ObjectPtr<'a> {
         &mut self,
         heap: &'a Heap,
         name: StrPtr,
-        value: AnyValue<'a>,
+        value: AnyValue,
         cache: &mut isize,
     ) -> AnyValue {
         let data = &mut **self;
