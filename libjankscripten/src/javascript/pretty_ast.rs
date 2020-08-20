@@ -385,7 +385,7 @@ fn func_to_doc<'a>(maybe_name: Option<&'a Id>, params: &'a [Id], body: &'a Stmt)
 
 #[cfg(test)]
 mod test {
-    use crate::javascript::parser::parse;
+    use crate::javascript::parse;
     const WIDTH: usize = 80;
     fn parse_pretty_parse(js_code: &str) {
         let original_ast = parse(js_code).expect("invalid test doesn't parse");

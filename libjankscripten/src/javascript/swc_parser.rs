@@ -82,10 +82,8 @@ fn unsupported_message<T>(msg: &str, span: Span, source_map: &SourceMap) -> Resu
     )))
 }
 
-impl From<swc::Ident> for S::Id {
-    fn from(ident: swc::Ident) -> S::Id {
-        S::Id::Named(ident.sym.to_string())
-    }
+fn id_(ident: swc::Ident) -> S::Id {
+    S::Id::Named(ident.sym.to_string())
 }
 
 /// Parse an entire swc script
@@ -114,11 +112,11 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
         With(with_stmt) => unsupported(with_stmt.span, source_map),
         Return(return_stmt) => Ok(return_(parse_opt_expr(return_stmt.arg, source_map)?)),
         Labeled(labeled_stmt) => Ok(label_(
-            labeled_stmt.label,
+            id_(labeled_stmt.label),
             parse_stmt(*labeled_stmt.body, source_map)?,
         )),
-        Break(break_stmt) => Ok(break_(break_stmt.label)),
-        Continue(continue_stmt) => Ok(continue_(continue_stmt.label)),
+        Break(break_stmt) => Ok(break_(break_stmt.label.map(id_))),
+        Continue(continue_stmt) => Ok(continue_(continue_stmt.label.map(id_))),
         If(if_stmt) => {
             // test
             let cond_expr = parse_expr(*if_stmt.test, source_map)?;
@@ -258,7 +256,7 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
                     // nightly rust
                     match *boxed_expr {
                         swc::Expr::Ident(ident) => (false, ident),
-                        other => {
+                        _ => {
                             return unsupported_message(
                                 "unsupported expression in a for-in loop declaration",
                                 span,
@@ -273,16 +271,33 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
                     span,
                     kind: swc::VarDeclKind::Var, // no `let`
                     declare: _,
-                    decls,
-                }) => match decls[..] {
-                    // a single decl
-                    [swc::VarDeclarator {
-                        span: _,
-                        init: None,                   // no initializer
-                        name: swc::Pat::Ident(ident), // no obj destructuring
-                        definite: _,
-                    }] => (true, ident),
-                },
+                    mut decls,
+                }) => {
+                    if decls.len() != 1 {
+                        return unsupported_message(
+                            "only a single var decl is allowed",
+                            span,
+                            source_map,
+                        );
+                    }
+                    match decls.remove(0) {
+                        // a single decl
+                        swc::VarDeclarator {
+                            span: _,
+                            init: None,                   // no initializer
+                            name: swc::Pat::Ident(ident), // no obj destructuring
+                            definite: _,
+                        } => (true, ident),
+                        // any other type of decl
+                        _ => {
+                            return unsupported_message(
+                                "only var decls are allowed here",
+                                span,
+                                source_map,
+                            );
+                        }
+                    }
+                }
 
                 // The program may pattern match on the index, which we do not support.
                 other => {
@@ -296,20 +311,28 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
 
             Ok(forin_(
                 is_var,
-                id,
+                id_(id),
                 parse_expr(*right, source_map)?,
                 parse_stmt(*body, source_map)?,
             ))
         }
-        ForOf(for_of_stmt) => {
-            todo!();
+        ForOf(for_of_stmt) => unsupported(for_of_stmt.span, source_map),
+        Decl(swc::Decl::Var(swc::VarDecl {
+            span,
+            kind: swc::VarDeclKind::Var,
+            declare: _,
+            decls,
+        })) => {
+            let decls: ParseResult<Vec<_>> = decls
+                .into_iter()
+                .map(|d| parse_var_declarator(d, source_map))
+                .collect();
+            Ok(S::Stmt::VarDecl(decls?))
         }
-        Decl(decl) => {
-            todo!();
+        Decl(invalid_decl) => {
+            unsupported_message("unsupported decl", span_of_decl(invalid_decl), source_map)
         }
-        Expr(expr_stmt) => {
-            todo!();
-        }
+        Expr(swc::ExprStmt { span, expr }) => Ok(expr_(parse_expr(*expr, source_map)?)),
     }
 }
 
@@ -463,7 +486,7 @@ fn parse_block(block: swc::BlockStmt, source_map: &SourceMap) -> ParseResult<S::
 fn parse_pattern(pattern: swc::Pat, span: Span, source_map: &SourceMap) -> ParseResult<S::Id> {
     use swc::Pat::*;
     match pattern {
-        Ident(ident) => Ok(S::Id::from(ident)),
+        Ident(ident) => Ok(id_(ident)),
         _ => unsupported(span, source_map),
     }
 }
@@ -487,4 +510,27 @@ fn parse_switch_case(
         Some(e) => Some(parse_expr(*e, source_map)?),
     };
     Ok((test, S::Stmt::Block(parse_stmts(case.cons, source_map)?)))
+}
+
+/// Get the span out of a decl.
+/// sidenote: one of the most annoying functions I've ever written. just
+/// include a span in the decl and this would be so easy.......
+fn span_of_decl(decl: swc::Decl) -> Span {
+    use swc::Decl::*;
+    use swc::*;
+    match decl {
+        Class(ClassDecl {
+            class: swc::Class { span, .. },
+            ..
+        })
+        | Fn(FnDecl {
+            function: Function { span, .. },
+            ..
+        })
+        | Var(VarDecl { span, .. })
+        | TsInterface(TsInterfaceDecl { span, .. })
+        | TsTypeAlias(TsTypeAliasDecl { span, .. })
+        | TsEnum(TsEnumDecl { span, .. })
+        | TsModule(TsModuleDecl { span, .. }) => span,
+    }
 }
