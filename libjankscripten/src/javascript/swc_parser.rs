@@ -116,9 +116,7 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
         Labeled(labeled_stmt) => {
             todo!();
         }
-        Break(break_stmt) => {
-            Ok(break_(break_stmt.label))
-        }
+        Break(break_stmt) => Ok(break_(break_stmt.label)),
         Continue(continue_stmt) => {
             todo!();
         }
@@ -199,7 +197,7 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
     }
 }
 
-/// Parse an optional swc statement. This function receives Boxed stmts 
+/// Parse an optional swc statement. This function receives Boxed stmts
 /// because optional stmts are boxed in swc.
 fn parse_opt_stmt(
     opt_stmt: Option<Box<swc::Stmt>>,
@@ -326,8 +324,8 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
     }
 }
 
-/// Parse an optional expression. This function receives and returns Boxed 
-/// expressions because optional expression are boxed in both the parser and 
+/// Parse an optional expression. This function receives and returns Boxed
+/// expressions because optional expression are boxed in both the parser and
 /// our AST.
 fn parse_opt_expr(
     opt_expr: Option<Box<swc::Expr>>,
@@ -344,7 +342,7 @@ fn parse_block(block: swc::BlockStmt, source_map: &SourceMap) -> ParseResult<S::
     Ok(S::Stmt::Block(parse_stmts(block.stmts, source_map)?))
 }
 
-/// Parse an swc pattern. `span` should be the source location of the 
+/// Parse an swc pattern. `span` should be the source location of the
 /// surrounding expr/stmt. `span` is used for error reporting purposes.
 fn parse_pattern(pattern: swc::Pat, span: Span, source_map: &SourceMap) -> ParseResult<S::Id> {
     use swc::Pat::*;
@@ -353,4 +351,3 @@ fn parse_pattern(pattern: swc::Pat, span: Span, source_map: &SourceMap) -> Parse
         _ => unsupported(span, source_map),
     }
 }
-
