@@ -107,105 +107,31 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
             let parsed_stmts = parse_stmts(block_stmt.stmts, source_map)?;
             Ok(S::Stmt::Block(parsed_stmts))
         }
-        Empty(empty_stmt) => Ok(S::Stmt::Empty),
-        Debugger(debugger_stmt) => unsupported(debugger_stmt.span, source_map),
-        With(with_stmt) => unsupported(with_stmt.span, source_map),
-        Return(return_stmt) => Ok(return_(parse_opt_expr(return_stmt.arg, source_map)?)),
-        Labeled(labeled_stmt) => Ok(label_(
-            id_(labeled_stmt.label),
-            parse_stmt(*labeled_stmt.body, source_map)?,
-        )),
         Break(break_stmt) => Ok(break_(break_stmt.label.map(id_))),
         Continue(continue_stmt) => Ok(continue_(continue_stmt.label.map(id_))),
-        If(if_stmt) => {
-            // test
-            let cond_expr = parse_expr(*if_stmt.test, source_map)?;
-
-            // consequent
-            let then_stmt = parse_stmt(*if_stmt.cons, source_map)?;
-
-            // alternate
-            let else_stmt = parse_opt_stmt(if_stmt.alt, source_map)?;
-
-            Ok(if_(cond_expr, then_stmt, else_stmt))
-        }
-        Switch(swc::SwitchStmt {
-            discriminant,
-            cases,
+        Debugger(debugger_stmt) => unsupported(debugger_stmt.span, source_map),
+        Decl(swc::Decl::Var(swc::VarDecl {
             span,
-        }) => {
-            // parse cases
-            let cases: Result<Vec<_>, _> = cases
+            kind: swc::VarDeclKind::Var,
+            declare: _,
+            decls,
+        })) => {
+            let decls: ParseResult<Vec<_>> = decls
                 .into_iter()
-                .map(|c| parse_switch_case(c, source_map))
+                .map(|d| parse_var_declarator(d, source_map))
                 .collect();
-
-            // partition cases into two groups:
-            // 1. regular cases
-            // 2. default cases (should only be one)
-            let (cases, mut default_case) = cases?
-                .into_iter()
-                .partition::<Vec<_>, _>(|(test, _)| test.is_some());
-
-            // try to separate out the default case from the regular cases
-            let default_case = match default_case.len() {
-                0 => S::Stmt::Empty,
-                1 => default_case.remove(0).1,
-                _ => panic!("switch with multiple default cases"),
-            };
-            let cases = cases.into_iter().map(|(test, body)| (test.unwrap(), body));
-
-            // put it all together
-            Ok(switch_(
-                parse_expr(*discriminant, source_map)?,
-                cases.collect(),
-                default_case,
-            ))
+            Ok(S::Stmt::VarDecl(decls?))
         }
-        Throw(throw_stmt) => Ok(throw_(parse_expr(*throw_stmt.arg, source_map)?)),
-        Try(try_stmt) => {
-            // deal with each possible part of the try statement separately,
-            // wrap them as we encounter the different layers.
-
-            // 1. block
-            let stmt = parse_block(try_stmt.block, source_map)?;
-
-            // 2. handler
-            let stmt = match try_stmt.handler {
-                None => stmt,
-
-                Some(swc::CatchClause {
-                    param: Some(pattern),
-                    body,
-                    span,
-                }) => catch_(
-                    stmt,
-                    parse_pattern(pattern, span, source_map)?,
-                    parse_block(body, source_map)?,
-                ),
-
-                Some(_) => return unsupported(try_stmt.span, source_map),
-            };
-
-            // 3. finalizer
-            let stmt = match try_stmt.finalizer {
-                None => stmt,
-                Some(block) => finally_(stmt, parse_block(block, source_map)?),
-            };
-
-            // we're done
-            Ok(stmt)
-        }
-        While(while_stmt) => {
-            let test = parse_expr(*while_stmt.test, source_map)?;
-            let body = parse_stmt(*while_stmt.body, source_map)?;
-            Ok(while_(test, body))
+        Decl(invalid_decl) => {
+            unsupported_message("unsupported decl", span_of_decl(invalid_decl), source_map)
         }
         DoWhile(do_while_stmt) => {
             let body = parse_stmt(*do_while_stmt.body, source_map)?;
             let test = parse_expr(*do_while_stmt.test, source_map)?;
             Ok(dowhile_(body, test))
         }
+        Empty(empty_stmt) => Ok(S::Stmt::Empty),
+        Expr(swc::ExprStmt { span, expr }) => Ok(expr_(parse_expr(*expr, source_map)?)),
         For(for_stmt) => {
             let init = match for_stmt.init {
                 None => S::ForInit::Expr(Box::new(UNDEFINED_)),
@@ -317,22 +243,96 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
             ))
         }
         ForOf(for_of_stmt) => unsupported(for_of_stmt.span, source_map),
-        Decl(swc::Decl::Var(swc::VarDecl {
+        If(if_stmt) => {
+            // test
+            let cond_expr = parse_expr(*if_stmt.test, source_map)?;
+
+            // consequent
+            let then_stmt = parse_stmt(*if_stmt.cons, source_map)?;
+
+            // alternate
+            let else_stmt = parse_opt_stmt(if_stmt.alt, source_map)?;
+
+            Ok(if_(cond_expr, then_stmt, else_stmt))
+        }
+        Labeled(labeled_stmt) => Ok(label_(
+            id_(labeled_stmt.label),
+            parse_stmt(*labeled_stmt.body, source_map)?,
+        )),
+        Return(return_stmt) => Ok(return_(parse_opt_expr(return_stmt.arg, source_map)?)),
+        Switch(swc::SwitchStmt {
+            discriminant,
+            cases,
             span,
-            kind: swc::VarDeclKind::Var,
-            declare: _,
-            decls,
-        })) => {
-            let decls: ParseResult<Vec<_>> = decls
+        }) => {
+            // parse cases
+            let cases: Result<Vec<_>, _> = cases
                 .into_iter()
-                .map(|d| parse_var_declarator(d, source_map))
+                .map(|c| parse_switch_case(c, source_map))
                 .collect();
-            Ok(S::Stmt::VarDecl(decls?))
+
+            // partition cases into two groups:
+            // 1. regular cases
+            // 2. default cases (should only be one)
+            let (cases, mut default_case) = cases?
+                .into_iter()
+                .partition::<Vec<_>, _>(|(test, _)| test.is_some());
+
+            // try to separate out the default case from the regular cases
+            let default_case = match default_case.len() {
+                0 => S::Stmt::Empty,
+                1 => default_case.remove(0).1,
+                _ => panic!("switch with multiple default cases"),
+            };
+            let cases = cases.into_iter().map(|(test, body)| (test.unwrap(), body));
+
+            // put it all together
+            Ok(switch_(
+                parse_expr(*discriminant, source_map)?,
+                cases.collect(),
+                default_case,
+            ))
         }
-        Decl(invalid_decl) => {
-            unsupported_message("unsupported decl", span_of_decl(invalid_decl), source_map)
+        Throw(throw_stmt) => Ok(throw_(parse_expr(*throw_stmt.arg, source_map)?)),
+        Try(try_stmt) => {
+            // deal with each possible part of the try statement separately,
+            // wrap them as we encounter the different layers.
+
+            // 1. block
+            let stmt = parse_block(try_stmt.block, source_map)?;
+
+            // 2. handler
+            let stmt = match try_stmt.handler {
+                None => stmt,
+
+                Some(swc::CatchClause {
+                    param: Some(pattern),
+                    body,
+                    span,
+                }) => catch_(
+                    stmt,
+                    parse_pattern(pattern, span, source_map)?,
+                    parse_block(body, source_map)?,
+                ),
+
+                Some(_) => return unsupported(try_stmt.span, source_map),
+            };
+
+            // 3. finalizer
+            let stmt = match try_stmt.finalizer {
+                None => stmt,
+                Some(block) => finally_(stmt, parse_block(block, source_map)?),
+            };
+
+            // we're done
+            Ok(stmt)
         }
-        Expr(swc::ExprStmt { span, expr }) => Ok(expr_(parse_expr(*expr, source_map)?)),
+        While(while_stmt) => {
+            let test = parse_expr(*while_stmt.test, source_map)?;
+            let body = parse_stmt(*while_stmt.body, source_map)?;
+            Ok(while_(test, body))
+        }
+        With(with_stmt) => unsupported(with_stmt.span, source_map),
     }
 }
 
@@ -352,73 +352,46 @@ fn parse_opt_stmt(
 fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
     use swc::Expr::*;
     match expr {
-        This(this_expr) => {
-            todo!();
-        }
         Array(array_lit) => {
-            todo!();
-        }
-        Object(object_lit) => {
-            todo!();
-        }
-        Fn(fn_expr) => {
-            todo!();
-        }
-        Unary(unary_expr) => {
-            todo!();
-        }
-        Update(update_expr) => {
-            todo!();
-        }
-        Bin(bin_expr) => {
-            todo!();
-        }
-        Assign(assign_expr) => {
-            todo!();
-        }
-        Member(member_expr) => {
-            todo!();
-        }
-        Cond(cond_expr) => {
-            todo!();
-        }
-        Call(call_expr) => {
-            todo!();
-        }
-        New(new_expr) => {
-            todo!();
-        }
-        Seq(seq_expr) => {
-            todo!();
-        }
-        Ident(ident) => {
-            todo!();
-        }
-        Lit(lit) => {
-            todo!();
-        }
-        Tpl(tpl) => {
-            todo!();
-        }
-        TaggedTpl(tagged_tpl) => {
             todo!();
         }
         Arrow(arrow_expr) => {
             todo!();
         }
-        Class(class_expr) => {
-            todo!();
-        }
-        Yield(yield_expr) => {
-            todo!();
-        }
-        MetaProp(meta_prop_expr) => {
+        Assign(assign_expr) => {
             todo!();
         }
         Await(await_expr) => {
             todo!();
         }
-        Paren(paren_expr) => {
+        Bin(bin_expr) => {
+            todo!();
+        }
+        Class(class_expr) => {
+            todo!();
+        }
+        Call(call_expr) => {
+            todo!();
+        }
+        Cond(cond_expr) => {
+            todo!();
+        }
+        Fn(fn_expr) => {
+            todo!();
+        }
+        Ident(ident) => {
+            todo!();
+        }
+        Invalid(invalid) => {
+            todo!();
+        }
+        JSXElement(jsx_element) => {
+            todo!();
+        }
+        JSXEmpty(jsx_empty) => {
+            todo!();
+        }
+        JSXFragment(jsx_fragment) => {
             todo!();
         }
         JSXMember(jsx_member_expr) => {
@@ -427,16 +400,43 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
         JSXNamespacedName(jsx_namespaced_name) => {
             todo!();
         }
-        JSXEmpty(jsx_empty) => {
+        Lit(lit) => {
             todo!();
         }
-        JSXElement(jsx_element) => {
+        Member(member_expr) => {
             todo!();
         }
-        JSXFragment(jsx_fragment) => {
+        MetaProp(meta_prop_expr) => {
             todo!();
         }
-        TsTypeAssertion(ts_type_assertion) => {
+        New(new_expr) => {
+            todo!();
+        }
+        Object(object_lit) => {
+            todo!();
+        }
+        OptChain(opt_chain_expr) => {
+            todo!();
+        }
+        Paren(paren_expr) => {
+            todo!();
+        }
+        PrivateName(private_name) => {
+            todo!();
+        }
+        Seq(seq_expr) => {
+            todo!();
+        }
+        TaggedTpl(tagged_tpl) => {
+            todo!();
+        }
+        This(this_expr) => {
+            todo!();
+        }
+        Tpl(tpl) => {
+            todo!();
+        }
+        TsAs(ts_as_expr) => {
             todo!();
         }
         TsConstAssertion(ts_const_assertion) => {
@@ -445,19 +445,19 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
         TsNonNull(ts_non_null_expr) => {
             todo!();
         }
+        TsTypeAssertion(ts_type_assertion) => {
+            todo!();
+        }
         TsTypeCast(ts_type_cast_expr) => {
             todo!();
         }
-        TsAs(ts_as_expr) => {
+        Unary(unary_expr) => {
             todo!();
         }
-        PrivateName(private_name) => {
+        Update(update_expr) => {
             todo!();
         }
-        OptChain(opt_chain_expr) => {
-            todo!();
-        }
-        Invalid(invalid) => {
+        Yield(yield_expr) => {
             todo!();
         }
     }
