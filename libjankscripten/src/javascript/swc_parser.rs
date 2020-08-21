@@ -352,26 +352,39 @@ fn parse_opt_stmt(
 fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
     use swc::Expr::*;
     match expr {
-        Array(array_lit) => {
+        Array(swc::ArrayLit { elems, span }) => {
+            let elems: ParseResult<Vec<_>> = elems
+                .into_iter()
+                .map(|e| parse_expr_or_spread(e, source_map))
+                .collect();
+            Ok(S::Expr::Array(elems?))
+        }
+        Arrow(arrow_expr) => unsupported(arrow_expr.span, source_map),
+        Assign(swc::AssignExpr {
+            left,
+            op,
+            right,
+            span,
+        }) => {
             todo!();
         }
-        Arrow(arrow_expr) => {
-            todo!();
-        }
-        Assign(assign_expr) => {
-            todo!();
-        }
-        Await(await_expr) => {
-            todo!();
-        }
+        Await(await_expr) => unsupported(await_expr.span, source_map),
         Bin(bin_expr) => {
             todo!();
         }
-        Class(class_expr) => {
-            todo!();
-        }
-        Call(call_expr) => {
-            todo!();
+        Class(class_expr) => unsupported(class_expr.class.span, source_map),
+        Call(swc::CallExpr {
+            args,
+            callee,
+            span,
+            type_args,
+        }) => {
+            let args = args
+                .into_iter()
+                .map(|e| parse_expr_or_spread(e, source_map))
+                .collect();
+            let callee = parse_expr_or_super(callee, source_map);
+            Ok(call_(callee?, args?))
         }
         Cond(cond_expr) => {
             todo!();
@@ -510,6 +523,21 @@ fn parse_switch_case(
         Some(e) => Some(parse_expr(*e, source_map)?),
     };
     Ok((test, S::Stmt::Block(parse_stmts(case.cons, source_map)?)))
+}
+
+fn parse_expr_or_super(eos: swc::ExprOrSuper, source_map: &SourceMap) -> ParseResult<S::Expr> {
+    use swc::ExprOrSuper::*;
+    match eos {
+        Expr(expr) => parse_expr(*expr, source_map),
+        Super(swc::Super { span }) => unsupported(span, source_map),
+    }
+}
+
+fn parse_expr_or_spread(eos: swc::ExprOrSpread, source_map: &SourceMap) -> ParseResult<S::Expr> {
+    match eos.spread {
+        None => parse_expr(*eos.expr, source_map),
+        Some(span) => unsupported(span, source_map),
+    }
 }
 
 /// Get the span out of a decl.
