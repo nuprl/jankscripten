@@ -355,7 +355,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
         Array(swc::ArrayLit { elems, span }) => {
             let elems: ParseResult<Vec<_>> = elems
                 .into_iter()
-                .map(|e| parse_expr_or_spread(e, source_map))
+                .map(|e| parse_opt_expr_or_spread(e, source_map))
                 .collect();
             Ok(S::Expr::Array(elems?))
         }
@@ -379,7 +379,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             span,
             type_args,
         }) => {
-            let args = args
+            let args: ParseResult<Vec<_>> = args
                 .into_iter()
                 .map(|e| parse_expr_or_spread(e, source_map))
                 .collect();
@@ -537,6 +537,16 @@ fn parse_expr_or_spread(eos: swc::ExprOrSpread, source_map: &SourceMap) -> Parse
     match eos.spread {
         None => parse_expr(*eos.expr, source_map),
         Some(span) => unsupported(span, source_map),
+    }
+}
+
+fn parse_opt_expr_or_spread(
+    oeos: Option<swc::ExprOrSpread>,
+    source_map: &SourceMap,
+) -> ParseResult<S::Expr> {
+    match oeos {
+        Some(eos) => parse_expr_or_spread(eos, source_map),
+        None => Ok(UNDEFINED_), // optional expr gets undefined
     }
 }
 
