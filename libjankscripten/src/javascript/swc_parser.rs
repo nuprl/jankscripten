@@ -82,7 +82,8 @@ fn unsupported_message<T>(msg: &str, span: Span, source_map: &SourceMap) -> Resu
     )))
 }
 
-fn id_(ident: swc::Ident) -> S::Id {
+// parse an id out of an swc identifier
+fn to_id(ident: swc::Ident) -> S::Id {
     S::Id::Named(ident.sym.to_string())
 }
 
@@ -106,8 +107,8 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
         Block(block_stmt) => {
             parse_block(block_stmt, source_map)
         }
-        Break(break_stmt) => Ok(break_(break_stmt.label.map(id_))),
-        Continue(continue_stmt) => Ok(continue_(continue_stmt.label.map(id_))),
+        Break(break_stmt) => Ok(break_(break_stmt.label.map(to_id))),
+        Continue(continue_stmt) => Ok(continue_(continue_stmt.label.map(to_id))),
         Debugger(debugger_stmt) => unsupported(debugger_stmt.span, source_map),
         Decl(swc::Decl::Var(swc::VarDecl {
             span,
@@ -236,7 +237,7 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
 
             Ok(forin_(
                 is_var,
-                id_(id),
+                to_id(id),
                 parse_expr(*right, source_map)?,
                 parse_stmt(*body, source_map)?,
             ))
@@ -255,7 +256,7 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
             Ok(if_(cond_expr, then_stmt, else_stmt))
         }
         Labeled(labeled_stmt) => Ok(label_(
-            id_(labeled_stmt.label),
+            to_id(labeled_stmt.label),
             parse_stmt(*labeled_stmt.body, source_map)?,
         )),
         Return(return_stmt) => Ok(return_(parse_opt_expr(return_stmt.arg, source_map)?)),
@@ -418,7 +419,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
 
              // parse parts
              let ident = match ident {
-                 Some(ident) => Some(id_(ident)),
+                 Some(ident) => Some(to_id(ident)),
                  None => None,
              };
              let params: ParseResult<Vec<_>> = params.into_iter().map(|p| parse_func_arg(p, source_map)).collect();
@@ -537,7 +538,7 @@ fn parse_block(block: swc::BlockStmt, source_map: &SourceMap) -> ParseResult<S::
 fn parse_pattern(pattern: swc::Pat, span: Span, source_map: &SourceMap) -> ParseResult<S::Id> {
     use swc::Pat::*;
     match pattern {
-        Ident(ident) => Ok(id_(ident)),
+        Ident(ident) => Ok(to_id(ident)),
         _ => unsupported(span, source_map),
     }
 }
