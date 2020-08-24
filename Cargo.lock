@@ -424,6 +424,7 @@ dependencies = [
  "rusty_v8",
  "strum",
  "strum_macros",
+ "swc_atoms",
  "swc_common",
  "swc_ecma_ast",
  "swc_ecma_parser",

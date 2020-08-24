@@ -10,6 +10,7 @@ use swc_common::{
 };
 use swc_ecma_ast as swc;
 use swc_ecma_parser::{lexer, Parser, StringInput, Syntax};
+use swc_atoms::JsWord;
 
 use thiserror::Error;
 
@@ -20,7 +21,10 @@ pub enum ParseError {
     // TODO(mark): figure out how to print the error, it doesn't
     //             implement the Display trait or anything like it
     SWC(swc_ecma_parser::error::Error),
-    /// The Ressa AST had a JavaScript feature that we do not support.
+    /// An error while parsing a string literal
+    #[error("String literal parse error: {0}")]
+    String(String),
+    /// The SWC AST had a JavaScript feature that we do not support.
     #[error("Unsupported: {0}")]
     Unsupported(String),
 }
@@ -75,11 +79,22 @@ fn unsupported<T>(span: Span, source_map: &SourceMap) -> Result<T, ParseError> {
 /// A parsing result used for an unsupported feature of JavaScript, with a
 /// customizable message.
 fn unsupported_message<T>(msg: &str, span: Span, source_map: &SourceMap) -> Result<T, ParseError> {
-    Err(ParseError::Unsupported(format!(
-        "{} at {}",
-        msg,
-        source_map.span_to_string(span)
-    )))
+    Err(unsupported_error(msg, span, source_map))
+}
+
+fn unsupported_error(msg: &str, span: Span, source_map: &SourceMap) -> ParseError {
+    ParseError::Unsupported(format!(
+            "{} at {}",
+            msg,
+            source_map.span_to_string(span)
+        ))
+}
+
+/// An error occurred while attempting to parse a string literal from the SWC AST
+fn str_error(msg: &str, span: Span, source_map: &SourceMap) -> ParseError {
+    ParseError::String(format!("tried to parse string literal at {} but failed at {}", 
+        source_map.span_to_string(span),
+        msg))
 }
 
 // parse an id out of an swc identifier
@@ -453,7 +468,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             unsupported(jsx_namespaced_name.name.span, source_map)
         }
         Lit(lit) => {
-            todo!();
+            Ok(S::Expr::Lit(parse_lit(lit, source_map)?))
         }
         Member(member_expr) => {
             todo!();
@@ -591,6 +606,95 @@ fn parse_opt_expr_or_spread(
 
 fn parse_func_arg(arg: swc::Param, source_map: &SourceMap) -> ParseResult<S::Id> {
     Ok(parse_pattern(arg.pat, arg.span, source_map)?)
+}
+
+fn parse_lit(lit: swc::Lit, source_map: &SourceMap) -> ParseResult<S::Lit> {
+    use swc::Lit::*;
+    match lit {
+        Str(swc::Str { value, span, .. }) => Ok(S::Lit::String(parse_string(value, span, source_map)?)),
+        Bool(swc::Bool { value, span }) => todo!(),
+        Null(swc::Null { span }) => todo!(),
+        Num(swc::Number { value, span }) => todo!(),
+        BigInt(swc::BigInt { value, span }) => todo!(),
+        Regex(swc::Regex { exp, flags, span }) => todo!(),
+        JSXText(swc::JSXText { span, .. }) => unsupported(span, source_map)
+    }
+}
+
+// TODO(arjun): Someone needs to read the ECMAScript specification to confirm
+// that the code here is legit.
+/// Parse a string literal from the SWC AST. `span` should be the sourcespan of
+/// the surrounding expression.
+fn parse_string(s: JsWord, span: Span, source_map: &SourceMap) -> ParseResult<String> {
+    let literal_chars = s.to_string();
+
+    let mut buf = String::with_capacity(literal_chars.len());
+    let mut iter = literal_chars.chars().peekable();
+    while let Some(ch) = iter.next() {
+        if ch != '\\' {
+            buf.push(ch);
+            continue;
+        }
+        match iter.next().expect("character after backslash") {
+            '\'' | '"' | '\\' => buf.push(ch),
+            'n' => buf.push('\n'),
+            'r' => buf.push('\r'),
+            't' => buf.push('\t'),
+            'f' => buf.push('\x0C'),
+            'b' => buf.push('\x08'),
+            'v' => buf.push('\x0B'),
+            'x' => {
+                let s = format!(
+                    "{}{}",
+                    iter.next().ok_or(str_error("first hex digit after \\x", span, source_map))?,
+                    iter.next().ok_or(str_error("second hex digit after \\x", span, source_map))?,
+                );
+                let n = u8::from_str_radix(&s, 16)
+                    .expect(&format!("invalid escape \\x{} (Ressa issue)", &s));
+                buf.push(n as char);
+            }
+            'u' => {
+                let s = format!(
+                    "{}{}{}{}",
+                    iter.next().ok_or(str_error("first hex digit after \\x", span, source_map))?,
+                    iter.next().ok_or(str_error("second hex digit after \\x", span, source_map))?,
+                    iter.next().ok_or(str_error("third hex digit after \\x", span, source_map))?,
+                    iter.next().ok_or(str_error("fourth hex digit after \\x", span, source_map))?
+                );
+                let n = u16::from_str_radix(&s, 16).map_err(|e| str_error(&format!("unicode escape {}", e), span, source_map))?;
+                buf.push(
+                    std::char::from_u32(n as u32).ok_or(str_error(&format!("invalid Unicode character {}", n), span, source_map))?
+                );
+            }
+            ch => {
+                if ch < '0' || ch > '9' {
+                    // JavaScript allows you to escape any character. If it's not a valid escape
+                    // sequence, you just get the character itself. For example, '\😂' === '😂'.
+                    buf.push(ch);
+                } else {
+                    let mut octal_str = String::with_capacity(2);
+                    // First octal digit
+                    octal_str.push(ch);
+                    // Potentially octal digit
+                    match iter.peek() {
+                        Some(ch) if *ch >= '0' && *ch <= '7' => {
+                            octal_str.push(*ch);
+                            iter.next(); // consume
+                        }
+                        _ => (),
+                    }
+                    let n = u32::from_str_radix(&octal_str, 8).expect(&format!(
+                        "invalid octal escape \\u{} (Ressa issue)",
+                        &octal_str
+                    ));
+                    // 2-digit octal value is in range for UTF-8, thus unwrap should succeed
+                    buf.push(std::char::from_u32(n).unwrap());
+                }
+            }
+        }
+    }
+    return Ok(buf);
+
 }
 
 /// Get the span out of a decl.
