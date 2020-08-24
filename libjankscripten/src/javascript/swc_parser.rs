@@ -3,6 +3,7 @@
 
 use super::constructors::*;
 use super::syntax as S;
+use swc_atoms::JsWord;
 use swc_common::{
     errors::{ColorConfig, Handler},
     sync::Lrc,
@@ -10,7 +11,6 @@ use swc_common::{
 };
 use swc_ecma_ast as swc;
 use swc_ecma_parser::{lexer, Parser, StringInput, Syntax};
-use swc_atoms::JsWord;
 
 use thiserror::Error;
 
@@ -83,18 +83,16 @@ fn unsupported_message<T>(msg: &str, span: Span, source_map: &SourceMap) -> Resu
 }
 
 fn unsupported_error(msg: &str, span: Span, source_map: &SourceMap) -> ParseError {
-    ParseError::Unsupported(format!(
-            "{} at {}",
-            msg,
-            source_map.span_to_string(span)
-        ))
+    ParseError::Unsupported(format!("{} at {}", msg, source_map.span_to_string(span)))
 }
 
 /// An error occurred while attempting to parse a string literal from the SWC AST
 fn str_error(msg: &str, span: Span, source_map: &SourceMap) -> ParseError {
-    ParseError::String(format!("tried to parse string literal at {} but failed at {}", 
+    ParseError::String(format!(
+        "tried to parse string literal at {} but failed at {}",
         source_map.span_to_string(span),
-        msg))
+        msg
+    ))
 }
 
 // parse an id out of an swc identifier
@@ -119,9 +117,7 @@ fn parse_stmts(stmts: Vec<swc::Stmt>, source_map: &SourceMap) -> ParseResult<Vec
 fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
     use swc::Stmt::*;
     match stmt {
-        Block(block_stmt) => {
-            parse_block(block_stmt, source_map)
-        }
+        Block(block_stmt) => parse_block(block_stmt, source_map),
         Break(break_stmt) => Ok(break_(break_stmt.label.map(to_id))),
         Continue(continue_stmt) => Ok(continue_(continue_stmt.label.map(to_id))),
         Debugger(debugger_stmt) => unsupported(debugger_stmt.span, source_map),
@@ -412,64 +408,57 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             let alt = parse_expr(*alt, source_map)?;
             Ok(if_expr_(test, cons, alt))
         }
-        Fn(swc::FnExpr { ident, function: swc::Function { 
-            params,
-            decorators,
-            span,
-            body,
-            is_generator,
-            is_async,
-            ..
-         } }) => {
-             // rule out cases we don't handle
-             if is_generator {
+        Fn(swc::FnExpr {
+            ident,
+            function:
+                swc::Function {
+                    params,
+                    decorators,
+                    span,
+                    body,
+                    is_generator,
+                    is_async,
+                    ..
+                },
+        }) => {
+            // rule out cases we don't handle
+            if is_generator {
                 return unsupported_message("generators not supported", span, source_map);
-             }
-             if is_async {
-                 return unsupported_message("async not supported", span, source_map);
-             }
-             if decorators.len() > 0 {
-                 return unsupported_message("class decorators not supported", span, source_map);
-             }
+            }
+            if is_async {
+                return unsupported_message("async not supported", span, source_map);
+            }
+            if decorators.len() > 0 {
+                return unsupported_message("class decorators not supported", span, source_map);
+            }
 
-             // parse parts
-             let ident = match ident {
-                 Some(ident) => Some(to_id(ident)),
-                 None => None,
-             };
-             let params: ParseResult<Vec<_>> = params.into_iter().map(|p| parse_func_arg(p, source_map)).collect();
-             let body = match body {
-                 Some(block) => parse_block(block, source_map)?,
-                 None => S::Stmt::Empty,
-             };
+            // parse parts
+            let ident = match ident {
+                Some(ident) => Some(to_id(ident)),
+                None => None,
+            };
+            let params: ParseResult<Vec<_>> = params
+                .into_iter()
+                .map(|p| parse_func_arg(p, source_map))
+                .collect();
+            let body = match body {
+                Some(block) => parse_block(block, source_map)?,
+                None => S::Stmt::Empty,
+            };
 
-             // put it all together
-             Ok(expr_func_(ident, params?, body))
+            // put it all together
+            Ok(expr_func_(ident, params?, body))
         }
-        Ident(ident) => {
-            Ok(id_(to_id(ident)))
-        }
-        Invalid(invalid) => {
-            unsupported(invalid.span, source_map)
-        }
-        JSXElement(jsx_element) => {
-            unsupported(jsx_element.span, source_map)
-        }
-        JSXEmpty(jsx_empty) => {
-            unsupported(jsx_empty.span, source_map)
-        }
-        JSXFragment(jsx_fragment) => {
-            unsupported(jsx_fragment.span, source_map)
-        }
-        JSXMember(jsx_member_expr) => {
-            unsupported(jsx_member_expr.prop.span, source_map)
-        }
+        Ident(ident) => Ok(id_(to_id(ident))),
+        Invalid(invalid) => unsupported(invalid.span, source_map),
+        JSXElement(jsx_element) => unsupported(jsx_element.span, source_map),
+        JSXEmpty(jsx_empty) => unsupported(jsx_empty.span, source_map),
+        JSXFragment(jsx_fragment) => unsupported(jsx_fragment.span, source_map),
+        JSXMember(jsx_member_expr) => unsupported(jsx_member_expr.prop.span, source_map),
         JSXNamespacedName(jsx_namespaced_name) => {
             unsupported(jsx_namespaced_name.name.span, source_map)
         }
-        Lit(lit) => {
-            Ok(S::Expr::Lit(parse_lit(lit, source_map)?))
-        }
+        Lit(lit) => Ok(S::Expr::Lit(parse_lit(lit, source_map)?)),
         Member(member_expr) => {
             todo!();
         }
@@ -611,13 +600,15 @@ fn parse_func_arg(arg: swc::Param, source_map: &SourceMap) -> ParseResult<S::Id>
 fn parse_lit(lit: swc::Lit, source_map: &SourceMap) -> ParseResult<S::Lit> {
     use swc::Lit::*;
     match lit {
-        Str(swc::Str { value, span, .. }) => Ok(S::Lit::String(parse_string(value, span, source_map)?)),
+        Str(swc::Str { value, span, .. }) => {
+            Ok(S::Lit::String(parse_string(value, span, source_map)?))
+        }
         Bool(swc::Bool { value, span }) => todo!(),
         Null(swc::Null { span }) => todo!(),
         Num(swc::Number { value, span }) => todo!(),
         BigInt(swc::BigInt { value, span }) => todo!(),
         Regex(swc::Regex { exp, flags, span }) => todo!(),
-        JSXText(swc::JSXText { span, .. }) => unsupported(span, source_map)
+        JSXText(swc::JSXText { span, .. }) => unsupported(span, source_map),
     }
 }
 
@@ -646,8 +637,10 @@ fn parse_string(s: JsWord, span: Span, source_map: &SourceMap) -> ParseResult<St
             'x' => {
                 let s = format!(
                     "{}{}",
-                    iter.next().ok_or(str_error("first hex digit after \\x", span, source_map))?,
-                    iter.next().ok_or(str_error("second hex digit after \\x", span, source_map))?,
+                    iter.next()
+                        .ok_or(str_error("first hex digit after \\x", span, source_map))?,
+                    iter.next()
+                        .ok_or(str_error("second hex digit after \\x", span, source_map))?,
                 );
                 let n = u8::from_str_radix(&s, 16)
                     .expect(&format!("invalid escape \\x{} (Ressa issue)", &s));
@@ -656,15 +649,22 @@ fn parse_string(s: JsWord, span: Span, source_map: &SourceMap) -> ParseResult<St
             'u' => {
                 let s = format!(
                     "{}{}{}{}",
-                    iter.next().ok_or(str_error("first hex digit after \\x", span, source_map))?,
-                    iter.next().ok_or(str_error("second hex digit after \\x", span, source_map))?,
-                    iter.next().ok_or(str_error("third hex digit after \\x", span, source_map))?,
-                    iter.next().ok_or(str_error("fourth hex digit after \\x", span, source_map))?
+                    iter.next()
+                        .ok_or(str_error("first hex digit after \\x", span, source_map))?,
+                    iter.next()
+                        .ok_or(str_error("second hex digit after \\x", span, source_map))?,
+                    iter.next()
+                        .ok_or(str_error("third hex digit after \\x", span, source_map))?,
+                    iter.next()
+                        .ok_or(str_error("fourth hex digit after \\x", span, source_map))?
                 );
-                let n = u16::from_str_radix(&s, 16).map_err(|e| str_error(&format!("unicode escape {}", e), span, source_map))?;
-                buf.push(
-                    std::char::from_u32(n as u32).ok_or(str_error(&format!("invalid Unicode character {}", n), span, source_map))?
-                );
+                let n = u16::from_str_radix(&s, 16)
+                    .map_err(|e| str_error(&format!("unicode escape {}", e), span, source_map))?;
+                buf.push(std::char::from_u32(n as u32).ok_or(str_error(
+                    &format!("invalid Unicode character {}", n),
+                    span,
+                    source_map,
+                ))?);
             }
             ch => {
                 if ch < '0' || ch > '9' {
@@ -694,7 +694,6 @@ fn parse_string(s: JsWord, span: Span, source_map: &SourceMap) -> ParseResult<St
         }
     }
     return Ok(buf);
-
 }
 
 /// Get the span out of a decl.
