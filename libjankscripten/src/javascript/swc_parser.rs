@@ -626,7 +626,10 @@ fn parse_string(s: JsWord, span: Span, source_map: &SourceMap) -> ParseResult<St
             buf.push(ch);
             continue;
         }
-        match iter.next().expect("character after backslash") {
+        match iter
+            .next()
+            .ok_or(str_error("character after backslash", span, source_map))?
+        {
             '\'' | '"' | '\\' => buf.push(ch),
             'n' => buf.push('\n'),
             'r' => buf.push('\r'),
@@ -642,8 +645,9 @@ fn parse_string(s: JsWord, span: Span, source_map: &SourceMap) -> ParseResult<St
                     iter.next()
                         .ok_or(str_error("second hex digit after \\x", span, source_map))?,
                 );
-                let n = u8::from_str_radix(&s, 16)
-                    .expect(&format!("invalid escape \\x{} (Ressa issue)", &s));
+                let n = u8::from_str_radix(&s, 16).map_err(|_| {
+                    str_error(&format!("invalid escape \\x{}", &s), span, source_map)
+                })?;
                 buf.push(n as char);
             }
             'u' => {
@@ -658,8 +662,9 @@ fn parse_string(s: JsWord, span: Span, source_map: &SourceMap) -> ParseResult<St
                     iter.next()
                         .ok_or(str_error("fourth hex digit after \\x", span, source_map))?
                 );
-                let n = u16::from_str_radix(&s, 16)
-                    .map_err(|e| str_error(&format!("unicode escape {}", e), span, source_map))?;
+                let n = u16::from_str_radix(&s, 16).map_err(|_| {
+                    str_error(&format!("invalid unicode escape {}", &s), span, source_map)
+                })?;
                 buf.push(std::char::from_u32(n as u32).ok_or(str_error(
                     &format!("invalid Unicode character {}", n),
                     span,
@@ -683,10 +688,13 @@ fn parse_string(s: JsWord, span: Span, source_map: &SourceMap) -> ParseResult<St
                         }
                         _ => (),
                     }
-                    let n = u32::from_str_radix(&octal_str, 8).expect(&format!(
-                        "invalid octal escape \\u{} (Ressa issue)",
-                        &octal_str
-                    ));
+                    let n = u32::from_str_radix(&octal_str, 8).map_err(|_| {
+                        str_error(
+                            &format!("invalid octal escape \\u{}", &octal_str),
+                            span,
+                            source_map,
+                        )
+                    })?;
                     // 2-digit octal value is in range for UTF-8, thus unwrap should succeed
                     buf.push(std::char::from_u32(n).unwrap());
                 }
