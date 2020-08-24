@@ -104,8 +104,7 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
     use swc::Stmt::*;
     match stmt {
         Block(block_stmt) => {
-            let parsed_stmts = parse_stmts(block_stmt.stmts, source_map)?;
-            Ok(S::Stmt::Block(parsed_stmts))
+            parse_block(block_stmt, source_map)
         }
         Break(break_stmt) => Ok(break_(break_stmt.label.map(id_))),
         Continue(continue_stmt) => Ok(continue_(continue_stmt.label.map(id_))),
