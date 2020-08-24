@@ -403,7 +403,6 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             body,
             is_generator,
             is_async,
-            return_type,
             ..
          } }) => {
              // rule out cases we don't handle
@@ -412,6 +411,9 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
              }
              if is_async {
                  return unsupported_message("async not supported", span, source_map);
+             }
+             if decorators.len() > 0 {
+                 return unsupported_message("class decorators not supported", span, source_map);
              }
 
              // parse parts
