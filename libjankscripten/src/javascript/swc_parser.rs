@@ -438,19 +438,19 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             todo!();
         }
         JSXElement(jsx_element) => {
-            todo!();
+            unsupported(jsx_element.span, source_map)
         }
         JSXEmpty(jsx_empty) => {
-            todo!();
+            unsupported(jsx_empty.span, source_map)
         }
         JSXFragment(jsx_fragment) => {
-            todo!();
+            unsupported(jsx_fragment.span, source_map)
         }
         JSXMember(jsx_member_expr) => {
-            todo!();
+            unsupported(jsx_member_expr.prop.span, source_map)
         }
         JSXNamespacedName(jsx_namespaced_name) => {
-            todo!();
+            unsupported(jsx_namespaced_name.name.span, source_map)
         }
         Lit(lit) => {
             todo!();
