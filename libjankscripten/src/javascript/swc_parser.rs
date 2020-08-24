@@ -603,12 +603,28 @@ fn parse_lit(lit: swc::Lit, source_map: &SourceMap) -> ParseResult<S::Lit> {
         Str(swc::Str { value, span, .. }) => {
             Ok(S::Lit::String(parse_string(value, span, source_map)?))
         }
-        Bool(swc::Bool { value, span }) => todo!(),
-        Null(swc::Null { span }) => todo!(),
-        Num(swc::Number { value, span }) => todo!(),
-        BigInt(swc::BigInt { value, span }) => todo!(),
-        Regex(swc::Regex { exp, flags, span }) => todo!(),
-        JSXText(swc::JSXText { span, .. }) => unsupported(span, source_map),
+        Bool(swc::Bool { value, span }) => Ok(S::Lit::Bool(value)),
+        Null(swc::Null { span }) => Ok(S::Lit::Null),
+        Num(swc::Number { value, span }) => {
+            // SWC represents all real numeric literals with f64.
+            // Now we have to figure out if the user gave a value that should
+            // be represented with a Num or a Float.
+
+            // TODO(mark): hopefully this doesn't break anything, but if it does,
+            //             look into how we could get more info from SWC about
+            //             the num lit
+
+            // does converting f64 -> i32 -> f64 yield the original value?
+            if (value as i32) as f64 == value {
+                // if so, this PROBABLY should be represented with an int
+                Ok(S::Lit::Num(S::Num::Int(value as i32)))
+            } else {
+                Ok(S::Lit::Num(S::Num::Float(value)))
+            }
+        }
+        BigInt(swc::BigInt { value, span }) => unsupported_message("big int literal", span, source_map),
+        Regex(swc::Regex { exp, flags, span }) => unsupported_message("regex not yet supported", span, source_map),
+        JSXText(swc::JSXText { span, .. }) => unsupported_message("jsx string literal", span, source_map),
     }
 }
 
