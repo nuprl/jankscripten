@@ -435,7 +435,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             Ok(id_(to_id(ident)))
         }
         Invalid(invalid) => {
-            todo!();
+            unsupported(invalid.span, source_map)
         }
         JSXElement(jsx_element) => {
             unsupported(jsx_element.span, source_map)
