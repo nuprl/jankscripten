@@ -385,11 +385,48 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             let callee = parse_expr_or_super(callee, source_map);
             Ok(call_(callee?, args?))
         }
-        Cond(cond_expr) => {
-            todo!();
+        Cond(swc::CondExpr {
+            test,
+            cons,
+            alt,
+            span,
+        }) => {
+            let test = parse_expr(*test, source_map)?;
+            let cons = parse_expr(*cons, source_map)?;
+            let alt = parse_expr(*alt, source_map)?;
+            Ok(if_expr_(test, cons, alt))
         }
-        Fn(fn_expr) => {
-            todo!();
+        Fn(swc::FnExpr { ident, function: swc::Function { 
+            params,
+            decorators,
+            span,
+            body,
+            is_generator,
+            is_async,
+            return_type,
+            ..
+         } }) => {
+             // rule out cases we don't handle
+             if is_generator {
+                return unsupported_message("generators not supported", span, source_map);
+             }
+             if is_async {
+                 return unsupported_message("async not supported", span, source_map);
+             }
+
+             // parse parts
+             let ident = match ident {
+                 Some(ident) => Some(id_(ident)),
+                 None => None,
+             };
+             let params: ParseResult<Vec<_>> = params.into_iter().map(|p| parse_func_arg(p, source_map)).collect();
+             let body = match body {
+                 Some(block) => parse_block(block, source_map)?,
+                 None => S::Stmt::Empty,
+             };
+
+             // put it all together
+             Ok(expr_func_(ident, params?, body))
         }
         Ident(ident) => {
             todo!();
@@ -547,6 +584,10 @@ fn parse_opt_expr_or_spread(
         Some(eos) => parse_expr_or_spread(eos, source_map),
         None => Ok(UNDEFINED_), // optional expr gets undefined
     }
+}
+
+fn parse_func_arg(arg: swc::Param, source_map: &SourceMap) -> ParseResult<S::Id> {
+    Ok(parse_pattern(arg.pat, arg.span, source_map)?)
 }
 
 /// Get the span out of a decl.
