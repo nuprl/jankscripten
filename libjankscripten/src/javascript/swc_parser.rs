@@ -432,7 +432,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
              Ok(expr_func_(ident, params?, body))
         }
         Ident(ident) => {
-            todo!();
+            Ok(id_(to_id(ident)))
         }
         Invalid(invalid) => {
             todo!();
