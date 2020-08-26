@@ -60,6 +60,7 @@ impl Pretty for UnaryOp {
         match self {
             UnaryOp::Sqrt => pp.text("Math.sqrt"),
             UnaryOp::Neg => pp.text("-"),
+            UnaryOp::Eqz => pp.text("!"),
         }
     }
 }
@@ -74,6 +75,7 @@ impl Pretty for BinaryOp {
         match self {
             BinaryOp::PtrEq => pp.text("==="),
             BinaryOp::I32Eq => pp.text("==="),
+            BinaryOp::I32Ne => pp.text("!="),
             BinaryOp::I32Add => pp.text("+"),
             BinaryOp::I32Sub => pp.text("-"),
             BinaryOp::I32Mul => pp.text("*"),
@@ -85,12 +87,18 @@ impl Pretty for BinaryOp {
             BinaryOp::I32Or => pp.text("|"),
             BinaryOp::I32Div => pp.text("/"),
             BinaryOp::I32Rem => pp.text("%"),
+            BinaryOp::I32Shl => pp.text("<<"),
+            BinaryOp::I32Shr => pp.text(">>"),
             BinaryOp::F64Eq => pp.text("==="),
+            BinaryOp::F64Ne => pp.text("!="),
             BinaryOp::F64Add => pp.text("+"),
             BinaryOp::F64Sub => pp.text("-"),
             BinaryOp::F64Mul => pp.text("*"),
             BinaryOp::F64Div => pp.text("/"),
             BinaryOp::F64LT => pp.text("<"),
+            BinaryOp::F64GT => pp.text(">"),
+            BinaryOp::F64Le => pp.text("<="),
+            BinaryOp::F64Ge => pp.text(">="),
         }
     }
 }
