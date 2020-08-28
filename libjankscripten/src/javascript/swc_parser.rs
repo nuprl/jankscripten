@@ -475,9 +475,10 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
                 }
             }
         }
-        MetaProp(meta_prop_expr) => {
-            todo!();
-        }
+        MetaProp(swc::MetaPropExpr {
+            meta: swc::Ident { span, .. },
+            ..
+        }) => unsupported(span, source_map), // new.target
         New(new_expr) => {
             todo!();
         }
