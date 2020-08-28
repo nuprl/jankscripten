@@ -479,8 +479,23 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             meta: swc::Ident { span, .. },
             ..
         }) => unsupported(span, source_map), // new.target
-        New(new_expr) => {
-            todo!();
+        New(swc::NewExpr { callee, args, span, ..}) => {
+            // args are technically optional, as the parentheses in a new
+            // call are optional for zero-arg constructors. for example,
+            //     new Date();
+            // is equivalent to
+            //     new Date;
+            // omitting parentheses in this case makes no difference but it can
+            // cause weird problems in more complicated uses.
+
+            let args: ParseResult<Vec<_>> = match args {
+                Some(args) => {
+                    args.into_iter().map(|eos| parse_expr_or_spread(eos, source_map)).collect()
+                }
+                None => Ok(Vec::new())
+            };
+            let callee = parse_expr(*callee, source_map);
+            Ok(new_(callee?, args?))
         }
         Object(object_lit) => {
             todo!();
