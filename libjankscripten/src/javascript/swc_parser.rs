@@ -459,8 +459,16 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             unsupported(jsx_namespaced_name.name.span, source_map)
         }
         Lit(lit) => Ok(S::Expr::Lit(parse_lit(lit, source_map)?)),
-        Member(member_expr) => {
-            todo!();
+        Member(swc::MemberExpr { obj, prop, computed, span}) => {
+            let obj = parse_expr_or_super(obj, source_map)?;
+            if computed {
+                Ok(bracket_(obj, parse_expr(*prop, source_map)?))
+            } else {
+                match *prop {
+                    Ident(id) => Ok(dot_(obj, to_id(id))),
+                    _ => unsupported(span, source_map)
+                }
+            }
         }
         MetaProp(meta_prop_expr) => {
             todo!();
