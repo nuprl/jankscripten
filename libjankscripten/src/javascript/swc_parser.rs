@@ -641,23 +641,7 @@ fn parse_lit(lit: swc::Lit, source_map: &SourceMap) -> ParseResult<S::Lit> {
         }
         Bool(swc::Bool { value, span }) => Ok(S::Lit::Bool(value)),
         Null(swc::Null { span }) => Ok(S::Lit::Null),
-        Num(swc::Number { value, span }) => {
-            // SWC represents all real numeric literals with f64.
-            // Now we have to figure out if the user gave a value that should
-            // be represented with a Num or a Float.
-
-            // TODO(mark): hopefully this doesn't break anything, but if it does,
-            //             look into how we could get more info from SWC about
-            //             the num lit
-
-            // does converting f64 -> i32 -> f64 yield the original value?
-            if (value as i32) as f64 == value {
-                // if so, this PROBABLY should be represented with an int
-                Ok(S::Lit::Num(S::Num::Int(value as i32)))
-            } else {
-                Ok(S::Lit::Num(S::Num::Float(value)))
-            }
-        }
+        Num(swc::Number { value, span }) => Ok(S::Lit::Num(parse_num(value))),
         BigInt(swc::BigInt { value, span }) => {
             unsupported_message("big int literal", span, source_map)
         }
@@ -782,8 +766,54 @@ fn parse_prop(
 ) -> ParseResult<(S::Key, S::Expr)> {
     use swc::Prop::*;
     match prop {
-        KeyValue(swc::KeyValueProp { key, value }) => todo!(),
+        KeyValue(swc::KeyValueProp { key, value }) => {
+            let key = parse_prop_name(key, span, source_map)?;
+            let value = parse_expr(*value, source_map)?;
+
+            Ok((key, value))
+        }
         _ => unsupported_message("object literal key type", span, source_map),
+    }
+}
+
+/// `span` is the span of the surrounding object literal.
+fn parse_prop_name(name: swc::PropName, span: Span, source_map: &SourceMap) -> ParseResult<S::Key> {
+    use swc::PropName::*;
+    match name {
+        Ident(swc::Ident { sym, span, .. }) => Ok(S::Key::Str(sym.to_string())),
+        Str(swc::Str { value, span, .. }) => Ok(S::Key::Str(value.to_string())),
+        Num(swc::Number { value, span }) => {
+            // see if this is a float or an int
+            match parse_num(value) {
+                S::Num::Int(i) => Ok(S::Key::Int(i)),
+                S::Num::Float(_) => unsupported_message("float as prop key", span, source_map),
+            }
+        }
+        Computed(_) => unsupported_message("computed prop name", span, source_map)
+    }
+}
+
+/// Convert a numeric value from the parser into our AST's numbers.
+///
+/// This is tricky because our parser only stores numeric values in f64's,
+/// and we store both floats and ints. This is a hacky solution that should
+/// work for most programs, but there may be a way to get more info from the
+/// parser and return a more precise result.
+fn parse_num(value: f64) -> S::Num {
+    // SWC represents all real numeric literals with f64.
+    // Now we have to figure out if the user gave a value that should
+    // be represented with a Num or a Float.
+
+    // TODO(mark): hopefully this doesn't break anything, but if it does,
+    //             look into how we could get more info from SWC about
+    //             the num lit
+
+    // does converting f64 -> i32 -> f64 yield the original value?
+    if (value as i32) as f64 == value {
+        // if so, this PROBABLY should be represented with an int
+        S::Num::Int(value as i32)
+    } else {
+        S::Num::Float(value)
     }
 }
 
