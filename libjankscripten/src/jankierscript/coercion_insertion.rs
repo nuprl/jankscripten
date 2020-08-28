@@ -381,7 +381,7 @@ impl InsertCoercions {
             // TODO(arjun): Any for this!
             Expr::This => Ok((Janky::Expr::This, Type::Any)),
             Expr::Unary(op, e) => {
-                use resast::UnaryOp;
+                use super::super::javascript::UnaryOp;
                 let (coerced_e, e_ty) = self.expr_and_type(*e, &mut env.clone())?;
                 match (&op, &e_ty) {
                     // Bitwise not; needed for one particular dart benchmark

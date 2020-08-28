@@ -2,7 +2,7 @@
 
 use super::constructors::*;
 use super::*;
-use resast::LogicalOp;
+use super::syntax::LogicalOp;
 
 /// desugar &&, ||, ?:, and , (seq)
 pub fn desugar_logical(stmt: &mut Stmt, ng: &mut NameGen) {

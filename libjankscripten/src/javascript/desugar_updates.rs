@@ -2,7 +2,6 @@ use super::constructors::*;
 use super::syntax::*;
 use super::walk::*;
 use super::*;
-use resast::BinaryOp;
 
 //note: will depend on function naming from desugar_function_applications in order to handle f().x += 1; cases
 // x += 1;    =>    x = x + 1;

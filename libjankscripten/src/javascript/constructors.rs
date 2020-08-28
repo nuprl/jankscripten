@@ -111,7 +111,7 @@ pub fn binary_(a: BinOp, b: Expr, c: Expr) -> Expr {
 }
 
 pub fn or_(b: Expr, c: Expr) -> Expr {
-    binary_(BinOp::LogicalOp(resast::LogicalOp::Or), b, c)
+    binary_(BinOp::LogicalOp(LogicalOp::Or), b, c)
 }
 
 pub fn unaryassign_(a: UnaryAssignOp, b: LValue) -> Expr {

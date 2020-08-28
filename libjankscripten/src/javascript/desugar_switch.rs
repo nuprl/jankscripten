@@ -24,8 +24,8 @@ use super::constructors::*;
 use super::syntax::*;
 use super::walk::*;
 use super::*;
-use resast::BinaryOp;
-use resast::LogicalOp;
+use super::syntax::BinaryOp;
+use super::syntax::LogicalOp;
 
 struct SwitchToIf<'a> {
     ng: &'a mut NameGen,

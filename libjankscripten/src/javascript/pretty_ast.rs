@@ -249,7 +249,7 @@ impl Id {
 
 // can't impl foreign type
 fn unary_op_to_doc(op: &UnaryOp) -> D<()> {
-    use resast::UnaryOp::*;
+    use UnaryOp::*;
     D::text(match op {
         Minus => "-",
         Plus => "+",
@@ -263,7 +263,7 @@ fn unary_op_to_doc(op: &UnaryOp) -> D<()> {
 
 impl BinOp {
     pub fn to_doc(&self) -> D<()> {
-        use resast::BinaryOp::*;
+        use BinaryOp::*;
         D::text(match self {
             BinOp::BinaryOp(b) => match b {
                 Equal => "==",
@@ -290,8 +290,8 @@ impl BinOp {
                 PowerOf => "**",
             },
             BinOp::LogicalOp(o) => match o {
-                resast::LogicalOp::And => "&&",
-                resast::LogicalOp::Or => "||",
+                LogicalOp::And => "&&",
+                LogicalOp::Or => "||",
             },
         })
     }
@@ -312,7 +312,7 @@ impl LValue {
 }
 
 fn assign_op_to_doc(op: &AssignOp) -> D<()> {
-    use resast::AssignOp::*;
+    use AssignOp::*;
     D::text(match op {
         Equal => "=",
         PlusEqual => "+=",

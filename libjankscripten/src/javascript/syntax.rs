@@ -5,13 +5,69 @@
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum BinOp {
-    BinaryOp(resast::BinaryOp),
-    LogicalOp(resast::LogicalOp),
+    BinaryOp(BinaryOp),
+    LogicalOp(LogicalOp),
 }
 
-pub type UnaryOp = resast::UnaryOp;
+#[derive(Debug, PartialEq, Clone)]
+pub enum UnaryOp {
+    Minus,
+    Plus,
+    Not,
+    Tilde,
+    TypeOf,
+    Void,
+    Delete,
+}
 
-pub type AssignOp = resast::AssignOp;
+#[derive(Debug, PartialEq, Clone)]
+pub enum BinaryOp {
+    Equal,
+    NotEqual,
+    StrictEqual,
+    StrictNotEqual,
+    LessThan,
+    GreaterThan,
+    LessThanEqual,
+    GreaterThanEqual,
+    LeftShift,
+    RightShift,
+    UnsignedRightShift,
+    Plus,
+    Minus,
+    Times,
+    Over,
+    Mod,
+    Or,
+    XOr,
+    And,
+    In,
+    InstanceOf,
+    PowerOf,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum AssignOp {
+    Equal,
+    PlusEqual,
+    MinusEqual,
+    TimesEqual,
+    DivEqual,
+    ModEqual,
+    LeftShiftEqual,
+    RightShiftEqual,
+    UnsignedRightShiftEqual,
+    OrEqual,
+    XOrEqual,
+    AndEqual,
+    PowerOfEqual,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum LogicalOp {
+    Or,
+    And,
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum UnaryAssignOp {
@@ -201,16 +257,16 @@ impl UnaryAssignOp {
     pub fn binop(&self) -> BinOp {
         use UnaryAssignOp::*;
         match self {
-            PostInc | PreInc => BinOp::BinaryOp(resast::BinaryOp::Plus),
-            PostDec | PreDec => BinOp::BinaryOp(resast::BinaryOp::Minus),
+            PostInc | PreInc => BinOp::BinaryOp(BinaryOp::Plus),
+            PostDec | PreDec => BinOp::BinaryOp(BinaryOp::Minus),
         }
     }
 
     pub fn other_binop(&self) -> BinOp {
         use UnaryAssignOp::*;
         match self {
-            PostInc | PreInc => BinOp::BinaryOp(resast::BinaryOp::Minus),
-            PostDec | PreDec => BinOp::BinaryOp(resast::BinaryOp::Plus),
+            PostInc | PreInc => BinOp::BinaryOp(BinaryOp::Minus),
+            PostDec | PreDec => BinOp::BinaryOp(BinaryOp::Plus),
         }
     }
 }

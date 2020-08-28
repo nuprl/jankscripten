@@ -13,7 +13,7 @@ pub enum LValue {
     Bracket(Expr, Expr),
 }
 
-pub type BinOp = resast::BinaryOp;
+pub type BinOp = super::super::javascript::BinaryOp;
 
 #[derive(Debug)]
 pub enum Expr {
