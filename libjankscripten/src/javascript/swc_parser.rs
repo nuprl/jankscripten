@@ -459,14 +459,19 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             unsupported(jsx_namespaced_name.name.span, source_map)
         }
         Lit(lit) => Ok(S::Expr::Lit(parse_lit(lit, source_map)?)),
-        Member(swc::MemberExpr { obj, prop, computed, span}) => {
+        Member(swc::MemberExpr {
+            obj,
+            prop,
+            computed,
+            span,
+        }) => {
             let obj = parse_expr_or_super(obj, source_map)?;
             if computed {
                 Ok(bracket_(obj, parse_expr(*prop, source_map)?))
             } else {
                 match *prop {
                     Ident(id) => Ok(dot_(obj, to_id(id))),
-                    _ => unsupported(span, source_map)
+                    _ => unsupported(span, source_map),
                 }
             }
         }
@@ -630,9 +635,15 @@ fn parse_lit(lit: swc::Lit, source_map: &SourceMap) -> ParseResult<S::Lit> {
                 Ok(S::Lit::Num(S::Num::Float(value)))
             }
         }
-        BigInt(swc::BigInt { value, span }) => unsupported_message("big int literal", span, source_map),
-        Regex(swc::Regex { exp, flags, span }) => unsupported_message("regex not yet supported", span, source_map),
-        JSXText(swc::JSXText { span, .. }) => unsupported_message("jsx string literal", span, source_map),
+        BigInt(swc::BigInt { value, span }) => {
+            unsupported_message("big int literal", span, source_map)
+        }
+        Regex(swc::Regex { exp, flags, span }) => {
+            unsupported_message("regex not yet supported", span, source_map)
+        }
+        JSXText(swc::JSXText { span, .. }) => {
+            unsupported_message("jsx string literal", span, source_map)
+        }
     }
 }
 

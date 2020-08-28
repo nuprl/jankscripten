@@ -21,11 +21,11 @@
 ///
 /// In addition, any 'break' within 's ...' and 's_default' turns into 'break sw';
 use super::constructors::*;
+use super::syntax::BinaryOp;
+use super::syntax::LogicalOp;
 use super::syntax::*;
 use super::walk::*;
 use super::*;
-use super::syntax::BinaryOp;
-use super::syntax::LogicalOp;
 
 struct SwitchToIf<'a> {
     ng: &'a mut NameGen,

@@ -1,8 +1,8 @@
 //! desugar &&, ||, ?:, and , (seq)
 
 use super::constructors::*;
-use super::*;
 use super::syntax::LogicalOp;
+use super::*;
 
 /// desugar &&, ||, ?:, and , (seq)
 pub fn desugar_logical(stmt: &mut Stmt, ng: &mut NameGen) {
