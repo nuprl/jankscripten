@@ -479,7 +479,9 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             meta: swc::Ident { span, .. },
             ..
         }) => unsupported(span, source_map), // new.target
-        New(swc::NewExpr { callee, args, span, ..}) => {
+        New(swc::NewExpr {
+            callee, args, span, ..
+        }) => {
             // args are technically optional, as the parentheses in a new
             // call are optional for zero-arg constructors. for example,
             //     new Date();
@@ -489,16 +491,21 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             // cause weird problems in more complicated uses.
 
             let args: ParseResult<Vec<_>> = match args {
-                Some(args) => {
-                    args.into_iter().map(|eos| parse_expr_or_spread(eos, source_map)).collect()
-                }
-                None => Ok(Vec::new())
+                Some(args) => args
+                    .into_iter()
+                    .map(|eos| parse_expr_or_spread(eos, source_map))
+                    .collect(),
+                None => Ok(Vec::new()),
             };
             let callee = parse_expr(*callee, source_map);
             Ok(new_(callee?, args?))
         }
-        Object(object_lit) => {
-            todo!();
+        Object(swc::ObjectLit { props, span }) => {
+            let props: ParseResult<Vec<_>> = props
+                .into_iter()
+                .map(|p| parse_prop_or_spread(p, span, source_map))
+                .collect();
+            Ok(S::Expr::Object(props?))
         }
         OptChain(opt_chain_expr) => {
             todo!();
@@ -753,6 +760,31 @@ fn parse_string(s: JsWord, span: Span, source_map: &SourceMap) -> ParseResult<St
         }
     }
     return Ok(buf);
+}
+
+/// `span` is the span of the surrounding object literal.
+fn parse_prop_or_spread(
+    pos: swc::PropOrSpread,
+    span: Span,
+    source_map: &SourceMap,
+) -> ParseResult<(S::Key, S::Expr)> {
+    match pos {
+        swc::PropOrSpread::Prop(prop) => parse_prop(*prop, span, source_map),
+        _ => unsupported_message("", span, source_map),
+    }
+}
+
+/// `span` is the span of the surrounding object literal.
+fn parse_prop(
+    prop: swc::Prop,
+    span: Span,
+    source_map: &SourceMap,
+) -> ParseResult<(S::Key, S::Expr)> {
+    use swc::Prop::*;
+    match prop {
+        KeyValue(swc::KeyValueProp { key, value }) => todo!(),
+        _ => unsupported_message("object literal key type", span, source_map),
+    }
 }
 
 /// Get the span out of a decl.
