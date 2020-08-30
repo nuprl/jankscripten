@@ -101,10 +101,8 @@ pub fn translate_parity(mut program: N::Program) -> Module {
     }
     // data segment
     for global in program.globals.values_mut() {
-        // can't use functions anyway so no need to worry
-        let empty = HashMap::new();
-        let empty2 = HashMap::new();
-        let mut visitor = Translate::new(&empty, &empty2, &global_env, &mut program.data);
+        let mut visitor =
+            Translate::new(&rt_indexes, &type_indexes, &global_env, &mut program.data);
         visitor.translate_atom(&mut global.atom);
         let mut insts = visitor.out;
         assert_eq!(

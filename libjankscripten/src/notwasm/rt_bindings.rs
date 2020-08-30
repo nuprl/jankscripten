@@ -69,9 +69,6 @@ pub fn get_rt_bindings() -> BindMap {
             m.insert(rts.name().into(), compile_ty(rts.janky_typ()));
         }
     }
-    // TODO(luna): as global functions are actually added to the runtime,
-    // they should be bound here, but hopefully just by copying them from the
-    // std_lib version
     map
 }
 

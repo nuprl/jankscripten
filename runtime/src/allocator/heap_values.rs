@@ -104,7 +104,7 @@ pub struct AnyPtr<'a> {
 #[derive(Clone, Copy)]
 pub enum HeapRefView<'a> {
     I32(I32Ptr<'a>),
-    String(StringPtr<'a>),
+    String(StringPtr),
     HT(HTPtr<'a>),
     Array(ArrayPtr<'a>),
     Any(AnyJSPtr<'a>),
@@ -169,9 +169,7 @@ impl<'a> AnyPtr<'a> {
         let heap_ref: Tag = unsafe { *self.ptr };
         match heap_ref.type_tag {
             TypeTag::I32 => HeapRefView::I32(unsafe { I32Ptr::new_tag_unchecked(self.ptr) }),
-            TypeTag::String => {
-                HeapRefView::String(unsafe { StringPtr::new_tag_unchecked(self.ptr) })
-            }
+            TypeTag::String => HeapRefView::String(unsafe { StringPtr::new(self.ptr) }),
             TypeTag::HT => HeapRefView::HT(unsafe { HTPtr::new_tag_unchecked(self.ptr) }),
             TypeTag::Array => HeapRefView::Array(unsafe { ArrayPtr::new_tag_unchecked(self.ptr) }),
             TypeTag::Any => HeapRefView::Any(unsafe { AnyJSPtr::new_tag_unchecked(self.ptr) }),

@@ -1,6 +1,5 @@
 use super::class_list::Class;
 use super::*;
-use crate::string::str_as_ptr;
 use wasm_bindgen_test::*;
 
 #[test]
@@ -129,9 +128,9 @@ fn array_members_marked() {
 #[test]
 #[wasm_bindgen_test]
 fn object_members_marked() {
-    let heap = Heap::new((ALIGNMENT * 7) as isize);
-    // the one root will be the array
-    heap.push_shadow_frame(1);
+    let heap = Heap::new((ALIGNMENT * 8 + 5) as isize);
+    // the roots will be: the string and the array
+    heap.push_shadow_frame(2);
     // i32: ALIGNMENT * 2 (32-bit), OR ALIGNMENT * 1 (64-bit)
     let x = heap.alloc(32).expect("first allocation failed");
     assert_eq!(
@@ -139,19 +138,17 @@ fn object_members_marked() {
         32,
         "first value was not written to the heap correctly"
     );
-    let one_type = heap.classes.borrow_mut().transition(0, str_as_ptr("x"));
+    // ALIGNMENT (tag) + 4 (size) + 1
+    let x_str = heap.alloc_str("x").unwrap();
+    heap.set_in_current_shadow_frame_slot(0, x_str.get_ptr());
+    let one_type = heap.classes.borrow_mut().transition(0, x_str);
     // Object: ALIGNMENT * 5 = ALIGNMENT * 2 (tag, ptr) + ALIGNMENT * 3 (tag, any (size: ALIGNMENT * 2))
     let mut obj = heap.alloc_object(one_type).expect("couldn't alloc obj");
     // obj is root
-    heap.set_in_current_shadow_frame_slot(0, obj.get_ptr());
+    heap.set_in_current_shadow_frame_slot(1, obj.get_ptr());
     // but put x into the obj
     let mut cache = -1;
-    obj.insert(
-        &heap,
-        str_as_ptr("x"),
-        AnyEnum::Ptr(x.into()).into(),
-        &mut cache,
-    );
+    obj.insert(&heap, x_str, AnyEnum::Ptr(x.into()).into(), &mut cache);
     assert!(
         heap.alloc(12).is_err(),
         "third allocation should fail due to lack of space"
@@ -159,12 +156,7 @@ fn object_members_marked() {
     heap.gc();
     assert!(heap.alloc(12).is_err(), "nothing should have been freed");
     // unset the pointer to free the x
-    obj.insert(
-        &heap,
-        str_as_ptr("x"),
-        AnyEnum::Bool(false).into(),
-        &mut cache,
-    );
+    obj.insert(&heap, x_str, AnyEnum::Bool(false).into(), &mut cache);
     heap.gc();
     heap.alloc(12).expect("now an int has been freed");
 }
@@ -199,12 +191,16 @@ fn update_prims() {
 #[wasm_bindgen_test]
 fn alloc_container1() {
     let heap = Heap::new(128);
-    let one_type = heap.classes.borrow_mut().transition(0, str_as_ptr("x"));
+    let one_type = heap
+        .classes
+        .borrow_mut()
+        .transition(0, heap.alloc_str("x").unwrap());
     let type_tag = heap
         .classes
         .borrow_mut()
-        .transition(one_type, str_as_ptr("y"));
+        .transition(one_type, heap.alloc_str("y").unwrap());
     heap.alloc(32).expect("first alloc");
+    log!("alloc object");
     let container = heap.alloc_object(type_tag).expect("second alloc");
     assert_eq!(container.read_at(&heap, 0), None);
     assert_eq!(container.read_at(&heap, 1), None);
@@ -217,19 +213,31 @@ fn insert_object() {
     let mut obj = heap.alloc_object(0).expect("second alloc");
     let mut cache = -1;
     assert_eq!(
-        obj.insert(&heap, str_as_ptr("x"), AnyEnum::I32(32).into(), &mut cache),
+        obj.insert(
+            &heap,
+            heap.alloc_str("x").unwrap(),
+            AnyEnum::I32(32).into(),
+            &mut cache
+        ),
         AnyEnum::I32(32).into()
     );
     assert_eq!(
-        obj.insert(&heap, str_as_ptr("x"), AnyEnum::I32(32).into(), &mut cache),
+        obj.insert(
+            &heap,
+            heap.alloc_str("x").unwrap(),
+            AnyEnum::I32(32).into(),
+            &mut cache
+        ),
         AnyEnum::I32(32).into()
     );
     assert!(matches!(
-        obj.get(&heap, str_as_ptr("x"), &mut cache).expect("no x"),
+        obj.get(&heap, heap.alloc_str("x").unwrap(), &mut cache)
+            .expect("no x"),
         AnyEnum::I32(32)
     ));
     assert!(matches!(
-        obj.get(&heap, str_as_ptr("x"), &mut -1).expect("no x"),
+        obj.get(&heap, heap.alloc_str("x").unwrap(), &mut -1)
+            .expect("no x"),
         AnyEnum::I32(32)
     ));
 }
@@ -241,11 +249,11 @@ fn alloc_container2() {
     let one_type = heap
         .classes
         .borrow_mut()
-        .transition(empty_type, str_as_ptr("x"));
+        .transition(empty_type, heap.alloc_str("x").unwrap());
     let type_tag = heap
         .classes
         .borrow_mut()
-        .transition(one_type, str_as_ptr("y"));
+        .transition(one_type, heap.alloc_str("y").unwrap());
     let container = heap.alloc_object(type_tag).expect("second alloc");
     let mut x: AnyJSPtr<'_> = heap.alloc(AnyEnum::I32(200).into()).expect("second alloc");
     container.write_at(&heap, 0, AnyEnum::Ptr(x.into()).into());
@@ -262,30 +270,24 @@ fn alloc_container2() {
 
 #[wasm_bindgen_test]
 #[test]
-fn string_read_read_write() {
-    // String = Vec<u8> = {addr, size, alloc}
-    let heap = Heap::new((ALIGNMENT * 4) as isize);
-    let mut x = heap.alloc(String::from("steven")).expect("first alloc");
-    assert_eq!(x.get().as_str(), "steven");
-    assert_eq!(x.get().as_str(), "steven");
-    x.get_mut().push_str(" universe");
-    assert_eq!(x.get().as_str(), "steven universe");
+fn string_read_alloc() {
+    let heap = Heap::new((ALIGNMENT * 128) as isize);
+    let x = heap.alloc_str("steven").expect("first alloc");
+    log!("helloooo");
+    let _ = &*x;
+    let _ = &*x;
+    log!("hello");
+    assert_eq!(&*x, "steven");
+    assert_eq!(&*x, "steven");
 }
 
 #[test]
 fn string_ptr_drop_read() {
     // String = Vec<u8> = {addr, size, alloc}
     let heap = Heap::new((ALIGNMENT * 4) as isize);
-    let x = heap.alloc(String::from("steven")).expect("first alloc");
+    let x = heap.alloc_str("universe").expect("first alloc");
     let copied = x.clone();
     drop(copied);
-    assert_eq!(x.get().as_str(), "steven");
+    assert_eq!(&*x, "universe");
     drop(x);
-}
-
-#[test]
-fn too_big() {
-    // String = Vec<u8> = {addr, size, alloc}
-    let heap = Heap::new((ALIGNMENT * 2) as isize);
-    assert!(heap.alloc(String::from("hi")).is_err());
 }

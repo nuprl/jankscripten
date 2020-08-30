@@ -6,7 +6,7 @@
 //! - Object => An instance of a class, allocated on the heap with space
 //!   for every field but they may not be occupied
 
-use crate::string::StrPtr;
+use crate::heap_types::StringPtr;
 
 pub struct ClassList {
     /// a HashMap to look up our class is obviously a non-starter when
@@ -35,7 +35,7 @@ impl ClassList {
     }
     /// look up transitions, if none is relevant make one, and return new
     /// class tag
-    pub fn transition(&mut self, class_tag: u16, name: StrPtr) -> u16 {
+    pub fn transition(&mut self, class_tag: u16, name: StringPtr) -> u16 {
         let new_tag = self.classes.len() as u16;
         let class = &mut self.classes[class_tag as usize];
         match class.lookup_transition(name) {
@@ -51,8 +51,8 @@ impl ClassList {
 #[derive(Clone, Debug)]
 pub struct Class {
     pub size: usize,
-    offsets: Vec<(StrPtr, usize)>,
-    transitions: Vec<(StrPtr, u16)>,
+    offsets: Vec<(StringPtr, usize)>,
+    transitions: Vec<(StringPtr, u16)>,
 }
 impl Class {
     /// this is the very base class
@@ -64,7 +64,7 @@ impl Class {
             transitions: Vec::new(),
         }
     }
-    pub fn lookup(&self, name: StrPtr, cache: &mut isize) -> Option<usize> {
+    pub fn lookup(&self, name: StringPtr, cache: &mut isize) -> Option<usize> {
         if *cache != -1 {
             // TODO: this works for static indexes, but we have to check
             // that index is correct and fall back when dynamic is used. there
@@ -80,14 +80,14 @@ impl Class {
                 })
         }
     }
-    fn lookup_transition(&self, name: StrPtr) -> Option<u16> {
+    fn lookup_transition(&self, name: StringPtr) -> Option<u16> {
         self.transitions
             .iter()
             // TODO: might need to match types
             .find(|(trans_name, _)| trans_name == &name)
             .map(|(_, index)| *index)
     }
-    fn branch(&mut self, name: StrPtr, new_tag: u16) -> Self {
+    fn branch(&mut self, name: StringPtr, new_tag: u16) -> Self {
         self.transitions.push((name, new_tag));
         let mut offsets = self.offsets.clone();
         offsets.push((name, self.size));

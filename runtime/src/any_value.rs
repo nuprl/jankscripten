@@ -2,7 +2,6 @@
 
 pub use crate::allocator::{AnyPtr, HeapRefView};
 use crate::heap;
-use crate::string::StrPtr;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::ops::{Deref, DerefMut};
 
@@ -20,7 +19,6 @@ pub enum AnyEnum<'a> {
     F64(*const f64),
     Bool(bool),
     Ptr(AnyPtr<'a>),
-    StrPtr(StrPtr),
     Fn(u32),
     Undefined,
     Null,
@@ -34,7 +32,6 @@ impl std::fmt::Debug for AnyEnum<'_> {
             F64(ptr) => write!(f, "F64({})", unsafe { ptr.read() }),
             Bool(b) => write!(f, "Bool({})", b),
             Ptr(ptr) => write!(f, "{:?}", ptr.view()),
-            StrPtr(s) => write!(f, "StrPtr({})", s),
             Fn(n) => write!(f, "Fn({})", n),
             Undefined => write!(f, "undefined"),
             Null => write!(f, "null"),
@@ -49,7 +46,6 @@ impl std::fmt::Display for AnyEnum<'_> {
             F64(ptr) => write!(f, "{}", unsafe { ptr.read() }),
             Bool(b) => write!(f, "{}", b),
             Ptr(p) => write!(f, "{}", p.view()),
-            StrPtr(s) => write!(f, "{}", s),
             Fn(_) | Undefined | Null => write!(f, "{:?}", self),
         }
     }
@@ -59,7 +55,7 @@ impl std::fmt::Display for HeapRefView<'_> {
         use HeapRefView::*;
         match *self {
             I32(i) => write!(f, "{}", *i),
-            String(s) => write!(f, "{}", *s),
+            String(s) => write!(f, "{}", &*s),
             HT(ht) => write!(f, "{:?}", *ht),
             Array(a) => write!(f, "{:?}", *a),
             Any(a) => write!(f, "{}", **a),
@@ -150,7 +146,6 @@ pub extern "C" fn any_to_f64(any: AnyValue) -> f64 {
             HeapRefView::String(s) => s.parse().unwrap_or(f64::NAN),
             _ => f64::NAN,
         },
-        AnyEnum::StrPtr(s) => crate::string::str_from_ptr(s).parse().unwrap_or(f64::NAN),
         AnyEnum::Fn(_) => f64::NAN,
         AnyEnum::Undefined => f64::NAN,
         AnyEnum::Null => 0.,

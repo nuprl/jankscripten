@@ -2,13 +2,13 @@
 
 use crate::any_value::{AnyValue as Any, *};
 use crate::coercions::*;
-use crate::string::*;
+use crate::string::StringPtr;
 
 #[no_mangle]
 pub extern "C" fn janky_plus(a: Any, b: Any) -> Any {
     if let Some(res) = i32s_or_as_f64s_any(a, b, |a, b| a + b, |a, b| a + b) {
         res
-    } else if let (AnyEnum::StrPtr(_a), AnyEnum::StrPtr(_b)) = (*a, *b) {
+    } else if let (AnyEnum::Ptr(_a), AnyEnum::Ptr(_b)) = (*a, *b) {
         todo!("strings +")
     } else {
         // TODO(luna): these panics in this file should be exceptions, when we support those
@@ -51,9 +51,11 @@ pub extern "C" fn janky_strict_not_equal(a: Any, b: Any) -> bool {
 pub extern "C" fn janky_not_equal(a: Any, b: Any) -> bool {
     !abstract_eq(*a, *b)
 }
+/// TODO(luna): one could intern these values in our own interning style
+/// to avoid needing to allocate for this
 #[no_mangle]
-pub extern "C" fn janky_typeof(a: Any) -> StrPtr {
-    str_as_ptr(typeof_as_str(a))
+pub extern "C" fn janky_typeof(a: Any) -> StringPtr {
+    typeof_as_str(a).into()
 }
 #[no_mangle]
 pub extern "C" fn janky_delete(_a: Any, _b: Any) -> bool {
@@ -75,7 +77,6 @@ fn typeof_as_str(a: Any) -> &'static str {
             HeapRefView::Any(what) => typeof_as_str(*what),
             HeapRefView::Class(_) => panic!("shouldn't be able to typeof non-value object data"),
         },
-        AnyEnum::StrPtr(_) => "string",
         AnyEnum::Fn(_) => "function",
         AnyEnum::Undefined => "undefined",
         AnyEnum::Null => "object",

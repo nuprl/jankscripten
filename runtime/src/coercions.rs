@@ -46,7 +46,6 @@ pub fn abstract_eq(a: AnyEnum, b: AnyEnum) -> bool {
             }
             _ => todo!(),
         },
-        (AnyEnum::StrPtr(a), AnyEnum::StrPtr(b)) => return a == b,
         // when fns become closures they might need to gain an impl PartialEq
         // which should only return true on pointer equality
         (AnyEnum::Fn(a), AnyEnum::Fn(b)) => return a == b,
@@ -71,14 +70,7 @@ fn even_abstract_eq(a: AnyEnum, b: AnyEnum) -> Option<bool> {
     Some(match (a, b) {
         // 2
         (AnyEnum::Null, AnyEnum::Undefined) => true,
-        // 4
-        (AnyEnum::I32(i), AnyEnum::StrPtr(s)) => {
-            i as f64 == <&str>::from(s).parse().unwrap_or(f64::NAN)
-        }
-        (AnyEnum::F64(f), AnyEnum::StrPtr(s)) => {
-            (unsafe { *f }) == <&str>::from(s).parse().unwrap_or(f64::NAN)
-        }
-        // rest of rules 4 and 8
+        // rules 4 and 8
         (a, AnyEnum::Ptr(p)) => match p.view() {
             // 4
             HeapRefView::String(s) => match a {
