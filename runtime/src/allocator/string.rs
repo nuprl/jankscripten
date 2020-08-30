@@ -40,7 +40,6 @@ impl HeapPtr for StringPtr {
 impl Deref for StringPtr {
     type Target = str;
     fn deref(&self) -> &Self::Target {
-        log!("{}", self.len());
         // SAFETY: [StringPtr::new] being unsafe guarantees that we must be
         // well-formed
         unsafe {

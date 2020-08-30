@@ -14,7 +14,6 @@ impl Pretty for Type {
             Type::I32 => pp.text("i32"),
             Type::F64 => pp.text("f64"),
             Type::String => pp.text("string"),
-            Type::StrRef => pp.text("strref"),
             Type::HT => pp.text("ht"),
             Type::Array => pp.text("array"),
             Type::Bool => pp.text("bool"),
@@ -267,7 +266,6 @@ impl Pretty for Expr {
                 .braces(),
             ]),
             Expr::NewRef(a) => pp.concat(vec![pp.text("new_ref"), a.pretty(pp).parens()]),
-            Expr::ToString(a) => pp.concat(vec![a.pretty(pp), pp.text(".to_string()")]),
             Expr::Atom(a) => a.pretty(pp),
         }
     }
@@ -462,9 +460,21 @@ impl Pretty for Program {
             pp.hardline(),
             pp.hardline(),
             pp.text("DATA:"),
-            pp.text(std::str::from_utf8(&self.data).unwrap_or("error converting data to string")),
+            hex_dump(pp, &self.data),
         ])
     }
+}
+
+fn hex_dump<'b, D, A>(pp: &'b D, arr: &'b [u8]) -> pretty::DocBuilder<'b, D, A>
+where
+    D: pretty::DocAllocator<'b, A>,
+    A: std::clone::Clone,
+    <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
+{
+    pp.intersperse(
+        arr.iter().map(|h| pp.text(format!("{:02x}", h))),
+        pp.space(),
+    )
 }
 
 impl_Display_Pretty!(Program);

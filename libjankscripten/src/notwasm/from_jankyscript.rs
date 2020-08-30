@@ -220,8 +220,7 @@ pub fn compile_ty(janky_typ: J::Type) -> Type {
             Some(compile_ty(*ret)),
         ),
         J::Type::Array => Type::Array,
-        // TODO(luna): this isn't entirely correct
-        J::Type::String => Type::StrRef,
+        J::Type::String => Type::String,
         _ => todo!("compile_ty {:?}", janky_typ),
     }
 }

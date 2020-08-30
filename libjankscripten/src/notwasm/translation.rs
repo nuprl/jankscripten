@@ -562,10 +562,6 @@ impl<'a> Translate<'a> {
                     _ => panic!("expected Func ID ({})", f),
                 };
             }
-            N::Expr::ToString(a) => {
-                self.translate_atom(a);
-                self.rt_call("string_from_ptr");
-            }
             N::Expr::NewRef(a) => {
                 self.translate_atom(a);
                 self.rt_call("ref_new");
@@ -722,7 +718,6 @@ impl N::Type {
             Bool => ValueType::I32,
             // almost everything is a pointer type
             String => ValueType::I32,
-            StrRef => ValueType::I32,
             HT => ValueType::I32,
             Array => ValueType::I32,
             DynObject => ValueType::I32,

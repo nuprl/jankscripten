@@ -270,7 +270,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             let got_val = type_check_atom(env, a_val)?;
 
             ensure("ht set (ht)", Type::HT, got_ht)?;
-            let _ = ensure("ht set (field)", Type::StrRef, got_field)?;
+            let _ = ensure("ht set (field)", Type::String, got_field)?;
             let _ = ensure("ht set (val)", Type::Any, got_val)?;
 
             Ok(Type::Any) // returns value set
@@ -281,15 +281,10 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             let got_val = type_check_atom(env, a_val)?;
 
             let _ = ensure("object set (obj)", Type::DynObject, got_obj)?;
-            let _ = ensure("object set (field)", Type::StrRef, got_field)?;
+            let _ = ensure("object set (field)", Type::String, got_field)?;
             let _ = ensure("object set (val)", Type::Any, got_val)?;
 
             Ok(Type::Any) // returns value set
-        }
-        Expr::ToString(a) => {
-            let got = type_check_atom(env, a)?;
-            let _ = ensure("tostring", Type::StrRef, got);
-            Ok(Type::String)
         }
         Expr::PrimCall(prim, args) => {
             match prim.janky_typ().notwasm_typ() {
@@ -364,7 +359,6 @@ fn assert_variant_of_any(ty: &Type) -> TypeCheckingResult<()> {
         Type::F64 => Ok(()),
         Type::Bool => Ok(()),
         Type::String => Ok(()),
-        Type::StrRef => Ok(()),
         // We need to think this through. We cannot store arbitrary functions
         // inside an Any.
         Type::Fn(_) => Ok(()), // TODO(luna): see above
@@ -425,7 +419,7 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             let got_obj = type_check_atom(env, a_obj)?;
             let got_field = type_check_atom(env, a_field)?;
 
-            let _ = ensure("object get field", Type::StrRef, got_field)?;
+            let _ = ensure("object get field", Type::String, got_field)?;
             let _ = ensure("object field", Type::DynObject, got_obj)?;
             Ok(Type::Any)
         }
@@ -434,7 +428,7 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             let got_field = type_check_atom(env, a_field)?;
 
             ensure("ht get", Type::HT, got_ht)?;
-            let _ = ensure("ht get (field)", Type::StrRef, got_field)?;
+            let _ = ensure("ht get (field)", Type::String, got_field)?;
 
             Ok(Type::Any)
         }

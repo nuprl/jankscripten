@@ -200,7 +200,6 @@ fn alloc_container1() {
         .borrow_mut()
         .transition(one_type, heap.alloc_str("y").unwrap());
     heap.alloc(32).expect("first alloc");
-    log!("alloc object");
     let container = heap.alloc_object(type_tag).expect("second alloc");
     assert_eq!(container.read_at(&heap, 0), None);
     assert_eq!(container.read_at(&heap, 1), None);
@@ -273,10 +272,8 @@ fn alloc_container2() {
 fn string_read_alloc() {
     let heap = Heap::new((ALIGNMENT * 128) as isize);
     let x = heap.alloc_str("steven").expect("first alloc");
-    log!("helloooo");
     let _ = &*x;
     let _ = &*x;
-    log!("hello");
     assert_eq!(&*x, "steven");
     assert_eq!(&*x, "steven");
 }
