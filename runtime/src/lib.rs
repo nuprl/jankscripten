@@ -7,7 +7,7 @@
 //!   of num::add)
 //! - all externed return values must be <= 64 bits
 
-type Key = StrPtr;
+type Key = crate::heap_types::StringPtr;
 
 #[allow(unused)]
 macro_rules! log {
@@ -32,7 +32,6 @@ use crate::allocator::Tag;
 use allocator::*;
 use any_value::AnyEnum;
 use any_value::AnyValue;
-use string::StrPtr;
 
 static mut HEAP: Option<Heap> = None;
 

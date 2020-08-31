@@ -42,10 +42,9 @@ pub fn get_rt_bindings() -> BindMap {
     insert(m, "get_null", vec![], Any);
     insert(m, "object_empty", vec![], DynObject);
     // I32s are caches here
-    insert(m, "object_set", vec![DynObject, StrRef, Any, I32], Any);
-    insert(m, "object_get", vec![DynObject, StrRef, I32], Any);
+    insert(m, "object_set", vec![DynObject, String, Any, I32], Any);
+    insert(m, "object_get", vec![DynObject, String, I32], Any);
     insert(m, "object_create", vec![Any], Any);
-    insert(m, "string_from_ptr", vec![StrRef], String);
     insert(m, "string_len", vec![String], I32);
     insert(m, "ref_new", vec![I32], I32);
     insert(m, "init", vec![], None);
@@ -69,9 +68,6 @@ pub fn get_rt_bindings() -> BindMap {
             m.insert(rts.name().into(), compile_ty(rts.janky_typ()));
         }
     }
-    // TODO(luna): as global functions are actually added to the runtime,
-    // they should be bound here, but hopefully just by copying them from the
-    // std_lib version
     map
 }
 

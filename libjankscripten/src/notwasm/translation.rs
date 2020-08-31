@@ -101,10 +101,8 @@ pub fn translate_parity(mut program: N::Program) -> Module {
     }
     // data segment
     for global in program.globals.values_mut() {
-        // can't use functions anyway so no need to worry
-        let empty = HashMap::new();
-        let empty2 = HashMap::new();
-        let mut visitor = Translate::new(&empty, &empty2, &global_env, &mut program.data);
+        let mut visitor =
+            Translate::new(&rt_indexes, &type_indexes, &global_env, &mut program.data);
         visitor.translate_atom(&mut global.atom);
         let mut insts = visitor.out;
         assert_eq!(
@@ -564,10 +562,6 @@ impl<'a> Translate<'a> {
                     _ => panic!("expected Func ID ({})", f),
                 };
             }
-            N::Expr::ToString(a) => {
-                self.translate_atom(a);
-                self.rt_call("string_from_ptr");
-            }
             N::Expr::NewRef(a) => {
                 self.translate_atom(a);
                 self.rt_call("ref_new");
@@ -724,7 +718,6 @@ impl N::Type {
             Bool => ValueType::I32,
             // almost everything is a pointer type
             String => ValueType::I32,
-            StrRef => ValueType::I32,
             HT => ValueType::I32,
             Array => ValueType::I32,
             DynObject => ValueType::I32,

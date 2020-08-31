@@ -1,7 +1,7 @@
-use super::super::StrPtr;
 use super::constants::DATA_OFFSET;
 use super::heap_values::*;
 use super::{Heap, ALIGNMENT};
+use crate::heap_types::StringPtr;
 use crate::{AnyEnum, AnyValue};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
@@ -35,7 +35,7 @@ impl<'a> HeapPtr for ObjectDataPtr<'a> {
     }
 
     fn get_data_size(&self, heap: &Heap) -> usize {
-        heap.object_data_size(self.class_tag())
+        heap.object_data_size(heap.get_class_size(self.class_tag()))
     }
 
     fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
@@ -94,7 +94,7 @@ impl<'a> ObjectDataPtr<'a> {
     /// if name is found, write to it. if not, transition, clone, write, and
     /// return new pointer. this should be called by ObjectPtr only
     #[must_use]
-    fn insert(self, heap: &'a Heap, name: StrPtr, value: AnyValue, cache: &mut isize) -> Self {
+    fn insert(self, heap: &'a Heap, name: StringPtr, value: AnyValue, cache: &mut isize) -> Self {
         let class_tag = self.class_tag();
         let mut classes = heap.classes.borrow_mut();
         let class = classes.get_class(class_tag);
@@ -122,7 +122,7 @@ impl<'a> ObjectDataPtr<'a> {
         }
     }
 
-    pub fn get(&self, heap: &'a Heap, name: StrPtr, cache: &mut isize) -> Option<AnyEnum<'a>> {
+    pub fn get(&self, heap: &'a Heap, name: StringPtr, cache: &mut isize) -> Option<AnyEnum<'a>> {
         let class_tag = self.class_tag();
         let classes = heap.classes.borrow();
         let class = classes.get_class(class_tag);
@@ -152,7 +152,7 @@ impl<'a> ObjectPtr<'a> {
     pub fn insert(
         &mut self,
         heap: &'a Heap,
-        name: StrPtr,
+        name: StringPtr,
         value: AnyValue,
         cache: &mut isize,
     ) -> AnyValue {

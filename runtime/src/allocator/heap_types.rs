@@ -1,7 +1,6 @@
 pub use super::object_ptr::{ObjectDataPtr, ObjectPtr};
-use super::HeapPtr;
-use super::TypePtr;
-use super::{Tag, TypeTag};
+pub use super::string::StringPtr;
+use super::{HeapPtr, Tag, TypePtr, TypeTag};
 use crate::{AnyEnum, AnyValue, Heap, Key};
 use std::collections::HashMap;
 
@@ -21,10 +20,6 @@ pub trait HasTag {
 pub type I32Ptr<'a> = TypePtr<'a, i32>;
 impl HasTag for i32 {
     const TYPE_TAG: TypeTag = TypeTag::I32;
-}
-pub type StringPtr<'a> = TypePtr<'a, String>;
-impl HasTag for String {
-    const TYPE_TAG: TypeTag = TypeTag::String;
 }
 pub type AnyJSPtr<'a> = TypePtr<'a, AnyValue>;
 impl<'a> HasTag for AnyValue {

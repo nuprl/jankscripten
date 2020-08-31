@@ -35,10 +35,11 @@ pub enum Type {
     I32,
     /// If `v : F64`, then `v` is an `f64`.
     F64,
-    /// If `v : String` then `v` is a `*const Tag` ...
+    /// If `v : String` then `v` is a `*const Tag` followed by a 4-byte
+    /// little-endian length followed by utf-8 of that length.
+    /// Even interned strings are preceded by a tag, to aid in string
+    /// unification
     String,
-    /// NOTE(arjun): I think we can (and need) to combine String and StrRef.
-    StrRef,
     /// If `v : HT` then `v` is a `*const Tag`, where
     ///  `v.type_tag === TypeTag::HT`.
     HT,
@@ -62,9 +63,7 @@ impl Type {
         match self {
             Type::I32 => false,
             Type::F64 => false,
-            // TODO: Think through strings
-            Type::String => false,
-            Type::StrRef => false,
+            Type::String => true,
             Type::HT => true,
             Type::Array => true,
             Type::Bool => false,
@@ -167,8 +166,8 @@ impl Lit {
             Lit::Bool(_) => Type::Bool,
             Lit::I32(_) => Type::I32,
             Lit::F64(_) => Type::F64,
-            Lit::String(_) => Type::StrRef,
-            Lit::Interned(_) => Type::StrRef,
+            Lit::String(_) => Type::String,
+            Lit::Interned(_) => Type::String,
             Lit::Undefined => Type::Any,
             Lit::Null => Type::Any,
         }
@@ -241,7 +240,6 @@ pub enum Expr {
     /// ObjectSet(obj, field_name, value, typ) is obj.field_name: typ = value;
     ObjectSet(Atom, Atom, Atom),
     NewRef(Atom), // newRef(something)
-    ToString(Atom),
     Atom(Atom),
 }
 
@@ -350,7 +348,6 @@ impl std::fmt::Display for Type {
                 I32 => "i32",
                 F64 => "f64",
                 String => "string",
-                StrRef => "str",
                 HT => "ht",
                 Array => "array",
                 Ref(..) => "ref",

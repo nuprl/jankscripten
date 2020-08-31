@@ -12,11 +12,11 @@ use std::ops::{Deref, DerefMut};
 /// into the heap must point to a `Tag`. In other words, we do *not* support
 /// interior pointers.
 #[derive(PartialEq, Debug, Copy, Clone)]
-#[repr(packed(4))]
+#[repr(C)]
 pub struct Tag {
     pub marked: bool,
     pub type_tag: TypeTag,
-    /// The `class_tag` is only meaningful if the `type_tag == TypeTag::Objet`.
+    /// The `class_tag` is only meaningful if the `type_tag == TypeTag::DynObject`.
     pub class_tag: u16,
 }
 
@@ -42,13 +42,14 @@ impl Tag {
 #[repr(u8)]
 pub enum TypeTag {
     I32,
-    String,
+    /// We specify a value so we can make fake tags from jankscripten
+    String = 1,
     HT,
     Array,
     Any,
-    // The value inside the tag is the address where the array of pointers
-    // begins, for this object.
     DynObject,
+    /// The value after the tag is the address where the array of pointers
+    /// begins, for this object
     ObjectPtrPtr,
 }
 
@@ -104,7 +105,7 @@ pub struct AnyPtr<'a> {
 #[derive(Clone, Copy)]
 pub enum HeapRefView<'a> {
     I32(I32Ptr<'a>),
-    String(StringPtr<'a>),
+    String(StringPtr),
     HT(HTPtr<'a>),
     Array(ArrayPtr<'a>),
     Any(AnyJSPtr<'a>),
@@ -169,9 +170,7 @@ impl<'a> AnyPtr<'a> {
         let heap_ref: Tag = unsafe { *self.ptr };
         match heap_ref.type_tag {
             TypeTag::I32 => HeapRefView::I32(unsafe { I32Ptr::new_tag_unchecked(self.ptr) }),
-            TypeTag::String => {
-                HeapRefView::String(unsafe { StringPtr::new_tag_unchecked(self.ptr) })
-            }
+            TypeTag::String => HeapRefView::String(unsafe { StringPtr::new(self.ptr) }),
             TypeTag::HT => HeapRefView::HT(unsafe { HTPtr::new_tag_unchecked(self.ptr) }),
             TypeTag::Array => HeapRefView::Array(unsafe { ArrayPtr::new_tag_unchecked(self.ptr) }),
             TypeTag::Any => HeapRefView::Any(unsafe { AnyJSPtr::new_tag_unchecked(self.ptr) }),

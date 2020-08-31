@@ -10,6 +10,11 @@
 use super::syntax::*;
 use super::walk::*;
 
+/// String is specified as TypeTag 1 in the runtime to make it consistent
+/// across compiles
+/// [marked, String = 1, pad, pad]
+const STRING_TAG: [u8; 4] = [0, 1, 0, 0];
+
 pub fn intern(program: &mut Program) {
     let mut vis = InternVisitor::default();
     program.walk(&mut vis);
@@ -35,7 +40,6 @@ impl Visitor for InternVisitor {
                         return;
                     }
                     let pos = self.data.len() as u32;
-
                     // Cache the offset, so that the interned string can be
                     // reused.
                     self.already_interned.insert(s.clone(), pos);
@@ -43,9 +47,11 @@ impl Visitor for InternVisitor {
                     *old_lit = Lit::Interned(pos);
                     let length = bytes.len() as u32;
                     let length_bytes: [u8; 4] = unsafe { std::mem::transmute(length.to_le()) };
+                    self.data.extend_from_slice(&STRING_TAG);
                     self.data.extend_from_slice(&length_bytes);
                     self.data.append(&mut bytes);
-                    let in_memory_length = length + 4;
+                    // tag(4), length(4)
+                    let in_memory_length = length + 8;
                     // now we want to preserve alignment
                     // 0 -> 3 -> 0; 1 -> 0 -> 3; 2 -> 1 -> 2; 3 -> 2 -> 1
                     // +3 not -1 because 0 -> -1 % 4 = -1 -> 4, should be 0
@@ -83,8 +89,8 @@ mod test {
         let indexed_func = Function {
             body: Stmt::Block(vec![
                 Stmt::Var(VarStmt::new(id_("a"), atom_(Atom::Lit(Lit::Interned(0))))),
-                // 4(len) + 6 -> 10 ->(align) -> 12
-                Stmt::Var(VarStmt::new(id_("b"), atom_(Atom::Lit(Lit::Interned(12))))),
+                // 4(tag) + 4(len) + 6 -> 14 ->(align) -> 16
+                Stmt::Var(VarStmt::new(id_("b"), atom_(Atom::Lit(Lit::Interned(16))))),
                 Stmt::Return(i32_(0)),
             ]),
             fn_type: FnType {
@@ -94,7 +100,11 @@ mod test {
             params: vec![],
         };
         let mut expected = program1_(indexed_func);
-        expected.data = b"\x06\0\0\0012301\0\0\x03\0\0\0012\0".to_vec();
-        assert_eq!(program, expected);
+        expected.data = b"\0\x01\0\0\x06\0\0\0012301\0\0\0\x01\0\0\x03\0\0\0012\0".to_vec();
+        assert_eq!(
+            program, expected,
+            "got: {}\nexpected: {}",
+            program, expected
+        );
     }
 }

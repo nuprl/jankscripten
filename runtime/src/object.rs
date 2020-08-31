@@ -2,7 +2,6 @@
 
 use crate::heap;
 use crate::heap_types::*;
-use crate::string::StrPtr;
 use crate::{AnyEnum, AnyValue, HeapPtr, HeapRefView};
 
 #[no_mangle]
@@ -13,7 +12,7 @@ pub extern "C" fn object_empty<'a>() -> ObjectPtr<'a> {
 #[no_mangle]
 pub extern "C" fn object_set<'a>(
     mut object: ObjectPtr<'a>,
-    field: StrPtr,
+    field: StringPtr,
     value: AnyValue,
     cache: &mut isize,
 ) -> AnyValue {
@@ -24,7 +23,7 @@ pub extern "C" fn object_set<'a>(
 #[no_mangle]
 pub extern "C" fn object_get<'a>(
     object: ObjectPtr<'a>,
-    field: StrPtr,
+    field: StringPtr,
     cache: &mut isize,
 ) -> AnyValue {
     object.get(heap(), field, cache).unwrap().into()

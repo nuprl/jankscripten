@@ -176,7 +176,7 @@ parser! {
     where [ I: Stream<Item = char>]
     {
         lang.reserved("i32").with(value(Type::I32))
-            .or(lang.reserved("str").with(value(Type::StrRef)))
+            .or(lang.reserved("str").with(value(Type::String)))
             .or(lang.reserved("bool").with(value(Type::Bool)))
             .or(lang.parens(sep_by(type_(lang), lang.reserved_op(",")))
                 .skip(lang.reserved_op("->"))

@@ -9,6 +9,7 @@ mod constants;
 mod heap_values;
 mod layout;
 mod object_ptr;
+mod string;
 use crate::util::*;
 
 pub mod heap_types;
@@ -208,8 +209,7 @@ impl Heap {
         // implementation so we don't get the pointer of the object data. this
         // should work properly now that ObjectDataPtr implements HasTag,
         // but if it gets messed up it leads to insidious memory bugs
-        let rv = Some(unsafe { ObjectPtr::new(HeapPtr::get_ptr(&self.alloc(object_data).ok()?)) });
-        rv
+        Some(unsafe { ObjectPtr::new(HeapPtr::get_ptr(&self.alloc(object_data).ok()?)) })
     }
     pub fn alloc_object_or_gc(&self, type_tag: u16) -> ObjectPtr {
         // TODO(luna): alloc_object isn't really as atomic as it needs to be
@@ -236,28 +236,60 @@ impl Heap {
     }
     fn alloc_object_data(&self, type_tag: u16) -> Option<ObjectDataPtr> {
         let num_elements = self.get_class_size(type_tag);
-        let elements_size = self.object_data_size(type_tag) as isize;
-        let opt_ptr = self
-            .free_list
-            .borrow_mut()
-            .find_free_size(self.tag_size + elements_size);
-        match opt_ptr {
-            None => None,
-            Some(ptr) => {
-                let tag_ptr: *mut Tag = ptr as *mut Tag;
-                let tag_ref: &mut Tag = unsafe { &mut *tag_ptr };
-                *tag_ref = Tag::object(type_tag);
-                let values_slice = unsafe { tag_ref.slice_ref::<Option<AnyEnum>>(num_elements) };
-                for opt_any in values_slice.iter_mut() {
-                    *opt_any = None;
-                }
-                return Some(unsafe { ObjectDataPtr::new(tag_ptr) });
+        let elements_size = self.object_data_size(num_elements) as isize;
+        let tag_ptr = unsafe { self.alloc_slice(Tag::object(type_tag), elements_size) }?;
+        let values_slice = unsafe { (*tag_ptr).slice_ref::<Option<AnyEnum>>(num_elements) };
+        for opt_any in values_slice.iter_mut() {
+            *opt_any = None;
+        }
+        Some(unsafe { ObjectDataPtr::new(tag_ptr) })
+    }
+    pub fn alloc_str(&self, s: &str) -> Option<StringPtr> {
+        let from_str = s.as_ptr();
+        // + 4 for the length (not the tag, which isn't included)
+        let size = s.len() + 4;
+        unsafe {
+            let tag_ptr = self.alloc_slice(Tag::with_type(TypeTag::String), size as isize)?;
+            let len_ptr = tag_ptr.add(DATA_OFFSET) as *mut u32;
+            len_ptr.write(u32::to_le(s.len() as u32));
+            let into_str = len_ptr.add(1) as *mut u8;
+            std::ptr::copy_nonoverlapping(from_str, into_str, s.len());
+            Some(StringPtr::new(tag_ptr))
+        }
+    }
+    pub fn alloc_str_or_gc(&self, s: &str) -> StringPtr {
+        match self.alloc_str(s) {
+            Some(ptr) => ptr,
+            None => {
+                self.gc();
+                // TODO(luna): grow?
+                self.alloc_str(s).expect("out of memory even after gc")
             }
         }
     }
+    /// allocate a tag immediately followed by slice of memory of a fixed
+    /// size in bytes
+    ///
+    /// # Safety
+    ///
+    /// size must be exactly AnyPtr::new(&tag).get_data_size(). size must
+    /// be aligned
+    ///
+    /// TODO(luna): i want to provide resizable Array within the allocator
+    /// because it shouldn't be hard with everything we currently have and
+    /// it prevents OOM-before-allocator-knows-it. then we could back Object
+    /// with an Array, delete ObjectDataPtr, and get O(n) cached inserts
+    unsafe fn alloc_slice(&self, tag: Tag, size: isize) -> Option<*mut Tag> {
+        let ptr = self
+            .free_list
+            .borrow_mut()
+            .find_free_size(self.tag_size + size)?;
+        let tag_ptr = ptr as *mut Tag;
+        tag_ptr.write(tag);
+        Some(tag_ptr)
+    }
 
-    pub fn object_data_size(&self, type_tag: u16) -> usize {
-        let num_elements = self.get_class_size(type_tag);
+    pub fn object_data_size(&self, num_elements: usize) -> usize {
         Layout::array::<Option<AnyEnum>>(num_elements)
             .unwrap()
             .size()
