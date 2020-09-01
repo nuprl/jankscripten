@@ -122,20 +122,9 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
         Break(break_stmt) => Ok(break_(break_stmt.label.map(to_id))),
         Continue(continue_stmt) => Ok(continue_(continue_stmt.label.map(to_id))),
         Debugger(debugger_stmt) => unsupported(debugger_stmt.span, source_map),
-        Decl(swc::Decl::Var(swc::VarDecl {
-            span,
-            kind: swc::VarDeclKind::Var,
-            declare: _,
-            decls,
-        })) => {
-            let decls: ParseResult<Vec<_>> = decls
-                .into_iter()
-                .map(|d| parse_var_declarator(d, source_map))
-                .collect();
-            Ok(S::Stmt::VarDecl(decls?))
-        }
-        Decl(invalid_decl) => {
-            unsupported_message("unsupported decl", span_of_decl(invalid_decl), source_map)
+        Decl(decl) => {
+            let decl = parse_decl(decl, source_map)?;
+            Ok(decl)
         }
         DoWhile(do_while_stmt) => {
             let body = parse_stmt(*do_while_stmt.body, source_map)?;
@@ -421,46 +410,16 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             let alt = parse_expr(*alt, source_map)?;
             Ok(if_expr_(test, cons, alt))
         }
-        Fn(swc::FnExpr {
-            ident,
-            function:
-                swc::Function {
-                    params,
-                    decorators,
-                    span,
-                    body,
-                    is_generator,
-                    is_async,
-                    ..
-                },
-        }) => {
-            // rule out cases we don't handle
-            if is_generator {
-                return unsupported_message("generators not supported", span, source_map);
-            }
-            if is_async {
-                return unsupported_message("async not supported", span, source_map);
-            }
-            if decorators.len() > 0 {
-                return unsupported_message("class decorators not supported", span, source_map);
-            }
-
+        Fn(swc::FnExpr { ident, function }) => {
             // parse parts
             let ident = match ident {
                 Some(ident) => Some(to_id(ident)),
                 None => None,
             };
-            let params: ParseResult<Vec<_>> = params
-                .into_iter()
-                .map(|p| parse_func_arg(p, source_map))
-                .collect();
-            let body = match body {
-                Some(block) => parse_block(block, source_map)?,
-                None => S::Stmt::Empty,
-            };
+            let (params, body) = parse_function(function, source_map)?;
 
             // put it all together
-            Ok(expr_func_(ident, params?, body))
+            Ok(expr_func_(ident, params, body))
         }
         Ident(ident) => Ok(id_(to_id(ident))),
         Invalid(invalid) => unsupported(invalid.span, source_map),
@@ -996,6 +955,71 @@ fn parse_pat_or_expr(
         Expr(expr) => parse_lvalue(*expr, span, source_map),
         Pat(_) => unsupported(span, source_map),
     }
+}
+
+fn parse_decl(decl: swc::Decl, source_map: &SourceMap) -> ParseResult<S::Stmt> {
+    use swc::Decl::*;
+    // only var and func declarations are supported
+    match decl {
+        Var(swc::VarDecl {
+            span,
+            kind: swc::VarDeclKind::Var,
+            declare: _,
+            decls,
+        }) => {
+            let decls: ParseResult<Vec<_>> = decls
+                .into_iter()
+                .map(|d| parse_var_declarator(d, source_map))
+                .collect();
+            Ok(S::Stmt::VarDecl(decls?))
+        }
+        Fn(swc::FnDecl {
+            ident,
+            declare: _,
+            function,
+        }) => {
+            let ident = to_id(ident);
+            let (params, body) = parse_function(function, source_map)?;
+            Ok(S::Stmt::Func(ident, params, Box::new(body)))
+        }
+        unsupported_decl => unsupported(span_of_decl(unsupported_decl), source_map),
+    }
+}
+
+fn parse_function(
+    function: swc::Function,
+    source_map: &SourceMap,
+) -> ParseResult<(Vec<S::Id>, S::Stmt)> {
+    let swc::Function {
+        params,
+        decorators,
+        span,
+        body,
+        is_generator,
+        is_async,
+        ..
+    } = function;
+    // rule out cases we don't handle
+    if is_generator {
+        return unsupported_message("generators not supported", span, source_map);
+    }
+    if is_async {
+        return unsupported_message("async not supported", span, source_map);
+    }
+    if decorators.len() > 0 {
+        return unsupported_message("class decorators not supported", span, source_map);
+    }
+    let params: ParseResult<Vec<_>> = params
+        .into_iter()
+        .map(|p| parse_func_arg(p, source_map))
+        .collect();
+    let body = match body {
+        Some(block) => parse_block(block, source_map)?,
+        None => S::Stmt::Empty,
+    };
+
+    // put it all together
+    Ok((params?, body))
 }
 
 /// Convert a numeric value from the parser into our AST's numbers.
