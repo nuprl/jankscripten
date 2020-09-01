@@ -82,6 +82,7 @@ fn unsupported_message<T>(msg: &str, span: Span, source_map: &SourceMap) -> Resu
     Err(unsupported_error(msg, span, source_map))
 }
 
+/// Construct a parse *error* with the given message and location.
 fn unsupported_error(msg: &str, span: Span, source_map: &SourceMap) -> ParseError {
     ParseError::Unsupported(format!("{} at {}", msg, source_map.span_to_string(span)))
 }
@@ -377,11 +378,23 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             right,
             span,
         }) => {
-            todo!();
+            let op = parse_assign_op(op, span, source_map)?;
+            let left = parse_pat_or_expr(left, span, source_map)?;
+            let right = parse_expr(*right, source_map)?;
+            Ok(op_assign_(op, left, right))
         }
         Await(await_expr) => unsupported(await_expr.span, source_map),
-        Bin(bin_expr) => {
-            todo!();
+        Bin(swc::BinExpr {
+            op,
+            left,
+            right,
+            span,
+        }) => {
+            let op = parse_binary_op(op, span, source_map)?;
+            let left = parse_expr(*left, source_map)?;
+            let right = parse_expr(*right, source_map)?;
+
+            Ok(binary_(op, left, right))
         }
         Class(class_expr) => unsupported(class_expr.class.span, source_map),
         Call(swc::CallExpr {
@@ -507,51 +520,41 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
                 .collect();
             Ok(S::Expr::Object(props?))
         }
-        OptChain(opt_chain_expr) => {
-            todo!();
+        OptChain(swc::OptChainExpr { span, .. }) => unsupported(span, source_map),
+        Paren(swc::ParenExpr { expr, .. }) => parse_expr(*expr, source_map),
+        PrivateName(private_name) => unsupported(private_name.span, source_map),
+        Seq(swc::SeqExpr { exprs, span }) => {
+            let exprs: ParseResult<Vec<_>> = exprs
+                .into_iter()
+                .map(|e| parse_expr(*e, source_map))
+                .collect();
+            Ok(S::Expr::Seq(exprs?))
         }
-        Paren(paren_expr) => {
-            todo!();
+        TaggedTpl(tagged_tpl) => unsupported(tagged_tpl.span, source_map),
+        This(swc::ThisExpr { span }) => Ok(S::Expr::This),
+        Tpl(tpl) => unsupported(tpl.span, source_map),
+        TsAs(ts_as_expr) => unsupported(ts_as_expr.span, source_map),
+        TsConstAssertion(ts_const_assertion) => unsupported(ts_const_assertion.span, source_map),
+        TsNonNull(ts_non_null_expr) => unsupported(ts_non_null_expr.span, source_map),
+        TsTypeAssertion(ts_type_assertion) => unsupported(ts_type_assertion.span, source_map),
+        TsTypeCast(ts_type_cast_expr) => unsupported(ts_type_cast_expr.span, source_map),
+        Unary(swc::UnaryExpr { op, arg, span }) => {
+            let op = parse_unary_op(op, span, source_map)?;
+            let arg = parse_expr(*arg, source_map)?;
+            Ok(unary_(op, arg))
         }
-        PrivateName(private_name) => {
-            todo!();
+        Update(swc::UpdateExpr {
+            span,
+            op,
+            prefix,
+            arg,
+        }) => {
+            let op = parse_update_op(op, prefix, span, source_map)?;
+            let arg = parse_lvalue(*arg, span, source_map)?;
+
+            Ok(unaryassign_(op, arg))
         }
-        Seq(seq_expr) => {
-            todo!();
-        }
-        TaggedTpl(tagged_tpl) => {
-            todo!();
-        }
-        This(this_expr) => {
-            todo!();
-        }
-        Tpl(tpl) => {
-            todo!();
-        }
-        TsAs(ts_as_expr) => {
-            todo!();
-        }
-        TsConstAssertion(ts_const_assertion) => {
-            todo!();
-        }
-        TsNonNull(ts_non_null_expr) => {
-            todo!();
-        }
-        TsTypeAssertion(ts_type_assertion) => {
-            todo!();
-        }
-        TsTypeCast(ts_type_cast_expr) => {
-            todo!();
-        }
-        Unary(unary_expr) => {
-            todo!();
-        }
-        Update(update_expr) => {
-            todo!();
-        }
-        Yield(yield_expr) => {
-            todo!();
-        }
+        Yield(yield_expr) => unsupported(yield_expr.span, source_map),
     }
 }
 
@@ -789,7 +792,209 @@ fn parse_prop_name(name: swc::PropName, span: Span, source_map: &SourceMap) -> P
                 S::Num::Float(_) => unsupported_message("float as prop key", span, source_map),
             }
         }
-        Computed(_) => unsupported_message("computed prop name", span, source_map)
+        Computed(_) => unsupported_message("computed prop name", span, source_map),
+    }
+}
+
+fn parse_binary_op(op: swc::BinaryOp, span: Span, source_map: &SourceMap) -> ParseResult<S::BinOp> {
+    use swc::BinaryOp::*;
+    use S::BinOp::*;
+    use S::BinaryOp as B;
+    use S::LogicalOp as L;
+    match op {
+        // `==`
+        EqEq => Ok(BinaryOp(B::Equal)),
+        // `!=`
+        NotEq => Ok(BinaryOp(B::NotEqual)),
+        // `===`
+        EqEqEq => Ok(BinaryOp(B::StrictEqual)),
+        // `!==`
+        NotEqEq => Ok(BinaryOp(B::StrictNotEqual)),
+        // `<`
+        Lt => Ok(BinaryOp(B::LessThan)),
+        // `<=`
+        LtEq => Ok(BinaryOp(B::LessThanEqual)),
+        // `>`
+        Gt => Ok(BinaryOp(B::GreaterThan)),
+        // `>=`
+        GtEq => Ok(BinaryOp(B::GreaterThanEqual)),
+        // `<<`
+        LShift => Ok(BinaryOp(B::LeftShift)),
+        // `>>`
+        RShift => Ok(BinaryOp(B::RightShift)),
+        // `>>>`
+        ZeroFillRShift => Ok(BinaryOp(B::UnsignedRightShift)),
+        // `+`
+        Add => Ok(BinaryOp(B::Plus)),
+        // `-`
+        Sub => Ok(BinaryOp(B::Minus)),
+        // `*`
+        Mul => Ok(BinaryOp(B::Times)),
+        // `/`
+        Div => Ok(BinaryOp(B::Over)),
+        // `%`
+        Mod => Ok(BinaryOp(B::Mod)),
+        // `|`
+        BitOr => Ok(BinaryOp(B::Or)),
+        // `^`
+        BitXor => Ok(BinaryOp(B::XOr)),
+        // `&`
+        BitAnd => Ok(BinaryOp(B::And)),
+        // `in`
+        In => Ok(BinaryOp(B::In)),
+        // `instanceof`
+        InstanceOf => Ok(BinaryOp(B::InstanceOf)),
+        // `**`
+        Exp => Ok(BinaryOp(B::PowerOf)),
+        // `??`
+        NullishCoalescing => unsupported(span, source_map),
+        // `||`
+        LogicalOr => Ok(LogicalOp(L::Or)),
+        // `&&`
+        LogicalAnd => Ok(LogicalOp(L::And)),
+    }
+}
+
+fn parse_unary_op(op: swc::UnaryOp, span: Span, source_map: &SourceMap) -> ParseResult<S::UnaryOp> {
+    use swc::UnaryOp::*;
+    use S::UnaryOp as U;
+    match op {
+        // `-`
+        Minus => Ok(U::Minus),
+        // `+`
+        Plus => Ok(U::Plus),
+        // `!`
+        Bang => Ok(U::Not),
+        // `~`
+        Tilde => Ok(U::Tilde),
+        // `typeof`
+        TypeOf => Ok(U::TypeOf),
+        // `void`
+        Void => Ok(U::Void),
+        // `delete`
+        Delete => Ok(U::Delete),
+    }
+}
+
+fn parse_assign_op(
+    op: swc::AssignOp,
+    span: Span,
+    source_map: &SourceMap,
+) -> ParseResult<S::AssignOp> {
+    use swc::AssignOp::*;
+    use S::AssignOp as A;
+    match op {
+        // `=`
+        Assign => Ok(A::Equal),
+        // Ok(`+=)`
+        AddAssign => Ok(A::PlusEqual),
+        // `-=`
+        SubAssign => Ok(A::MinusEqual),
+        // `*=`
+        MulAssign => Ok(A::TimesEqual),
+        // `/=`
+        DivAssign => Ok(A::DivEqual),
+        // `%=`
+        ModAssign => Ok(A::ModEqual),
+        // `<<=`
+        LShiftAssign => Ok(A::LeftShiftEqual),
+        // `>>=`
+        RShiftAssign => Ok(A::RightShiftEqual),
+        // `>>>=`
+        ZeroFillRShiftAssign => Ok(A::UnsignedRightShiftEqual),
+        // `|=`
+        BitOrAssign => Ok(A::OrEqual),
+        // `^=`
+        BitXorAssign => Ok(A::XOrEqual),
+        // `&=`
+        BitAndAssign => Ok(A::AndEqual),
+        // `**=`
+        ExpAssign => Ok(A::PowerOfEqual),
+        // `&&=`
+        AndAssign => unsupported(span, source_map),
+        // `||=`
+        OrAssign => unsupported(span, source_map),
+        // `??=`
+        NullishAssign => unsupported(span, source_map),
+    }
+}
+
+fn parse_update_op(
+    op: swc::UpdateOp,
+    prefix: bool,
+    span: Span,
+    source_map: &SourceMap,
+) -> ParseResult<S::UnaryAssignOp> {
+    use swc::UpdateOp::*;
+    use S::UnaryAssignOp as U;
+    let op = match (op, prefix) {
+        // `++`
+        (PlusPlus, true) => U::PreInc,
+        (PlusPlus, false) => U::PostInc,
+        // `--`
+        (MinusMinus, true) => U::PreDec,
+        (MinusMinus, false) => U::PostDec,
+    };
+
+    Ok(op)
+}
+
+/// Parse an expression into an lvalue. If the expression can't be turned into
+/// lvalue, an error will be returned.
+/// `span` is the span of the surrounding expr.
+fn parse_lvalue(expr: swc::Expr, span: Span, source_map: &SourceMap) -> ParseResult<S::LValue> {
+    use swc::Expr::*;
+    match expr {
+        // simple id case
+        Ident(id) => Ok(S::LValue::Id(to_id(id))),
+
+        // object field lookup: `obj.prop`
+        Member(swc::MemberExpr {
+            obj,
+            prop,
+            computed: false,
+            span,
+        }) => match *prop {
+            Ident(prop) => {
+                let obj = parse_expr_or_super(obj, source_map)?;
+                let prop = to_id(prop);
+                Ok(S::LValue::Dot(obj, prop))
+            }
+            other => unsupported_message(
+                &format!("unexpected syntax on RHS of dot: {:?}", other),
+                span,
+                source_map,
+            ),
+        },
+
+        // computed object field lookup: `obj[prop]`
+        Member(swc::MemberExpr {
+            obj,
+            prop,
+            computed: true,
+            span,
+        }) => {
+            let obj = parse_expr_or_super(obj, source_map)?;
+            let prop = parse_expr(*prop, source_map)?;
+            Ok(S::LValue::Bracket(obj, prop))
+        }
+
+        // nothing else is a valid lvalue
+        _other => unsupported(span, source_map),
+    }
+}
+
+/// Parses a pattern or expression. We currently only support parsing
+/// lvalues out of these. `span` is the span of the surrounding expression.
+fn parse_pat_or_expr(
+    poe: swc::PatOrExpr,
+    span: Span,
+    source_map: &SourceMap,
+) -> ParseResult<S::LValue> {
+    use swc::PatOrExpr::*;
+    match poe {
+        Expr(expr) => parse_lvalue(*expr, span, source_map),
+        Pat(_) => unsupported(span, source_map),
     }
 }
 
