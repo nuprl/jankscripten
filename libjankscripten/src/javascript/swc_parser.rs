@@ -953,7 +953,8 @@ fn parse_pat_or_expr(
     use swc::PatOrExpr::*;
     match poe {
         Expr(expr) => parse_lvalue(*expr, span, source_map),
-        Pat(_) => unsupported(span, source_map),
+        // only support ids in patterns
+        Pat(pat) => Ok(S::LValue::Id(parse_pattern(*pat, span, source_map)?)),
     }
 }
 
