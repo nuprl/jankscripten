@@ -395,7 +395,7 @@ mod test {
         assert_eq!(original_ast, pretty_ast);
     }
     fn parse_pretty_parse_expr(js_code: &str) {
-        let modified = &format!("let $jnks_expr = {};", js_code);
+        let modified = &format!("var $jnks_expr = {};", js_code);
         println!("program string:\n{}", modified);
         // we wrap the expr in a leading statement so the parser doesn't choke
         // parser chokes on some standalone expressions
@@ -407,7 +407,7 @@ mod test {
     }
     #[test]
     fn literals() {
-        parse_pretty_parse_expr(r#"[1, "two", null, true, /h.l*o/g]"#);
+        parse_pretty_parse_expr(r#"[1, "two", null, true]"#);
     }
     #[test]
     fn object() {
