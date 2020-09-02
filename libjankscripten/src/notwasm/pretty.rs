@@ -14,7 +14,6 @@ impl Pretty for Type {
             Type::I32 => pp.text("i32"),
             Type::F64 => pp.text("f64"),
             Type::String => pp.text("string"),
-            Type::StrRef => pp.text("strref"),
             Type::HT => pp.text("ht"),
             Type::Array => pp.text("array"),
             Type::Bool => pp.text("bool"),
@@ -60,6 +59,7 @@ impl Pretty for UnaryOp {
         match self {
             UnaryOp::Sqrt => pp.text("Math.sqrt"),
             UnaryOp::Neg => pp.text("-"),
+            UnaryOp::Eqz => pp.text("!"),
         }
     }
 }
@@ -74,6 +74,7 @@ impl Pretty for BinaryOp {
         match self {
             BinaryOp::PtrEq => pp.text("==="),
             BinaryOp::I32Eq => pp.text("==="),
+            BinaryOp::I32Ne => pp.text("!="),
             BinaryOp::I32Add => pp.text("+"),
             BinaryOp::I32Sub => pp.text("-"),
             BinaryOp::I32Mul => pp.text("*"),
@@ -85,12 +86,18 @@ impl Pretty for BinaryOp {
             BinaryOp::I32Or => pp.text("|"),
             BinaryOp::I32Div => pp.text("/"),
             BinaryOp::I32Rem => pp.text("%"),
+            BinaryOp::I32Shl => pp.text("<<"),
+            BinaryOp::I32Shr => pp.text(">>"),
             BinaryOp::F64Eq => pp.text("==="),
+            BinaryOp::F64Ne => pp.text("!="),
             BinaryOp::F64Add => pp.text("+"),
             BinaryOp::F64Sub => pp.text("-"),
             BinaryOp::F64Mul => pp.text("*"),
             BinaryOp::F64Div => pp.text("/"),
             BinaryOp::F64LT => pp.text("<"),
+            BinaryOp::F64GT => pp.text(">"),
+            BinaryOp::F64Le => pp.text("<="),
+            BinaryOp::F64Ge => pp.text(">="),
         }
     }
 }
@@ -137,11 +144,11 @@ impl Pretty for ToAny {
     {
         pp.concat(vec![
             self.atom.pretty(pp),
-            pp.text("_to_"),
+            pp.text(" as any::"),
             self.ty
                 .as_ref()
                 .map(|t| t.pretty(pp))
-                .unwrap_or(pp.text("none")),
+                .unwrap_or(pp.text("_")),
         ])
     }
 }
@@ -182,6 +189,7 @@ impl Pretty for Atom {
                 Atom::Index(l, r) => pp.concat(vec![l.pretty(pp), r.pretty(pp).brackets()]),
                 Atom::ArrayLen(a) => pp.concat(vec![a.pretty(pp), pp.text(".array_len()")]),
                 Atom::Id(id) => pp.as_string(id),
+                Atom::GetPrimFunc(id) => pp.concat(vec![pp.text("rt"), pp.as_string(id).parens()]),
                 Atom::StringLen(a) => pp.concat(vec![a.pretty(pp), pp.text(".string_len()")]),
                 Atom::Unary(op, a) => pp.concat(vec![op.pretty(pp), a.pretty(pp)]),
                 Atom::Binary(op, l, r) => {
@@ -258,7 +266,6 @@ impl Pretty for Expr {
                 .braces(),
             ]),
             Expr::NewRef(a) => pp.concat(vec![pp.text("new_ref"), a.pretty(pp).parens()]),
-            Expr::ToString(a) => pp.concat(vec![a.pretty(pp), pp.text(".to_string()")]),
             Expr::Atom(a) => a.pretty(pp),
         }
     }
@@ -453,9 +460,21 @@ impl Pretty for Program {
             pp.hardline(),
             pp.hardline(),
             pp.text("DATA:"),
-            pp.text(std::str::from_utf8(&self.data).unwrap_or("error converting data to string")),
+            hex_dump(pp, &self.data),
         ])
     }
+}
+
+fn hex_dump<'b, D, A>(pp: &'b D, arr: &'b [u8]) -> pretty::DocBuilder<'b, D, A>
+where
+    D: pretty::DocAllocator<'b, A>,
+    A: std::clone::Clone,
+    <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
+{
+    pp.intersperse(
+        arr.iter().map(|h| pp.text(format!("{:02x}", h))),
+        pp.space(),
+    )
 }
 
 impl_Display_Pretty!(Program);

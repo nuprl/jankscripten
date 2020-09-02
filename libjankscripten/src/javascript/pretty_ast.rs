@@ -187,9 +187,8 @@ impl Expr {
     }
 }
 
-fn fn_call_to_doc<'a>(closure: &'a Expr, args: &'a [Expr]) -> D<'a, ()> {
-    closure
-        .to_doc()
+fn fn_call_to_doc<'a>(f: &'a Expr, args: &'a [Expr]) -> D<'a, ()> {
+    f.to_doc()
         .append(D::text("("))
         .append(D::intersperse(
             args.iter().map(|e| e.to_doc()),

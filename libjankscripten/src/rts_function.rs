@@ -11,30 +11,46 @@ use strum_macros::EnumIter;
 #[derive(Debug, Clone, Copy, PartialEq, EnumIter)]
 pub enum RTSFunction {
     Todo(&'static str),
+    // ???
+    LogAny,
+    // unary ops
     Typeof,
     Delete,
+    Void,
+    // janky binops
     Plus,
+    Minus,
+    Times,
     Over,
     Mod,
     ModF64,
+    StrictEqual,
     Equal,
-    LogAny,
+    StrictNotEqual,
+    NotEqual,
 }
 
 impl RTSFunction {
     /// The name of a function in the runtime system. This is the name that the runtime  exports,
     /// using `[no_mangle]`.
     pub fn name(&self) -> &'static str {
+        use RTSFunction::*;
         match self {
-            RTSFunction::Todo(name) => todo!("unimplemented operator: {}", name),
-            RTSFunction::Typeof => "janky_typeof",
-            RTSFunction::Delete => "janky_delete",
-            RTSFunction::Plus => "janky_plus",
-            RTSFunction::Over => "janky_over",
-            RTSFunction::Mod => "janky_mod",
-            RTSFunction::ModF64 => "janky_mod_f64",
-            RTSFunction::Equal => "janky_equal",
-            RTSFunction::LogAny => "log_any",
+            Todo(name) => todo!("unimplemented operator: {}", name),
+            LogAny => "log_any",
+            Typeof => "janky_typeof",
+            Delete => "janky_delete",
+            Void => "janky_void",
+            Plus => "janky_plus",
+            Minus => "janky_minus",
+            Times => "janky_times",
+            Over => "janky_over",
+            Mod => "janky_mod",
+            ModF64 => "janky_mod_f64",
+            StrictEqual => "janky_strict_equal",
+            Equal => "janky_equal",
+            StrictNotEqual => "janky_strict_not_equal",
+            NotEqual => "janky_not_equal",
         }
     }
 
@@ -62,16 +78,19 @@ impl RTSFunction {
     ///
     /// That sentence makes me want to fall asleep.
     pub fn janky_typ(&self) -> Type {
+        use RTSFunction::*;
         match self {
-            RTSFunction::Todo(name) => todo!("unimplemented operator: {}", name),
-            RTSFunction::Typeof => Function(vec![Any], Box::new(String)),
-            RTSFunction::Delete => Function(vec![Any, Any], Box::new(Bool)),
-            RTSFunction::Plus => Function(vec![Any, Any], Box::new(Any)),
-            RTSFunction::Over => Function(vec![Any, Any], Box::new(Float)),
-            RTSFunction::Mod => Function(vec![Any, Any], Box::new(Any)),
-            RTSFunction::ModF64 => Function(vec![Float, Float], Box::new(Float)),
-            RTSFunction::Equal => Function(vec![Any, Any], Box::new(Bool)),
-            RTSFunction::LogAny => Function(vec![Any], Box::new(Any)),
+            Todo(name) => todo!("unimplemented operator: {}", name),
+            LogAny => Function(vec![Any, Any], Box::new(Any)),
+            Typeof => Function(vec![Any], Box::new(String)),
+            Delete => Function(vec![Any, Any], Box::new(Bool)),
+            Void => Function(vec![Any], Box::new(Any)),
+            Plus | Minus | Times | Mod => Function(vec![Any, Any], Box::new(Any)),
+            Over => Function(vec![Any, Any], Box::new(Float)),
+            ModF64 => Function(vec![Float, Float], Box::new(Float)),
+            StrictEqual | Equal | StrictNotEqual | NotEqual => {
+                Function(vec![Any, Any], Box::new(Bool))
+            }
         }
     }
 }
@@ -84,14 +103,20 @@ impl std::fmt::Display for RTSFunction {
             "{}",
             match self {
                 Todo(s) => s,
+                LogAny => "logany",
                 Typeof => "typeof",
                 Delete => "delete",
+                Void => "void",
                 Plus => "+",
-                Over => "over",
+                Minus => "-",
+                Times => "*",
+                Over => "/",
                 Mod => "%",
-                ModF64 => "%64",
+                ModF64 => "%.",
+                StrictEqual => "===",
                 Equal => "==",
-                LogAny => "logany",
+                StrictNotEqual => "!==",
+                NotEqual => "!=",
             }
         )
     }

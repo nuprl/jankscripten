@@ -12,11 +12,11 @@ use std::ops::{Deref, DerefMut};
 /// into the heap must point to a `Tag`. In other words, we do *not* support
 /// interior pointers.
 #[derive(PartialEq, Debug, Copy, Clone)]
-#[repr(packed(4))]
+#[repr(C)]
 pub struct Tag {
     pub marked: bool,
     pub type_tag: TypeTag,
-    /// The `class_tag` is only meaningful if the `type_tag == TypeTag::Objet`.
+    /// The `class_tag` is only meaningful if the `type_tag == TypeTag::DynObject`.
     pub class_tag: u16,
 }
 
@@ -42,13 +42,14 @@ impl Tag {
 #[repr(u8)]
 pub enum TypeTag {
     I32,
-    String,
+    /// We specify a value so we can make fake tags from jankscripten
+    String = 1,
     HT,
     Array,
     Any,
-    // The value inside the tag is the address where the array of pointers
-    // begins, for this object.
     DynObject,
+    /// The value after the tag is the address where the array of pointers
+    /// begins, for this object
     ObjectPtrPtr,
 }
 
@@ -78,6 +79,10 @@ pub trait HeapPtr {
     fn get_gc_f64s(&mut self, _heap: &Heap) -> Vec<*mut *const f64> {
         vec![]
     }
+    /// easily cast any heap pointer to an any pointer (provided)
+    fn as_any_ptr<'a>(&self) -> AnyPtr<'a> {
+        unsafe { AnyPtr::new(self.get_ptr()) }
+    }
 }
 
 /// Returns a pointer to the data that follows the tag.
@@ -97,10 +102,10 @@ pub struct AnyPtr<'a> {
 
 /// We can safely turn an `AnyPtr` into a more specific type of pointer using
 /// the `view` method, which produces a `HeapRefView`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub enum HeapRefView<'a> {
     I32(I32Ptr<'a>),
-    String(StringPtr<'a>),
+    String(StringPtr),
     HT(HTPtr<'a>),
     Array(ArrayPtr<'a>),
     Any(AnyJSPtr<'a>),
@@ -165,9 +170,7 @@ impl<'a> AnyPtr<'a> {
         let heap_ref: Tag = unsafe { *self.ptr };
         match heap_ref.type_tag {
             TypeTag::I32 => HeapRefView::I32(unsafe { I32Ptr::new_tag_unchecked(self.ptr) }),
-            TypeTag::String => {
-                HeapRefView::String(unsafe { StringPtr::new_tag_unchecked(self.ptr) })
-            }
+            TypeTag::String => HeapRefView::String(unsafe { StringPtr::new(self.ptr) }),
             TypeTag::HT => HeapRefView::HT(unsafe { HTPtr::new_tag_unchecked(self.ptr) }),
             TypeTag::Array => HeapRefView::Array(unsafe { ArrayPtr::new_tag_unchecked(self.ptr) }),
             TypeTag::Any => HeapRefView::Any(unsafe { AnyJSPtr::new_tag_unchecked(self.ptr) }),
@@ -253,7 +256,7 @@ impl<'a, T> TypePtr<'a, T> {
 
     // safety: Tag must match T, value must be immediately initialized
     // with write
-    pub unsafe fn new_tag_unchecked(ptr: *mut Tag) -> Self {
+    pub const unsafe fn new_tag_unchecked(ptr: *mut Tag) -> Self {
         TypePtr {
             ptr,
             _phantom: PhantomData,

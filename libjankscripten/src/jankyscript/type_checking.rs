@@ -3,10 +3,9 @@
 //! correctly.
 
 use super::syntax::*;
-
-use thiserror::Error;
-
+use crate::shared::std_lib::get_global_object;
 use im_rc::HashMap;
+use thiserror::Error;
 
 type Env = HashMap<Id, Type>;
 
@@ -130,7 +129,14 @@ pub fn type_check(stmt: &mut Stmt) -> TypeCheckingResult<()> {
     // have a function in the jankyscript submodule that does all the "necessary" stuff to the
     // program, including type-checking and annotating the program with free variables.
     let _fvs = super::fv::free_vars(stmt);
-    match type_check_stmt(stmt, HashMap::new(), &None) {
+    match type_check_stmt(
+        stmt,
+        get_global_object()
+            .into_iter()
+            .map(|(k, v)| (Id::Named(k), v))
+            .collect(),
+        &None,
+    ) {
         Ok(_) => Ok(()),
         Err(error) => Err(error),
     }
@@ -340,11 +346,6 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
         }
         Expr::Lit(l) => Ok(type_check_lit(&l)),
         Expr::Id(id) => lookup(&env, &id),
-
-        // `this` might not be an object. using Function.call you can
-        // bind `this` to an arbitrary value, including null.
-        Expr::This => Ok(Type::Any),
-
         Expr::Object(props) => {
             // type check each property
             for (_key, val) in props {
@@ -415,7 +416,6 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             // whole operation has output type
             Ok(ty_out)
         }
-        Expr::New(..) => unimplemented!(),
     }
 }
 

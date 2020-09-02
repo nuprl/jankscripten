@@ -15,24 +15,15 @@ pub type UnaryOp = super::super::notwasm::syntax::UnaryOp;
 
 impl BinaryOp {
     pub fn janky_typ(self: &BinaryOp) -> (Type, Type) {
+        use super::super::notwasm::syntax::BinaryOp::*;
         match self {
-            BinaryOp::PtrEq => (Type::Any, Type::Bool), // for completeness; should be special-cased
-            BinaryOp::I32Eq
-            | BinaryOp::I32GT
-            | BinaryOp::I32LT
-            | BinaryOp::I32Ge
-            | BinaryOp::I32Le => (Type::Int, Type::Bool),
-            BinaryOp::F64Eq | BinaryOp::F64LT => (Type::Float, Type::Bool),
-            BinaryOp::I32Add
-            | BinaryOp::I32Sub
-            | BinaryOp::I32Mul
-            | BinaryOp::I32Div
-            | BinaryOp::I32Rem
-            | BinaryOp::I32And
-            | BinaryOp::I32Or => (Type::Int, Type::Int),
-            BinaryOp::F64Add | BinaryOp::F64Sub | BinaryOp::F64Mul | BinaryOp::F64Div => {
-                (Type::Float, Type::Float)
+            PtrEq => (Type::Any, Type::Bool), // for completeness; should be special-cased
+            I32Eq | I32Ne | I32GT | I32LT | I32Ge | I32Le => (Type::Int, Type::Bool),
+            F64Eq | F64Ne | F64LT | F64GT | F64Ge | F64Le => (Type::Float, Type::Bool),
+            I32Add | I32Sub | I32Mul | I32Div | I32Rem | I32And | I32Or | I32Shl | I32Shr => {
+                (Type::Int, Type::Int)
             }
+            F64Add | F64Sub | F64Mul | F64Div => (Type::Float, Type::Float),
         }
     }
 }
@@ -42,6 +33,7 @@ impl UnaryOp {
         match self {
             UnaryOp::Sqrt => (Type::Float, Type::Float),
             UnaryOp::Neg => (Type::Float, Type::Float),
+            UnaryOp::Eqz => (Type::Bool, Type::Bool),
         }
     }
 }
@@ -87,7 +79,6 @@ pub enum Expr {
     Lit(Lit),
     Array(Vec<Expr>),
     Object(Vec<(Key, Expr)>),
-    This,
     Id(Id),
     Dot(Box<Expr>, Id),
     Bracket(Box<Expr>, Box<Expr>),
@@ -96,7 +87,6 @@ pub enum Expr {
     Assign(Box<LValue>, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
     PrimCall(RTSFunction, Vec<Expr>),
-    New(Box<Expr>, Vec<Expr>),
     Func(Func),
     Coercion(Coercion, Box<Expr>),
 }

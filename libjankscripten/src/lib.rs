@@ -28,7 +28,6 @@ where
     inspect_janky(&janky_ast);
     jankyscript::type_checking::type_check(&mut janky_ast)?;
     let notwasm_ast = notwasm::from_jankyscript(janky_ast);
-    inspect_notwasm(&notwasm_ast);
-    let wasm_bin = notwasm::compile(notwasm_ast)?;
+    let wasm_bin = notwasm::compile(notwasm_ast, inspect_notwasm)?;
     Ok(wasm_bin)
 }

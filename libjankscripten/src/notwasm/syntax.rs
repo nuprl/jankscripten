@@ -35,10 +35,11 @@ pub enum Type {
     I32,
     /// If `v : F64`, then `v` is an `f64`.
     F64,
-    /// If `v : String` then `v` is a `*const Tag` ...
+    /// If `v : String` then `v` is a `*const Tag` followed by a 4-byte
+    /// little-endian length followed by utf-8 of that length.
+    /// Even interned strings are preceded by a tag, to aid in string
+    /// unification
     String,
-    /// NOTE(arjun): I think we can (and need) to combine String and StrRef.
-    StrRef,
     /// If `v : HT` then `v` is a `*const Tag`, where
     ///  `v.type_tag === TypeTag::HT`.
     HT,
@@ -62,9 +63,7 @@ impl Type {
         match self {
             Type::I32 => false,
             Type::F64 => false,
-            // TODO: Think through strings
-            Type::String => false,
-            Type::StrRef => false,
+            Type::String => true,
             Type::HT => true,
             Type::Array => true,
             Type::Bool => false,
@@ -85,27 +84,36 @@ pub struct FnType {
 /// Binary operators that correspond to primitive WebAssembly instructions.
 /// Other than `PtrEq`, none of these operators can be applied to `Any`-typed
 /// values.
+///
+/// Note that all I32s are signed in jankyscript
 #[derive(Clone, Debug, PartialEq)]
 pub enum BinaryOp {
     PtrEq,
     I32Eq,
+    I32Ne,
     I32Add,
     I32Sub,
     I32Mul,
     I32Div,
     I32Rem,
-    I32GT, // signed
-    I32LT, // signed
-    I32Ge, // signed
-    I32Le, // signed
+    I32GT,
+    I32LT,
+    I32Ge,
+    I32Le,
     I32And,
     I32Or,
+    I32Shl,
+    I32Shr,
     F64Add,
     F64Sub,
     F64Mul,
     F64Div,
     F64Eq,
+    F64Ne,
     F64LT,
+    F64Le,
+    F64GT,
+    F64Ge,
 }
 
 impl BinaryOp {
@@ -122,6 +130,7 @@ impl BinaryOp {
 pub enum UnaryOp {
     Sqrt,
     Neg,
+    Eqz,
 }
 
 impl UnaryOp {
@@ -158,7 +167,7 @@ impl Lit {
             Lit::I32(_) => Type::I32,
             Lit::F64(_) => Type::F64,
             Lit::String(_) => Type::String,
-            Lit::Interned(_) => Type::StrRef,
+            Lit::Interned(_) => Type::String,
             Lit::Undefined => Type::Any,
             Lit::Null => Type::Any,
         }
@@ -208,6 +217,7 @@ pub enum Atom {
     Index(Box<Atom>, Box<Atom>),
     ArrayLen(Box<Atom>),
     Id(Id),
+    GetPrimFunc(Id),
     StringLen(Box<Atom>),
     Unary(UnaryOp, Box<Atom>),
     Binary(BinaryOp, Box<Atom>, Box<Atom>),
@@ -230,7 +240,6 @@ pub enum Expr {
     /// ObjectSet(obj, field_name, value, typ) is obj.field_name: typ = value;
     ObjectSet(Atom, Atom, Atom),
     NewRef(Atom), // newRef(something)
-    ToString(Atom),
     Atom(Atom),
 }
 
@@ -309,6 +318,14 @@ pub struct Program {
     pub data: Vec<u8>,
 }
 
+impl Program {
+    pub fn merge_in(&mut self, other: Program) {
+        self.functions.extend(other.functions.into_iter());
+        self.globals.extend(other.globals.into_iter());
+        assert_eq!(other.data.len(), 0, "can't merge data segments");
+    }
+}
+
 impl FnType {
     pub fn to_type(self) -> Type {
         Type::Fn(self)
@@ -331,7 +348,6 @@ impl std::fmt::Display for Type {
                 I32 => "i32",
                 F64 => "f64",
                 String => "string",
-                StrRef => "str",
                 HT => "ht",
                 Array => "array",
                 Ref(..) => "ref",

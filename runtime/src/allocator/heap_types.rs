@@ -1,7 +1,6 @@
 pub use super::object_ptr::{ObjectDataPtr, ObjectPtr};
-use super::HeapPtr;
-use super::TypePtr;
-use super::{Tag, TypeTag};
+pub use super::string::StringPtr;
+use super::{HeapPtr, Tag, TypePtr, TypeTag};
 use crate::{AnyEnum, AnyValue, Heap, Key};
 use std::collections::HashMap;
 
@@ -22,12 +21,8 @@ pub type I32Ptr<'a> = TypePtr<'a, i32>;
 impl HasTag for i32 {
     const TYPE_TAG: TypeTag = TypeTag::I32;
 }
-pub type StringPtr<'a> = TypePtr<'a, String>;
-impl HasTag for String {
-    const TYPE_TAG: TypeTag = TypeTag::String;
-}
-pub type AnyJSPtr<'a> = TypePtr<'a, AnyValue<'a>>;
-impl<'a> HasTag for AnyValue<'a> {
+pub type AnyJSPtr<'a> = TypePtr<'a, AnyValue>;
+impl<'a> HasTag for AnyValue {
     const TYPE_TAG: TypeTag = TypeTag::Any;
     fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
         (**self).get_gc_ptrs(heap)
@@ -42,8 +37,8 @@ impl<'a> HasTag for ObjectDataPtr<'a> {
     const TYPE_TAG: TypeTag = TypeTag::ObjectPtrPtr;
 }
 
-pub type HTPtr<'a> = TypePtr<'a, HashMap<Key, AnyValue<'a>>>;
-impl<'a> HasTag for HashMap<Key, AnyValue<'a>> {
+pub type HTPtr<'a> = TypePtr<'a, HashMap<Key, AnyValue>>;
+impl<'a> HasTag for HashMap<Key, AnyValue> {
     const TYPE_TAG: TypeTag = TypeTag::HT;
     fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
         let mut branches = vec![];
@@ -61,8 +56,8 @@ impl<'a> HasTag for HashMap<Key, AnyValue<'a>> {
     }
 }
 
-pub type ArrayPtr<'a> = TypePtr<'a, Vec<AnyValue<'a>>>;
-impl<'a> HasTag for Vec<AnyValue<'a>> {
+pub type ArrayPtr<'a> = TypePtr<'a, Vec<AnyValue>>;
+impl<'a> HasTag for Vec<AnyValue> {
     const TYPE_TAG: TypeTag = TypeTag::Array;
     fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
         let mut branches = vec![];

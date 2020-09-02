@@ -10,12 +10,12 @@ pub extern "C" fn ht_new<'a>() -> HTPtr<'a> {
 }
 
 #[no_mangle]
-pub extern "C" fn ht_get<'a>(ht: HTPtr<'a>, field: Key) -> AnyValue<'a> {
+pub extern "C" fn ht_get<'a>(ht: HTPtr<'a>, field: Key) -> AnyValue {
     HashMap::get(&ht, &field).unwrap().clone()
 }
 
 #[no_mangle]
-pub extern "C" fn ht_set<'a>(mut ht: HTPtr<'a>, field: Key, value: AnyValue<'a>) -> AnyValue<'a> {
+pub extern "C" fn ht_set<'a>(mut ht: HTPtr<'a>, field: Key, value: AnyValue) -> AnyValue {
     ht.insert(field, value.clone());
     value
 }
@@ -24,15 +24,14 @@ pub extern "C" fn ht_set<'a>(mut ht: HTPtr<'a>, field: Key, value: AnyValue<'a>)
 mod test {
     use super::*;
     use crate::init;
-    use crate::string::str_as_ptr;
     use crate::AnyEnum;
     use wasm_bindgen_test::wasm_bindgen_test;
     #[test]
     #[wasm_bindgen_test]
     fn string_keys() {
         init();
-        let k1 = str_as_ptr("key_1");
-        let k2 = str_as_ptr("key_2");
+        let k1 = "key_1".into();
+        let k2 = "key_2".into();
         let ht = ht_new();
         ht_set(ht, k1, AnyEnum::I32(3).into());
         ht_set(ht, k2, AnyEnum::I32(2).into());

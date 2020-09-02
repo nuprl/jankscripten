@@ -145,7 +145,7 @@ where
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
             }
-            ToString(a) | NewRef(a) | Atom(a, ..) => self.walk_atom(a, loc),
+            NewRef(a) | Atom(a, ..) => self.walk_atom(a, loc),
         }
         self.visitor.exit_expr(expr, loc);
     }
@@ -155,7 +155,7 @@ where
         self.visitor.enter_atom(atom, loc);
         match atom {
             // 0
-            Lit(..) | Id(..) | Deref(..) => (),
+            Lit(..) | Id(..) | GetPrimFunc(..) | Deref(..) => (),
             ToAny(to_any) => {
                 self.walk_atom(to_any.atom.as_mut(), loc);
             }

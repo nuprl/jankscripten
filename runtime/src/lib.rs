@@ -7,7 +7,7 @@
 //!   of num::add)
 //! - all externed return values must be <= 64 bits
 
-type Key = StrPtr;
+type Key = crate::heap_types::StringPtr;
 
 #[allow(unused)]
 macro_rules! log {
@@ -23,14 +23,16 @@ pub mod object;
 pub mod ops;
 pub mod r#ref; // Rust raw identifier syntax
 pub mod string;
-mod util;
 
 mod allocator;
+mod coercions;
+mod util;
+
 use crate::allocator::Tag;
 use allocator::*;
 use any_value::AnyEnum;
 use any_value::AnyValue;
-use string::StrPtr;
+
 static mut HEAP: Option<Heap> = None;
 
 #[no_mangle]
@@ -65,7 +67,7 @@ pub fn set_any_in_current_shadow_frame_slot(any: AnyValue, slot: usize) {
 }
 
 #[no_mangle]
-pub fn log_any(any: AnyValue) -> AnyValue {
+pub fn log_any(_this: AnyValue, any: AnyValue) -> AnyValue {
     let any: AnyEnum = *any;
     log!("{:?}", any);
     AnyEnum::I32(42).into()

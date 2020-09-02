@@ -1,11 +1,11 @@
 use super::super::notwasm::syntax::BinaryOp;
-use super::std_lib::get_global_object;
 use super::syntax::*;
 use crate::jankyscript::constructors as Janky_;
 use crate::jankyscript::syntax as Janky;
 use crate::notwasm::syntax as NotWasm;
 use crate::rts_function::RTSFunction;
 use crate::shared::coercions::*;
+use crate::shared::std_lib::get_global_object;
 use crate::shared::types::Type;
 use im_rc::HashMap;
 use thiserror::Error;
@@ -109,17 +109,45 @@ fn binop_overload(op: &BinOp, lhs_ty: &Type, rhs_ty: &Type) -> TypeOverload {
         (BinOp::Plus, Float, Int) => prim_same(BinaryOp::F64Add, Float),
         (BinOp::Plus, Int, Float) => prim_same(BinaryOp::F64Add, Float),
         (BinOp::Plus, _, _) if anyish => rts(RTSFunction::Plus, Any),
+        (BinOp::Minus, Int, Int) => prim_same(BinaryOp::I32Sub, Int),
+        (BinOp::Minus, _, _) if anyish => rts(RTSFunction::Minus, Any),
+        (BinOp::Minus, _, _) => prim_same(BinaryOp::F64Sub, Float),
+        // TODO(luna): string ordering is a thing, but is it used?
         (BinOp::LessThan, Int, Int) => prim(BinaryOp::I32LT, Int, Int, Bool),
         (BinOp::LessThan, _, _) => prim(BinaryOp::F64LT, Float, Float, Bool),
-        (BinOp::Over, Int, Int) => prim_same(BinaryOp::I32Div, Int),
+        (BinOp::LessThanEqual, Int, Int) => prim(BinaryOp::I32Le, Int, Int, Bool),
+        (BinOp::LessThanEqual, _, _) => prim(BinaryOp::F64Le, Float, Float, Bool),
+        (BinOp::GreaterThan, Int, Int) => prim(BinaryOp::I32GT, Int, Int, Bool),
+        (BinOp::GreaterThan, _, _) => prim(BinaryOp::F64GT, Float, Float, Bool),
+        (BinOp::GreaterThanEqual, Int, Int) => prim(BinaryOp::I32Ge, Int, Int, Bool),
+        (BinOp::GreaterThanEqual, _, _) => prim(BinaryOp::F64Ge, Float, Float, Bool),
+        (BinOp::Times, Int, Int) => prim_same(BinaryOp::I32Mul, Int),
+        (BinOp::Times, _, _) if anyish => rts(RTSFunction::Times, Any),
+        (BinOp::Times, _, _) => prim_same(BinaryOp::F64Mul, Float),
         (BinOp::Over, _, _) if anyish => rts(RTSFunction::Over, Float),
         (BinOp::Over, _, _) => prim_same(BinaryOp::F64Div, Float),
         (BinOp::Mod, Int, Int) => prim_same(BinaryOp::I32Rem, Int),
         (BinOp::Mod, _, _) if anyish => rts(RTSFunction::Mod, Any),
         (BinOp::Mod, _, _) => rts(RTSFunction::ModF64, Float),
-        (BinOp::Equal, Float, Float) => prim(BinaryOp::F64Eq, Float, Float, Bool),
-        (BinOp::Equal, Int, Int) => prim(BinaryOp::I32Eq, Int, Int, Bool),
+        (BinOp::Equal, Float, Float) | (BinOp::StrictEqual, Float, Float) => {
+            prim(BinaryOp::F64Eq, Float, Float, Bool)
+        }
+        (BinOp::Equal, Int, Int) | (BinOp::StrictEqual, Int, Int) => {
+            prim(BinaryOp::I32Eq, Int, Int, Bool)
+        }
         (BinOp::Equal, _, _) => rts(RTSFunction::Equal, Bool),
+        (BinOp::StrictEqual, _, _) => rts(RTSFunction::StrictEqual, Bool),
+        (BinOp::StrictNotEqual, Float, Float) | (BinOp::NotEqual, Float, Float) => {
+            prim(BinaryOp::F64Ne, Float, Float, Bool)
+        }
+        (BinOp::StrictNotEqual, Int, Int) | (BinOp::NotEqual, Int, Int) => {
+            prim(BinaryOp::I32Ne, Int, Int, Bool)
+        }
+        (BinOp::NotEqual, _, _) => rts(RTSFunction::NotEqual, Bool),
+        (BinOp::StrictNotEqual, _, _) => rts(RTSFunction::StrictNotEqual, Bool),
+        (BinOp::Or, _, _) => prim_same(BinaryOp::I32Or, Int),
+        (BinOp::LeftShift, _, _) => prim_same(BinaryOp::I32Shl, Int),
+        (BinOp::RightShift, _, _) => prim_same(BinaryOp::I32Shr, Int),
         (_, _, _) => (
             Overload::RTS(RTSFunction::Todo(Box::leak(Box::new(format!(
                 "unimplemented binop {:?} {:?} {:?}",
@@ -378,8 +406,6 @@ impl InsertCoercions {
 
                 Ok((Janky::Expr::Call(Box::new(coerced_f), coerced_args), f_ret))
             }
-            // TODO(arjun): Any for this!
-            Expr::This => Ok((Janky::Expr::This, Type::Any)),
             Expr::Unary(op, e) => {
                 use super::super::javascript::UnaryOp;
                 let (coerced_e, e_ty) = self.expr_and_type(*e, &mut env.clone())?;
@@ -396,8 +422,11 @@ impl InsertCoercions {
                     (UnaryOp::Plus, Type::Int) => Ok((coerced_e, e_ty)),
                     (UnaryOp::Plus, _) => Ok((
                         Janky::Expr::PrimCall(
-                            RTSFunction::Todo("+"),
-                            vec![self.coerce(coerced_e, e_ty, Type::Any)],
+                            RTSFunction::Plus,
+                            vec![
+                                Janky::Expr::Lit(Janky::Lit::Num(Janky::Num::Int(0))),
+                                self.coerce(coerced_e, e_ty, Type::Any),
+                            ],
                         ),
                         Type::Any,
                     )),
@@ -417,28 +446,31 @@ impl InsertCoercions {
                     )),
                     (UnaryOp::Minus, _) => Ok((
                         Janky::Expr::PrimCall(
-                            RTSFunction::Todo("-"),
-                            vec![self.coerce(coerced_e, e_ty, Type::Any)],
+                            RTSFunction::Minus,
+                            vec![
+                                Janky::Expr::Lit(Janky::Lit::Num(Janky::Num::Int(0))),
+                                self.coerce(coerced_e, e_ty, Type::Any),
+                            ],
                         ),
                         Type::Any,
                     )),
                     (UnaryOp::Not, _) => Ok((
-                        Janky::Expr::PrimCall(
-                            RTSFunction::Todo("!"),
-                            vec![self.coerce(coerced_e, e_ty, Type::Any)],
+                        Janky::Expr::Unary(
+                            NotWasm::UnaryOp::Eqz,
+                            Box::new(self.coerce(coerced_e, e_ty, Type::Bool)),
                         ),
-                        Type::Any,
+                        Type::Bool,
                     )),
                     (UnaryOp::TypeOf, _) => Ok((
                         Janky::Expr::PrimCall(
-                            RTSFunction::Todo("typeof"),
+                            RTSFunction::Typeof,
                             vec![self.coerce(coerced_e, e_ty, Type::Any)],
                         ),
                         Type::Any,
                     )),
                     (UnaryOp::Void, _) => Ok((
                         Janky::Expr::PrimCall(
-                            RTSFunction::Todo("void"),
+                            RTSFunction::Void,
                             vec![self.coerce(coerced_e, e_ty, Type::Any)],
                         ),
                         Type::Any,
@@ -451,47 +483,6 @@ impl InsertCoercions {
                         Type::Any,
                     )),
                 }
-            }
-            Expr::New(ctor, args) => {
-                let args_with_typs = args
-                    .into_iter()
-                    .map(|e| self.expr_and_type(e, &mut env.clone()))
-                    .collect::<Result<Vec<_>, _>>()?;
-
-                let (coerced_ctor, ctor_ty) = self.expr_and_type(*ctor, &mut env.clone())?;
-                let (coerced_ctor, ctor_args, ctor_ret) = match ctor_ty {
-                    Type::Function(args, ret) => {
-                        if args.len() != args_with_typs.len() {
-                            return error!(
-                                "bad arity applying constructor {:?}, got {} args",
-                                coerced_ctor,
-                                args_with_typs.len()
-                            );
-                        }
-
-                        (coerced_ctor, args, *ret)
-                    }
-                    ctor_ty => {
-                        let n = args_with_typs.len();
-
-                        (
-                            self.coerce(coerced_ctor, ctor_ty, Type::ground_function(n)),
-                            vec![Type::Any; n],
-                            Type::Any,
-                        )
-                    }
-                };
-
-                let coerced_args = args_with_typs
-                    .into_iter()
-                    .zip(ctor_args.into_iter())
-                    .map(|((e, actual_ty), formal_ty)| self.coerce(e, actual_ty, formal_ty))
-                    .collect();
-
-                Ok((
-                    Janky::Expr::Call(Box::new(coerced_ctor), coerced_args),
-                    ctor_ret,
-                ))
             }
             Expr::Func(opt_ret_ty, args_with_opt_tys, body) => {
                 let mut body_env = env.clone();

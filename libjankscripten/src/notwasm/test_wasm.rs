@@ -85,7 +85,7 @@ where
     T: Debug + FromStr + PartialEq,
     <T as FromStr>::Err: Debug,
 {
-    let wasm = compile(program).expect("could not compile");
+    let wasm = compile(program, |notwasm| eprintln!("{}", notwasm)).expect("could not compile");
     expect_wasm(expected, wasm)
 }
 
@@ -356,7 +356,7 @@ fn goto_enters_if() {
 #[test]
 fn strings() {
     let body = Stmt::Block(vec![
-        Stmt::Var(VarStmt::new(id_("s"), Expr::ToString(str_("wow, thanks")))),
+        Stmt::Var(VarStmt::new(id_("s"), atom_(str_("wow, thanks")))),
         Stmt::Return(len_(get_id_("s"))),
     ]);
     let program = test_program_(body);
