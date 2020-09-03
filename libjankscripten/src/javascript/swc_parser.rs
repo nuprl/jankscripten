@@ -110,11 +110,19 @@ fn parse_id(ident: swc::Ident) -> S::Id {
 /// Parse an entire swc script
 fn parse_script(script: swc::Script, source_map: &SourceMap) -> ParseResult<S::Stmt> {
     let mut stmts = parse_stmts(script.body, source_map)?;
+
+    // Desugaring expects the program to have a single block statement at the
+    // top of the program AST. If the entire program is already surrounded in a
+    // block statement, we'll just return that one. Otherwise, we manually wrap
+    // it in a block statement.
+
     if stmts.len() == 1 {
-        Ok(stmts.pop().unwrap())
-    } else {
-        Ok(S::Stmt::Block(stmts))
+        if let S::Stmt::Block(_) = stmts[0] {
+            return Ok(stmts.pop().unwrap());
+        }
     }
+
+    Ok(S::Stmt::Block(stmts))
 }
 
 /// Parse multiple swc statements.
