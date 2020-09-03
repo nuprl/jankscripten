@@ -78,8 +78,17 @@ fn unsupported<T>(span: Span, source_map: &SourceMap) -> Result<T, ParseError> {
 
 macro_rules! unsupported {
     ($span:expr, $source_map:expr) => {
-        unsupported_message(&format!("(generated at {}:{}:{}) unsupported feature", file!(), line!(), column!()), $span, $source_map)
-    }
+        unsupported_message(
+            &format!(
+                "(generated at {}:{}:{}) unsupported feature",
+                file!(),
+                line!(),
+                column!()
+            ),
+            $span,
+            $source_map,
+        )
+    };
 }
 
 /// A parsing result used for an unsupported feature of JavaScript, with a
@@ -554,9 +563,13 @@ fn parse_block(block: swc::BlockStmt, source_map: &SourceMap) -> ParseResult<S::
     Ok(S::Stmt::Block(parse_stmts(block.stmts, source_map)?))
 }
 
-/// Parse an swc pattern expecting an id. `span` should be the source location of 
+/// Parse an swc pattern expecting an id. `span` should be the source location of
 /// the surrounding expr/stmt. `span` is used for error reporting purposes.
-fn parse_id_from_pattern(pattern: swc::Pat, span: Span, source_map: &SourceMap) -> ParseResult<S::Id> {
+fn parse_id_from_pattern(
+    pattern: swc::Pat,
+    span: Span,
+    source_map: &SourceMap,
+) -> ParseResult<S::Id> {
     use swc::Pat::*;
     match pattern {
         Ident(ident) => Ok(parse_id(ident)),
@@ -566,7 +579,11 @@ fn parse_id_from_pattern(pattern: swc::Pat, span: Span, source_map: &SourceMap) 
 
 /// Parse an swc pattern. `span` should be the source location of the
 /// surrounding expr/stmt. `span` is used for error reporting purposes.
-fn parse_lvalue_from_pattern(pattern: swc::Pat, span: Span, source_map: &SourceMap) -> ParseResult<S::LValue> {
+fn parse_lvalue_from_pattern(
+    pattern: swc::Pat,
+    span: Span,
+    source_map: &SourceMap,
+) -> ParseResult<S::LValue> {
     use swc::Pat::*;
     match pattern {
         Ident(ident) => Ok(S::LValue::Id(parse_id(ident))),
@@ -931,7 +948,11 @@ fn parse_update_op(
 /// Parse an expression into an lvalue. If the expression can't be turned into
 /// lvalue, an error will be returned.
 /// `span` is the span of the surrounding expr.
-fn parse_lvalue_from_expr(expr: swc::Expr, span: Span, source_map: &SourceMap) -> ParseResult<S::LValue> {
+fn parse_lvalue_from_expr(
+    expr: swc::Expr,
+    span: Span,
+    source_map: &SourceMap,
+) -> ParseResult<S::LValue> {
     use swc::Expr::*;
     match expr {
         // simple id case
@@ -993,7 +1014,7 @@ fn parse_decl(decl: swc::Decl, source_map: &SourceMap) -> ParseResult<S::Stmt> {
     match decl {
         Var(swc::VarDecl {
             span,
-            kind,//: swc::VarDeclKind::Var,
+            kind, //: swc::VarDeclKind::Var,
             declare: _,
             decls,
         }) => {
