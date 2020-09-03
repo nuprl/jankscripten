@@ -5,8 +5,6 @@ authors = ["Arjun Guha <arjun@cs.umass.edu>"]
 edition = "2018"
 
 [dependencies]
-ressa = "*"
-resast = "*"
 thiserror = "*"
 pretty = "^0.10.0"
 parity-wasm = "^0.41.0"
@@ -15,3 +13,7 @@ im-rc = "15.0.0"
 combine-language = "*"
 strum = "0.19"
 strum_macros = "0.19"
+swc_ecma_parser = "0.33.3"
+swc_common = "0.9.0"
+swc_ecma_ast = "0.28.0"
+swc_atoms = "0.2.2"

@@ -1,551 +1,674 @@
-//! A "parser" for JavaScript.
-//!
-//! This isn't really a parser. We use the Ressa crate to parse JavaScript.
-//! However, the JavaScript AST that Ressa produces covers new language features
-//! that we do not need to support because (1) our benchmark compilers do not
-//! produce JavaScript that uses them, and (2) they can be desugared if needed.
-//! Thus this "parser" calls the Ressa parser and transforms the Ressa AST
-//! to our simpler AST.
+// An implementation of our simplified JavaScript parser using swc_ecma_parser
+// as a backend.
+
 use super::constructors::*;
 use super::syntax as S;
-use resast::prelude::*;
-use ressa::Parser;
+use swc_atoms::JsWord;
+use swc_common::{
+    errors::{ColorConfig, Handler},
+    sync::Lrc,
+    FileName, FilePathMapping, SourceMap, Span,
+};
+use swc_ecma_ast as swc;
+use swc_ecma_parser::{lexer, Parser, StringInput, Syntax};
+
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ParseError {
-    /// An error from the Ressa parser.
-    #[error("{0}")]
-    Ressa(#[from] ressa::Error),
-    /// The Ressa AST had a JavaScript feature that we do not support.
+    /// An error from the SWC parser.
+    #[error("SWC error")]
+    // TODO(mark): figure out how to print the error, it doesn't
+    //             implement the Display trait or anything like it
+    SWC(swc_ecma_parser::error::Error),
+    /// An error while parsing a string literal
+    #[error("String literal parse error: {0}")]
+    String(String),
+    /// The SWC AST had a JavaScript feature that we do not support.
     #[error("Unsupported: {0}")]
     Unsupported(String),
 }
 
-fn unsupported<T>() -> Result<T, ParseError> {
-    return Err(ParseError::Unsupported("".to_string()));
-}
-
-fn unsupported_message<T>(msg: &str) -> Result<T, ParseError> {
-    return Err(ParseError::Unsupported(msg.to_string()));
-}
-
 pub type ParseResult<T> = Result<T, ParseError>;
 
+/// Turn errors from swc, the parsing library, into our parse errors
+impl From<swc_ecma_parser::error::Error> for ParseError {
+    fn from(e: swc_ecma_parser::error::Error) -> ParseError {
+        ParseError::SWC(e)
+    }
+}
+
+/// Parse a full JavaScript program from source code into our JavaScript AST.
 pub fn parse(js_code: &str) -> ParseResult<S::Stmt> {
-    let mut parser = Parser::new(&js_code).unwrap();
-    let ast = parser.parse()?;
-    return simpl_program(ast);
+    // The SourceMap keeps track of all the source files given to the parser.
+    // All sourcespans given to us by the parser library are actually indices
+    // into this source map.
+    let source_map: SourceMap = Default::default();
+
+    // Register our JavaScript file with the source map
+    let source_file = source_map.new_source_file(
+        FileName::Anon, // TODO(mark): give it the real filename
+        js_code.into(),
+    );
+
+    // Create a lexer for the parser
+    let lexer = lexer::Lexer::new(
+        // We want to parse ecmascript
+        Syntax::Es(Default::default()),
+        // JscTarget defaults to es5
+        Default::default(),
+        StringInput::from(&*source_file),
+        None,
+    );
+
+    // Create the actual parser
+    let mut parser = Parser::new_from(lexer);
+
+    // Parse our script into the library's AST
+    let script = parser.parse_script()?;
+
+    // Parse the library's AST into our AST
+    parse_script(script, &source_map)
 }
 
-fn simpl_lvalue<'a>(expr: Expr<'a>) -> ParseResult<S::LValue> {
-    match expr {
-        Expr::Ident(id) => Ok(S::LValue::Id(id.name.into())),
-        Expr::Member(MemberExpr {
-            object,
-            property,
-            computed: false,
-        }) => match *property {
-            Expr::Ident(prop) => Ok(S::LValue::Dot(simpl_expr(*object)?, prop.name.into())),
-            other => unsupported_message(&format!("unexpected syntax on RHS of dot: {:?}", other)),
-        },
-        Expr::Member(MemberExpr {
-            object,
-            property,
-            computed: true,
-        }) => Ok(S::LValue::Bracket(
-            simpl_expr(*object)?,
-            simpl_expr(*property)?,
-        )),
-        _other => unsupported(),
-    }
+/// A parsing result used for an unsupported feature of JavaScript.
+fn unsupported<T>(span: Span, source_map: &SourceMap) -> Result<T, ParseError> {
+    unsupported_message("unsupported feature", span, source_map)
 }
 
-fn simpl_assign_left<'a>(assign_left: AssignLeft<'a>) -> ParseResult<S::LValue> {
-    match assign_left {
-        AssignLeft::Expr(e) => simpl_lvalue(*e),
-        _other => unsupported(),
-    }
-}
-
-fn simpl_string_lit<'a>(string_lit: StringLit<'a>) -> String {
-    match string_lit {
-        StringLit::Single(s) => s.into_owned(),
-        StringLit::Double(s) => s.into_owned(),
-    }
-}
-
-fn simpl_prop_key<'a>(prop_key: PropKey) -> ParseResult<S::Key> {
-    match prop_key {
-        PropKey::Pat(p) => Ok(S::Key::Str(simpl_pat_str(p)?)),
-        PropKey::Expr(Expr::Ident(x)) => Ok(S::Key::Str(x.name.into_owned())),
-        PropKey::Lit(Lit::String(s)) => Ok(S::Key::Str(simpl_string_lit(s))),
-        PropKey::Lit(Lit::Number(s)) => match s.parse::<i32>() {
-            Ok(n) => Ok(S::Key::Int(n)),
-            Err(_) => unsupported_message(&format!("could not parse {} as an integer", s)),
-        },
-        other => unsupported_message(&format!("not a property key: {:?}", other)),
-    }
-}
-
-fn simpl_obj_prop<'a>(obj_prop: ObjProp<'a>) -> ParseResult<(S::Key, S::Expr)> {
-    match obj_prop {
-        ObjProp::Spread(_) => unsupported(),
-        ObjProp::Prop(Prop {
-            key,
-            value,
-            kind,
-            method,
-            computed,
-            short_hand,
-            is_static,
-        }) => {
-            // NOTE(arjun): I do not know what this is.
-            if short_hand {
-                return unsupported();
-            }
-            if computed {
-                return unsupported();
-            }
-            if is_static {
-                return unsupported();
-            }
-            if method {
-                return unsupported();
-            }
-            if kind != PropKind::Init {
-                return unsupported();
-            }
-            let expr = match value {
-                PropValue::Expr(e) => simpl_expr(e)?,
-                _ => return unsupported(),
-            };
-            Ok((simpl_prop_key(key)?, expr))
-        }
-    }
-}
-
-fn simpl_lit<'a>(lit: Lit<'a>) -> ParseResult<S::Lit> {
-    match lit {
-        Lit::Boolean(b) => Ok(S::Lit::Bool(b)),
-        Lit::Null => Ok(S::Lit::Null),
-        Lit::Number(n) => Ok(S::Lit::Num(parse_number(&n))),
-        Lit::RegEx(RegEx { pattern, flags }) => {
-            Ok(S::Lit::Regex(pattern.into_owned(), flags.into_owned()))
-        }
-        Lit::String(s) => Ok(S::Lit::String(parse_string(&s))),
-        Lit::Template(_) => unsupported(),
-    }
-}
-
-fn simpl_expr<'a>(expr: Expr<'a>) -> ParseResult<S::Expr> {
-    match expr {
-        Expr::Array(items) => {
-            let items: ParseResult<Vec<_>> = items.into_iter().map(simpl_opt_expr).collect();
-            Ok(S::Expr::Array(items?))
-        }
-        Expr::ArrowFunc(_) => unsupported(),
-        // NOTE(arjun): I have no idea what this is!
-        Expr::ArrowParamPlaceHolder(_, _) => unsupported(),
-        Expr::Assign(AssignExpr {
-            operator,
-            left,
-            right,
-        }) => Ok(op_assign_(
-            operator,
-            simpl_assign_left(left)?,
-            simpl_expr(*right)?,
-        )),
-        Expr::Await(_) => unsupported(),
-        Expr::Binary(BinaryExpr {
-            operator,
-            left,
-            right,
-        }) => Ok(binary_(
-            S::BinOp::BinaryOp(operator),
-            simpl_expr(*left)?,
-            simpl_expr(*right)?,
-        )),
-        Expr::Class(_) => unsupported(),
-        Expr::Call(CallExpr { callee, arguments }) => {
-            let arguments: ParseResult<Vec<_>> = arguments.into_iter().map(simpl_expr).collect();
-            Ok(call_(simpl_expr(*callee)?, arguments?))
-        }
-        Expr::Conditional(ConditionalExpr {
-            test,
-            alternate,
-            consequent,
-        }) => Ok(if_expr_(
-            simpl_expr(*test)?,
-            simpl_expr(*consequent)?,
-            simpl_expr(*alternate)?,
-        )),
-        Expr::Func(Func {
-            id,
-            params,
-            body,
-            generator,
-            is_async,
-        }) => {
-            if generator {
-                return unsupported();
-            }
-            if is_async {
-                return unsupported();
-            }
-            let id = match id {
-                Some(ident) => Some(ident.name.into_owned()),
-                None => None,
-            };
-            let params: ParseResult<Vec<_>> = params.into_iter().map(simpl_func_arg).collect();
-            let FuncBody(parts) = body;
-            Ok(expr_func_(id, params?, simpl_program_parts(parts)?))
-        }
-        Expr::Ident(id) => Ok(id_(id.name)),
-        Expr::Logical(LogicalExpr {
-            operator,
-            left,
-            right,
-        }) => Ok(binary_(
-            S::BinOp::LogicalOp(operator),
-            simpl_expr(*left)?,
-            simpl_expr(*right)?,
-        )),
-        Expr::Lit(l) => Ok(S::Expr::Lit(simpl_lit(l)?)),
-        Expr::Member(MemberExpr {
-            object,
-            property,
-            computed,
-        }) => {
-            if computed {
-                Ok(bracket_(simpl_expr(*object)?, simpl_expr(*property)?))
-            } else {
-                match *property {
-                    Expr::Ident(id) => Ok(dot_(simpl_expr(*object)?, id.name)),
-                    _other => unsupported(),
-                }
-            }
-        }
-        Expr::MetaProp(_) => unsupported(), // new.target
-        Expr::New(NewExpr { callee, arguments }) => {
-            let arguments: ParseResult<Vec<_>> = arguments.into_iter().map(simpl_expr).collect();
-            Ok(new_(simpl_expr(*callee)?, arguments?))
-        }
-        Expr::Obj(props) => {
-            let props: ParseResult<Vec<_>> = props.into_iter().map(simpl_obj_prop).collect();
-            Ok(S::Expr::Object(props?))
-        }
-        Expr::Sequence(exprs) => {
-            let exprs: ParseResult<Vec<_>> = exprs.into_iter().map(simpl_expr).collect();
-            Ok(S::Expr::Seq(exprs?))
-        }
-        Expr::Spread(_) => unsupported(),
-        Expr::Super => unsupported(),
-        Expr::TaggedTemplate(_) => unsupported(),
-        Expr::This => Ok(S::Expr::This),
-        Expr::Unary(UnaryExpr {
-            operator,
-            prefix,
-            argument,
-        }) => {
-            // NOTE(arjun): I cannot think of any postfix unary operators!
-            assert!(prefix == true);
-            Ok(unary_(operator, simpl_expr(*argument)?))
-        }
-        Expr::Update(UpdateExpr {
-            operator,
-            argument,
-            prefix,
-        }) => {
-            let op = match (operator, prefix) {
-                (UpdateOp::Decrement, true) => S::UnaryAssignOp::PreDec,
-                (UpdateOp::Decrement, false) => S::UnaryAssignOp::PostDec,
-                (UpdateOp::Increment, true) => S::UnaryAssignOp::PreInc,
-                (UpdateOp::Increment, false) => S::UnaryAssignOp::PostInc,
-            };
-            Ok(unaryassign_(op, simpl_lvalue(*argument)?))
-        }
-        Expr::Yield(_) => unsupported(),
-    }
-}
-
-fn simpl_opt_expr<'a>(opt_expr: Option<Expr<'a>>) -> ParseResult<S::Expr> {
-    match opt_expr {
-        None => Ok(UNDEFINED_),
-        Some(e) => Ok(simpl_expr(e)?),
-    }
-}
-
-fn simpl_opt_stmt<'a>(opt_stmt: Option<Stmt<'a>>) -> ParseResult<S::Stmt> {
-    match opt_stmt {
-        None => Ok(S::Stmt::Empty),
-        Some(e) => Ok(simpl_stmt(e)?),
-    }
-}
-
-fn simpl_switch_case<'a>(case: SwitchCase<'a>) -> ParseResult<(Option<S::Expr>, S::Stmt)> {
-    let test = match case.test {
-        None => None,
-        Some(e) => Some(simpl_expr(e)?),
+macro_rules! unsupported {
+    ($span:expr, $source_map:expr) => {
+        unsupported_message(
+            &format!(
+                "(generated at {}:{}:{}) unsupported feature",
+                file!(),
+                line!(),
+                column!()
+            ),
+            $span,
+            $source_map,
+        )
     };
-    Ok((test, simpl_program_parts(case.consequent)?))
 }
 
-fn simpl_pat<'a>(pat: Pat<'a>) -> ParseResult<S::Id> {
-    match pat {
-        Pat::Ident(ident) => Ok(ident.name.into()),
-        _ => unsupported(),
-    }
-}
-fn simpl_pat_str<'a>(pat: Pat<'a>) -> ParseResult<String> {
-    match pat {
-        Pat::Ident(ident) => Ok(ident.name.into()),
-        _ => unsupported(),
-    }
+/// A parsing result used for an unsupported feature of JavaScript, with a
+/// customizable message.
+fn unsupported_message<T>(msg: &str, span: Span, source_map: &SourceMap) -> Result<T, ParseError> {
+    Err(unsupported_error(msg, span, source_map))
 }
 
-fn simpl_stmt<'a>(stmt: Stmt<'a>) -> ParseResult<S::Stmt> {
-    match stmt {
-        Stmt::Expr(e) => Ok(expr_(simpl_expr(e)?)),
-        Stmt::Block(BlockStmt(parts)) => {
-            let stmts: Result<Vec<_>, _> = parts
-                .into_iter()
-                .map(|part| simpl_program_part(part))
-                .collect();
-            Ok(S::Stmt::Block(stmts?))
+/// Construct a parse *error* with the given message and location.
+fn unsupported_error(msg: &str, span: Span, source_map: &SourceMap) -> ParseError {
+    ParseError::Unsupported(format!("{} at {}", msg, source_map.span_to_string(span)))
+}
+
+/// An error occurred while attempting to parse a string literal from the SWC AST
+fn str_error(msg: &str, span: Span, source_map: &SourceMap) -> ParseError {
+    ParseError::String(format!(
+        "tried to parse string literal at {} but failed at {}",
+        source_map.span_to_string(span),
+        msg
+    ))
+}
+
+// parse an id out of an swc identifier
+fn parse_id(ident: swc::Ident) -> S::Id {
+    S::Id::Named(ident.sym.to_string())
+}
+
+/// Parse an entire swc script
+fn parse_script(script: swc::Script, source_map: &SourceMap) -> ParseResult<S::Stmt> {
+    let mut stmts = parse_stmts(script.body, source_map)?;
+
+    // Desugaring expects the program to have a single block statement at the
+    // top of the program AST. If the entire program is already surrounded in a
+    // block statement, we'll just return that one. Otherwise, we manually wrap
+    // it in a block statement.
+
+    if stmts.len() == 1 {
+        if let S::Stmt::Block(_) = stmts[0] {
+            return Ok(stmts.pop().unwrap());
         }
-        Stmt::Empty => Ok(S::Stmt::Empty),
-        Stmt::Debugger => unimplemented!(),
-        Stmt::With(_) => unsupported(),
-        Stmt::Return(oe) => Ok(return_(simpl_opt_expr(oe)?)),
-        Stmt::Labeled(LabeledStmt { label, body }) => Ok(label_(label.name, simpl_stmt(*body)?)),
-        Stmt::Break(opt_id) => Ok(break_(opt_id.map(|l| l.name.into_owned()))),
-        Stmt::Continue(opt_id) => Ok(continue_(opt_id.map(|l| l.name.into_owned()))),
-        Stmt::If(IfStmt {
-            test,
-            consequent,
-            alternate,
-        }) => Ok(if_(
-            simpl_expr(test)?,
-            simpl_stmt(*consequent)?,
-            simpl_opt_stmt(alternate.map(|b| *b))?,
+    }
+
+    Ok(S::Stmt::Block(stmts))
+}
+
+/// Parse multiple swc statements.
+fn parse_stmts(stmts: Vec<swc::Stmt>, source_map: &SourceMap) -> ParseResult<Vec<S::Stmt>> {
+    stmts
+        .into_iter()
+        .map(|stmt| parse_stmt(stmt, source_map))
+        .collect()
+}
+
+/// Parse an swc statement.
+fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
+    use swc::Stmt::*;
+    match stmt {
+        Block(block_stmt) => parse_block(block_stmt, source_map),
+        Break(break_stmt) => Ok(break_(break_stmt.label.map(parse_id))),
+        Continue(continue_stmt) => Ok(continue_(continue_stmt.label.map(parse_id))),
+        Debugger(debugger_stmt) => unsupported!(debugger_stmt.span, source_map),
+        Decl(decl) => {
+            let decl = parse_decl(decl, source_map)?;
+            Ok(decl)
+        }
+        DoWhile(do_while_stmt) => {
+            let body = parse_stmt(*do_while_stmt.body, source_map)?;
+            let test = parse_expr(*do_while_stmt.test, source_map)?;
+            Ok(dowhile_(body, test))
+        }
+        Empty(empty_stmt) => Ok(S::Stmt::Empty),
+        Expr(swc::ExprStmt { span, expr }) => Ok(expr_(parse_expr(*expr, source_map)?)),
+        For(for_stmt) => {
+            let init = match for_stmt.init {
+                None => S::ForInit::Expr(Box::new(UNDEFINED_)),
+                Some(swc::VarDeclOrExpr::Expr(e)) => {
+                    S::ForInit::Expr(Box::new(parse_expr(*e, source_map)?))
+                }
+                Some(swc::VarDeclOrExpr::VarDecl(swc::VarDecl {
+                    span,
+                    kind,
+                    declare,
+                    decls,
+                })) => {
+                    if kind != swc::VarDeclKind::Var {
+                        return unsupported_message(
+                            "only var-declared variables are supported",
+                            span,
+                            source_map,
+                        );
+                    }
+                    let decls: ParseResult<Vec<_>> = decls
+                        .into_iter()
+                        .map(|d| parse_var_declarator(d, source_map))
+                        .collect();
+                    S::ForInit::Decl(decls?)
+                }
+            };
+            Ok(for_(
+                init,
+                parse_opt_expr(for_stmt.test, source_map)?,
+                parse_opt_expr(for_stmt.update, source_map)?,
+                parse_stmt(*for_stmt.body, source_map)?,
+            ))
+        }
+        ForIn(swc::ForInStmt {
+            left,
+            right,
+            body,
+            span,
+        }) => {
+            // figure out if we're declaring a variable as part of this for in,
+            // or if we're reusing an already-bound identifier. if it's neither
+            // of these, we don't support it.
+            let (is_var, id) = match left {
+                // re-using an already-bound identifier
+                swc::VarDeclOrPat::Pat(swc::Pat::Ident(ident)) => (false, ident),
+                swc::VarDeclOrPat::Pat(swc::Pat::Expr(boxed_expr)) => {
+                    // nested match because you can't match inside boxes without
+                    // nightly rust
+                    match *boxed_expr {
+                        swc::Expr::Ident(ident) => (false, ident),
+                        _ => {
+                            return unsupported_message(
+                                "unsupported expression in a for-in loop declaration",
+                                span,
+                                source_map,
+                            );
+                        }
+                    }
+                }
+
+                // var case
+                swc::VarDeclOrPat::VarDecl(swc::VarDecl {
+                    span,
+                    kind: swc::VarDeclKind::Var, // no `let`
+                    declare: _,
+                    mut decls,
+                }) => {
+                    if decls.len() != 1 {
+                        return unsupported_message(
+                            "only a single var decl is allowed",
+                            span,
+                            source_map,
+                        );
+                    }
+                    match decls.remove(0) {
+                        // a single decl
+                        swc::VarDeclarator {
+                            span: _,
+                            init: None,                   // no initializer
+                            name: swc::Pat::Ident(ident), // no obj destructuring
+                            definite: _,
+                        } => (true, ident),
+                        // any other type of decl
+                        _ => {
+                            return unsupported_message(
+                                "only var decls are allowed here",
+                                span,
+                                source_map,
+                            );
+                        }
+                    }
+                }
+
+                // The program may pattern match on the index, which we do not support.
+                other => {
+                    return unsupported_message(
+                        &format!("unsupported index in a for-in loop: {:?}", other),
+                        span,
+                        source_map,
+                    );
+                }
+            };
+
+            Ok(forin_(
+                is_var,
+                parse_id(id),
+                parse_expr(*right, source_map)?,
+                parse_stmt(*body, source_map)?,
+            ))
+        }
+        ForOf(for_of_stmt) => unsupported!(for_of_stmt.span, source_map),
+        If(if_stmt) => {
+            // test
+            let cond_expr = parse_expr(*if_stmt.test, source_map)?;
+
+            // consequent
+            let then_stmt = parse_stmt(*if_stmt.cons, source_map)?;
+
+            // alternate
+            let else_stmt = parse_opt_stmt(if_stmt.alt, source_map)?;
+
+            Ok(if_(cond_expr, then_stmt, else_stmt))
+        }
+        Labeled(labeled_stmt) => Ok(label_(
+            parse_id(labeled_stmt.label),
+            parse_stmt(*labeled_stmt.body, source_map)?,
         )),
-        Stmt::Switch(SwitchStmt {
+        Return(return_stmt) => Ok(return_(parse_opt_expr(return_stmt.arg, source_map)?)),
+        Switch(swc::SwitchStmt {
             discriminant,
             cases,
+            span,
         }) => {
-            let cases: Result<Vec<_>, _> = cases.into_iter().map(simpl_switch_case).collect();
+            // parse cases
+            let cases: Result<Vec<_>, _> = cases
+                .into_iter()
+                .map(|c| parse_switch_case(c, source_map))
+                .collect();
+
+            // partition cases into two groups:
+            // 1. regular cases
+            // 2. default cases (should only be one)
             let (cases, mut default_case) = cases?
                 .into_iter()
                 .partition::<Vec<_>, _>(|(test, _)| test.is_some());
+
+            // try to separate out the default case from the regular cases
             let default_case = match default_case.len() {
                 0 => S::Stmt::Empty,
                 1 => default_case.remove(0).1,
                 _ => panic!("switch with multiple default cases"),
             };
             let cases = cases.into_iter().map(|(test, body)| (test.unwrap(), body));
+
+            // put it all together
             Ok(switch_(
-                simpl_expr(discriminant)?,
+                parse_expr(*discriminant, source_map)?,
                 cases.collect(),
                 default_case,
             ))
         }
-        Stmt::Throw(e) => Ok(throw_(simpl_expr(e)?)),
-        Stmt::Try(TryStmt {
-            block,
-            handler,
-            finalizer,
-        }) => {
-            let stmt = simpl_block(block)?;
-            let stmt = match handler {
+        Throw(throw_stmt) => Ok(throw_(parse_expr(*throw_stmt.arg, source_map)?)),
+        Try(try_stmt) => {
+            // deal with each possible part of the try statement separately,
+            // wrap them as we encounter the different layers.
+
+            // 1. block
+            let stmt = parse_block(try_stmt.block, source_map)?;
+
+            // 2. handler
+            let stmt = match try_stmt.handler {
                 None => stmt,
-                Some(CatchClause {
-                    param: Some(pat),
+
+                Some(swc::CatchClause {
+                    param: Some(pattern),
                     body,
-                }) => catch_(stmt, simpl_pat(pat)?, simpl_block(body)?),
-                Some(_) => return unsupported(),
-            };
-            let stmt = match finalizer {
-                None => stmt,
-                Some(block) => finally_(stmt, simpl_block(block)?),
-            };
-            Ok(stmt)
-        }
-        Stmt::While(WhileStmt { test, body }) => Ok(while_(simpl_expr(test)?, simpl_stmt(*body)?)),
-        Stmt::DoWhile(DoWhileStmt { test, body }) => {
-            Ok(dowhile_(simpl_stmt(*body)?, simpl_expr(test)?))
-        }
-        Stmt::For(ForStmt {
-            init,
-            test,
-            update,
-            body,
-        }) => {
-            let init = match init {
-                None => S::ForInit::Expr(Box::new(UNDEFINED_)),
-                Some(LoopInit::Expr(e)) => S::ForInit::Expr(Box::new(simpl_expr(e)?)),
-                Some(LoopInit::Variable(_kind, decls)) => {
-                    if _kind != VarKind::Var {
-                        return unsupported_message("only var-declared variables are supported");
-                    }
-                    let decls: ParseResult<Vec<_>> =
-                        decls.into_iter().map(simpl_var_decl).collect();
-                    S::ForInit::Decl(decls?)
-                }
-            };
-            Ok(for_(
-                init,
-                simpl_opt_expr(test)?,
-                simpl_opt_expr(update)?,
-                simpl_stmt(*body)?,
-            ))
-        }
-        Stmt::ForIn(ForInStmt { left, right, body }) => {
-            let (is_var, id) = match left {
-                LoopLeft::Variable(
-                    _,
-                    VarDecl {
-                        id: Pat::Ident(id),
-                        init: _,
-                    },
-                ) => (true, id.name.into_owned()),
-                LoopLeft::Expr(Expr::Ident(x)) => (false, x.name.into_owned()),
-                // The program may pattern match on the index, which we do not support.
-                other => {
-                    return unsupported_message(&format!(
-                        "unsupported index in a for-in loop: {:?}",
-                        other
-                    ))
-                }
+                    span,
+                }) => catch_(
+                    stmt,
+                    parse_id_from_pattern(pattern, span, source_map)?,
+                    parse_block(body, source_map)?,
+                ),
+
+                Some(_) => return unsupported!(try_stmt.span, source_map),
             };
 
-            Ok(forin_(is_var, id, simpl_expr(right)?, simpl_stmt(*body)?))
+            // 3. finalizer
+            let stmt = match try_stmt.finalizer {
+                None => stmt,
+                Some(block) => finally_(stmt, parse_block(block, source_map)?),
+            };
+
+            // we're done
+            Ok(stmt)
         }
-        Stmt::ForOf(_) => unsupported(),
-        Stmt::Var(decls) => {
-            let decls: ParseResult<Vec<_>> = decls.into_iter().map(simpl_var_decl).collect();
-            Ok(S::Stmt::VarDecl(decls?))
+        While(while_stmt) => {
+            let test = parse_expr(*while_stmt.test, source_map)?;
+            let body = parse_stmt(*while_stmt.body, source_map)?;
+            Ok(while_(test, body))
         }
+        With(with_stmt) => unsupported!(with_stmt.span, source_map),
     }
 }
 
-fn simpl_var_decl<'a>(var_decl: VarDecl<'a>) -> ParseResult<S::VarDecl> {
+/// Parse an optional swc statement. This function receives Boxed stmts
+/// because optional stmts are boxed in swc.
+fn parse_opt_stmt(
+    opt_stmt: Option<Box<swc::Stmt>>,
+    source_map: &SourceMap,
+) -> ParseResult<S::Stmt> {
+    match opt_stmt {
+        None => Ok(S::Stmt::Empty),
+        Some(stmt) => Ok(parse_stmt(*stmt, source_map)?),
+    }
+}
+
+/// Parse an swc expression.
+fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
+    use swc::Expr::*;
+    match expr {
+        Array(swc::ArrayLit { elems, span }) => {
+            let elems: ParseResult<Vec<_>> = elems
+                .into_iter()
+                .map(|e| parse_opt_expr_or_spread(e, source_map))
+                .collect();
+            Ok(S::Expr::Array(elems?))
+        }
+        Arrow(arrow_expr) => unsupported!(arrow_expr.span, source_map),
+        Assign(swc::AssignExpr {
+            left,
+            op,
+            right,
+            span,
+        }) => {
+            let op = parse_assign_op(op, span, source_map)?;
+            let left = parse_pat_or_expr(left, span, source_map)?;
+            let right = parse_expr(*right, source_map)?;
+            Ok(op_assign_(op, left, right))
+        }
+        Await(await_expr) => unsupported!(await_expr.span, source_map),
+        Bin(swc::BinExpr {
+            op,
+            left,
+            right,
+            span,
+        }) => {
+            let op = parse_binary_op(op, span, source_map)?;
+            let left = parse_expr(*left, source_map)?;
+            let right = parse_expr(*right, source_map)?;
+
+            Ok(binary_(op, left, right))
+        }
+        Class(class_expr) => unsupported!(class_expr.class.span, source_map),
+        Call(swc::CallExpr {
+            args,
+            callee,
+            span,
+            type_args,
+        }) => {
+            let args: ParseResult<Vec<_>> = args
+                .into_iter()
+                .map(|e| parse_expr_or_spread(e, source_map))
+                .collect();
+            let callee = parse_expr_or_super(callee, source_map);
+            Ok(call_(callee?, args?))
+        }
+        Cond(swc::CondExpr {
+            test,
+            cons,
+            alt,
+            span,
+        }) => {
+            let test = parse_expr(*test, source_map)?;
+            let cons = parse_expr(*cons, source_map)?;
+            let alt = parse_expr(*alt, source_map)?;
+            Ok(if_expr_(test, cons, alt))
+        }
+        Fn(swc::FnExpr { ident, function }) => {
+            // parse parts
+            let ident = match ident {
+                Some(ident) => Some(parse_id(ident)),
+                None => None,
+            };
+            let (params, body) = parse_function(function, source_map)?;
+
+            // put it all together
+            Ok(expr_func_(ident, params, body))
+        }
+        Ident(ident) => Ok(id_(parse_id(ident))),
+        Invalid(invalid) => unsupported!(invalid.span, source_map),
+        JSXElement(jsx_element) => unsupported!(jsx_element.span, source_map),
+        JSXEmpty(jsx_empty) => unsupported!(jsx_empty.span, source_map),
+        JSXFragment(jsx_fragment) => unsupported!(jsx_fragment.span, source_map),
+        JSXMember(jsx_member_expr) => unsupported!(jsx_member_expr.prop.span, source_map),
+        JSXNamespacedName(jsx_namespaced_name) => {
+            unsupported!(jsx_namespaced_name.name.span, source_map)
+        }
+        Lit(lit) => Ok(S::Expr::Lit(parse_lit(lit, source_map)?)),
+        Member(swc::MemberExpr {
+            obj,
+            prop,
+            computed,
+            span,
+        }) => {
+            let obj = parse_expr_or_super(obj, source_map)?;
+            if computed {
+                Ok(bracket_(obj, parse_expr(*prop, source_map)?))
+            } else {
+                match *prop {
+                    Ident(id) => Ok(dot_(obj, parse_id(id))),
+                    _ => unsupported!(span, source_map),
+                }
+            }
+        }
+        MetaProp(swc::MetaPropExpr {
+            meta: swc::Ident { span, .. },
+            ..
+        }) => unsupported!(span, source_map), // new.target
+        New(swc::NewExpr {
+            callee, args, span, ..
+        }) => {
+            // args are technically optional, as the parentheses in a new
+            // call are optional for zero-arg constructors. for example,
+            //     new Date();
+            // is equivalent to
+            //     new Date;
+            // omitting parentheses in this case makes no difference but it can
+            // cause weird problems in more complicated uses.
+
+            let args: ParseResult<Vec<_>> = match args {
+                Some(args) => args
+                    .into_iter()
+                    .map(|eos| parse_expr_or_spread(eos, source_map))
+                    .collect(),
+                None => Ok(Vec::new()),
+            };
+            let callee = parse_expr(*callee, source_map);
+            Ok(new_(callee?, args?))
+        }
+        Object(swc::ObjectLit { props, span }) => {
+            let props: ParseResult<Vec<_>> = props
+                .into_iter()
+                .map(|p| parse_prop_or_spread(p, span, source_map))
+                .collect();
+            Ok(S::Expr::Object(props?))
+        }
+        OptChain(swc::OptChainExpr { span, .. }) => unsupported!(span, source_map),
+        Paren(swc::ParenExpr { expr, .. }) => parse_expr(*expr, source_map),
+        PrivateName(private_name) => unsupported!(private_name.span, source_map),
+        Seq(swc::SeqExpr { exprs, span }) => {
+            let exprs: ParseResult<Vec<_>> = exprs
+                .into_iter()
+                .map(|e| parse_expr(*e, source_map))
+                .collect();
+            Ok(S::Expr::Seq(exprs?))
+        }
+        TaggedTpl(tagged_tpl) => unsupported!(tagged_tpl.span, source_map),
+        This(swc::ThisExpr { span }) => Ok(S::Expr::This),
+        Tpl(tpl) => unsupported!(tpl.span, source_map),
+        TsAs(ts_as_expr) => unsupported!(ts_as_expr.span, source_map),
+        TsConstAssertion(ts_const_assertion) => unsupported!(ts_const_assertion.span, source_map),
+        TsNonNull(ts_non_null_expr) => unsupported!(ts_non_null_expr.span, source_map),
+        TsTypeAssertion(ts_type_assertion) => unsupported!(ts_type_assertion.span, source_map),
+        TsTypeCast(ts_type_cast_expr) => unsupported!(ts_type_cast_expr.span, source_map),
+        Unary(swc::UnaryExpr { op, arg, span }) => {
+            let op = parse_unary_op(op, span, source_map)?;
+            let arg = parse_expr(*arg, source_map)?;
+            Ok(unary_(op, arg))
+        }
+        Update(swc::UpdateExpr {
+            span,
+            op,
+            prefix,
+            arg,
+        }) => {
+            let op = parse_update_op(op, prefix, span, source_map)?;
+            let arg = parse_lvalue_from_expr(*arg, span, source_map)?;
+
+            Ok(unaryassign_(op, arg))
+        }
+        Yield(yield_expr) => unsupported!(yield_expr.span, source_map),
+    }
+}
+
+/// Parse an optional expression. This function receives and returns Boxed
+/// expressions because optional expression are boxed in both the parser and
+/// our AST.
+fn parse_opt_expr(
+    opt_expr: Option<Box<swc::Expr>>,
+    source_map: &SourceMap,
+) -> ParseResult<S::Expr> {
+    match opt_expr {
+        None => Ok(UNDEFINED_),
+        Some(expr) => Ok(parse_expr(*expr, source_map)?),
+    }
+}
+
+/// Parse an swc block statement.
+fn parse_block(block: swc::BlockStmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
+    Ok(S::Stmt::Block(parse_stmts(block.stmts, source_map)?))
+}
+
+/// Parse an swc pattern expecting an id. `span` should be the source location of
+/// the surrounding expr/stmt. `span` is used for error reporting purposes.
+fn parse_id_from_pattern(
+    pattern: swc::Pat,
+    span: Span,
+    source_map: &SourceMap,
+) -> ParseResult<S::Id> {
+    use swc::Pat::*;
+    match pattern {
+        Ident(ident) => Ok(parse_id(ident)),
+        _ => unsupported!(span, source_map),
+    }
+}
+
+/// Parse an swc pattern. `span` should be the source location of the
+/// surrounding expr/stmt. `span` is used for error reporting purposes.
+fn parse_lvalue_from_pattern(
+    pattern: swc::Pat,
+    span: Span,
+    source_map: &SourceMap,
+) -> ParseResult<S::LValue> {
+    use swc::Pat::*;
+    match pattern {
+        Ident(ident) => Ok(S::LValue::Id(parse_id(ident))),
+        Expr(expr) => parse_lvalue_from_expr(*expr, span, source_map),
+        _ => unsupported!(span, source_map),
+    }
+}
+
+fn parse_var_declarator(
+    var_decl: swc::VarDeclarator,
+    source_map: &SourceMap,
+) -> ParseResult<S::VarDecl> {
     Ok(S::VarDecl {
-        name: simpl_pat(var_decl.id)?,
-        named: Box::new(simpl_opt_expr(var_decl.init)?),
+        name: parse_id_from_pattern(var_decl.name, var_decl.span, source_map)?,
+        named: Box::new(parse_opt_expr(var_decl.init, source_map)?),
     })
 }
 
-fn simpl_func_arg<'a>(func_arg: FuncArg<'a>) -> ParseResult<S::Id> {
-    match func_arg {
-        FuncArg::Expr(_) => unsupported(),
-        FuncArg::Pat(p) => simpl_pat(p),
-    }
-}
-
-fn simpl_decl<'a>(decl: Decl<'a>) -> ParseResult<S::Stmt> {
-    match decl {
-        Decl::Class(_) => unsupported(),
-        Decl::Import(_) => unsupported(),
-        Decl::Export(_) => unsupported(),
-        Decl::Var(_kind, decls) => {
-            let decls: ParseResult<Vec<_>> = decls.into_iter().map(simpl_var_decl).collect();
-            Ok(S::Stmt::VarDecl(decls?))
-        }
-        Decl::Func(Func {
-            id,
-            params,
-            body,
-            generator,
-            is_async,
-        }) => {
-            if generator {
-                return unsupported();
-            }
-            if is_async {
-                return unsupported();
-            }
-            let id = match id {
-                Some(ident) => ident.name.into_owned(),
-                None => return unsupported(),
-            };
-            let params: ParseResult<Vec<_>> = params.into_iter().map(simpl_func_arg).collect();
-            let FuncBody(parts) = body;
-            Ok(func_(id, params?, simpl_program_parts(parts)?))
-        }
-    }
-}
-
-fn simpl_block<'a>(block: BlockStmt<'a>) -> ParseResult<S::Stmt> {
-    let BlockStmt(parts) = block;
-    return simpl_program_parts(parts);
-}
-
-fn simpl_program_parts<'a>(parts: Vec<ProgramPart<'a>>) -> ParseResult<S::Stmt> {
-    let ss: ParseResult<Vec<_>> = parts.into_iter().map(simpl_program_part).collect();
-    Ok(S::Stmt::Block(ss?))
-}
-
-fn simpl_program_part<'a>(part: ProgramPart<'a>) -> ParseResult<S::Stmt> {
-    match part {
-        ProgramPart::Stmt(s) => Ok(simpl_stmt(s)?),
-        ProgramPart::Decl(d) => Ok(simpl_decl(d)?),
-        // This is likely 'use strict' and we ignore it.
-        ProgramPart::Dir(_) => Ok(S::Stmt::Empty),
-    }
-}
-
-fn simpl_program<'a>(program: Program<'a>) -> ParseResult<S::Stmt> {
-    match program {
-        Program::Mod(_) => unsupported(),
-        Program::Script(parts) => {
-            let maybe_stmts: Result<Vec<_>, _> = parts
-                .into_iter()
-                .map(|part| simpl_program_part(part))
-                .collect();
-            let mut stmts = maybe_stmts?;
-            if stmts.len() == 1 {
-                // Ensure the outermost statement is always a block, but not a double-nested block.
-                match stmts[0] {
-                    S::Stmt::Block(_) => Ok(stmts.pop().unwrap()),
-                    _ => Ok(S::Stmt::Block(vec![stmts.pop().unwrap()])),
-                }
-            } else {
-                Ok(S::Stmt::Block(stmts))
-            }
-        }
-    }
-}
-
-// TODO(arjun): Someone needs to read the ECMAScript specification to confirm
-// that the code here is legit.
-fn parse_number(s: &str) -> S::Num {
-    if s.starts_with("0x") {
-        // It looks like a hex literal in JavaScript can be an
-        // unsigned 32-bit integer. I presume we are doing the right thing by
-        // casting the u32 to an i32, but I am not certain.
-        return u32::from_str_radix(&s[2..], 16)
-            .map(|i| S::Num::Int(i as i32))
-            // This seems silly. You can write a hex literal that
-            // is larger than the largest u32.
-            .or_else(|_err| u64::from_str_radix(&s[2..], 16).map(|i| S::Num::Float(i as f64)))
-            .expect(&format!("Ressa did not parse hex value correctly ({})", &s));
-    }
-
-    // TODO(arjun): JavaScript supports octal, which this does not parse.
-    return i32::from_str_radix(s, 10)
-        .map(|i| S::Num::Int(i))
-        .or_else(|_err| s.parse::<f64>().map(|x| S::Num::Float(x)))
-        .expect(&format!("Cannot parse {} as a number", s));
-}
-
-// TODO(arjun): Someone needs to read the ECMAScript specification to confirm
-// that the code here is legit.
-fn parse_string<'a>(s: &StringLit<'a>) -> String {
-    let literal_chars = match s {
-        StringLit::Double(s) => s,
-        StringLit::Single(s) => s,
+fn parse_switch_case(
+    case: swc::SwitchCase,
+    source_map: &SourceMap,
+) -> ParseResult<(Option<S::Expr>, S::Stmt)> {
+    let test = match case.test {
+        None => None,
+        Some(e) => Some(parse_expr(*e, source_map)?),
     };
+    Ok((test, S::Stmt::Block(parse_stmts(case.cons, source_map)?)))
+}
+
+fn parse_expr_or_super(eos: swc::ExprOrSuper, source_map: &SourceMap) -> ParseResult<S::Expr> {
+    use swc::ExprOrSuper::*;
+    match eos {
+        Expr(expr) => parse_expr(*expr, source_map),
+        Super(swc::Super { span }) => unsupported!(span, source_map),
+    }
+}
+
+fn parse_expr_or_spread(eos: swc::ExprOrSpread, source_map: &SourceMap) -> ParseResult<S::Expr> {
+    match eos.spread {
+        None => parse_expr(*eos.expr, source_map),
+        Some(span) => unsupported!(span, source_map),
+    }
+}
+
+fn parse_opt_expr_or_spread(
+    oeos: Option<swc::ExprOrSpread>,
+    source_map: &SourceMap,
+) -> ParseResult<S::Expr> {
+    match oeos {
+        Some(eos) => parse_expr_or_spread(eos, source_map),
+        None => Ok(UNDEFINED_), // optional expr gets undefined
+    }
+}
+
+fn parse_func_arg(arg: swc::Param, source_map: &SourceMap) -> ParseResult<S::Id> {
+    Ok(parse_id_from_pattern(arg.pat, arg.span, source_map)?)
+}
+
+fn parse_lit(lit: swc::Lit, source_map: &SourceMap) -> ParseResult<S::Lit> {
+    use swc::Lit::*;
+    match lit {
+        Str(swc::Str { value, span, .. }) => {
+            Ok(S::Lit::String(parse_string(value, span, source_map)?))
+        }
+        Bool(swc::Bool { value, span }) => Ok(S::Lit::Bool(value)),
+        Null(swc::Null { span }) => Ok(S::Lit::Null),
+        Num(swc::Number { value, span }) => Ok(S::Lit::Num(parse_num(value))),
+        BigInt(swc::BigInt { value, span }) => {
+            unsupported_message("big int literal", span, source_map)
+        }
+        Regex(swc::Regex { exp, flags, span }) => {
+            unsupported_message("regex not yet supported", span, source_map)
+        }
+        JSXText(swc::JSXText { span, .. }) => {
+            unsupported_message("jsx string literal", span, source_map)
+        }
+    }
+}
+
+// TODO(arjun): Someone needs to read the ECMAScript specification to confirm
+// that the code here is legit.
+/// Parse a string literal from the SWC AST. `span` should be the sourcespan of
+/// the surrounding expression.
+fn parse_string(s: JsWord, span: Span, source_map: &SourceMap) -> ParseResult<String> {
+    let literal_chars = s.to_string();
 
     let mut buf = String::with_capacity(literal_chars.len());
     let mut iter = literal_chars.chars().peekable();
@@ -554,7 +677,10 @@ fn parse_string<'a>(s: &StringLit<'a>) -> String {
             buf.push(ch);
             continue;
         }
-        match iter.next().expect("character after backslash") {
+        match iter
+            .next()
+            .ok_or(str_error("character after backslash", span, source_map))?
+        {
             '\'' | '"' | '\\' => buf.push(ch),
             'n' => buf.push('\n'),
             'r' => buf.push('\r'),
@@ -565,26 +691,36 @@ fn parse_string<'a>(s: &StringLit<'a>) -> String {
             'x' => {
                 let s = format!(
                     "{}{}",
-                    iter.next().expect("first hex digit after \\x"),
-                    iter.next().expect("second hex digit after \\x")
+                    iter.next()
+                        .ok_or(str_error("first hex digit after \\x", span, source_map))?,
+                    iter.next()
+                        .ok_or(str_error("second hex digit after \\x", span, source_map))?,
                 );
-                let n = u8::from_str_radix(&s, 16)
-                    .expect(&format!("invalid escape \\x{} (Ressa issue)", &s));
+                let n = u8::from_str_radix(&s, 16).map_err(|_| {
+                    str_error(&format!("invalid escape \\x{}", &s), span, source_map)
+                })?;
                 buf.push(n as char);
             }
             'u' => {
                 let s = format!(
                     "{}{}{}{}",
-                    iter.next().expect("first hex digit after \\x"),
-                    iter.next().expect("second hex digit after \\x"),
-                    iter.next().expect("third hex digit after \\x"),
-                    iter.next().expect("fourth hex digit after \\x")
+                    iter.next()
+                        .ok_or(str_error("first hex digit after \\x", span, source_map))?,
+                    iter.next()
+                        .ok_or(str_error("second hex digit after \\x", span, source_map))?,
+                    iter.next()
+                        .ok_or(str_error("third hex digit after \\x", span, source_map))?,
+                    iter.next()
+                        .ok_or(str_error("fourth hex digit after \\x", span, source_map))?
                 );
-                let n = u16::from_str_radix(&s, 16)
-                    .expect(&format!("invalid escape \\u{} (Ressa issue)", &s));
-                buf.push(
-                    std::char::from_u32(n as u32).expect("invalid Unicode character from Ressa"),
-                );
+                let n = u16::from_str_radix(&s, 16).map_err(|_| {
+                    str_error(&format!("invalid unicode escape {}", &s), span, source_map)
+                })?;
+                buf.push(std::char::from_u32(n as u32).ok_or(str_error(
+                    &format!("invalid Unicode character {}", n),
+                    span,
+                    source_map,
+                ))?);
             }
             ch => {
                 if ch < '0' || ch > '9' {
@@ -603,36 +739,383 @@ fn parse_string<'a>(s: &StringLit<'a>) -> String {
                         }
                         _ => (),
                     }
-                    let n = u32::from_str_radix(&octal_str, 8).expect(&format!(
-                        "invalid octal escape \\u{} (Ressa issue)",
-                        &octal_str
-                    ));
+                    let n = u32::from_str_radix(&octal_str, 8).map_err(|_| {
+                        str_error(
+                            &format!("invalid octal escape \\u{}", &octal_str),
+                            span,
+                            source_map,
+                        )
+                    })?;
                     // 2-digit octal value is in range for UTF-8, thus unwrap should succeed
                     buf.push(std::char::from_u32(n).unwrap());
                 }
             }
         }
     }
-    return buf;
+    return Ok(buf);
 }
 
-#[cfg(test)]
-mod tests {
-    use super::super::syntax::*;
-    use super::*;
-
-    #[test]
-    fn parse_int() {
-        assert_eq!(parse_number("205"), Num::Int(205));
+/// `span` is the span of the surrounding object literal.
+fn parse_prop_or_spread(
+    pos: swc::PropOrSpread,
+    span: Span,
+    source_map: &SourceMap,
+) -> ParseResult<(S::Key, S::Expr)> {
+    match pos {
+        swc::PropOrSpread::Prop(prop) => parse_prop(*prop, span, source_map),
+        _ => unsupported_message("", span, source_map),
     }
+}
 
-    #[test]
-    fn parse_hex() {
-        assert_eq!(parse_number("0xff"), Num::Int(255));
+/// `span` is the span of the surrounding object literal.
+fn parse_prop(
+    prop: swc::Prop,
+    span: Span,
+    source_map: &SourceMap,
+) -> ParseResult<(S::Key, S::Expr)> {
+    use swc::Prop::*;
+    match prop {
+        KeyValue(swc::KeyValueProp { key, value }) => {
+            let key = parse_prop_name(key, span, source_map)?;
+            let value = parse_expr(*value, source_map)?;
+
+            Ok((key, value))
+        }
+        _ => unsupported_message("object literal key type", span, source_map),
     }
+}
 
-    #[test]
-    fn parse_float() {
-        assert_eq!(parse_number("3.14"), Num::Float(3.14));
+/// `span` is the span of the surrounding object literal.
+fn parse_prop_name(name: swc::PropName, span: Span, source_map: &SourceMap) -> ParseResult<S::Key> {
+    use swc::PropName::*;
+    match name {
+        Ident(swc::Ident { sym, span, .. }) => Ok(S::Key::Str(sym.to_string())),
+        Str(swc::Str { value, span, .. }) => Ok(S::Key::Str(value.to_string())),
+        Num(swc::Number { value, span }) => {
+            // see if this is a float or an int
+            match parse_num(value) {
+                S::Num::Int(i) => Ok(S::Key::Int(i)),
+                S::Num::Float(_) => unsupported_message("float as prop key", span, source_map),
+            }
+        }
+        Computed(_) => unsupported_message("computed prop name", span, source_map),
+    }
+}
+
+fn parse_binary_op(op: swc::BinaryOp, span: Span, source_map: &SourceMap) -> ParseResult<S::BinOp> {
+    use swc::BinaryOp::*;
+    use S::BinOp::*;
+    use S::BinaryOp as B;
+    use S::LogicalOp as L;
+    match op {
+        // `==`
+        EqEq => Ok(BinaryOp(B::Equal)),
+        // `!=`
+        NotEq => Ok(BinaryOp(B::NotEqual)),
+        // `===`
+        EqEqEq => Ok(BinaryOp(B::StrictEqual)),
+        // `!==`
+        NotEqEq => Ok(BinaryOp(B::StrictNotEqual)),
+        // `<`
+        Lt => Ok(BinaryOp(B::LessThan)),
+        // `<=`
+        LtEq => Ok(BinaryOp(B::LessThanEqual)),
+        // `>`
+        Gt => Ok(BinaryOp(B::GreaterThan)),
+        // `>=`
+        GtEq => Ok(BinaryOp(B::GreaterThanEqual)),
+        // `<<`
+        LShift => Ok(BinaryOp(B::LeftShift)),
+        // `>>`
+        RShift => Ok(BinaryOp(B::RightShift)),
+        // `>>>`
+        ZeroFillRShift => Ok(BinaryOp(B::UnsignedRightShift)),
+        // `+`
+        Add => Ok(BinaryOp(B::Plus)),
+        // `-`
+        Sub => Ok(BinaryOp(B::Minus)),
+        // `*`
+        Mul => Ok(BinaryOp(B::Times)),
+        // `/`
+        Div => Ok(BinaryOp(B::Over)),
+        // `%`
+        Mod => Ok(BinaryOp(B::Mod)),
+        // `|`
+        BitOr => Ok(BinaryOp(B::Or)),
+        // `^`
+        BitXor => Ok(BinaryOp(B::XOr)),
+        // `&`
+        BitAnd => Ok(BinaryOp(B::And)),
+        // `in`
+        In => Ok(BinaryOp(B::In)),
+        // `instanceof`
+        InstanceOf => Ok(BinaryOp(B::InstanceOf)),
+        // `**`
+        Exp => Ok(BinaryOp(B::PowerOf)),
+        // `??`
+        NullishCoalescing => unsupported!(span, source_map),
+        // `||`
+        LogicalOr => Ok(LogicalOp(L::Or)),
+        // `&&`
+        LogicalAnd => Ok(LogicalOp(L::And)),
+    }
+}
+
+fn parse_unary_op(op: swc::UnaryOp, span: Span, source_map: &SourceMap) -> ParseResult<S::UnaryOp> {
+    use swc::UnaryOp::*;
+    use S::UnaryOp as U;
+    match op {
+        // `-`
+        Minus => Ok(U::Minus),
+        // `+`
+        Plus => Ok(U::Plus),
+        // `!`
+        Bang => Ok(U::Not),
+        // `~`
+        Tilde => Ok(U::Tilde),
+        // `typeof`
+        TypeOf => Ok(U::TypeOf),
+        // `void`
+        Void => Ok(U::Void),
+        // `delete`
+        Delete => Ok(U::Delete),
+    }
+}
+
+fn parse_assign_op(
+    op: swc::AssignOp,
+    span: Span,
+    source_map: &SourceMap,
+) -> ParseResult<S::AssignOp> {
+    use swc::AssignOp::*;
+    use S::AssignOp as A;
+    match op {
+        // `=`
+        Assign => Ok(A::Equal),
+        // Ok(`+=)`
+        AddAssign => Ok(A::PlusEqual),
+        // `-=`
+        SubAssign => Ok(A::MinusEqual),
+        // `*=`
+        MulAssign => Ok(A::TimesEqual),
+        // `/=`
+        DivAssign => Ok(A::DivEqual),
+        // `%=`
+        ModAssign => Ok(A::ModEqual),
+        // `<<=`
+        LShiftAssign => Ok(A::LeftShiftEqual),
+        // `>>=`
+        RShiftAssign => Ok(A::RightShiftEqual),
+        // `>>>=`
+        ZeroFillRShiftAssign => Ok(A::UnsignedRightShiftEqual),
+        // `|=`
+        BitOrAssign => Ok(A::OrEqual),
+        // `^=`
+        BitXorAssign => Ok(A::XOrEqual),
+        // `&=`
+        BitAndAssign => Ok(A::AndEqual),
+        // `**=`
+        ExpAssign => Ok(A::PowerOfEqual),
+        // `&&=`
+        AndAssign => unsupported!(span, source_map),
+        // `||=`
+        OrAssign => unsupported!(span, source_map),
+        // `??=`
+        NullishAssign => unsupported!(span, source_map),
+    }
+}
+
+fn parse_update_op(
+    op: swc::UpdateOp,
+    prefix: bool,
+    span: Span,
+    source_map: &SourceMap,
+) -> ParseResult<S::UnaryAssignOp> {
+    use swc::UpdateOp::*;
+    use S::UnaryAssignOp as U;
+    let op = match (op, prefix) {
+        // `++`
+        (PlusPlus, true) => U::PreInc,
+        (PlusPlus, false) => U::PostInc,
+        // `--`
+        (MinusMinus, true) => U::PreDec,
+        (MinusMinus, false) => U::PostDec,
+    };
+
+    Ok(op)
+}
+
+/// Parse an expression into an lvalue. If the expression can't be turned into
+/// lvalue, an error will be returned.
+/// `span` is the span of the surrounding expr.
+fn parse_lvalue_from_expr(
+    expr: swc::Expr,
+    span: Span,
+    source_map: &SourceMap,
+) -> ParseResult<S::LValue> {
+    use swc::Expr::*;
+    match expr {
+        // simple id case
+        Ident(id) => Ok(S::LValue::Id(parse_id(id))),
+
+        // object field lookup: `obj.prop`
+        Member(swc::MemberExpr {
+            obj,
+            prop,
+            computed: false,
+            span,
+        }) => match *prop {
+            Ident(prop) => {
+                let obj = parse_expr_or_super(obj, source_map)?;
+                let prop = parse_id(prop);
+                Ok(S::LValue::Dot(obj, prop))
+            }
+            other => unsupported_message(
+                &format!("unexpected syntax on RHS of dot: {:?}", other),
+                span,
+                source_map,
+            ),
+        },
+
+        // computed object field lookup: `obj[prop]`
+        Member(swc::MemberExpr {
+            obj,
+            prop,
+            computed: true,
+            span,
+        }) => {
+            let obj = parse_expr_or_super(obj, source_map)?;
+            let prop = parse_expr(*prop, source_map)?;
+            Ok(S::LValue::Bracket(obj, prop))
+        }
+
+        // nothing else is a valid lvalue
+        _other => unsupported_message("invalid lvalue", span, source_map),
+    }
+}
+
+/// Parses a pattern or expression. We currently only support parsing
+/// lvalues out of these. `span` is the span of the surrounding expression.
+fn parse_pat_or_expr(
+    poe: swc::PatOrExpr,
+    span: Span,
+    source_map: &SourceMap,
+) -> ParseResult<S::LValue> {
+    use swc::PatOrExpr::*;
+    match poe {
+        Expr(expr) => parse_lvalue_from_expr(*expr, span, source_map),
+        Pat(pat) => parse_lvalue_from_pattern(*pat, span, source_map),
+    }
+}
+
+fn parse_decl(decl: swc::Decl, source_map: &SourceMap) -> ParseResult<S::Stmt> {
+    use swc::Decl::*;
+    // only var and func declarations are supported
+    match decl {
+        Var(swc::VarDecl {
+            span,
+            kind, //: swc::VarDeclKind::Var,
+            declare: _,
+            decls,
+        }) => {
+            let decls: ParseResult<Vec<_>> = decls
+                .into_iter()
+                .map(|d| parse_var_declarator(d, source_map))
+                .collect();
+            Ok(S::Stmt::VarDecl(decls?))
+        }
+        Fn(swc::FnDecl {
+            ident,
+            declare: _,
+            function,
+        }) => {
+            let ident = parse_id(ident);
+            let (params, body) = parse_function(function, source_map)?;
+            Ok(S::Stmt::Func(ident, params, Box::new(body)))
+        }
+        unsupported_decl => unsupported!(span_from_decl(unsupported_decl), source_map),
+    }
+}
+
+fn parse_function(
+    function: swc::Function,
+    source_map: &SourceMap,
+) -> ParseResult<(Vec<S::Id>, S::Stmt)> {
+    let swc::Function {
+        params,
+        decorators,
+        span,
+        body,
+        is_generator,
+        is_async,
+        ..
+    } = function;
+    // rule out cases we don't handle
+    if is_generator {
+        return unsupported_message("generators not supported", span, source_map);
+    }
+    if is_async {
+        return unsupported_message("async not supported", span, source_map);
+    }
+    if decorators.len() > 0 {
+        return unsupported_message("class decorators not supported", span, source_map);
+    }
+    let params: ParseResult<Vec<_>> = params
+        .into_iter()
+        .map(|p| parse_func_arg(p, source_map))
+        .collect();
+    let body = match body {
+        Some(block) => parse_block(block, source_map)?,
+        None => S::Stmt::Empty,
+    };
+
+    // put it all together
+    Ok((params?, body))
+}
+
+/// Convert a numeric value from the parser into our AST's numbers.
+///
+/// This is tricky because our parser only stores numeric values in f64's,
+/// and we store both floats and ints. This is a hacky solution that should
+/// work for most programs, but there may be a way to get more info from the
+/// parser and return a more precise result.
+fn parse_num(value: f64) -> S::Num {
+    // SWC represents all real numeric literals with f64.
+    // Now we have to figure out if the user gave a value that should
+    // be represented with a Num or a Float.
+
+    // TODO(mark): hopefully this doesn't break anything, but if it does,
+    //             look into how we could get more info from SWC about
+    //             the num lit
+
+    // does converting f64 -> i32 -> f64 yield the original value?
+    if (value as i32) as f64 == value {
+        // if so, this PROBABLY should be represented with an int
+        S::Num::Int(value as i32)
+    } else {
+        S::Num::Float(value)
+    }
+}
+
+/// Get the span out of a decl.
+/// sidenote: one of the most annoying functions I've ever written. just
+/// include a span in the decl and this would be so easy.......
+fn span_from_decl(decl: swc::Decl) -> Span {
+    use swc::Decl::*;
+    use swc::*;
+    match decl {
+        Class(ClassDecl {
+            class: swc::Class { span, .. },
+            ..
+        })
+        | Fn(FnDecl {
+            function: Function { span, .. },
+            ..
+        })
+        | Var(VarDecl { span, .. })
+        | TsInterface(TsInterfaceDecl { span, .. })
+        | TsTypeAlias(TsTypeAliasDecl { span, .. })
+        | TsEnum(TsEnumDecl { span, .. })
+        | TsModule(TsModuleDecl { span, .. }) => span,
     }
 }

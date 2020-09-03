@@ -248,7 +248,7 @@ impl Id {
 
 // can't impl foreign type
 fn unary_op_to_doc(op: &UnaryOp) -> D<()> {
-    use resast::UnaryOp::*;
+    use UnaryOp::*;
     D::text(match op {
         Minus => "-",
         Plus => "+",
@@ -262,7 +262,7 @@ fn unary_op_to_doc(op: &UnaryOp) -> D<()> {
 
 impl BinOp {
     pub fn to_doc(&self) -> D<()> {
-        use resast::BinaryOp::*;
+        use BinaryOp::*;
         D::text(match self {
             BinOp::BinaryOp(b) => match b {
                 Equal => "==",
@@ -289,8 +289,8 @@ impl BinOp {
                 PowerOf => "**",
             },
             BinOp::LogicalOp(o) => match o {
-                resast::LogicalOp::And => "&&",
-                resast::LogicalOp::Or => "||",
+                LogicalOp::And => "&&",
+                LogicalOp::Or => "||",
             },
         })
     }
@@ -311,7 +311,7 @@ impl LValue {
 }
 
 fn assign_op_to_doc(op: &AssignOp) -> D<()> {
-    use resast::AssignOp::*;
+    use AssignOp::*;
     D::text(match op {
         Equal => "=",
         PlusEqual => "+=",
@@ -384,7 +384,7 @@ fn func_to_doc<'a>(maybe_name: Option<&'a Id>, params: &'a [Id], body: &'a Stmt)
 
 #[cfg(test)]
 mod test {
-    use crate::javascript::parser::parse;
+    use crate::javascript::parse;
     const WIDTH: usize = 80;
     fn parse_pretty_parse(js_code: &str) {
         let original_ast = parse(js_code).expect("invalid test doesn't parse");
@@ -394,7 +394,7 @@ mod test {
         assert_eq!(original_ast, pretty_ast);
     }
     fn parse_pretty_parse_expr(js_code: &str) {
-        let modified = &format!("let $jnks_expr = {};", js_code);
+        let modified = &format!("var $jnks_expr = {};", js_code);
         println!("program string:\n{}", modified);
         // we wrap the expr in a leading statement so the parser doesn't choke
         // parser chokes on some standalone expressions
@@ -406,7 +406,7 @@ mod test {
     }
     #[test]
     fn literals() {
-        parse_pretty_parse_expr(r#"[1, "two", null, true, /h.l*o/g]"#);
+        parse_pretty_parse_expr(r#"[1, "two", null, true]"#);
     }
     #[test]
     fn object() {
