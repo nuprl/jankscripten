@@ -5,9 +5,7 @@ use super::constructors::*;
 use super::syntax as S;
 use swc_atoms::JsWord;
 use swc_common::{
-    errors::{ColorConfig, Handler},
-    sync::Lrc,
-    FileName, FilePathMapping, SourceMap, Span,
+    FileName, SourceMap, Span,
 };
 use swc_ecma_ast as swc;
 use swc_ecma_parser::{lexer, Parser, StringInput, Syntax};
