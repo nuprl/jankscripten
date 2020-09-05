@@ -13,6 +13,7 @@ pub enum Type {
     String,
     Array,
     DynObject,
+    Ref(Box<Type>),
     // TODO: others
 }
 
@@ -30,6 +31,7 @@ impl Type {
             Type::String => NotWasmType::String,
             Type::Array => NotWasmType::Array,
             Type::DynObject => NotWasmType::DynObject,
+            Type::Ref(of) => NotWasmType::Ref(Box::new(of.notwasm_typ())),
         }
     }
 
@@ -73,6 +75,7 @@ impl std::fmt::Display for Type {
                 Type::DynObject => "DynObject",
                 Type::Function(..) => "fn",
                 Type::Any => "any",
+                Type::Ref(..) => "ref",
             }
         )
     }

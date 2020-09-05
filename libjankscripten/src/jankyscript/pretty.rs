@@ -29,6 +29,7 @@ impl Pretty for Type {
                 ret.pretty(pp),
             ]),
             Type::Any => pp.text("any"),
+            Type::Ref(of) => pp.text("ref").append(of.pretty(pp).parens()),
         }
     }
 }

@@ -195,7 +195,7 @@ impl Pretty for Atom {
                 Atom::Binary(op, l, r) => {
                     pp.concat(vec![l.pretty(pp), op.pretty(pp), r.pretty(pp)])
                 }
-                Atom::Deref(a) => pp.concat(vec![pp.text("*"), a.pretty(pp)]),
+                Atom::Deref(id) => pp.concat(vec![pp.text("*"), pp.as_string(id)]),
             }),
             pp.text("⚛️"),
         ])

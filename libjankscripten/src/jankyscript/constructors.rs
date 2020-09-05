@@ -48,6 +48,18 @@ pub fn coercion_(c: Coercion, e: Expr) -> Expr {
     }
 }
 
+pub fn new_ref_(e1: Expr) -> Expr {
+    Expr::NewRef(Box::new(e1))
+}
+
+pub fn deref_(e1: Expr) -> Expr {
+    Expr::Deref(Box::new(e1))
+}
+
+pub fn store_(id: Id, e1: Expr) -> Expr {
+    Expr::Store(id, Box::new(e1))
+}
+
 // Statements
 
 pub fn var_(x: Id, t: Type, e: Expr) -> Stmt {

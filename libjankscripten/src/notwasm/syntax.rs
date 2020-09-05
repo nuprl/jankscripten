@@ -221,7 +221,7 @@ pub enum Atom {
     StringLen(Box<Atom>),
     Unary(UnaryOp, Box<Atom>),
     Binary(BinaryOp, Box<Atom>, Box<Atom>),
-    Deref(Box<Atom>), // *ref on RHS
+    Deref(Id), // *ref on RHS
 }
 
 // An `Expr` is an expression that may trigger garbage collection.

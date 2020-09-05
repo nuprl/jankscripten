@@ -209,19 +209,7 @@ fn compile_exprs<'a>(
 }
 
 pub fn compile_ty(janky_typ: J::Type) -> Type {
-    match janky_typ {
-        J::Type::Any => Type::Any,
-        J::Type::Bool => Type::Bool,
-        J::Type::Int => Type::I32,
-        J::Type::Float => Type::F64,
-        J::Type::DynObject => Type::DynObject,
-        J::Type::Function(params, ret) => fn_ty_(
-            params.into_iter().map(|jt| compile_ty(jt)).collect(),
-            Some(compile_ty(*ret)),
-        ),
-        J::Type::Array => Type::Array,
-        J::Type::String => Type::String,
-    }
+    janky_typ.notwasm_typ()
 }
 
 fn coercion_to_expr(c: J::Coercion, a: Atom) -> Atom {
@@ -396,7 +384,7 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             compile_expr(s, *expr, C::a(move |s, of| cxt.recv_e(s, Expr::NewRef(of))))
         }
         J::Expr::Deref(expr) => {
-            compile_expr(s, *expr, C::a(move |s, of| cxt.recv_a(s, deref_(of))))
+            compile_expr(s, *expr, C::id(move |s, of| cxt.recv_a(s, deref_(of))))
         }
         J::Expr::Store(id, expr) => compile_expr(
             s,

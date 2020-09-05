@@ -141,7 +141,7 @@ parser! {
         )
         .or(id(lang).map(|i| Atom::Id(i)))
         .or(lang.parens(atom(lang)))
-        .or(lang.reserved_op("*").with(atom(lang).map(|a| Atom::Deref(Box::new(a)))))
+        .or(lang.reserved_op("*").with(id(lang).map(|a| Atom::Deref(a))))
         .and(optional(
             lang.reserved("as").with(type_(lang))))
         .map(|(atom, maybe_as_ty)| match maybe_as_ty {

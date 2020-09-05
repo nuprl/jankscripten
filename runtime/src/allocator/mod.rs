@@ -155,6 +155,10 @@ impl Heap {
     // NOTE(arjun): It is now clear to me that the lifetime parameter on heap values
     // is pointless.
     pub fn f64_to_any(&self, x: f64) -> AnyValue {
+        AnyEnum::F64(self.alloc_f64_or_gc(x)).into()
+    }
+
+    pub fn alloc_f64_or_gc(&self, x: f64) -> *const f64 {
         let mut opt_ptr = self.f64_allocator.borrow_mut().alloc(x);
         if let None = opt_ptr {
             self.gc();
@@ -163,9 +167,7 @@ impl Heap {
             // should use a raw pointer.
             opt_ptr = self.f64_allocator.borrow_mut().alloc(x);
         }
-        let ptr = unwrap_log(opt_ptr, "out of f64 memory");
-        let any = AnyEnum::F64(ptr);
-        unsafe { std::mem::transmute(any) }
+        unwrap_log(opt_ptr, "out of f64 memory")
     }
 
     /**
