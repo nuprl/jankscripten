@@ -330,9 +330,11 @@ impl<'a> Translate<'a> {
         match stmt {
             N::Stmt::Store(id, expr) => {
                 // storing into a reference translates into a raw write
-                self.get_id(id);
+                let ty = self
+                    .get_id(id)
+                    .expect("add types to globals to support global ref");
                 self.translate_expr(expr);
-                self.out.push(I32Store(0, 4)); // skip 32 bits for tag in I32Ptr
+                self.store(ty, 4); // tag offset
             }
             N::Stmt::Empty => (),
             N::Stmt::Block(ss) => {
@@ -393,12 +395,7 @@ impl<'a> Translate<'a> {
                     IdIndex::RTGlobal(n, ty) => {
                         self.out.push(GetGlobal(n));
                         self.translate_expr(expr);
-                        match ty.as_wasm() {
-                            ValueType::I32 => self.out.push(I32Store(2, 0)),
-                            ValueType::I64 => self.out.push(I64Store(2, 0)),
-                            ValueType::F32 => self.out.push(F32Store(2, 0)),
-                            ValueType::F64 => self.out.push(F64Store(2, 0)),
-                        }
+                        self.store(ty, 0);
                     }
                     IdIndex::Fun(..) => panic!("cannot set function"),
                 }
@@ -571,10 +568,12 @@ impl<'a> Translate<'a> {
 
     fn translate_atom(&mut self, atom: &mut N::Atom) {
         match atom {
-            N::Atom::Deref(a) => {
+            N::Atom::Deref(id) => {
                 // dereferences are implemented as raw memory reads
-                self.translate_atom(a);
-                self.out.push(I32Load(0, 4)); // skip 32 bits for tag in I32Ptr
+                let ty = self
+                    .get_id(id)
+                    .expect("add types to globals to support global ref");
+                self.load(ty, 4); // tag offset
             }
             N::Atom::Lit(lit) => match lit {
                 N::Lit::I32(i) => self.out.push(I32Const(*i)),
@@ -589,7 +588,9 @@ impl<'a> Translate<'a> {
                 N::Lit::Undefined => self.rt_call("get_undefined"),
                 N::Lit::Null => self.rt_call("get_null"),
             },
-            N::Atom::Id(id) => self.get_id(id),
+            N::Atom::Id(id) => {
+                self.get_id(id);
+            }
             N::Atom::GetPrimFunc(id) => {
                 // TODO(luna): i honestly for the life of me can't remember
                 // why we accept an &mut Atom instead of an Atom, which
@@ -663,6 +664,24 @@ impl<'a> Translate<'a> {
             }
         }
     }
+
+    fn load(&mut self, ty: N::Type, offset: u32) {
+        match ty.as_wasm() {
+            ValueType::I32 => self.out.push(I32Load(2, offset)),
+            ValueType::I64 => self.out.push(I64Load(2, offset)),
+            ValueType::F32 => self.out.push(F32Load(2, offset)),
+            ValueType::F64 => self.out.push(F64Load(2, offset)),
+        }
+    }
+    fn store(&mut self, ty: N::Type, offset: u32) {
+        match ty.as_wasm() {
+            ValueType::I32 => self.out.push(I32Store(2, offset)),
+            ValueType::I64 => self.out.push(I64Store(2, offset)),
+            ValueType::F32 => self.out.push(F32Store(2, offset)),
+            ValueType::F64 => self.out.push(F64Store(2, offset)),
+        }
+    }
+
     fn rt_call(&mut self, name: &str) {
         if let Some(i) = self.rt_indexes.get(name) {
             self.out.push(Call(*i));
@@ -671,27 +690,32 @@ impl<'a> Translate<'a> {
         }
     }
 
-    fn get_id(&mut self, id: &N::Id) {
+    fn get_id(&mut self, id: &N::Id) -> Option<N::Type> {
         match self
             .id_env
             .get(id)
             .expect(&format!("unbound identifier {:?}", id))
         {
-            IdIndex::Local(n, _) => self.out.push(GetLocal(*n)),
-            IdIndex::Global(n) => self.out.push(GetGlobal(*n)),
+            IdIndex::Local(n, ty) => {
+                self.out.push(GetLocal(*n));
+                Some(ty.clone())
+            }
+            IdIndex::Global(n) => {
+                self.out.push(GetGlobal(*n));
+                None
+            }
             IdIndex::RTGlobal(n, ty) => {
                 self.out.push(GetGlobal(*n));
-                match ty.as_wasm() {
-                    ValueType::I32 => self.out.push(I32Load(2, 0)),
-                    ValueType::I64 => self.out.push(I64Load(2, 0)),
-                    ValueType::F32 => self.out.push(F32Load(2, 0)),
-                    ValueType::F64 => self.out.push(F64Load(2, 0)),
-                }
+                let ty = ty.clone();
+                self.load(ty.clone(), 0);
+                Some(ty)
             }
             // notwasm indexes from our functions, wasm indexes from rt
-            IdIndex::Fun(n) => self
-                .out
-                .push(I32Const(*n as i32 + self.rt_indexes.len() as i32)),
+            IdIndex::Fun(n) => {
+                self.out
+                    .push(I32Const(*n as i32 + self.rt_indexes.len() as i32));
+                None
+            }
         }
     }
 

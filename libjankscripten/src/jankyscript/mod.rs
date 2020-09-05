@@ -1,4 +1,4 @@
-mod box_assigns;
+pub mod box_assigns;
 pub mod constructors;
 mod fv;
 pub mod pretty;

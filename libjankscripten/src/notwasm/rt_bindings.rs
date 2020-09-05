@@ -46,7 +46,6 @@ pub fn get_rt_bindings() -> BindMap {
     insert(m, "object_get", vec![DynObject, String, I32], Any);
     insert(m, "object_create", vec![Any], Any);
     insert(m, "string_len", vec![String], I32);
-    insert(m, "ref_new", vec![I32], I32);
     insert(m, "init", vec![], None);
     insert(m, "gc_enter_fn", vec![I32], None);
     insert(m, "gc_exit_fn", vec![], None);
