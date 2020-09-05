@@ -416,6 +416,9 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             // whole operation has output type
             Ok(ty_out)
         }
+        Expr::NewRef(..) | Expr::Deref(..) | Expr::Store(..) => {
+            panic!("typechecking should occur before closure conversion")
+        }
     }
 }
 

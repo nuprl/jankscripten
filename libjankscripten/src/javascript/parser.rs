@@ -1,6 +1,8 @@
 // An implementation of our simplified JavaScript parser using swc_ecma_parser
 // as a backend.
 
+#![allow(unused_variables)]
+
 use super::constructors::*;
 use super::syntax as S;
 use swc_atoms::JsWord;

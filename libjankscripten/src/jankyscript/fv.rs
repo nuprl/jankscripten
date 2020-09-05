@@ -76,20 +76,19 @@ fn fv_expr(expr: &mut Expr) -> IdSet {
         Lit(_) => empty(),
         Object(kvs) => IdSet::unions(kvs.iter_mut().map(|(_, v)| fv_expr(v))),
         Array(es) => IdSet::unions(es.iter_mut().map(|e| fv_expr(e))),
-        Dot(e, _) => fv_expr(e),
+        Dot(e, _) | Unary(_, e) | Coercion(_, e) | NewRef(e) | Deref(e) => fv_expr(e),
         Bracket(e1, e2) => fv_expr(e1).union(fv_expr(e2)),
-        Unary(_, e) => fv_expr(e),
         Binary(_, e1, e2) => fv_expr(e1).union(fv_expr(e2)),
         Assign(lv, e) => fv_lv(lv).union(fv_expr(e)),
         Call(e, es) => fv_expr(e).union(IdSet::unions(es.iter_mut().map(|arg| fv_expr(arg)))),
         PrimCall(_, es) => IdSet::unions(es.iter_mut().map(|arg| fv_expr(arg))),
-        Coercion(_, e) => fv_expr(e),
         Func(f) => {
             let fv_body = fv_stmt(&mut f.body);
             let fv = fv_body.relative_complement(f.arg_names().cloned().collect());
             f.free_vars = fv.clone();
             fv
         }
+        Store(id, e) => IdSet::unit(id.clone()).union(fv_expr(e)),
     }
 }
 

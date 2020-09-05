@@ -199,7 +199,7 @@ fn compile_exprs<'a>(
         stmts = stmts.append(compile_expr(
             s,
             e,
-            C::id(|s, x| {
+            C::id(|_s, x| {
                 ids.push(x);
                 Rope::Nil
             }),
@@ -221,7 +221,6 @@ pub fn compile_ty(janky_typ: J::Type) -> Type {
         ),
         J::Type::Array => Type::Array,
         J::Type::String => Type::String,
-        _ => todo!("compile_ty {:?}", janky_typ),
     }
 }
 
@@ -393,11 +392,20 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 })
             }),
         ),
+        J::Expr::NewRef(expr) => {
+            compile_expr(s, *expr, C::a(move |s, of| cxt.recv_e(s, Expr::NewRef(of))))
+        }
+        J::Expr::Deref(expr) => {
+            compile_expr(s, *expr, C::a(move |s, of| cxt.recv_a(s, deref_(of))))
+        }
+        J::Expr::Store(id, expr) => compile_expr(
+            s,
+            *expr,
+            C::e(move |_s, what| Rope::singleton(Stmt::Store(id, what))),
+        ),
     }
 }
 
-// TODO(luna): remove this when we think we've completed this
-#[allow(unused)]
 fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
     use J::Stmt as S;
     match stmt {
@@ -409,10 +417,10 @@ fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
         //
         // var tmp = f();
         // var r = tmp + 1;
-        S::Var(x, t, e) => compile_expr(
+        S::Var(x, _, e) => compile_expr(
             s,
             *e,
-            C::e(|s, e_notwasm| Rope::singleton(Stmt::Var(VarStmt::new(x, e_notwasm)))),
+            C::e(|_s, e_notwasm| Rope::singleton(Stmt::Var(VarStmt::new(x, e_notwasm)))),
         ),
         S::Block(stmts) => Rope::singleton(Stmt::Block(
             stmts
@@ -452,7 +460,7 @@ fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
         S::Catch(_, _, _) => todo!("NotWasm needs to support exceptions"),
         S::Finally(_, _) => todo!("NotWasm needs to support exceptions"),
         S::Throw(_) => todo!("NotWasm needs to support exceptions"),
-        S::Return(e) => compile_expr(s, *e, C::a(|s, a| Rope::singleton(Stmt::Return(a)))),
+        S::Return(e) => compile_expr(s, *e, C::a(|_s, a| Rope::singleton(Stmt::Return(a)))),
     }
 }
 

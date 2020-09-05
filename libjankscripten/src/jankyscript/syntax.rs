@@ -89,6 +89,9 @@ pub enum Expr {
     PrimCall(RTSFunction, Vec<Expr>),
     Func(Func),
     Coercion(Coercion, Box<Expr>),
+    NewRef(Box<Expr>),    // newRef(something)
+    Deref(Box<Expr>),     // *ref on RHS
+    Store(Id, Box<Expr>), // *ref = expr
 }
 
 #[derive(Debug)]
