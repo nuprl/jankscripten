@@ -7,7 +7,7 @@ import * as fs from 'fs';
 
 const qJankyp = t.identifier('$jankyp');
 
-function qCall(name: string, args: t.Expression[]) {
+function qCall(name: string, args: t.Expression[]): t.CallExpression {
     return t.callExpression(t.memberExpression(qJankyp, t.identifier(name), false), args);
 }
 
