@@ -5,6 +5,10 @@ import traverse, { TraverseOptions, NodePath } from '@babel/traverse';
 import * as process from 'process';
 import * as fs from 'fs';
 
+/** 
+ * An identfier in the generated code. It is bound to the jankyp runtime 
+ * module, `runtime.ts`.
+ */
 const qJankyp = t.identifier('$jankyp');
 
 function qCall(name: string, args: t.Expression[]): t.CallExpression {
