@@ -21,13 +21,18 @@ npm install
 npm run-script build
 ```
 
-# 
-Usage:
+# Usage
 
 ```
-npm run-script run PROGRAM.js PROGRAM.instrumented.js
+npm run-script run PROGRAM.js PROGRAM.instrumented.js [analysis features...]
 node PROGRAM.instrument.js
 ```
 
-The file `PROGRAM.js` must be in this directory, because the instrumentation
+Example:
+```
+npm run-script run PROGRAM.js PROGRAM.instrumented.js platypus arguments
+node PROGRAM.instrumented.js
+```
+
+The file `PROGRAM.instrumented.js` must be in this directory, because the instrumentation
 assumes that the runtime system is located at `./dist/runtime.js`.
