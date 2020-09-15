@@ -1,11 +1,12 @@
 import * as parser from '@babel/parser';
 import * as t from '@babel/types';
 import generator from '@babel/generator';
-import traverse, { TraverseOptions, NodePath } from '@babel/traverse';
+import traverse, { TraverseOptions, NodePath, Visitor } from '@babel/traverse';
 import * as process from 'process';
 import * as fs from 'fs';
+import { memoryUsage } from 'process';
 
-/** 
+/**
  * An identfier in the generated code. It is bound to the jankyp runtime 
  * module, `runtime.ts`.
  */
@@ -96,32 +97,6 @@ const visitor: TraverseOptions = {
             instrumentFunction(path);
         }
     },
-    MemberExpression: {
-        exit(path) {
-            // undefineds are statements we inserted; which is fine (important even!)
-            // in this case, but i'm not sure if that's a problem with other insertions
-            // that might be added to jankyp
-            // TODO(luna): technically as a result obj.x.y will never check
-            // if `obj` is platypus, only `obj.x`
-            // TODO(luna): detect when used as lvals
-            // including the property access in the check method is a hack that works for rvals only
-            // in order to properly support lvals i think we'd need to desugar logical operators
-            // and then we could insert object and property as fresh names
-            if (path.node.loc === null || typeof path.node.loc === "undefined" || isLVal(path)) {
-                return;
-            }
-            let property;
-            if (path.node.computed == false) {
-                property = t.stringLiteral((path.node.property as t.Identifier).name);
-            }
-            else {
-                property = path.node.property as t.Expression;
-            }
-            // see the runtime to understand this garbage
-            let isCalled = t.booleanLiteral(immediatelyCalled(path));
-            path.replaceWith(qCall('checkPlatypus', [qLoc(path.node.loc), path.node.object, property, isCalled]));
-        }
-    },
     TryStatement: {
         exit(path) {
             if (path.node.loc === null) {
@@ -148,10 +123,17 @@ function immediatelyCalled(path: NodePath<t.MemberExpression>): boolean {
     return parent.isCallExpression();
 }
 
+
 function main() {
     let js_str = fs.readFileSync(process.argv[2], { encoding: 'utf-8' });
     let ast = parser.parse(js_str);
     traverse(ast, visitor);
+
+    // test
+    let visitors: Visitor[] = [];
+    let combinedVisitor = traverse.visitors.merge(visitors);
+    traverse(ast, combinedVisitor);
+    
     let { code } = generator(ast);
     fs.writeFileSync(process.argv[3], code);
 }
