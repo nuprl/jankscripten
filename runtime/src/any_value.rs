@@ -54,13 +54,13 @@ impl std::fmt::Display for HeapRefView {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         use HeapRefView::*;
         match *self {
-            I32(_) => panic!("ref inside any"),
             String(s) => write!(f, "{}", &*s),
             HT(ht) => write!(f, "{:?}", *ht),
             Array(a) => write!(f, "{:?}", *a),
             Any(a) => write!(f, "{}", **a),
             Class(_) => panic!("shouldn't have object data as value"),
             ObjectPtrPtr(_o) => todo!("TODO(luna): toString"),
+            NonPtr32(_) | MutF64(_) | Ptr(_) => panic!("ref inside any"),
         }
     }
 }
@@ -68,13 +68,13 @@ impl std::fmt::Debug for HeapRefView {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         use HeapRefView::*;
         match *self {
-            I32(_) => panic!("ref inside any"),
             String(_) => write!(f, "String({})", self),
             HT(_) => write!(f, "HT({})", self),
             Array(_) => write!(f, "Array({})", self),
             Any(_) => write!(f, "Any({})", self),
             Class(_) => panic!("shouldn't have object data as value"),
             ObjectPtrPtr(_) => write!(f, "DynObject({})", self),
+            NonPtr32(_) | MutF64(_) | Ptr(_) => panic!("ref inside any"),
         }
     }
 }
@@ -142,7 +142,7 @@ pub extern "C" fn any_to_f64(any: AnyValue) -> f64 {
         AnyEnum::F64(f) => unsafe { *f },
         AnyEnum::Bool(b) => b as i32 as f64,
         AnyEnum::Ptr(ptr) => match ptr.view() {
-            HeapRefView::I32(i) => *i as f64,
+            HeapRefView::NonPtr32(_) => panic!("ref is not a value"),
             HeapRefView::String(s) => s.parse().unwrap_or(f64::NAN),
             _ => f64::NAN,
         },

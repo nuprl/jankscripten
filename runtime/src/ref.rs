@@ -69,7 +69,7 @@ use super::{any_value::AnyValue, heap, heap_types::*, AnyPtr};
 
 /// also used for bool, fn. FFI boundary lets us do this type pun
 #[no_mangle]
-pub extern "C" fn ref_new_non_ptr_32(val: i32) -> I32Ptr {
+pub extern "C" fn ref_new_non_ptr_32(val: i32) -> NonPtr32Ptr {
     heap().alloc_or_gc(val)
 }
 // /// this is all kinds of messiness
