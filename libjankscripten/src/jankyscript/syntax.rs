@@ -51,6 +51,7 @@ pub struct Func {
     pub args_with_typs: Vec<(Id, Type)>,
     pub body: Box<Stmt>,
     pub free_vars: ImmHashSet<Id>,
+    // NOTE(arjun): E..g, add variables assigned to here, in fv.rs
 }
 
 impl Func {
@@ -89,9 +90,12 @@ pub enum Expr {
     PrimCall(RTSFunction, Vec<Expr>),
     Func(Func),
     Coercion(Coercion, Box<Expr>),
-    NewRef(Box<Expr>),    // newRef(something)
-    Deref(Box<Expr>),     // *ref on RHS
-    Store(Id, Box<Expr>), // *ref = expr
+    /// Create a new heap-allocated box, with contents of type T.
+    NewRef(Box<Type>, Box<Expr>),
+    /// Read from a heap-allocated box
+    Deref(Box<Expr>),
+    /// Update the contents of a heap-allocated box
+    Store(Id, Box<Expr>),
 }
 
 #[derive(Debug)]
