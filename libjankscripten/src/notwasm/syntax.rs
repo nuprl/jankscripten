@@ -37,8 +37,8 @@ pub enum Type {
     F64,
     /// If `v : String` then `v` is a `*const Tag` followed by a 4-byte
     /// little-endian length followed by utf-8 of that length.
-    /// Even interned strings are preceded by a tag, to aid in string
-    /// unification
+    /// Even interned strings are preceded by a tag, so that interned and
+    /// uninterned strings have the same representation.
     String,
     /// If `v : HT` then `v` is a `*const Tag`, where
     ///  `v.type_tag === TypeTag::HT`.
@@ -49,13 +49,23 @@ pub enum Type {
     Bool,
     /// If `v : DynObject` then `v` is a `*const Tag` where
     /// `v.type_tag == Class`.
+    /// TODO(arjun): We do not have a type_tag called class. What is this
+    /// really supposed to be? I think it is ObjectPtrPtr.
     DynObject,
     /// If `v : Fn(fn_type)` then `v` is an `i32`, which is an index of a
     /// function with the type `fn_type`.
     Fn(FnType),
-    Ref(Box<Type>),
     /// If `v : Any` then `v` is an `AnyEnum`.
     Any,
+    /// If `v : Ref(I32)` then `v` is a `*const Tag` and `v.type_tag == I32`.
+    /// If `v : Ref(F64)` then `v` is a `*const Tag` and TODO
+    /// If `v : Ref(Any)` then `v` is a `*const Tag` and `v.type_tag == Any`.
+    /// If `v : Ref(Bool)` then `v` is a `*const Tag` and `v.type_tag == Bool`.
+    /// NOTE(arjun): We can use the same type_tag for I32 and Bool, since the
+    /// source language is typed. If so, please rename it to I32_Or_Bool.
+    /// If `v : Ref(T)` and T is represented as a `*const Tag`, then `v` is a 
+    /// `*const Tag` `v.type_tag == Ptr`.
+    Ref(Box<Type>),
 }
 
 impl Type {

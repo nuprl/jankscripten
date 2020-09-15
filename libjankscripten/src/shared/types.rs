@@ -13,6 +13,8 @@ pub enum Type {
     String,
     Array,
     DynObject,
+    /// Ref(T) is the type of heap-allocated boxes that contain values of type
+    /// T.
     Ref(Box<Type>),
     // TODO: others
 }
