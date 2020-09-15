@@ -1,4 +1,6 @@
 import { PlatypusVisitor } from './PlatypusVisitor';
-import './PlatypusVisitor';
+import { BinaryVisitor } from './BinaryVisitor';
+import { ExceptionVisitor } from './ExceptionVisitor';
+import { ArgumentsVisitor } from './ArgumentsVisitor';
 
-const visitors = [PlatypusVisitor];
+export const visitors = [PlatypusVisitor, BinaryVisitor, ExceptionVisitor, ArgumentsVisitor];
