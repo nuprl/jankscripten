@@ -39,7 +39,7 @@ impl HeapPtr for ObjectDataPtr {
         let mut rv = vec![];
         for member in self.as_array(heap) {
             if let Some(any) = member {
-                rv.append(&mut any.get_gc_ptrs(heap));
+                rv.append(&mut any.get_data_ptrs(heap));
             }
         }
         rv
@@ -48,7 +48,7 @@ impl HeapPtr for ObjectDataPtr {
         let mut rv = vec![];
         for member in self.as_array(heap) {
             if let Some(any) = member {
-                rv.append(&mut any.get_gc_f64s(heap));
+                rv.append(&mut any.get_data_f64s(heap));
             }
         }
         rv

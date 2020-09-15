@@ -52,14 +52,13 @@ pub enum TypeTag {
     /// following are immediate values only ever on the heap for Ref
     Any,
     /// this is any 32-bit non-pointer (i32, bool, fn)
-    //I32,
-    I32,
-    // /// these should only be used for Ref, most f64s go on the f64 heap. this
-    // /// avoids another layer of indirection we just put a f64 immediately
-    // /// following the tag. that f64 might be modified
-    // //MutF64,
-    // /// this may or may not be duplicated by ObjectPtrPtr
-    // //Ptr,
+    NonPtr32,
+    /// these should only be used for Ref, most f64s go on the f64 heap. this
+    /// avoids another layer of indirection we just put a f64 immediately
+    /// following the tag. that f64 might be modified
+    MutF64,
+    /// this may or may not be duplicated by ObjectPtrPtr
+    Ptr,
 }
 
 /// Every pointer into the heap points to a tag, thus we could build an API
@@ -112,37 +111,43 @@ pub struct AnyPtr {
 /// the `view` method, which produces a `HeapRefView`.
 #[derive(Clone, Copy)]
 pub enum HeapRefView {
-    I32(I32Ptr),
     String(StringPtr),
     HT(HTPtr),
     Array(ArrayPtr),
     Any(AnyJSPtr),
     Class(ObjectDataPtr),
     ObjectPtrPtr(ObjectPtr),
+    NonPtr32(NonPtr32Ptr),
+    MutF64(MutF64Ptr),
+    Ptr(PtrPtr),
 }
 impl HeapRefView {
     /// Return a less specific `HeapPtr` that points to the same heap value,
     /// for implementing HeapPtr
     fn heap_ptr<'a>(&'a self) -> &'a dyn HeapPtr {
         match self {
-            Self::I32(val) => val,
             Self::String(val) => val,
             Self::HT(val) => val,
             Self::Array(val) => val,
             Self::Any(val) => val,
             Self::Class(val) => val,
             Self::ObjectPtrPtr(val) => val,
+            Self::NonPtr32(val) => val,
+            Self::MutF64(val) => val,
+            Self::Ptr(val) => val,
         }
     }
     fn heap_ptr_mut(&mut self) -> &mut dyn HeapPtr {
         match self {
-            Self::I32(val) => val,
             Self::String(val) => val,
             Self::HT(val) => val,
             Self::Array(val) => val,
             Self::Any(val) => val,
             Self::Class(val) => val,
             Self::ObjectPtrPtr(val) => val,
+            Self::NonPtr32(val) => val,
+            Self::MutF64(val) => val,
+            Self::Ptr(val) => val,
         }
     }
 }
@@ -172,15 +177,24 @@ impl AnyPtr {
     /// Discriminate on the tag, and return a more specific `HeapRefView` that
     /// points to the same heap value.
     pub fn view(&self) -> HeapRefView {
-        let heap_ref: Tag = unsafe { *self.ptr };
-        match heap_ref.type_tag {
-            TypeTag::I32 => HeapRefView::I32(unsafe { I32Ptr::new_tag_unchecked(self.ptr) }),
-            TypeTag::String => HeapRefView::String(unsafe { StringPtr::new(self.ptr) }),
-            TypeTag::HT => HeapRefView::HT(unsafe { HTPtr::new_tag_unchecked(self.ptr) }),
-            TypeTag::Array => HeapRefView::Array(unsafe { ArrayPtr::new_tag_unchecked(self.ptr) }),
-            TypeTag::Any => HeapRefView::Any(unsafe { AnyJSPtr::new_tag_unchecked(self.ptr) }),
-            TypeTag::DynObject => HeapRefView::Class(unsafe { ObjectDataPtr::new(self.ptr) }),
-            TypeTag::ObjectPtrPtr => HeapRefView::ObjectPtrPtr(unsafe { ObjectPtr::new(self.ptr) }),
+        // SAFETY: AnyPtrs are unsafe to construct (right?) so we have
+        // guaranteed our ptr is to a tag. since we check the tag, we know
+        // it's the right tag
+        unsafe {
+            let heap_ref: Tag = *self.ptr;
+            match heap_ref.type_tag {
+                TypeTag::String => HeapRefView::String(StringPtr::new(self.ptr)),
+                TypeTag::HT => HeapRefView::HT(HTPtr::new_tag_unchecked(self.ptr)),
+                TypeTag::Array => HeapRefView::Array(ArrayPtr::new_tag_unchecked(self.ptr)),
+                TypeTag::Any => HeapRefView::Any(AnyJSPtr::new_tag_unchecked(self.ptr)),
+                TypeTag::DynObject => HeapRefView::Class(ObjectDataPtr::new(self.ptr)),
+                TypeTag::ObjectPtrPtr => HeapRefView::ObjectPtrPtr(ObjectPtr::new(self.ptr)),
+                TypeTag::NonPtr32 => {
+                    HeapRefView::NonPtr32(NonPtr32Ptr::new_tag_unchecked(self.ptr))
+                }
+                TypeTag::MutF64 => HeapRefView::MutF64(MutF64Ptr::new_tag_unchecked(self.ptr)),
+                TypeTag::Ptr => HeapRefView::Ptr(PtrPtr::new_tag_unchecked(self.ptr)),
+            }
         }
     }
 }
@@ -247,10 +261,10 @@ impl<T: HasTag> HeapPtr for TypePtr<T> {
     }
 
     fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
-        self.get().get_gc_ptrs(heap)
+        self.get().get_data_ptrs(heap)
     }
     fn get_gc_f64s(&mut self, heap: &Heap) -> Vec<*mut *const f64> {
-        self.get_mut().get_gc_f64s(heap)
+        self.get_mut().get_data_f64s(heap)
     }
 }
 

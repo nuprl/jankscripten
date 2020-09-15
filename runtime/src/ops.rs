@@ -71,11 +71,13 @@ fn typeof_as_str(a: Any) -> &'static str {
         AnyEnum::I32(_) | AnyEnum::F64(_) => "number",
         AnyEnum::Bool(_) => "boolean",
         AnyEnum::Ptr(ptr) => match ptr.view() {
-            HeapRefView::I32(_) => "number",
             HeapRefView::String(_) => "string",
             HeapRefView::HT(_) | HeapRefView::Array(_) | HeapRefView::ObjectPtrPtr(_) => "object",
             HeapRefView::Any(what) => typeof_as_str(*what),
             HeapRefView::Class(_) => panic!("shouldn't be able to typeof non-value object data"),
+            HeapRefView::NonPtr32(_) | HeapRefView::MutF64(_) | HeapRefView::Ptr(_) => {
+                panic!("ref is not a value")
+            }
         },
         AnyEnum::Fn(_) => "function",
         AnyEnum::Undefined => "undefined",
