@@ -14,7 +14,7 @@ export const PrototypeVisitor: JankyPVisitor = {
                 let monkeyPatch = `
                 let $jankyp_old_Object_setPrototypeOf = Object.setPrototypeOf;
                 Object.setPrototypeOf = function(obj, proto) {
-                    ${qJankyp.name}.recordPrototypeChange();
+                    (${qJankyp.name}).recordPrototypeChange();
                     $jankyp_old_Object_setPrototypeOf(obj, proto);
                 }
                 `;
