@@ -49,7 +49,7 @@ impl Visitor for BoxVisitor {
             // as a first pass, it actually is fine to box all variables
             // and then test that
             Stmt::Var(id, ty, expr) => {
-                *expr = Box::new(new_ref_(expr.take()));
+                *expr = Box::new(new_ref_(expr.take(), ty.clone()));
                 *ty = Type::Ref(Box::new(ty.clone()));
                 self.ids.insert(id.clone());
             }

@@ -209,7 +209,10 @@ impl Pretty for Expr {
             Expr::Coercion(c, e) => {
                 pp.concat(vec![c.pretty(pp).brackets(), pp.line(), e.pretty(pp)])
             }
-            Expr::NewRef(e) => pp.text("newref").append(e.pretty(pp).parens()),
+            Expr::NewRef(e, ty) => pp
+                .text("newref::")
+                .append(ty.pretty(pp))
+                .append(e.pretty(pp).parens()),
             Expr::Deref(e) => pp.text("*").append(e.pretty(pp)),
             Expr::Store(id, e) => pp
                 .text("*")

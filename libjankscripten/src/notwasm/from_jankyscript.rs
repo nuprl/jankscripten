@@ -380,9 +380,11 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 })
             }),
         ),
-        J::Expr::NewRef(expr) => {
-            compile_expr(s, *expr, C::a(move |s, of| cxt.recv_e(s, Expr::NewRef(of))))
-        }
+        J::Expr::NewRef(expr, ty) => compile_expr(
+            s,
+            *expr,
+            C::a(move |s, of| cxt.recv_e(s, Expr::NewRef(of, compile_ty(ty)))),
+        ),
         J::Expr::Deref(expr) => {
             compile_expr(s, *expr, C::id(move |s, of| cxt.recv_a(s, deref_(of))))
         }

@@ -145,7 +145,7 @@ where
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
             }
-            NewRef(a) | Atom(a, ..) => self.walk_atom(a, loc),
+            NewRef(a, ..) | Atom(a, ..) => self.walk_atom(a, loc),
         }
         self.visitor.exit_expr(expr, loc);
     }

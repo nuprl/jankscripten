@@ -91,7 +91,7 @@ pub enum Expr {
     Func(Func),
     Coercion(Coercion, Box<Expr>),
     /// Create a new heap-allocated box, with contents of type T.
-    NewRef(Box<Type>, Box<Expr>),
+    NewRef(Box<Expr>, Type),
     /// Read from a heap-allocated box
     Deref(Box<Expr>),
     /// Update the contents of a heap-allocated box

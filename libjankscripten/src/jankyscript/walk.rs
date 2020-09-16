@@ -227,7 +227,12 @@ where
                 }
             }
             // 1xExpr
-            Dot(e, ..) | Unary(.., e) | Coercion(.., e) | NewRef(e) | Deref(e) | Store(.., e) => {
+            Dot(e, ..)
+            | Unary(.., e)
+            | Coercion(.., e)
+            | NewRef(e, ..)
+            | Deref(e)
+            | Store(.., e) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_expr(e, &loc);
             }

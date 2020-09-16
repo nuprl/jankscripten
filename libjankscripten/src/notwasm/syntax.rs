@@ -249,7 +249,7 @@ pub enum Expr {
     ObjectEmpty,
     /// ObjectSet(obj, field_name, value, typ) is obj.field_name: typ = value;
     ObjectSet(Atom, Atom, Atom),
-    NewRef(Atom), // newRef(something)
+    NewRef(Atom, Type), // newRef(something)
     Atom(Atom),
 }
 

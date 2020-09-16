@@ -265,7 +265,11 @@ impl Pretty for Expr {
                 ])
                 .braces(),
             ]),
-            Expr::NewRef(a) => pp.concat(vec![pp.text("new_ref"), a.pretty(pp).parens()]),
+            Expr::NewRef(a, ty) => pp.concat(vec![
+                pp.text("new_ref::"),
+                ty.pretty(pp),
+                a.pretty(pp).parens(),
+            ]),
             Expr::Atom(a) => a.pretty(pp),
         }
     }
