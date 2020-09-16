@@ -147,10 +147,14 @@ export function checkException(loc: string) {
 // qCall('checkPropWriteForProtoChange', [qLoc(path.node.loc), property])
 export function checkPropWriteForProtoChange(loc: string, property: any) {
     if (property === "__proto__") {
-        record(prototypeChange, loc, `prototype changed via property write`)
+        record(prototypeChange, loc, `prototype changed via property write`);
     }
 
     return property;
+}
+
+export function recordPrototypeChange() {
+    record(prototypeChange, Error().stack as string, `prototype changed via Object.setPrototypeOf`);
 }
 
 // Display the logs of bad behavior to the console.

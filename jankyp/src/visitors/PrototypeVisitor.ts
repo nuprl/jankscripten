@@ -1,11 +1,29 @@
 import * as t from '@babel/types';
-import {JankyPVisitor, qCall, qLoc} from "./JankypVisitor";
+import {JankyPVisitor, qCall, qLoc, qJankyp} from "./JankypVisitor";
 import { NodePath, Visitor } from "@babel/traverse";
+import * as parser from '@babel/parser';
 
 export const PrototypeVisitor: JankyPVisitor = {
     name: "prototype",
 
     visitor: {
+        Program: {
+            exit(path) {
+                // Monkey patch Object.setPrototypeOf to record this bad behavior
+
+                let monkeyPatch = `
+                let $jankyp_old_Object_setPrototypeOf = Object.setPrototypeOf;
+                Object.setPrototypeOf = function(obj, proto) {
+                    ${qJankyp.name}.recordPrototypeChange();
+                    $jankyp_old_Object_setPrototypeOf(obj, proto);
+                }
+                `;
+
+                let monkeyPatchStmts = parser.parse(monkeyPatch).program.body;
+
+                path.node.body.unshift(...monkeyPatchStmts);
+            }
+        },
         AssignmentExpression: {
             exit(path) {
                 if (path.node.loc === null) {
