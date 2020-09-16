@@ -25,7 +25,6 @@ function main() {
 
     // insert selected instrumentation
     traverse(ast, visitor.visitor);
-    let { code } = generator(ast);
 
     // bind jankyp runtime in the instrumented code
     traverse(ast, {
@@ -37,7 +36,9 @@ function main() {
                             t.callExpression(t.identifier('require'), [t.stringLiteral('./dist/runtime.js')]))]));
             }
         }
-    })
+    });
+
+    let { code } = generator(ast);
 
     // write out the instrumented program
     fs.writeFileSync(process.argv[3], code);
