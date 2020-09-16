@@ -33,34 +33,5 @@ export const PrototypeVisitor: JankyPVisitor = {
                 }
             }
         },
-        /*
-        MemberExpression: {
-            exit(path) {
-                if (path.parentPath.isAssignmentExpression()) {
-                    // if (path.node.computed == false && path.node.property != "__proto__")
-
-                    let property: t.Expression = path.node.property as t.Expression;
-
-                    // if it was 
-                    if (t.isIdentifier(property)) {
-                        property = t.stringLiteral(property.name);
-                    }
-
-                    /*
-                    if (path.node.property.type == "Identifier") {
-                        propertyExpression = path.node.property;
-                    } else if (path.node.property.type == "PrivateName") {
-                        throw new Error("unsupported object field access");
-                    } else {
-                        propertyExpression = path.node.property as t.Expression;
-                    }*/
-/*
-                    let instrumentedProperty = qCall('checkPropWriteForProtoChange', [property])
-
-                    path.replaceWith(t.memberExpression(path.node.object, instrumentedProperty, true));
-                    path.skip();
-                }
-            }
-        }*/
     }
 }
