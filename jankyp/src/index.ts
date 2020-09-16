@@ -1,10 +1,11 @@
 import * as parser from '@babel/parser';
 import generator from '@babel/generator';
+import * as t from '@babel/types';
 import traverse, { TraverseOptions, NodePath, Visitor } from '@babel/traverse';
 import * as process from 'process';
 import * as fs from 'fs';
 import { visitors } from './visitors';
-import { JankyPVisitor } from './visitors/JankypVisitor';
+import { JankyPVisitor, qJankyp } from './visitors/JankypVisitor';
 
 function main() {
     // ensure correct usage
@@ -25,6 +26,18 @@ function main() {
     // insert selected instrumentation
     traverse(ast, visitor.visitor);
     let { code } = generator(ast);
+
+    // bind jankyp runtime in the instrumented code
+    traverse(ast, {
+        Program: {
+            exit(path) {
+                path.node.body.unshift(
+                    t.variableDeclaration('const',
+                        [t.variableDeclarator(qJankyp,
+                            t.callExpression(t.identifier('require'), [t.stringLiteral('./dist/runtime.js')]))]));
+            }
+        }
+    })
 
     // write out the instrumented program
     fs.writeFileSync(process.argv[3], code);
