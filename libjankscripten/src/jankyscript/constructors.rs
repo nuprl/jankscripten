@@ -48,8 +48,8 @@ pub fn coercion_(c: Coercion, e: Expr) -> Expr {
     }
 }
 
-pub fn new_ref_(e1: Expr) -> Expr {
-    Expr::NewRef(Box::new(e1))
+pub fn new_ref_(e1: Expr, ty: Type) -> Expr {
+    Expr::NewRef(Box::new(e1), ty)
 }
 
 pub fn deref_(e1: Expr) -> Expr {

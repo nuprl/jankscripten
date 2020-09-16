@@ -347,7 +347,11 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
                 Err(TypeCheckingError::ExpectedFunction(id_f.clone(), got_f))
             }
         }
-        Expr::NewRef(a) => Ok(Type::Ref(Box::new(type_check_atom(env, a)?))),
+        Expr::NewRef(a, ty) => {
+            let actual = type_check_atom(env, a)?;
+            ensure("new ref", ty.clone(), actual)?;
+            Ok(ty.clone())
+        }
         Expr::Atom(a) => type_check_atom(env, a),
     }
 }

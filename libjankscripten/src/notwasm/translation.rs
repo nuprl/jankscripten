@@ -559,9 +559,17 @@ impl<'a> Translate<'a> {
                     _ => panic!("expected Func ID ({})", f),
                 };
             }
-            N::Expr::NewRef(a) => {
+            N::Expr::NewRef(a, ty) => {
                 self.translate_atom(a);
-                self.rt_call("ref_new");
+                match ty {
+                    N::Type::I32 | N::Type::Bool | N::Type::Fn(..) => {
+                        self.rt_call("ref_new_non_ptr_32")
+                    }
+                    N::Type::F64 => self.rt_call("ref_new_f64"),
+                    N::Type::Ref(..) => panic!("while recursive refs can be made, they shouldn't"),
+                    N::Type::Any => self.rt_call("ref_new_any"),
+                    _ => self.rt_call("ref_new_ptr"),
+                }
             }
         }
     }

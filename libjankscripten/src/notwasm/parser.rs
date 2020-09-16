@@ -163,7 +163,7 @@ parser! {
             .map(|(array, member)| Expr::Push(array, member)))
         .or(lang.reserved("sqrt").with(lang.parens(atom(lang)))
             .map(|a| Expr::Atom(ctor::sqrt_(a))))
-        .or(lang.reserved_op("newRef").with(lang.parens(atom(lang))).map(|val| Expr::NewRef(val)))
+        .or(lang.reserved_op("newRef").with(lang.parens(atom(lang).skip(lang.reserved_op(",")).and(type_(lang)))).map(|(val, ty)| Expr::NewRef(val, ty)))
         .or(attempt(id(lang)
             .and(lang.parens(sep_by(id(lang), lang.reserved_op(","))))
             .map(|(f, args)| Expr::Call(f, args))))
