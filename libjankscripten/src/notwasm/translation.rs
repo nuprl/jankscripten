@@ -330,9 +330,16 @@ impl<'a> Translate<'a> {
         match stmt {
             N::Stmt::Store(id, expr) => {
                 // storing into a reference translates into a raw write
+                // TODO(luna): this should really have the type in the
+                // AST so we don't have to do this messiness
                 let ty = self
                     .get_id(id)
                     .expect("add types to globals to support global ref");
+                let ty = if let N::Type::Ref(b_ty) = ty {
+                    *b_ty
+                } else {
+                    panic!("tried to store into non-ref");
+                };
                 self.translate_expr(expr);
                 self.store(ty, 4); // tag offset
             }
@@ -581,6 +588,11 @@ impl<'a> Translate<'a> {
                 let ty = self
                     .get_id(id)
                     .expect("add types to globals to support global ref");
+                let ty = if let N::Type::Ref(b_ty) = ty {
+                    *b_ty
+                } else {
+                    panic!("tried to deref non-ref");
+                };
                 self.load(ty, 4); // tag offset
             }
             N::Atom::Lit(lit) => match lit {

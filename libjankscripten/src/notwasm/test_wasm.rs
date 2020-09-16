@@ -252,7 +252,7 @@ fn basic_ref() {
     let program = parse(
         r#"
         function main() : i32 {
-            var r = newRef(150);
+            var r = newRef(150, i32);
             return *r;
         }
         "#,
@@ -266,8 +266,9 @@ fn basic_ref_mutation() {
     let program = parse(
         r#"
         function main() : i32 {
-            var r = newRef(150);
-            *r = 130;
+            var r = newRef(150, i32);
+            var s = r;
+            *s = 130;
             return *r;
         }
         "#,
@@ -284,7 +285,7 @@ fn ref_doesnt_mutate_variables() {
             var x = 100;
             // Refs are like OCaml refs, not like C pointers.
             // They are essentially boxes that hold values.
-            var refX = newRef(x); // copy value of x
+            var refX = newRef(x, i32); // copy value of x
 
             // set value inside box. should not change value of x
             *refX = 130;

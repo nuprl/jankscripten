@@ -46,6 +46,12 @@ pub fn get_rt_bindings() -> BindMap {
     insert(m, "object_get", vec![DynObject, String, I32], Any);
     insert(m, "object_create", vec![Any], Any);
     insert(m, "string_len", vec![String], I32);
+    // I32 is any I32-sized data
+    insert(m, "ref_new_non_ptr_32", vec![I32], ref_ty_(I32));
+    insert(m, "ref_new_f64", vec![F64], ref_ty_(F64));
+    insert(m, "ref_new_any", vec![Any], ref_ty_(Any));
+    // I32 is any POINTER, will return a pointer to THAT
+    insert(m, "ref_new_ptr", vec![I32], ref_ty_(I32));
     insert(m, "init", vec![], None);
     insert(m, "gc_enter_fn", vec![I32], None);
     insert(m, "gc_exit_fn", vec![], None);
