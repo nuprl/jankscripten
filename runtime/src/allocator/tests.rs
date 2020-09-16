@@ -108,7 +108,7 @@ fn array_members_marked() {
     );
     // x is not a root
     // Vec: ALIGNMENT * 4 (tag, ptr, len, cap)
-    let mut arr: TypePtr<'_, Vec<AnyValue>> = heap.alloc_or_gc(Vec::new());
+    let mut arr: TypePtr<Vec<AnyValue>> = heap.alloc_or_gc(Vec::new());
     // arr is
     heap.set_in_current_shadow_frame_slot(0, arr.get_ptr());
     // but put x into the array
@@ -167,7 +167,7 @@ fn gc_f64s() {
     let heap = Heap::new((ALIGNMENT * 6) as isize);
     heap.push_shadow_frame(1);
     let x = heap.f64_to_any(5.);
-    let mut arr: TypePtr<'_, Vec<AnyValue>> = heap.alloc(Vec::new()).unwrap();
+    let mut arr: TypePtr<Vec<AnyValue>> = heap.alloc(Vec::new()).unwrap();
     heap.set_in_current_shadow_frame_slot(0, arr.get_ptr());
     arr.push(x);
     let x_copy = arr[0];
@@ -254,7 +254,7 @@ fn alloc_container2() {
         .borrow_mut()
         .transition(one_type, heap.alloc_str("y").unwrap());
     let container = heap.alloc_object(type_tag).expect("second alloc");
-    let mut x: AnyJSPtr<'_> = heap.alloc(AnyEnum::I32(200).into()).expect("second alloc");
+    let mut x: AnyJSPtr = heap.alloc(AnyEnum::I32(200).into()).expect("second alloc");
     container.write_at(&heap, 0, AnyEnum::Ptr(x.into()).into());
     *x.get_mut() = AnyEnum::I32(100).into();
     let elt = container.read_at(&heap, 0).expect("read");

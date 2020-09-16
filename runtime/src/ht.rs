@@ -5,17 +5,17 @@ use crate::{AnyValue, Key};
 use std::collections::HashMap;
 
 #[no_mangle]
-pub extern "C" fn ht_new<'a>() -> HTPtr<'a> {
+pub extern "C" fn ht_new() -> HTPtr {
     heap().alloc_or_gc(HashMap::new())
 }
 
 #[no_mangle]
-pub extern "C" fn ht_get<'a>(ht: HTPtr<'a>, field: Key) -> AnyValue {
+pub extern "C" fn ht_get(ht: HTPtr, field: Key) -> AnyValue {
     HashMap::get(&ht, &field).unwrap().clone()
 }
 
 #[no_mangle]
-pub extern "C" fn ht_set<'a>(mut ht: HTPtr<'a>, field: Key, value: AnyValue) -> AnyValue {
+pub extern "C" fn ht_set(mut ht: HTPtr, field: Key, value: AnyValue) -> AnyValue {
     ht.insert(field, value.clone());
     value
 }
