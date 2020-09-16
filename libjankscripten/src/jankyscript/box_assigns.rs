@@ -1,12 +1,26 @@
 //! box variables in certain circumstances
 //!
-//! we box a variable completely if it is captured and assigned to in
-//! a closure, because if it isn't boxed, assignments into the
-//! closure-converted environment will not affect the captured variable
+//! we box a variable completely if it is captured and assigned to:
+//!
+//! - in this or another closure; and it's read in another closure or after
+//!   this closure's creation
+//! - after this closure is created in program flow
+//!
+//! if it isn't boxed, assignments after the environment creation (or in
+//! another closure that could be called at any time) would not update the
+//! closure environment; also, assignments into the closure environment would
+//! not update the surrounding environment
+//!
+//! now this is a pretty complex set of rules, so as a first pass i'm
+//! implementing a more lenient superset that is still correct but not
+//! as performant. i think when we implement escape analysis implementing
+//! this part might be easier. the superset says we box if it is captured
+//! in this closure and assigned to at any time
 
 use super::constructors::*;
 use super::syntax::*;
 use super::walk::*;
+use im_rc::HashSet as ImmHashSet;
 use std::collections::HashSet;
 
 /// box relevant variables on the provided program (see module-level)
@@ -26,8 +40,16 @@ pub fn box_assigns(program: &mut Stmt) {
 /// - Assign -> Store
 struct BoxVisitor {
     ids: HashSet<Id>,
+    // TODO(luna): check if ever assigned to
+    fv_stack: Vec<ImmHashSet<Id>>,
 }
 impl Visitor for BoxVisitor {
+    fn enter_fn(&mut self, func: &mut Func, _: &Loc) {
+        self.fv_stack.push(func.free_vars.clone());
+    }
+    fn exit_fn(&mut self, _: &mut Func, _: &Loc) {
+        self.fv_stack.pop();
+    }
     fn exit_expr(&mut self, expr: &mut Expr, _: &Loc) {
         match expr {
             Expr::Id(id) if self.ids.contains(id) => *expr = deref_(expr.take()),
@@ -45,10 +67,7 @@ impl Visitor for BoxVisitor {
     }
     fn exit_stmt(&mut self, stmt: &mut Stmt, _: &Loc) {
         match stmt {
-            // TODO(luna): CriteriaVisitor
-            // as a first pass, it actually is fine to box all variables
-            // and then test that
-            Stmt::Var(id, ty, expr) => {
+            Stmt::Var(id, ty, expr) if self.fv_stack.last().unwrap().contains(id) => {
                 *expr = Box::new(new_ref_(expr.take(), ty.clone()));
                 *ty = Type::Ref(Box::new(ty.clone()));
                 self.ids.insert(id.clone());
@@ -61,6 +80,8 @@ impl BoxVisitor {
     fn new() -> Self {
         Self {
             ids: HashSet::new(),
+            // you can't have free variables at the top level
+            fv_stack: vec![ImmHashSet::new()],
         }
     }
 }
