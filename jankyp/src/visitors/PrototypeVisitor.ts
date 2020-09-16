@@ -8,6 +8,9 @@ export const PrototypeVisitor: JankyPVisitor = {
     visitor: {
         AssignmentExpression: {
             exit(path) {
+                if (path.node.loc === null) {
+                    return;
+                }
                 if (t.isMemberExpression(path.node.left)) {
                     // this assignment expression could be computed or non-computed.
                     // the result of this transformation is going to be computed,
@@ -24,7 +27,7 @@ export const PrototypeVisitor: JankyPVisitor = {
                         throw new Error(`unsupported member expression type: ${path.node.left.type}`);
                     }
 
-                    let instrumentedProperty = qCall('checkPropWriteForProtoChange', [property])
+                    let instrumentedProperty = qCall('checkPropWriteForProtoChange', [qLoc(path.node.loc), property])
 
                     // path.replaceWith(t.memberExpression(path.node.left.object, instrumentedProperty, true));
                     path.node.left.property = instrumentedProperty;
