@@ -18,6 +18,8 @@ const platypusTypes: BadBehavior = new Map();
 
 const exceptions: BadBehavior = new Map();
 
+const prototypeChanges: BadBehavior = new Map();
+
 /**
  * Record an instance of bad behavior.
  * @param theMap the BadBehavior map to record to
@@ -142,6 +144,19 @@ export function checkException(loc: string) {
     record(exceptions, loc, `exception`);
 }
 
+// qCall('checkPropWriteForProtoChange', [qLoc(path.node.loc), property])
+export function checkPropWriteForProtoChange(loc: string, property: any) {
+    if (property === "__proto__") {
+        record(prototypeChanges, loc, `prototype changed via property write`);
+    }
+
+    return property;
+}
+
+export function recordPrototypeChange() {
+    record(prototypeChanges, Error().stack as string, `prototype changed via Object.setPrototypeOf`);
+}
+
 // Display the logs of bad behavior to the console.
 process.on('beforeExit', () => {
     console.error(badArityBehavior);
@@ -149,4 +164,5 @@ process.on('beforeExit', () => {
     console.error(expectedNumber);
     console.error(platypusTypes);
     console.error(exceptions);
+    console.error(prototypeChanges);
 });
