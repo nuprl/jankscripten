@@ -64,31 +64,27 @@
 //! propose that whatType must be type Ref(Any); and this has to be supported,
 //! meaning we need to support coercions to Ref(Any) and allow a parameters
 //! type to be Ref(Any)
-//!
-//! captured by a closure it might be.... the parameter type is Any;
-//! but it should
 
 use super::{any_value::AnyValue, heap, heap_types::*, AnyPtr};
 
-/// also used for bool, fn
+/// also used for bool, fn. FFI boundary lets us do this type pun
 #[no_mangle]
-pub extern "C" fn ref_new_i32<'a>(val: i32) -> I32Ptr<'a> {
+pub extern "C" fn ref_new_non_ptr_32(val: i32) -> I32Ptr {
     heap().alloc_or_gc(val)
 }
-/// this is all kinds of messiness
-#[no_mangle]
-pub extern "C" fn ref_new_f64<'a>(val: f64) -> *const f64 {
-    heap().alloc_f64_or_gc(val)
-}
-/// this is all kinds of messiness
-///
-/// this isn't really a *const Tag i'm lying to the compiler it's a *const T
-#[no_mangle]
-pub extern "C" fn ref_new_ptr<'a>(val: *const crate::Tag) -> AnyPtr<'a> {
-    // object could use a more generic name or something maybe
-    //heap().alloc_or_gc(Object::new(val))
-    todo!()
-}
+// /// this is all kinds of messiness
+// ///#[no_mangle]
+// ///pub extern "C" fn ref_new_f64(val: f64) -> MutF64 {
+// ///    heap().alloc_mut_f64_or_gc(val)
+// ///}
+// /// this is all kinds of messiness
+// ///
+// /// this isn't really a *const Tag i'm lying to the compiler it's a *const T
+//#[no_mangle]
+//pub extern "C" fn ref_new_ptr(val: AnyPtr) -> PtrPtr {
+//    // object could use a more generic name or something maybe
+//    heap().alloc_or_gc(val)
+//}
 
 // no tests here because dereferencing and storing are not implemented in the
 // runtime. See the notwasm test suite for tests on refs.

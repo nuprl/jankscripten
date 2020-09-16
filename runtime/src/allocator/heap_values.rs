@@ -41,16 +41,25 @@ impl Tag {
 #[derive(PartialEq, Debug, Copy, Clone)]
 #[repr(u8)]
 pub enum TypeTag {
-    I32,
     /// We specify a value so we can make fake tags from jankscripten
     String = 1,
     HT,
     Array,
-    Any,
     DynObject,
     /// The value after the tag is the address where the array of pointers
     /// begins, for this object
     ObjectPtrPtr,
+    /// following are immediate values only ever on the heap for Ref
+    Any,
+    /// this is any 32-bit non-pointer (i32, bool, fn)
+    //I32,
+    I32,
+    // /// these should only be used for Ref, most f64s go on the f64 heap. this
+    // /// avoids another layer of indirection we just put a f64 immediately
+    // /// following the tag. that f64 might be modified
+    // //MutF64,
+    // /// this may or may not be duplicated by ObjectPtrPtr
+    // //Ptr,
 }
 
 /// Every pointer into the heap points to a tag, thus we could build an API
@@ -80,7 +89,7 @@ pub trait HeapPtr {
         vec![]
     }
     /// easily cast any heap pointer to an any pointer (provided)
-    fn as_any_ptr<'a>(&self) -> AnyPtr<'a> {
+    fn as_any_ptr(&self) -> AnyPtr {
         unsafe { AnyPtr::new(self.get_ptr()) }
     }
 }
@@ -95,27 +104,26 @@ pub unsafe fn data_ptr<T>(tag_ptr: *mut Tag) -> *mut T {
 /// In principle, this allows us to `transmute` between `*mut Tag` and `AnyPtr`.
 #[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(transparent)]
-pub struct AnyPtr<'a> {
+pub struct AnyPtr {
     ptr: *mut Tag,
-    _phantom: PhantomData<&'a ()>,
 }
 
 /// We can safely turn an `AnyPtr` into a more specific type of pointer using
 /// the `view` method, which produces a `HeapRefView`.
 #[derive(Clone, Copy)]
-pub enum HeapRefView<'a> {
-    I32(I32Ptr<'a>),
+pub enum HeapRefView {
+    I32(I32Ptr),
     String(StringPtr),
-    HT(HTPtr<'a>),
-    Array(ArrayPtr<'a>),
-    Any(AnyJSPtr<'a>),
-    Class(ObjectDataPtr<'a>),
-    ObjectPtrPtr(ObjectPtr<'a>),
+    HT(HTPtr),
+    Array(ArrayPtr),
+    Any(AnyJSPtr),
+    Class(ObjectDataPtr),
+    ObjectPtrPtr(ObjectPtr),
 }
-impl<'a> HeapRefView<'a> {
+impl HeapRefView {
     /// Return a less specific `HeapPtr` that points to the same heap value,
     /// for implementing HeapPtr
-    fn heap_ptr(&'a self) -> &'a dyn HeapPtr {
+    fn heap_ptr<'a>(&'a self) -> &'a dyn HeapPtr {
         match self {
             Self::I32(val) => val,
             Self::String(val) => val,
@@ -126,7 +134,7 @@ impl<'a> HeapRefView<'a> {
             Self::ObjectPtrPtr(val) => val,
         }
     }
-    fn heap_ptr_mut(&mut self) -> &mut (dyn HeapPtr + 'a) {
+    fn heap_ptr_mut(&mut self) -> &mut dyn HeapPtr {
         match self {
             Self::I32(val) => val,
             Self::String(val) => val,
@@ -138,7 +146,7 @@ impl<'a> HeapRefView<'a> {
         }
     }
 }
-impl<'a> HeapPtr for HeapRefView<'a> {
+impl HeapPtr for HeapRefView {
     fn get_ptr(&self) -> *mut Tag {
         self.heap_ptr().get_ptr()
     }
@@ -156,17 +164,14 @@ impl<'a> HeapPtr for HeapRefView<'a> {
     }
 }
 
-impl<'a> AnyPtr<'a> {
+impl AnyPtr {
     pub unsafe fn new(ptr: *mut Tag) -> Self {
-        AnyPtr {
-            ptr,
-            _phantom: PhantomData,
-        }
+        AnyPtr { ptr }
     }
 
     /// Discriminate on the tag, and return a more specific `HeapRefView` that
     /// points to the same heap value.
-    pub fn view(&self) -> HeapRefView<'a> {
+    pub fn view(&self) -> HeapRefView {
         let heap_ref: Tag = unsafe { *self.ptr };
         match heap_ref.type_tag {
             TypeTag::I32 => HeapRefView::I32(unsafe { I32Ptr::new_tag_unchecked(self.ptr) }),
@@ -180,7 +185,7 @@ impl<'a> AnyPtr<'a> {
     }
 }
 // Deref as well
-impl<'a> HeapPtr for AnyPtr<'a> {
+impl HeapPtr for AnyPtr {
     fn get_ptr(&self) -> *mut Tag {
         self.view().get_ptr()
     }
@@ -198,13 +203,13 @@ impl<'a> HeapPtr for AnyPtr<'a> {
     }
 }
 
-/// If p : TypePtr<'a, i32> then
+/// If p : TypePtr<i32> then
 /// p.ptr : *const Tag and
 /// p.ptr.type_tag == HasTag::<i32>::TYPE_TAG
 ///                == TypeTag::I32
 ///
 /// Hypothetical:
-/// pub struct TypePtr<'a, T: HasTag> {
+/// pub struct TypePtr<T: HasTag> {
 ///     ptr: *mut Tag && ptr.type_tag == HasTag::<T>::TYPE_TAG,
 /// }
 ///
@@ -212,23 +217,23 @@ impl<'a> HeapPtr for AnyPtr<'a> {
 /// solves.
 #[derive(Debug)]
 #[repr(transparent)]
-pub struct TypePtr<'a, T> {
+pub struct TypePtr<T> {
     ptr: *mut Tag,
-    _phantom: PhantomData<&'a T>,
+    _phantom: PhantomData<T>,
 }
 // these are necessary because if T is not clone/copy, derive will try not
 // to let it clone/copy, but this is a pointer and should copy
-impl<'a, T> Clone for TypePtr<'a, T> {
-    fn clone(&self) -> TypePtr<'a, T> {
+impl<T> Clone for TypePtr<T> {
+    fn clone(&self) -> TypePtr<T> {
         TypePtr {
             ptr: self.ptr,
             _phantom: PhantomData,
         }
     }
 }
-impl<'a, T> Copy for TypePtr<'a, T> {}
+impl<T> Copy for TypePtr<T> {}
 
-impl<'a, T: HasTag> HeapPtr for TypePtr<'a, T> {
+impl<T: HasTag> HeapPtr for TypePtr<T> {
     fn get_ptr(&self) -> *mut Tag {
         self.ptr
     }
@@ -249,7 +254,7 @@ impl<'a, T: HasTag> HeapPtr for TypePtr<'a, T> {
     }
 }
 
-impl<'a, T> TypePtr<'a, T> {
+impl<T> TypePtr<T> {
     pub fn size() -> isize {
         return layout::layout_aligned::<T>(ALIGNMENT).size() as isize;
     }
@@ -279,7 +284,7 @@ impl<'a, T> TypePtr<'a, T> {
     }
     /// write data, dropping old data. if you're not the allocator, this is
     /// what you want
-    pub fn get_mut(&mut self) -> &'a mut T {
+    pub fn get_mut(&mut self) -> &mut T {
         unsafe { &mut *data_ptr(self.ptr) }
     }
     /// write data without dropping old rust-owned data. this should only
@@ -289,32 +294,32 @@ impl<'a, T> TypePtr<'a, T> {
     }
 }
 
-impl<'a, T> Deref for TypePtr<'a, T> {
+impl<T> Deref for TypePtr<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         self.get()
     }
 }
-impl<'a, T> DerefMut for TypePtr<'a, T> {
+impl<T> DerefMut for TypePtr<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.get_mut()
     }
 }
 
-impl<'a, T: std::hash::Hash> std::hash::Hash for TypePtr<'a, T> {
+impl<T: std::hash::Hash> std::hash::Hash for TypePtr<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.get().hash(state)
     }
 }
-impl<T: PartialEq> PartialEq<TypePtr<'_, T>> for TypePtr<'_, T> {
-    fn eq(&self, other: &TypePtr<'_, T>) -> bool {
+impl<T: PartialEq> PartialEq<TypePtr<T>> for TypePtr<T> {
+    fn eq(&self, other: &TypePtr<T>) -> bool {
         self.get() == other.get()
     }
 }
-impl<T: PartialEq> Eq for TypePtr<'_, T> {}
+impl<T: PartialEq> Eq for TypePtr<T> {}
 
-impl<'a, T: HasTag> From<TypePtr<'a, T>> for AnyPtr<'a> {
-    fn from(ptr: TypePtr<'a, T>) -> Self {
+impl<T: HasTag> From<TypePtr<T>> for AnyPtr {
+    fn from(ptr: TypePtr<T>) -> Self {
         // safety: TypePtr is valid, so an AnyPtr will be valid
         unsafe { AnyPtr::new(ptr.get_ptr()) }
     }

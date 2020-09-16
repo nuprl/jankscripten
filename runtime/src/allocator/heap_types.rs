@@ -1,6 +1,6 @@
 pub use super::object_ptr::{ObjectDataPtr, ObjectPtr};
 pub use super::string::StringPtr;
-use super::{HeapPtr, Tag, TypePtr, TypeTag};
+use super::{AnyPtr, HeapPtr, Tag, TypePtr, TypeTag};
 use crate::{AnyEnum, AnyValue, Heap, Key};
 use std::collections::HashMap;
 
@@ -17,12 +17,12 @@ pub trait HasTag {
     }
 }
 
-pub type I32Ptr<'a> = TypePtr<'a, i32>;
+pub type I32Ptr = TypePtr<i32>;
 impl HasTag for i32 {
     const TYPE_TAG: TypeTag = TypeTag::I32;
 }
-pub type AnyJSPtr<'a> = TypePtr<'a, AnyValue>;
-impl<'a> HasTag for AnyValue {
+pub type AnyJSPtr = TypePtr<AnyValue>;
+impl HasTag for AnyValue {
     const TYPE_TAG: TypeTag = TypeTag::Any;
     fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
         (**self).get_gc_ptrs(heap)
@@ -31,14 +31,18 @@ impl<'a> HasTag for AnyValue {
         (**self).get_gc_f64s(heap)
     }
 }
+//pub type PtrPtr = TypePtr<AnyPtr>;
+//impl HasTag for AnyPtr {
+//    const TYPE_TAG: TypeTag = TypeTag::Ptr;
+//}
 
-impl<'a> HasTag for ObjectDataPtr<'a> {
+impl HasTag for ObjectDataPtr {
     /// to be clear, this means the type tag OF THE POINTER
     const TYPE_TAG: TypeTag = TypeTag::ObjectPtrPtr;
 }
 
-pub type HTPtr<'a> = TypePtr<'a, HashMap<Key, AnyValue>>;
-impl<'a> HasTag for HashMap<Key, AnyValue> {
+pub type HTPtr = TypePtr<HashMap<Key, AnyValue>>;
+impl HasTag for HashMap<Key, AnyValue> {
     const TYPE_TAG: TypeTag = TypeTag::HT;
     fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
         let mut branches = vec![];
@@ -56,8 +60,8 @@ impl<'a> HasTag for HashMap<Key, AnyValue> {
     }
 }
 
-pub type ArrayPtr<'a> = TypePtr<'a, Vec<AnyValue>>;
-impl<'a> HasTag for Vec<AnyValue> {
+pub type ArrayPtr = TypePtr<Vec<AnyValue>>;
+impl HasTag for Vec<AnyValue> {
     const TYPE_TAG: TypeTag = TypeTag::Array;
     fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
         let mut branches = vec![];
@@ -75,7 +79,7 @@ impl<'a> HasTag for Vec<AnyValue> {
     }
 }
 
-impl AnyEnum<'_> {
+impl AnyEnum {
     pub fn get_gc_ptrs(&self, _heap: &Heap) -> Vec<*mut Tag> {
         match self {
             Self::Ptr(ptr) => vec![ptr.get_ptr()],
