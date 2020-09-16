@@ -41,6 +41,11 @@ impl Tag {
 #[derive(PartialEq, Debug, Copy, Clone)]
 #[repr(u8)]
 pub enum TypeTag {
+    /// this is any 32-bit non-pointer (i32, bool, fn)
+    ///
+    /// this is a fairly healthy choice for 0, which apparently needs to
+    /// exist or we get messy errors i don't even want to think about
+    NonPtr32,
     /// We specify a value so we can make fake tags from jankscripten
     String = 1,
     HT,
@@ -51,8 +56,6 @@ pub enum TypeTag {
     ObjectPtrPtr,
     /// following are immediate values only ever on the heap for Ref
     Any,
-    /// this is any 32-bit non-pointer (i32, bool, fn)
-    NonPtr32,
     /// these should only be used for Ref, most f64s go on the f64 heap. this
     /// avoids another layer of indirection we just put a f64 immediately
     /// following the tag. that f64 might be modified

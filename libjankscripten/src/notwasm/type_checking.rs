@@ -1,4 +1,5 @@
 use super::syntax::*;
+use super::constructors::*;
 use im_rc::HashMap;
 use thiserror::Error;
 
@@ -350,7 +351,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
         Expr::NewRef(a, ty) => {
             let actual = type_check_atom(env, a)?;
             ensure("new ref", ty.clone(), actual)?;
-            Ok(ty.clone())
+            Ok(ref_ty_(ty.clone()))
         }
         Expr::Atom(a) => type_check_atom(env, a),
     }
