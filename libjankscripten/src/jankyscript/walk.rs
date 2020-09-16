@@ -27,6 +27,10 @@ pub trait Visitor {
     fn exit_stmt(&mut self, _stmt: &mut Stmt, _loc: &Loc) {}
     /// called after recursing on an expression, with the new value
     fn exit_expr(&mut self, _expr: &mut Expr, _loc: &Loc) {}
+    /// called before recursing on a function
+    fn enter_fn(&mut self, _func: &mut Func, _loc: &Loc) {}
+    /// called after recursing on a function
+    fn exit_fn(&mut self, _func: &mut Func, _loc: &Loc) {}
 }
 
 struct VisitorState<'v, V> {
@@ -210,7 +214,9 @@ where
             Lit(_) | Id(_) => (),
             Func(f) => {
                 let loc = Loc::Node(Context::FunctionBody, loc);
+                self.visitor.enter_fn(f, &loc);
                 self.walk_stmt(&mut *f.body, &loc);
+                self.visitor.exit_fn(f, &loc);
             }
             // 1x[Expr]
             Array(es) | PrimCall(.., es) => {
