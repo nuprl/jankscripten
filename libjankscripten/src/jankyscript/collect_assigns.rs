@@ -49,7 +49,7 @@ impl Visitor for CollectAssigns {
     }
     fn exit_expr(&mut self, expr: &mut Expr, _: &Loc) {
         match expr {
-            Expr::Assign(lv, to) => {
+            Expr::Assign(lv, _) => {
                 match &**lv {
                     LValue::Id(id) => {
                         let assigned_vars = self.assigned_vars.last_mut().unwrap();

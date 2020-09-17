@@ -2,7 +2,7 @@
 
 use crate::rts_function::RTSFunction;
 pub use crate::shared::coercions::Coercion;
-pub use crate::shared::types::Type;
+pub use crate::shared::Type;
 use im_rc::HashSet as ImmHashSet;
 
 pub type Id = super::super::javascript::Id;

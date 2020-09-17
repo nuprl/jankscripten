@@ -1,6 +1,6 @@
 use super::syntax::*;
 use crate::shared::coercions::Coercion;
-use crate::shared::types::Type;
+use crate::shared::Type;
 
 // Lit
 

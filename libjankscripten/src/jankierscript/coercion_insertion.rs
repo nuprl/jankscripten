@@ -6,7 +6,7 @@ use crate::notwasm::syntax as NotWasm;
 use crate::rts_function::RTSFunction;
 use crate::shared::coercions::*;
 use crate::shared::std_lib::get_global_object;
-use crate::shared::types::Type;
+use crate::shared::Type;
 use im_rc::HashMap;
 use thiserror::Error;
 

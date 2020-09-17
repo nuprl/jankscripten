@@ -13,6 +13,7 @@ pub fn compile(janky_ast: &mut Stmt) -> Result<(), TypeCheckingError> {
     Ok(())
 }
 
+#[cfg(test)]
 mod test {
     use crate::jankyscript::{compile, constructors::*, fv::free_vars, syntax::*};
     /// we don't yet support closures but boxing criteria have gotten so

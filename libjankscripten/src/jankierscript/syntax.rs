@@ -2,9 +2,9 @@
 //!
 //! The JavaScript AST goes through several stages of desugaring before we
 //! produce a program in this language.
-use crate::shared::types::Type;
 
-pub type Id = super::super::javascript::Id;
+pub use crate::shared::Id;
+pub use crate::shared::Type;
 
 #[derive(Debug)]
 pub enum LValue {
