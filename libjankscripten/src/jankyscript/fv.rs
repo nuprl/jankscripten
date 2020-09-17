@@ -10,7 +10,8 @@ fn fv_lv(lv: &mut LValue) -> IdSet {
     use LValue::*;
     match lv {
         Id(x) => IdSet::unit(x.clone()),
-        Dot(e, x) => fv_expr(e),
+        // the "id" in dot is really a field
+        Dot(e, _) => fv_expr(e),
         Bracket(e1, e2) => fv_expr(e1).union(fv_expr(e2)),
     }
 }

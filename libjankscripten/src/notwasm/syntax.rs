@@ -21,8 +21,8 @@
 //! - A set of global variables that are initialized to …whataever Wasm
 //!   supports
 
-pub use super::super::javascript::Id;
 use crate::rts_function::RTSFunction;
+pub use crate::shared::Id;
 use std::collections::HashMap;
 
 /// The types of NotWasm. Every value has a unique type, thus we *do not* support
@@ -63,7 +63,7 @@ pub enum Type {
     /// If `v : Ref(Bool)` then `v` is a `*const Tag` and `v.type_tag == Bool`.
     /// NOTE(arjun): We can use the same type_tag for I32 and Bool, since the
     /// source language is typed. If so, please rename it to I32_Or_Bool.
-    /// If `v : Ref(T)` and T is represented as a `*const Tag`, then `v` is a 
+    /// If `v : Ref(T)` and T is represented as a `*const Tag`, then `v` is a
     /// `*const Tag` `v.type_tag == Ptr`.
     Ref(Box<Type>),
 }

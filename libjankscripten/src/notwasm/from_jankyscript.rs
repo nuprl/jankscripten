@@ -96,6 +96,7 @@ use super::super::jankyscript::syntax as J;
 use super::super::rope::Rope;
 use super::constructors::*;
 use super::syntax::*;
+use crate::shared::NameGen;
 use std::collections::HashMap;
 
 fn compile_lit(lit: J::Lit) -> Lit {
@@ -113,7 +114,7 @@ fn compile_lit(lit: J::Lit) -> Lit {
 /// State that is needed during A-normalization
 #[derive(Default)]
 struct S {
-    namegen: super::super::javascript::NameGen,
+    namegen: NameGen,
     functions: HashMap<Id, Function>,
 }
 
