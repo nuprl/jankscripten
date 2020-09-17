@@ -24,7 +24,12 @@ struct BoxVisitor {
 }
 impl Visitor for BoxVisitor {
     fn enter_fn(&mut self, func: &mut Func, _: &Loc) {
-        self.to_box_stack.push(func.assigned_free_children.clone());
+        // we combine variables to box from up the stack down, so that we
+        // can pop off new ones, but we can lookup ALL the appropriate
+        // variables
+        let old = self.to_box_stack.last().unwrap().clone();
+        let new = func.assigned_free_children.clone();
+        self.to_box_stack.push(old.union(new));
     }
     fn exit_fn(&mut self, _: &mut Func, _: &Loc) {
         self.to_box_stack.pop();
