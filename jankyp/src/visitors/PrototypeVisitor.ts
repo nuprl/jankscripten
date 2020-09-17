@@ -3,6 +3,31 @@ import {JankyPVisitor, qCall, qLoc, qJankyp} from "./JankypVisitor";
 import { NodePath, Visitor } from "@babel/traverse";
 import * as parser from '@babel/parser';
 
+/**
+ * This visitor is designed to detect bad behavior around object prototypes.
+ * Jankscripten's eventual goal is to implement prototypes using a method
+ * similar to vtables. However, we want to avoid *deoptimizing* these vtables
+ * at runtime, which we would have to do in order to support full prototypes
+ * like V8.
+ * 
+ * Since we want to avoid deoptimization, this visitor detects 2 forms of bad
+ * behavior that would cause deoptimization:
+ * 
+ * 1. *Changes in the shape of prototype chains.* That is, once an object is
+ *    created with a particular prototype, no links between these objects 
+ *    should be modified. An example of this type of behavior is:
+ * 
+ *        let o = new Object(); Object.setPrototypeOf(o, Array.prototype);
+ * 
+ * 2. *Modification of properties in prototype objects.* Once an object becomes
+ *    a prototype, its properties must not change. No functions can be added,
+ *    removed, or modified. It's important to note that only shallow changes
+ *    would trigger deoptimization, as the vtables only store shallow pointers
+ *    to their properties. Here's an example of this type of bad behavior:
+ * 
+ *        let r = new Rectangle(2, 2); Rectangle.prototype.extraMethod = ...;
+ *
+ */
 export const PrototypeVisitor: JankyPVisitor = {
     name: "prototype",
 
