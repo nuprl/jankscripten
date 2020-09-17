@@ -1,51 +1,59 @@
-//! box variables in certain circumstances
+//! determine variables that need to be boxed
 //!
-//! we box a variable completely if it is captured and assigned to:
+//! we box a variable completely if it is captured by a function at any
+//! point in its scope AND it is assigned to at any point in its scope
 //!
-//! - in this or another closure; and it's read in another closure or after
-//!   this closure's creation
-//! - after this closure is created in program flow
-//!
-//! if it isn't boxed, assignments after the environment creation (or in
-//! another closure that could be called at any time) would not update the
-//! closure environment; also, assignments into the closure environment would
-//! not update the surrounding environment
-//!
-//! now this is a pretty complex set of rules, so as a first pass i'm
-//! implementing a more lenient superset that is still correct but not
-//! as performant. i think when we implement escape analysis implementing
-//! this part might be easier. the superset says we box if it is captured
-//! in this closure and assigned to at any time
+//! if it isn't boxed, assignments after the environment creation will not
+//! update the closure environment; also, assignments into the closure
+//! environment will not update the surrounding environment
 
-use super::constructors::*;
 use super::syntax::*;
 use super::walk::*;
 use im_rc::HashSet as ImmHashSet;
-use std::collections::HashSet;
 
-pub fn box_assigns(program: &mut Stmt) {
+/// returns variables in the global scope that should be boxed
+pub fn collect_assigns(program: &mut Stmt) -> ImmHashSet<Id> {
     let mut v = CollectAssigns::new();
     program.walk(&mut v);
+    assert_eq!(v.free_children.len(), 1);
+    assert_eq!(v.assigned_vars.len(), 1);
+    let free_children = v.free_children.pop().unwrap();
+    let assigned_vars = v.assigned_vars.pop().unwrap();
+    free_children.intersection(assigned_vars.clone())
 }
 
 struct CollectAssigns {
-    ids: HashSet<Id>,
-    fv_stack: Vec<ImmHashSet<Id>>,
+    /// this represents the free variables of all functions created in this
+    /// function ("children")
+    free_children: Vec<ImmHashSet<Id>>,
+    assigned_vars: Vec<ImmHashSet<Id>>,
 }
-impl Visitor for BoxVisitor {
-    fn enter_fn(&mut self, func: &mut Func, _: &Loc) {
-        self.fv_stack.push(func.free_vars.clone());
+impl Visitor for CollectAssigns {
+    fn enter_fn(&mut self, _func: &mut Func, _: &Loc) {
+        self.free_children.push(ImmHashSet::new());
+        self.assigned_vars.push(ImmHashSet::new());
     }
-    fn exit_fn(&mut self, _: &mut Func, _: &Loc) {
-        self.fv_stack.pop();
+    fn exit_fn(&mut self, func: &mut Func, _: &Loc) {
+        let free_children = self.free_children.pop().unwrap();
+        let assigned_vars = self.assigned_vars.pop().unwrap();
+        func.assigned_free_children = free_children.intersection(assigned_vars.clone());
+        // add these free variables to the free children of our parent so
+        // it'll eventually have all the proper free children
+        let parent_free_children = self.free_children.last_mut().unwrap();
+        *parent_free_children = parent_free_children.clone().union(func.free_vars.clone());
+        // this might look similar but it's very different: we care about
+        // the assigned vars of ourselves and our children but not our parents,
+        // so propagate up children's data
+        let parent_assigned_vars = self.assigned_vars.last_mut().unwrap();
+        *parent_assigned_vars = parent_assigned_vars.clone().union(assigned_vars);
     }
     fn exit_expr(&mut self, expr: &mut Expr, _: &Loc) {
         match expr {
-            Expr::Id(id) if self.ids.contains(id) => *expr = deref_(expr.take()),
             Expr::Assign(lv, to) => {
                 match &**lv {
-                    LValue::Id(id) if self.ids.contains(id) => {
-                        *expr = store_(id.clone(), to.take())
+                    LValue::Id(id) => {
+                        let assigned_vars = self.assigned_vars.last_mut().unwrap();
+                        *assigned_vars = assigned_vars.update(id.clone());
                     }
                     // []/. => boxed already!
                     _ => (),
@@ -54,23 +62,13 @@ impl Visitor for BoxVisitor {
             _ => (),
         }
     }
-    fn exit_stmt(&mut self, stmt: &mut Stmt, _: &Loc) {
-        match stmt {
-            Stmt::Var(id, ty, expr) if self.fv_stack.last().unwrap().contains(id) => {
-                *expr = Box::new(new_ref_(expr.take(), ty.clone()));
-                *ty = Type::Ref(Box::new(ty.clone()));
-                self.ids.insert(id.clone());
-            }
-            _ => (),
-        }
-    }
 }
-impl BoxVisitor {
+impl CollectAssigns {
     fn new() -> Self {
         Self {
-            ids: HashSet::new(),
-            // you can't have free variables at the top level
-            fv_stack: vec![ImmHashSet::new()],
+            // start with the top level
+            free_children: vec![ImmHashSet::new()],
+            assigned_vars: vec![ImmHashSet::new()],
         }
     }
 }
