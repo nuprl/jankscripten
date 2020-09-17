@@ -1,7 +1,10 @@
-pub mod box_assigns;
+mod box_assigns;
+mod compile;
 pub mod constructors;
 mod fv;
-pub mod pretty;
+mod pretty;
 pub mod syntax;
-pub mod type_checking;
+mod type_checking;
 mod walk;
+
+pub use compile::compile;

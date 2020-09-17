@@ -51,7 +51,6 @@ pub struct Func {
     pub args_with_typs: Vec<(Id, Type)>,
     pub body: Box<Stmt>,
     pub free_vars: ImmHashSet<Id>,
-    // NOTE(arjun): E..g, add variables assigned to here, in fv.rs
 }
 
 impl Func {
