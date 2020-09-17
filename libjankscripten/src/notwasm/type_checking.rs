@@ -1,5 +1,5 @@
-use super::syntax::*;
 use super::constructors::*;
+use super::syntax::*;
 use im_rc::HashMap;
 use thiserror::Error;
 

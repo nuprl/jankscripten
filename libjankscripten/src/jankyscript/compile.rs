@@ -7,7 +7,6 @@ use super::type_checking::{type_check, TypeCheckingError};
 pub fn compile(janky_ast: &mut Stmt) -> Result<(), TypeCheckingError> {
     free_vars(janky_ast);
     type_check(janky_ast)?;
-    // TODO(luna): how do we box parameters????????
     let should_box_globals = collect_assigns(janky_ast);
     box_assigns(janky_ast, should_box_globals);
     Ok(())
@@ -15,7 +14,7 @@ pub fn compile(janky_ast: &mut Stmt) -> Result<(), TypeCheckingError> {
 
 #[cfg(test)]
 mod test {
-    use crate::jankyscript::{compile, constructors::*, fv::free_vars, syntax::*};
+    use crate::jankyscript::{compile, constructors::*, syntax::*};
     /// we don't yet support closures but boxing criteria have gotten so
     /// messy that i want to test them, so we're building an AST and checking
     ///
