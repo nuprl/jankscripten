@@ -144,8 +144,21 @@ export function checkException(loc: string) {
     record(exceptions, loc, `exception`);
 }
 
-// qCall('checkPropWriteForProtoChange', [qLoc(path.node.loc), property])
-export function checkPropWriteForProtoChange(loc: string, property: any) {
+/**
+ * Check an object property write to make sure the object isn't swapping out
+ * its prototype for another.
+ * 
+ * Example:
+ *     obj.__proto__ = {};    ~~>    checkForProtoSwap(loc, "__proto__")
+ *             ^                                     ^
+ *        (this code)   should trigger  (this runtime function call)
+ * 
+ * and the runtime function call will record this as bad behavior.
+ * 
+ * @param loc the location where this property write occurred
+ * @param property the name of the property being written to
+ */
+export function checkForProtoSwap(loc: string, property: any) {
     if (property === "__proto__") {
         record(prototypeChanges, loc, `prototype changed via property write`);
     }
@@ -153,6 +166,12 @@ export function checkPropWriteForProtoChange(loc: string, property: any) {
     return property;
 }
 
+/**
+ * Record that an object changed its prototype by calling
+ * `Object.setPrototypeOf`.
+ * 
+ * The location will be inferred.
+ */
 export function recordPrototypeChange() {
     record(prototypeChanges, Error().stack as string, `prototype changed via Object.setPrototypeOf`);
 }

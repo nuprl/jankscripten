@@ -70,7 +70,7 @@ export const PrototypeVisitor: JankyPVisitor = {
                         throw new Error(`unsupported member expression type: ${path.node.left.type}`);
                     }
 
-                    let instrumentedProperty = qCall('checkPropWriteForProtoChange', [qLoc(path.node.loc), property])
+                    let instrumentedProperty = qCall('checkForProtoSwap', [qLoc(path.node.loc), property])
 
                     // path.replaceWith(t.memberExpression(path.node.left.object, instrumentedProperty, true));
                     path.node.left.property = instrumentedProperty;
