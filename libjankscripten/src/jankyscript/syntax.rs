@@ -38,14 +38,14 @@ impl UnaryOp {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum LValue {
     Id(Id),
     Dot(Expr, Id),
     Bracket(Expr, Expr),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Func {
     pub result_typ: Type,
     pub args_with_typs: Vec<(Id, Type)>,
@@ -80,7 +80,7 @@ impl Func {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Expr {
     Lit(Lit),
     Array(Vec<Expr>),
@@ -103,7 +103,7 @@ pub enum Expr {
     Store(Id, Box<Expr>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Stmt {
     Var(Id, Type, Box<Expr>),
     Block(Vec<Stmt>),
