@@ -23,25 +23,14 @@ use super::walk::*;
 use im_rc::HashSet as ImmHashSet;
 use std::collections::HashSet;
 
-/// box relevant variables on the provided program (see module-level)
-///
-/// we follow a double-recursion process: for each variable declared, we
-/// check the scope to determine if it meets the criteria (CriteriaVisitor)
-/// and if so, add it to the list of ids to convert
-pub fn box_assigns(program: &mut Stmt, assigns: ImmHashSet<Id>) {
-    let mut v = BoxVisitor::new(assigns);
+pub fn box_assigns(program: &mut Stmt) {
+    let mut v = CollectAssigns::new();
     program.walk(&mut v);
 }
 
-/// we visit everything that refers to an id, and replace it with the boxed
-/// equivalent
-/// - Var -> Var(NewRef)
-/// - Id -> Deref(Id)
-/// - Assign -> Store
-struct BoxVisitor {
+struct CollectAssigns {
     ids: HashSet<Id>,
     fv_stack: Vec<ImmHashSet<Id>>,
-    assigns: ImmHashSet<Id>,
 }
 impl Visitor for BoxVisitor {
     fn enter_fn(&mut self, func: &mut Func, _: &Loc) {
@@ -67,9 +56,7 @@ impl Visitor for BoxVisitor {
     }
     fn exit_stmt(&mut self, stmt: &mut Stmt, _: &Loc) {
         match stmt {
-            Stmt::Var(id, ty, expr)
-                if self.fv_stack.last().unwrap().contains(id) && self.assigns.contains(id) =>
-            {
+            Stmt::Var(id, ty, expr) if self.fv_stack.last().unwrap().contains(id) => {
                 *expr = Box::new(new_ref_(expr.take(), ty.clone()));
                 *ty = Type::Ref(Box::new(ty.clone()));
                 self.ids.insert(id.clone());
@@ -79,12 +66,11 @@ impl Visitor for BoxVisitor {
     }
 }
 impl BoxVisitor {
-    fn new(assigns: ImmHashSet<Id>) -> Self {
+    fn new() -> Self {
         Self {
             ids: HashSet::new(),
             // you can't have free variables at the top level
             fv_stack: vec![ImmHashSet::new()],
-            assigns,
         }
     }
 }
