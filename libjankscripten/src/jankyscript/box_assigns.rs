@@ -3,6 +3,7 @@
 use super::constructors::*;
 use super::syntax::*;
 use super::walk::*;
+use crate::shared::NameGen;
 use im_rc::HashSet as ImmHashSet;
 
 /// box relevant variables on the provided program
@@ -21,6 +22,7 @@ pub fn box_assigns(program: &mut Stmt, should_box_globals: ImmHashSet<Id>) {
 /// - Assign -> Store
 struct BoxVisitor {
     to_box_stack: Vec<ImmHashSet<Id>>,
+    ng: NameGen,
 }
 impl Visitor for BoxVisitor {
     fn enter_fn(&mut self, func: &mut Func, _: &Loc) {
@@ -30,6 +32,20 @@ impl Visitor for BoxVisitor {
         let old = self.to_box_stack.last().unwrap().clone();
         let new = func.assigned_free_children.clone();
         self.to_box_stack.push(old.union(new));
+        // now we want to box up parameters. we can't expect the parameter
+        // to be boxed because how would we know? parameters are always any. so
+        // what we do is change the parameter to a fresh name, and assign the
+        // original name to newRef(fresh)
+        for (name, ty) in &mut func.args_with_typs {
+            if self.should_box(name) {
+                let real_name = name.clone();
+                *name = self.ng.fresh("to_box");
+                func.body = Box::new(block_(vec![
+                    var_to_new_ref(real_name, ty, Expr::Id(name.clone())),
+                    (*func.body).take(),
+                ]));
+            }
+        }
     }
     fn exit_fn(&mut self, _: &mut Func, _: &Loc) {
         self.to_box_stack.pop();
@@ -50,8 +66,7 @@ impl Visitor for BoxVisitor {
     fn exit_stmt(&mut self, stmt: &mut Stmt, _: &Loc) {
         match stmt {
             Stmt::Var(id, ty, expr) if self.should_box(id) => {
-                *expr = Box::new(new_ref_(expr.take(), ty.clone()));
-                *ty = Type::Ref(Box::new(ty.clone()));
+                *stmt = var_to_new_ref(id.clone(), ty, expr.take());
             }
             _ => (),
         }
@@ -61,9 +76,20 @@ impl BoxVisitor {
     fn new(to_box_global: ImmHashSet<Id>) -> Self {
         Self {
             to_box_stack: vec![to_box_global],
+            ng: NameGen::default(),
         }
     }
     fn should_box(&self, id: &Id) -> bool {
         self.to_box_stack.last().unwrap().contains(id)
     }
+}
+
+/// provide: the name to assign to; the type of the expr unboxed, and the
+/// expr the var is assigned to
+fn var_to_new_ref(id: Id, ty: &Type, expr: Expr) -> Stmt {
+    var_(
+        id,
+        Type::Ref(Box::new(ty.clone())),
+        new_ref_(expr, ty.clone()),
+    )
 }
