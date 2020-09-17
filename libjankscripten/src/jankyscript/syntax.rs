@@ -51,17 +51,23 @@ pub struct Func {
     pub args_with_typs: Vec<(Id, Type)>,
     pub body: Box<Stmt>,
     pub free_vars: ImmHashSet<Id>,
+    /// this represents variables which may or may not be defined in this
+    /// function that are free (and read) in any child function AND are assigned
+    /// at some point in this function or children. these should be boxed
+    pub assigned_free_children: ImmHashSet<Id>,
 }
 
 impl Func {
     pub fn new(args_with_typs: Vec<(Id, Type)>, result_typ: Type, body: Stmt) -> Self {
         let body = Box::new(body);
         let free_vars = ImmHashSet::new();
+        let assigned_free_children = ImmHashSet::new();
         Func {
             args_with_typs,
             result_typ,
             body,
             free_vars,
+            assigned_free_children,
         }
     }
 
