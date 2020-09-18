@@ -69,7 +69,7 @@ export const PrototypeVisitor: JankyPVisitor = {
                     return $jankyp_old_Object_setPrototypeOf(obj, proto);
                 }
                 Object.create = function(proto, propertiesObject) {
-                    (${qJankyp.name}).trackPrototype(proto);
+                    (${qJankyp.name}).trackPrototype("", proto);
                     return $jankyp_old_Object_create(proto, propertiesObject);
                 }
                 `;

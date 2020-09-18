@@ -219,8 +219,19 @@ export function checkPropWrite(loc: string, object: any, property: string, value
     return object[property] = value;
 }
 
-function trackPrototype(loc: string, o: any): void {
-    prototypeObjects.set(o, loc);
+/**
+ * Tells the runtime that the given object is a prototype of another object.
+ * @param loc the location where `o` was assigned as a prototype
+ * @param o the prototype object
+ */
+export function trackPrototype(loc: string, o: any): void {
+    try {
+        prototypeObjects.set(o, loc);
+    } catch(e) {
+        // if this failed, the prototype was probably set to null or undefined.
+        // this is perfectly valid, and it just means we can't track changes to
+        // it.
+    }
 }
 
 // Is the given object a prototype of another object?
