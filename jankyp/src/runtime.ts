@@ -20,6 +20,12 @@ const exceptions: BadBehavior = new Map();
 
 const prototypeChanges: BadBehavior = new Map();
 
+// Needed to keep track of all prototype objects.
+// Map: prototype objects ~~> the location they were bound as a prototype
+const prototypeObjects: WeakMap<any, string> = new WeakMap();
+
+// Runtime functions
+
 /**
  * Record an instance of bad behavior.
  * @param theMap the BadBehavior map to record to
@@ -173,7 +179,53 @@ export function checkForProtoSwap(loc: string, property: any) {
  * The location will be inferred.
  */
 export function recordPrototypeChange() {
-    record(prototypeChanges, Error().stack as string, `prototype changed via Object.setPrototypeOf`);
+    record(prototypeChanges, Error().stack as string, `prototype of object changed via Object.setPrototypeOf`);
+}
+
+export function checkNewObject(loc: string, constructor: any, args: any[]): any {
+    trackPrototype(loc, constructor.prototype);
+    return new constructor(...args);
+}
+
+export function checkPropDelete(loc: string, object: any, property: string): any {
+    if (isPrototype(object)) {
+        record(prototypeChanges, loc, `prototype of object changed via property deletion`);
+    }
+    delete object[property];
+}
+
+// let runtimeCall = qCall('checkPropWrite', [path.node.left.object, property, path.node.right]);
+export function checkPropWrite(loc: string, object: any, property: string, value: any): any {
+    // is the property being written to either of these special ones?
+    let propIs__proto__ = property === "__proto__";
+    let propIsPrototype = property === "prototype";
+
+    // case (1.1)
+    if (propIs__proto__) {
+        record(prototypeChanges, loc, `prototype of object change via property write`);
+    }
+
+    // case (1.3)
+    if (propIs__proto__ || propIsPrototype) {
+        trackPrototype(loc, object);
+    }
+
+    // handles case (1.2)
+    if (isPrototype(object)) {
+        record(prototypeChanges, loc, `property modified on prototype object`)
+    }
+
+    // actually perform the property write and return its value
+    return object[property] = value;
+}
+
+function trackPrototype(loc: string, o: any): void {
+    prototypeObjects.set(o, loc);
+}
+
+// Is the given object a prototype of another object?
+function isPrototype(o: any): boolean {
+    return prototypeObjects.has(o);
 }
 
 // Display the logs of bad behavior to the console.
