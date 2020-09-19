@@ -1,15 +1,41 @@
 use super::constants::DATA_OFFSET;
-use super::fixed_array::FixedArrayPtr;
+use super::heap_values::*;
+use super::Heap;
 use std::ops::Deref;
 
 /// A managed thin pointer to a string. Interned strings are also tagged
 /// despite not being managed so this can always be used
 ///
 /// Tag | Size (LE 32) | str (utf-8)
-///
-/// new safety: must be utf-8!
-type StringPtr = FixedArrayPtr<u8>;
+#[derive(Clone, Copy)]
+#[repr(transparent)]
+pub struct StringPtr {
+    ptr: *mut Tag,
+}
 
+impl StringPtr {
+    /// # Safety
+    ///
+    /// ptr should point to a valid String tag, followed by a little-endian
+    /// 4-byte length encoding in memory; it should be aligned, then followed
+    /// by strictly that length of a utf-8 encoded string. if the string is
+    /// not utf-8 encoded, Deref will turn it to a &str unchecked, and
+    /// undefined behavior will result
+    pub const unsafe fn new(ptr: *mut Tag) -> Self {
+        Self { ptr }
+    }
+    pub fn len(&self) -> usize {
+        u32::from_le(unsafe { *(self.ptr.add(DATA_OFFSET) as *const u32) }) as usize
+    }
+}
+impl HeapPtr for StringPtr {
+    fn get_ptr(&self) -> *mut Tag {
+        self.ptr
+    }
+    fn get_data_size(&self, _heap: &Heap) -> usize {
+        self.len() + 4
+    }
+}
 /// gain all the methods of string slices
 impl Deref for StringPtr {
     type Target = str;

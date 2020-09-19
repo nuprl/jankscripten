@@ -39,16 +39,9 @@ impl HeapPtr for ObjectDataPtr {
         let mut rv = vec![];
         for member in self.as_array(heap) {
             if let Some(any) = member {
-                rv.append(&mut any.get_data_ptrs(heap));
-            }
-        }
-        rv
-    }
-    fn get_gc_f64s(&mut self, heap: &Heap) -> Vec<*mut *const f64> {
-        let mut rv = vec![];
-        for member in self.as_array(heap) {
-            if let Some(any) = member {
-                rv.append(&mut any.get_data_f64s(heap));
+                if let Some(ptr) = any.get_ptr() {
+                    rv.push(ptr);
+                }
             }
         }
         rv

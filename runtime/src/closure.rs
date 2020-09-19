@@ -1,3 +1,4 @@
+use super::heap_types::EnvPtr;
 use super::i64_val::*;
 use super::Tag;
 
@@ -9,9 +10,9 @@ use super::Tag;
 /// you must not obtain a reference to any of its fields, since it is
 /// unaligned. https://github.com/rust-lang/rust/issues/27060 it is unaligned
 /// because of the need to fit it in Any
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 #[repr(packed(2))]
-pub struct Closure(*const Tag, u16);
+pub struct Closure(pub EnvPtr, pub u16);
 impl AsI64 for Closure {}
 pub type ClosureVal = I64Val<Closure>;
 
@@ -24,11 +25,11 @@ impl std::fmt::Display for Closure {
 }
 
 #[no_mangle]
-pub extern "C" fn closure_new(ptr: *const Tag, func: u16) -> ClosureVal {
+pub extern "C" fn closure_new(ptr: EnvPtr, func: u16) -> ClosureVal {
     Closure(ptr, func).into()
 }
 #[no_mangle]
-pub extern "C" fn closure_ptr(closure: ClosureVal) -> *const Tag {
+pub extern "C" fn closure_ptr(closure: ClosureVal) -> EnvPtr {
     closure.0
 }
 #[no_mangle]

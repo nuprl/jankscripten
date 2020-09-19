@@ -82,12 +82,8 @@ pub trait HeapPtr {
     /// rust heap
     fn final_drop(&self) {}
     /// this should return all the pointers to garbage collected Tags in
-    /// the managed heap in the data structure
+    /// the managed heap in the data structure, including f64s
     fn get_gc_ptrs(&self, _heap: &Heap) -> Vec<*mut Tag> {
-        vec![]
-    }
-    /// this should return all the pointers to f64s in the managed f64 heap
-    fn get_gc_f64s(&mut self, _heap: &Heap) -> Vec<*mut *const f64> {
         vec![]
     }
     /// easily cast any heap pointer to an any pointer (provided)
@@ -140,19 +136,6 @@ impl HeapRefView {
             Self::Ptr(val) => val,
         }
     }
-    fn heap_ptr_mut(&mut self) -> &mut dyn HeapPtr {
-        match self {
-            Self::String(val) => val,
-            Self::HT(val) => val,
-            Self::Array(val) => val,
-            Self::Any(val) => val,
-            Self::Class(val) => val,
-            Self::ObjectPtrPtr(val) => val,
-            Self::NonPtr32(val) => val,
-            Self::MutF64(val) => val,
-            Self::Ptr(val) => val,
-        }
-    }
 }
 impl HeapPtr for HeapRefView {
     fn get_ptr(&self) -> *mut Tag {
@@ -166,9 +149,6 @@ impl HeapPtr for HeapRefView {
     }
     fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
         self.heap_ptr().get_gc_ptrs(heap)
-    }
-    fn get_gc_f64s(&mut self, heap: &Heap) -> Vec<*mut *const f64> {
-        self.heap_ptr_mut().get_gc_f64s(heap)
     }
 }
 
@@ -214,9 +194,6 @@ impl HeapPtr for AnyPtr {
     }
     fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
         self.view().get_gc_ptrs(heap)
-    }
-    fn get_gc_f64s(&mut self, heap: &Heap) -> Vec<*mut *const f64> {
-        self.view().get_gc_f64s(heap)
     }
 }
 
@@ -265,9 +242,6 @@ impl<T: HasTag> HeapPtr for TypePtr<T> {
 
     fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
         self.get().get_data_ptrs(heap)
-    }
-    fn get_gc_f64s(&mut self, heap: &Heap) -> Vec<*mut *const f64> {
-        self.get_mut().get_data_f64s(heap)
     }
 }
 

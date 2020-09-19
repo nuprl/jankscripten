@@ -1,3 +1,4 @@
+pub use super::env::EnvPtr;
 pub use super::object_ptr::{ObjectDataPtr, ObjectPtr};
 pub use super::string::StringPtr;
 use super::{AnyPtr, HeapPtr, Tag, TypePtr, TypeTag};
@@ -10,9 +11,6 @@ pub trait HasTag {
         Tag::with_type(Self::TYPE_TAG)
     }
     fn get_data_ptrs(&self, _heap: &Heap) -> Vec<*mut Tag> {
-        vec![]
-    }
-    fn get_data_f64s(&mut self, _heap: &Heap) -> Vec<*mut *const f64> {
         vec![]
     }
 }
@@ -32,13 +30,6 @@ impl HasTag for HashMap<Key, AnyValue> {
         }
         branches
     }
-    fn get_data_f64s(&mut self, heap: &Heap) -> Vec<*mut *const f64> {
-        let mut branches = vec![];
-        for any in self.values_mut() {
-            branches.extend(any.get_data_f64s(heap));
-        }
-        branches
-    }
 }
 
 pub type ArrayPtr = TypePtr<Vec<AnyValue>>;
@@ -48,13 +39,6 @@ impl HasTag for Vec<AnyValue> {
         let mut branches = vec![];
         for any in self {
             branches.extend(any.get_data_ptrs(heap));
-        }
-        branches
-    }
-    fn get_data_f64s(&mut self, heap: &Heap) -> Vec<*mut *const f64> {
-        let mut branches = vec![];
-        for any in self {
-            branches.extend(any.get_data_f64s(heap));
         }
         branches
     }
@@ -70,11 +54,12 @@ impl HasTag for i32 {
 pub type AnyJSPtr = TypePtr<AnyValue>;
 impl HasTag for AnyValue {
     const TYPE_TAG: TypeTag = TypeTag::Any;
-    fn get_data_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
-        (**self).get_data_ptrs(heap)
-    }
-    fn get_data_f64s(&mut self, heap: &Heap) -> Vec<*mut *const f64> {
-        (**self).get_data_f64s(heap)
+    fn get_data_ptrs(&self, _: &Heap) -> Vec<*mut Tag> {
+        if let Some(p) = (**self).get_ptr() {
+            vec![p]
+        } else {
+            vec![]
+        }
     }
 }
 pub type MutF64Ptr = TypePtr<f64>;
@@ -90,16 +75,11 @@ impl HasTag for AnyPtr {
 }
 
 impl AnyEnum {
-    pub fn get_data_ptrs(&self, _heap: &Heap) -> Vec<*mut Tag> {
-        match self {
-            Self::Ptr(ptr) => vec![ptr.get_ptr()],
-            _ => vec![],
-        }
-    }
-    pub fn get_data_f64s(&mut self, _heap: &Heap) -> Vec<*mut *const f64> {
-        match self {
-            Self::F64(ptr) => vec![&mut *ptr],
-            _ => vec![],
+    pub fn get_ptr(&self) -> Option<*mut Tag> {
+        match *self {
+            Self::Ptr(ptr) => Some(ptr.get_ptr()),
+            Self::F64(ptr) => Some(ptr as *mut Tag),
+            _ => None,
         }
     }
 }

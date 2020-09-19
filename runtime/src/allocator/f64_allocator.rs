@@ -45,4 +45,12 @@ impl F64Allocator {
         std::mem::swap(&mut self.current_space, &mut self.other_space);
         self.next_slot = 0;
     }
+
+    /// check if a pointer is to an f64 pointer by being in our heap
+    pub fn is_f64<T>(&self, ptr: *const T) -> bool {
+        let c = &*self.current_space as *const f64 as usize;
+        let o = &*self.other_space as *const f64 as usize;
+        let p = ptr as usize;
+        (p > c && p < c + LEN) || (p > o && p < o + LEN)
+    }
 }
