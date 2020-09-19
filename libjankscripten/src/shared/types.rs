@@ -3,7 +3,7 @@
 use crate::notwasm::syntax::{FnType, Type as NotWasmType};
 
 // TODO(arjun): should be exactly the same as NotWasm types for a first pass.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
     Any,
     Float,

@@ -3,6 +3,7 @@
 use crate::rts_function::RTSFunction;
 pub use crate::shared::coercions::Coercion;
 pub use crate::shared::Type;
+use im_rc::HashMap;
 use im_rc::HashSet as ImmHashSet;
 
 pub type Id = super::super::javascript::Id;
@@ -50,7 +51,7 @@ pub struct Func {
     pub result_typ: Type,
     pub args_with_typs: Vec<(Id, Type)>,
     pub body: Box<Stmt>,
-    pub free_vars: ImmHashSet<Id>,
+    pub free_vars: HashMap<Id, Type>,
     /// this represents variables which may or may not be defined in this
     /// function that are free (and read) in any child function AND are assigned
     /// at some point in this function or children. these should be boxed
@@ -60,7 +61,7 @@ pub struct Func {
 impl Func {
     pub fn new(args_with_typs: Vec<(Id, Type)>, result_typ: Type, body: Stmt) -> Self {
         let body = Box::new(body);
-        let free_vars = ImmHashSet::new();
+        let free_vars = HashMap::new();
         let assigned_free_children = ImmHashSet::new();
         Func {
             args_with_typs,

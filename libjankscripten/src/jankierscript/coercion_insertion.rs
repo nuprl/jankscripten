@@ -326,7 +326,7 @@ impl InsertCoercions {
                     let (_, into_ty) = self.expr_and_type(Expr::Id(id.clone()), env)?;
                     Ok((
                         Janky_::assign_(
-                            Janky::LValue::Id(id, into_ty),
+                            Janky::LValue::Id(id, into_ty.clone()),
                             self.expr(*e, into_ty.clone(), env)?,
                         ),
                         into_ty,

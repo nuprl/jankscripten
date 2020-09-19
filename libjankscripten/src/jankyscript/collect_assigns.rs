@@ -40,11 +40,13 @@ impl Visitor for CollectAssigns {
         // add these free variables to the free children of our parent so
         // it'll eventually have all the proper free children
         let parent_free_children = self.free_children.last_mut().unwrap();
-        *parent_free_children = parent_free_children.clone().union(func.free_vars.clone());
+        *parent_free_children = parent_free_children
+            .clone()
+            .union(func.free_vars.keys().cloned().collect());
         // this might look similar but it's very different: we care about
         // the assigned vars of ourselves and our children but not our parents,
         // so propagate up children's data
-        let parent_assigned_vars = self.assigned_vars.last_mut().unwrap();
+        let parent_assigned_vars = self.last_assigned_vars();
         *parent_assigned_vars = parent_assigned_vars.clone().union(assigned_vars);
     }
     fn exit_expr(&mut self, expr: &mut Expr, _: &Loc) {
@@ -52,7 +54,7 @@ impl Visitor for CollectAssigns {
             Expr::Assign(lv, _) => {
                 match &**lv {
                     LValue::Id(id, _) => {
-                        let assigned_vars = self.assigned_vars.last_mut().unwrap();
+                        let assigned_vars = self.last_assigned_vars();
                         *assigned_vars = assigned_vars.update(id.clone());
                     }
                     // []/. => boxed already!
@@ -70,5 +72,8 @@ impl CollectAssigns {
             free_children: vec![ImmHashSet::new()],
             assigned_vars: vec![ImmHashSet::new()],
         }
+    }
+    fn last_assigned_vars(&mut self) -> &mut ImmHashSet<Id> {
+        self.assigned_vars.last_mut().unwrap()
     }
 }

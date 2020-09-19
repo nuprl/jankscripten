@@ -49,22 +49,22 @@ struct ClosureConversion {
     free_vars_stack: Vec<HashSet<Id>>,
 }
 
-impl Visitor for ClosureConversion {
-    fn enter_fn(&mut self, func: &mut Func, _: &Loc) -> {
-        free_vars_stack.push(func.free_vars.clone());
-    }
-    fn exit_fn(&mut self, func: &mut Func, _: &Loc) -> {
-        free_vars_stack.pop();
-        func.args_with_typ.insert(0, (Id::Generated("env", 0), Type::Env));
-    }
-    fn exit_expr(&mut self, expr: &mut Expr, _: &Loc) {
-        match expr {
-            Expr::Id(id) if self.free(id) => {
-                //*expr = env_get_(????);
-            }
-        }
-    }
-}
+impl Visitor for ClosureConversion {}
+//    fn enter_fn(&mut self, func: &mut Func, _: &Loc) -> {
+//        free_vars_stack.push(func.free_vars.clone());
+//    }
+//    fn exit_fn(&mut self, func: &mut Func, _: &Loc) -> {
+//        free_vars_stack.pop();
+//        func.args_with_typ.insert(0, (Id::Generated("env", 0), Type::Env));
+//    }
+//    fn exit_expr(&mut self, expr: &mut Expr, _: &Loc) {
+//        match expr {
+//            Expr::Id(id, ty) if self.free(id) => {
+//                //*expr = env_get_(????);
+//            }
+//        }
+//    }
+//}
 impl ClosureConversion {
     fn new() -> Self {
         Self {
