@@ -248,6 +248,44 @@ fn trivial_indirect_call() {
 }
 
 #[test]
+fn function_any() {
+    let program = parse(
+        r#"
+        function callWith5s(anyFunc: any, takesTwoArgs: bool): i32 {
+            var result = 0;
+            var the5 = 5;
+            if (takesTwoArgs) {
+                var arity2 = anyFunc as (i32, i32) -> i32;
+                result = arity2(the5, the5);
+            } else {
+                var arity1 = anyFunc as (i32) -> i32;
+                result = arity1(the5);
+            }
+            return result;
+        }
+        function add2(n: i32): i32 {
+            return n + 2;
+        }
+        function add(n: i32, m: i32): i32 {
+            return n + m;
+        }
+        function main(): i32 {
+            // 7
+            var anyAdd2 = any(add2);
+            var thisIsFalse = false;
+            var a = callWith5s(anyAdd2, thisIsFalse);
+            // 10
+            var anyAdd = any(add);
+            var thisIsTrue = true;
+            var b = callWith5s(anyAdd, thisIsTrue);
+            return a + b;
+        }
+    "#,
+    );
+    expect_notwasm(17, program);
+}
+
+#[test]
 fn basic_ref() {
     let program = parse(
         r#"

@@ -413,10 +413,10 @@ pub fn parse(input: &str) -> Program {
         // matches operators. Our operators are quite straightforward.
         op: Identifier {
             start: satisfy(|c| "+-*/[{:.<,=".chars().any(|x| x == c)),
-            rest: satisfy(|c| "]}.".chars().any(|x| x == c)),
+            rest: satisfy(|c| "]}.<>=".chars().any(|x| x == c)),
             reserved: [
                 "=", "==", "===", "+", "-", "*", "/", "[]", "{}", ":", ".", "*.", "/.", "+.", "-.",
-                "<", ",", "&", "<<",
+                "<", ",", "&", "<<", "->",
             ]
             .iter()
             .map(|x| (*x).into())
