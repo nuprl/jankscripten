@@ -1,9 +1,9 @@
 //! An enum that can store any type known to the runtime
 
 pub use crate::allocator::{AnyPtr, HeapRefView};
+//use crate::closure::{Closure, ClosureVal};
 use crate::heap;
-use std::fmt::{Debug, Formatter, Result as FmtResult};
-use std::ops::{Deref, DerefMut};
+use crate::i64_val::*;
 
 /// this is the actual Any type, however it should never be returned or
 /// accepted as a parameter, because rust will refuse to turn it into an i64
@@ -19,7 +19,14 @@ pub enum AnyEnum {
     F64(*const f64),
     Bool(bool),
     Ptr(AnyPtr),
-    Fn(u32),
+    /// How to hold functions in Any needs to be further discussed. should
+    /// arity be included to arity-mismatch correctly? for now, no
+    ///
+    /// also, eventually we will distinguish functions and closures in any,
+    /// because some functions will not be closure-converted. but not yet
+    ///
+    /// TODO(luna): Fn(Closure)
+    Fn(i32),
     Undefined,
     Null,
 }
@@ -79,43 +86,8 @@ impl std::fmt::Debug for HeapRefView {
     }
 }
 
-#[repr(transparent)]
-#[derive(Clone, Copy)]
-pub struct AnyValue {
-    #[cfg(target_pointer_width = "32")]
-    val: u64,
-    #[cfg(target_pointer_width = "64")]
-    val: u128,
-}
-
-impl Deref for AnyValue {
-    type Target = AnyEnum;
-    fn deref(&self) -> &Self::Target {
-        let ptr = self as *const Self as *const Self::Target;
-        unsafe { &*ptr }
-    }
-}
-impl DerefMut for AnyValue {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        let ptr = self as *mut Self as *mut Self::Target;
-        unsafe { &mut *ptr }
-    }
-}
-impl Debug for AnyValue {
-    fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        write!(f, "{:?} ({})", **self, self.val)
-    }
-}
-impl From<AnyEnum> for AnyValue {
-    fn from(val: AnyEnum) -> Self {
-        unsafe { std::mem::transmute(val) }
-    }
-}
-impl PartialEq<Self> for AnyValue {
-    fn eq(&self, other: &Self) -> bool {
-        **self == **other
-    }
-}
+impl AsI64 for AnyEnum {}
+pub type AnyValue = I64Val<AnyEnum>;
 
 macro_rules! decl_proj_fns {
     ($from_name:ident, $to_name:ident, $any_name:ident, $ty:ty) => {
@@ -126,7 +98,7 @@ macro_rules! decl_proj_fns {
         #[no_mangle]
         pub extern "C" fn $to_name(val: AnyValue) -> $ty {
             if let AnyEnum::$any_name(inner) = *val {
-                inner
+                inner.into()
             } else {
                 log!("cannot unwrap {:?} as {}", *val, stringify!($any_name));
                 panic!();
@@ -157,10 +129,23 @@ pub extern "C" fn f64_to_any(x: f64) -> AnyValue {
     return heap().f64_to_any(x);
 }
 
+//#[no_mangle]
+//pub extern "C" fn any_from_fn<'a>(val: ClosureVal) -> AnyValue {
+//    AnyEnum::Fn(*val).into()
+//}
+//#[no_mangle]
+//pub extern "C" fn any_to_fn<'a>(val: AnyValue) -> ClosureVal {
+//    if let AnyEnum::Fn(inner) = *val {
+//        inner.into()
+//    } else {
+//        panic!("unwrap incorrect type {}", stringify!(Fn));
+//    }
+//}
+
 decl_proj_fns!(any_from_i32, any_to_i32, I32, i32);
 decl_proj_fns!(any_from_bool, any_to_bool, Bool, bool);
 decl_proj_fns!(any_from_ptr, any_to_ptr, Ptr, AnyPtr);
-decl_proj_fns!(any_from_fn, any_to_fn, Fn, u32);
+decl_proj_fns!(any_from_fn, any_to_fn, Fn, i32);
 
 #[no_mangle]
 pub extern "C" fn get_undefined() -> AnyValue {
@@ -178,9 +163,9 @@ mod test {
 
     #[wasm_bindgen_test]
     fn any_size_is_64() {
-        assert_eq!(std::mem::size_of::<AnyValue>(), 8);
-        assert_eq!(std::mem::size_of::<AnyEnum>(), 8);
-        assert_eq!(std::mem::size_of::<Option<AnyEnum>>(), 8);
+        assert_eq!(std::mem::size_of::<AnyValue>(), 8, "AnyValue");
+        assert_eq!(std::mem::size_of::<AnyEnum>(), 8, "AnyEnum");
+        assert_eq!(std::mem::size_of::<Option<AnyEnum>>(), 8, "Option<AnyEnum>");
     }
     #[test]
     fn any_size_is_128() {

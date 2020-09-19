@@ -18,6 +18,7 @@ macro_rules! log {
 
 pub mod any_value;
 pub mod array;
+pub mod closure;
 pub mod ht;
 pub mod object;
 pub mod ops;
@@ -26,6 +27,7 @@ pub mod string;
 
 mod allocator;
 mod coercions;
+mod i64_val;
 mod util;
 
 use crate::allocator::Tag;
