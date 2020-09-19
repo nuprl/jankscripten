@@ -211,7 +211,7 @@ where
         self.visitor.enter_expr(expr, loc);
         match expr {
             // 0
-            Lit(_) | Id(..) => (),
+            Lit(_) | Id(..) | EnvGet(..) => (),
             Func(f) => {
                 let loc = Loc::Node(Context::FunctionBody, loc);
                 self.visitor.enter_fn(f, &loc);
@@ -238,7 +238,8 @@ where
             | Coercion(.., e)
             | NewRef(e, ..)
             | Deref(e)
-            | Store(.., e) => {
+            | Store(.., e)
+            | EnvSet(.., e) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_expr(e, &loc);
             }

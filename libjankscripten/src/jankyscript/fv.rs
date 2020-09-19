@@ -74,7 +74,7 @@ fn fv_expr(expr: &mut Expr) -> IdMap {
     use Expr::*;
     match expr {
         Id(x, ty) => IdMap::unit(x.clone(), ty.clone()),
-        Lit(_) => empty(),
+        Lit(_) | EnvGet(..) | EnvSet(..) => empty(),
         Object(kvs) => IdMap::unions(kvs.iter_mut().map(|(_, v)| fv_expr(v))),
         Array(es) => IdMap::unions(es.iter_mut().map(|e| fv_expr(e))),
         Dot(e, _) | Unary(_, e) | Coercion(_, e) | NewRef(e, ..) | Deref(e) => fv_expr(e),

@@ -394,6 +394,8 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             *expr,
             C::e(move |_s, what| Rope::singleton(Stmt::Store(id, what))),
         ),
+        J::Expr::EnvGet(..) => todo!(),
+        J::Expr::EnvSet(..) => todo!(),
     }
 }
 
@@ -505,14 +507,20 @@ mod test {
             var_(
                 "b".into(),
                 Type::Float,
-                unary_(crate::notwasm::syntax::UnaryOp::Sqrt, Expr::Id("a".into())),
+                unary_(
+                    crate::notwasm::syntax::UnaryOp::Sqrt,
+                    Expr::Id("a".into(), Type::Float),
+                ),
             ),
             expr_(Expr::PrimCall(
                 RTSFunction::LogAny,
                 vec![
                     // mandatory `this` argument
                     Expr::Lit(Lit::Undefined),
-                    coercion_(Coercion::Tag(Type::Float), Expr::Id("b".into())),
+                    coercion_(
+                        Coercion::Tag(Type::Float),
+                        Expr::Id("b".into(), Type::Float),
+                    ),
                 ],
             )),
         ]);

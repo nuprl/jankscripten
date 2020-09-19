@@ -32,9 +32,10 @@
 //!       with no fields used as a "module" (most prototypes, most top-level
 //!       objects)
 
+use super::constructors::*;
 use super::syntax::*;
 use super::walk::*;
-use im_rc::HashSet;
+use im_rc::HashMap;
 
 pub fn closure_convert(program: &mut Stmt) {
     let mut v = ClosureConversion::new();
@@ -46,33 +47,47 @@ struct ClosureConversion {
     // and no, we can't avoid cloning into a stack without not using a
     // visitor. since we always have a &mut, we can't have some list of &s
     // sitting around somewhere
-    free_vars_stack: Vec<HashSet<Id>>,
+    free_vars_stack: Vec<HashMap<Id, (u32, Type)>>,
 }
 
-impl Visitor for ClosureConversion {}
-//    fn enter_fn(&mut self, func: &mut Func, _: &Loc) -> {
-//        free_vars_stack.push(func.free_vars.clone());
-//    }
-//    fn exit_fn(&mut self, func: &mut Func, _: &Loc) -> {
-//        free_vars_stack.pop();
-//        func.args_with_typ.insert(0, (Id::Generated("env", 0), Type::Env));
-//    }
-//    fn exit_expr(&mut self, expr: &mut Expr, _: &Loc) {
-//        match expr {
-//            Expr::Id(id, ty) if self.free(id) => {
-//                //*expr = env_get_(????);
-//            }
-//        }
-//    }
-//}
+impl Visitor for ClosureConversion {
+    fn enter_fn(&mut self, func: &mut Func, _: &Loc) {
+        self.free_vars_stack.push(
+            func.free_vars
+                .iter()
+                .enumerate()
+                .map(|(i, (k, v))| (k.clone(), (i as u32, v.clone())))
+                .collect(),
+        );
+    }
+    fn exit_fn(&mut self, func: &mut Func, _: &Loc) {
+        self.free_vars_stack.pop();
+        // TODO(luna): Type::Env
+        func.args_with_typs
+            .insert(0, (Id::Generated("env", 0), Type::Int));
+    }
+    fn exit_expr(&mut self, expr: &mut Expr, _: &Loc) {
+        match expr {
+            Expr::Id(id, _) if self.free(id) => {
+                *expr = Expr::EnvGet(id.clone());
+            }
+            Expr::Assign(lv, to) => match &**lv {
+                LValue::Id(id, _) if self.free(id) => *expr = env_set_(id.clone(), to.take()),
+                // container covered by Expr::Id
+                _ => (),
+            },
+            _ => (),
+        }
+    }
+}
 impl ClosureConversion {
     fn new() -> Self {
         Self {
             // simply don't "closure convert" *any* variables at the global
-            free_vars_stack: vec![HashSet::new()],
+            free_vars_stack: vec![HashMap::new()],
         }
     }
-    fn free(&self, id: &Id, loc: &Loc) -> bool {
-        self.free_vars_stack.last().unwrap().contains(id)
+    fn free(&self, id: &Id) -> bool {
+        self.free_vars_stack.last().unwrap().contains_key(id)
     }
 }
