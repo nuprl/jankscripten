@@ -6,6 +6,7 @@ use std::alloc::Layout;
 use std::cell::RefCell;
 mod class_list;
 mod constants;
+mod fixed_array;
 mod heap_values;
 mod layout;
 mod object_ptr;
