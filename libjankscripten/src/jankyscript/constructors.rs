@@ -33,8 +33,8 @@ pub fn binary_(op: super::super::notwasm::syntax::BinaryOp, e1: Expr, e2: Expr) 
 pub fn assign_(lv: LValue, e: Expr) -> Expr {
     Expr::Assign(Box::new(lv), Box::new(e))
 }
-pub fn assign_var_(x: Id, e: Expr) -> Expr {
-    Expr::Assign(Box::new(LValue::Id(x)), Box::new(e))
+pub fn assign_var_(x: Id, ty: Type, e: Expr) -> Expr {
+    Expr::Assign(Box::new(LValue::Id(x, ty)), Box::new(e))
 }
 
 pub fn unary_(op: super::super::notwasm::syntax::UnaryOp, e1: Expr) -> Expr {

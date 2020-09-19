@@ -71,7 +71,7 @@ impl Pretty for LValue {
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
         match self {
-            LValue::Id(id) => pp.as_string(id),
+            LValue::Id(id, _) => pp.as_string(id),
             LValue::Dot(e, id) => e
                 .pretty(pp)
                 .append(pp.text("."))
@@ -144,7 +144,7 @@ impl Pretty for Expr {
                     pp.text(",").append(pp.line()),
                 )
                 .braces(),
-            Expr::Id(id) => pp.as_string(id),
+            Expr::Id(id, _) => pp.as_string(id),
             Expr::Dot(e, id) => pp.concat(vec![
                 e.pretty(pp),
                 pp.text("."),

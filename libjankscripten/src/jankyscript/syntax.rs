@@ -40,7 +40,7 @@ impl UnaryOp {
 
 #[derive(Debug, PartialEq)]
 pub enum LValue {
-    Id(Id),
+    Id(Id, Type),
     Dot(Expr, Id),
     Bracket(Expr, Expr),
 }
@@ -85,7 +85,7 @@ pub enum Expr {
     Lit(Lit),
     Array(Vec<Expr>),
     Object(Vec<(Key, Expr)>),
-    Id(Id),
+    Id(Id, Type),
     Dot(Box<Expr>, Id),
     Bracket(Box<Expr>, Box<Expr>),
     Unary(UnaryOp, Box<Expr>),

@@ -51,7 +51,7 @@ impl Visitor for CollectAssigns {
         match expr {
             Expr::Assign(lv, _) => {
                 match &**lv {
-                    LValue::Id(id) => {
+                    LValue::Id(id, _) => {
                         let assigned_vars = self.assigned_vars.last_mut().unwrap();
                         *assigned_vars = assigned_vars.update(id.clone());
                     }

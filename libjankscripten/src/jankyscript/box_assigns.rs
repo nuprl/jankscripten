@@ -41,7 +41,7 @@ impl Visitor for BoxVisitor {
                 let real_name = name.clone();
                 *name = self.ng.fresh("to_box");
                 func.body = Box::new(block_(vec![
-                    var_to_new_ref(real_name, ty, Expr::Id(name.clone())),
+                    var_to_new_ref(real_name, ty, Expr::Id(name.clone(), ty.clone())),
                     (*func.body).take(),
                 ]));
             }
@@ -52,10 +52,12 @@ impl Visitor for BoxVisitor {
     }
     fn exit_expr(&mut self, expr: &mut Expr, _: &Loc) {
         match expr {
-            Expr::Id(id) if self.should_box(id) => *expr = deref_(expr.take()),
+            Expr::Id(id, _) if self.should_box(id) => *expr = deref_(expr.take()),
             Expr::Assign(lv, to) => {
                 match &**lv {
-                    LValue::Id(id) if self.should_box(id) => *expr = store_(id.clone(), to.take()),
+                    LValue::Id(id, _) if self.should_box(id) => {
+                        *expr = store_(id.clone(), to.take())
+                    }
                     // []/. => boxed already!
                     _ => (),
                 }

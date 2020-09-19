@@ -211,7 +211,7 @@ where
         self.visitor.enter_expr(expr, loc);
         match expr {
             // 0
-            Lit(_) | Id(_) => (),
+            Lit(_) | Id(..) => (),
             Func(f) => {
                 let loc = Loc::Node(Context::FunctionBody, loc);
                 self.visitor.enter_fn(f, &loc);
@@ -272,7 +272,7 @@ where
     pub fn walk_lval(&mut self, lval: &mut LValue, loc: &Loc) {
         use LValue::*;
         match lval {
-            Id(_) => (),
+            Id(..) => (),
             Dot(e, ..) => {
                 let loc = Loc::Node(Context::LValue, loc);
                 self.walk_expr(e, &loc);

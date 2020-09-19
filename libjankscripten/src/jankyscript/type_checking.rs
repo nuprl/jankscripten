@@ -287,10 +287,11 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
 
             // whether or not rval can go in lval depends on what lval is
             match &**lval {
-                LValue::Id(id) => {
+                LValue::Id(id, ty) => {
                     // what type is id?
                     let id_ty = lookup(&env, &id)?;
-                    ensure("variable assignment", id_ty, rval_ty.clone())?;
+                    ensure("rvalue assignment", ty.clone(), rval_ty.clone())?;
+                    ensure("lvalue assignment", ty.clone(), id_ty)?;
                     Ok(rval_ty)
                 }
                 LValue::Dot(e, _id) => {
@@ -341,7 +342,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             Ok(to)
         }
         Expr::Lit(l) => Ok(type_check_lit(&l)),
-        Expr::Id(id) => lookup(&env, &id),
+        Expr::Id(id, ty) => ensure("id get", ty.clone(), lookup(&env, &id)?),
         Expr::Object(props) => {
             // type check each property
             for (_key, val) in props {

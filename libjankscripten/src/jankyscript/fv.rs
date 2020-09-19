@@ -9,7 +9,7 @@ fn empty() -> IdSet {
 fn fv_lv(lv: &mut LValue) -> IdSet {
     use LValue::*;
     match lv {
-        Id(x) => IdSet::unit(x.clone()),
+        Id(x, _) => IdSet::unit(x.clone()),
         // the "id" in dot is really a field
         Dot(e, _) => fv_expr(e),
         Bracket(e1, e2) => fv_expr(e1).union(fv_expr(e2)),
@@ -73,7 +73,7 @@ fn fv_stmt(stmt: &mut Stmt) -> IdSet {
 fn fv_expr(expr: &mut Expr) -> IdSet {
     use Expr::*;
     match expr {
-        Id(x) => IdSet::unit(x.clone()),
+        Id(x, _) => IdSet::unit(x.clone()),
         Lit(_) => empty(),
         Object(kvs) => IdSet::unions(kvs.iter_mut().map(|(_, v)| fv_expr(v))),
         Array(es) => IdSet::unions(es.iter_mut().map(|e| fv_expr(e))),

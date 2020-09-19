@@ -288,7 +288,7 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             *e,
             C::a(move |s, a| cxt.recv_a(s, coercion_to_expr(coercion, a))),
         ),
-        J::Expr::Id(x) => cxt.recv_a(s, Atom::Id(x)),
+        J::Expr::Id(x, _) => cxt.recv_a(s, Atom::Id(x)),
         J::Expr::Func(f) => {
             let (param_names, param_tys): (Vec<_>, Vec<_>) = f.args_with_typs.into_iter().unzip();
             let function = Function {
@@ -325,7 +325,7 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             // but differently. see this discussion on slack:
             // https://plasma.slack.com/archives/C013E3BK7QA/p1596656877066800
             C::a(|s, a| match *lv {
-                J::LValue::Id(id) => {
+                J::LValue::Id(id, _) => {
                     Rope::singleton(Stmt::Assign(id, atom_(a.clone()))).append(cxt.recv_a(s, a))
                 }
                 J::LValue::Dot(container, field) => {
