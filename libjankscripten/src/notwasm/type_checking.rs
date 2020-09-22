@@ -289,7 +289,8 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
         }
         Expr::PrimCall(prim, args) => {
             match prim.janky_typ().notwasm_typ() {
-                Type::Fn(fn_ty) => {
+                // it's not a closure, but notwasm_typ always thinks it is
+                Type::Closure(fn_ty) => {
                     let arg_tys = args
                         .into_iter()
                         .map(|a| type_check_atom(env, a))
@@ -318,11 +319,41 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
                 _ => error!("primitive is not a function ({:?})", prim),
             }
         }
-        Expr::Call(id_f, actuals) | Expr::ClosureCall(id_f, actuals) => {
+        Expr::Call(id_f, actuals) => {
             let got_f = lookup(env, id_f)?;
             if let Type::Fn(fn_ty) = got_f {
                 // arity check
                 if actuals.len() != fn_ty.args.len() {
+                    return Err(TypeCheckingError::ArityMismatch(
+                        id_f.clone(),
+                        actuals.len() - fn_ty.args.len(),
+                    ));
+                }
+
+                // match formals and actuals
+                let mut nth = 0;
+                for (actual, formal) in actuals.iter().zip(fn_ty.args.iter()) {
+                    let got = lookup(env, actual)?;
+                    let _ = ensure(
+                        &format!("call {:?} (argument #{})", id_f, nth),
+                        formal.clone(),
+                        got,
+                    )?;
+                    nth += 1;
+                }
+
+                // return type or any
+                // ??? MMG do we need a void/unit type?
+                Ok(fn_ty.result.map(|b| *b).unwrap_or(Type::Any))
+            } else {
+                Err(TypeCheckingError::ExpectedFunction(id_f.clone(), got_f))
+            }
+        }
+        Expr::ClosureCall(id_f, actuals) => {
+            let got_f = lookup(env, id_f)?;
+            if let Type::Closure(fn_ty) = got_f {
+                // arity check
+                if actuals.len() + 1 != fn_ty.args.len() {
                     return Err(TypeCheckingError::ArityMismatch(
                         id_f.clone(),
                         actuals.len() + 1 - fn_ty.args.len(),
@@ -355,8 +386,13 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
         }
         Expr::Atom(a) => type_check_atom(env, a),
         // this is really an existential type but for now i'm gonna try to
-        // get away with pretending it's a function type
-        Expr::Closure(id, _) => lookup(env, id),
+        // get away with pretending Type::Closure((i32) -> i32; [i32]) ==
+        // Type::Closure((i32 -> i32; [])
+        Expr::Closure(id, _) => match lookup(env, id) {
+            Ok(Type::Fn(fn_ty)) => Ok(Type::Closure(fn_ty)),
+            Ok(got) => Err(TypeCheckingError::ExpectedFunction(id.clone(), got)),
+            Err(e) => Err(e),
+        },
     }
 }
 

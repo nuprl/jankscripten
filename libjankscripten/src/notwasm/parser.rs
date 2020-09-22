@@ -176,6 +176,9 @@ parser! {
         .or(lang.reserved("sqrt").with(lang.parens(atom(lang)))
             .map(|a| Expr::Atom(ctor::sqrt_(a))))
         .or(lang.reserved_op("newRef").with(lang.parens(atom(lang).skip(lang.reserved_op(",")).and(type_(lang)))).map(|(val, ty)| Expr::NewRef(val, ty)))
+        .or(attempt(id(lang).skip(lang.reserved_op("!"))
+            .and(lang.parens(sep_by(id(lang), lang.reserved_op(","))))
+            .map(|(f, args)| Expr::ClosureCall(f, args))))
         .or(attempt(id(lang)
             .and(lang.parens(sep_by(id(lang), lang.reserved_op(","))))
             .map(|(f, args)| Expr::Call(f, args))))
@@ -426,11 +429,11 @@ pub fn parse(input: &str) -> Program {
         // not bothered to understand it. But, it ought to define a pattern that
         // matches operators. Our operators are quite straightforward.
         op: Identifier {
-            start: satisfy(|c| "+-*/[{:.<,=".chars().any(|x| x == c)),
+            start: satisfy(|c| "+-*/[{:.<,=!".chars().any(|x| x == c)),
             rest: satisfy(|c| "]}.<>=".chars().any(|x| x == c)),
             reserved: [
                 "=", "==", "===", "+", "-", "*", "/", "[]", "{}", ":", ".", "*.", "/.", "+.", "-.",
-                "<", ",", "&", "<<", "->",
+                "<", ",", "&", "<<", "->", "!",
             ]
             .iter()
             .map(|x| (*x).into())

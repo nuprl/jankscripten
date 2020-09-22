@@ -63,7 +63,11 @@ pub unsafe extern "C" fn gc_exit_fn() {
 pub fn set_in_current_shadow_frame_slot(ptr: *mut Tag, slot: usize) {
     heap().set_in_current_shadow_frame_slot(slot, ptr);
 }
-
+#[no_mangle]
+pub fn set_closure_in_current_shadow_frame_slot(closure: closure::ClosureVal, slot: usize) {
+    let env = closure.0;
+    heap().set_in_current_shadow_frame_slot(slot, env.get_ptr());
+}
 #[no_mangle]
 pub fn set_any_in_current_shadow_frame_slot(any: AnyValue, slot: usize) {
     heap().set_any_in_current_shadow_frame_slot(slot, any);

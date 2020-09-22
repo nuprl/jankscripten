@@ -64,6 +64,12 @@ pub fn get_rt_bindings() -> BindMap {
         vec![Any, I32],
         None,
     );
+    insert(
+        m,
+        "set_closure_in_current_shadow_frame_slot",
+        vec![clos_ty_(vec![], None), I32],
+        None,
+    );
     insert(m, "any_to_f64", vec![Any], F64);
     insert(m, "f64_to_any", vec![F64], Any);
     // length -> Env
@@ -73,6 +79,17 @@ pub fn get_rt_bindings() -> BindMap {
     insert(m, "env_init_at", vec![I32, I32, Any], I32);
     // this could be 2 wasm instructions
     insert(m, "closure_new", vec![I32, I32], clos_ty_(vec![], None));
+    // i tried writing these 2 in wasm too but it got more complicated than i'd
+    // like; i don't think i'd write it smarter than the rust compiler inlining
+    // aside; and i hope we can inline the runtime automatically at some point
+    // -> Env
+    insert(m, "closure_env", vec![clos_ty_(vec![], None)], I32);
+    insert(
+        m,
+        "closure_func",
+        vec![clos_ty_(vec![], None)],
+        fn_ty_(vec![], None),
+    );
     for rts in RTSFunction::iter() {
         if let RTSFunction::Todo(_) = rts {
             // can't !let

@@ -17,6 +17,7 @@ const JNKS_STRINGS_IDX: u32 = 0;
 const ANY_SIZE: u32 = 8;
 /// also bytes
 const TAG_SIZE: u32 = 4;
+const LENGTH_SIZE: u32 = 4;
 
 type FuncTypeMap = HashMap<(Vec<ValueType>, Option<ValueType>), u32>;
 
@@ -302,23 +303,14 @@ impl<'a> Translate<'a> {
         }
     }
 
-    /// Produces an instruction that passes a GC root to the runtime system. There are two kinds
-    /// of roots: pointers (I32) and Any-typed values (I64) that may contain pointers, thus we
-    /// dispatch on the type of the GC root.
-    fn set_in_current_shadow_frame_slot(&self, ty: &N::Type) -> Instruction {
+    /// Pushes an instruction that passes a GC root to the runtime
+    /// system. There are multiple kinds of roots that might contain pointers,
+    /// thus we dispatch on the type of the GC root.
+    fn set_in_current_shadow_frame_slot(&mut self, ty: &N::Type) {
         match ty {
-            N::Type::Any => Call(
-                *self
-                    .rt_indexes
-                    .get("set_any_in_current_shadow_frame_slot")
-                    .unwrap(),
-            ),
-            _ => Call(
-                *self
-                    .rt_indexes
-                    .get("set_in_current_shadow_frame_slot")
-                    .unwrap(),
-            ),
+            N::Type::Any => self.rt_call("set_any_in_current_shadow_frame_slot"),
+            N::Type::Closure(..) => self.rt_call("set_closure_in_current_shadow_frame_slot"),
+            _ => self.rt_call("set_in_current_shadow_frame_slot"),
         }
     }
 
@@ -375,8 +367,7 @@ impl<'a> Translate<'a> {
                 } else {
                     self.out.push(TeeLocal(index));
                     self.out.push(I32Const(index.try_into().unwrap()));
-                    self.out
-                        .push(self.set_in_current_shadow_frame_slot(var_stmt.ty()));
+                    self.set_in_current_shadow_frame_slot(var_stmt.ty());
                 }
             }
             N::Stmt::Expression(expr) => {
@@ -397,7 +388,7 @@ impl<'a> Translate<'a> {
                         } else {
                             self.out.push(TeeLocal(n));
                             self.out.push(I32Const((n).try_into().unwrap()));
-                            self.out.push(self.set_in_current_shadow_frame_slot(&ty));
+                            self.set_in_current_shadow_frame_slot(&ty);
                         }
                     }
                     IdIndex::Global(n) => {
@@ -576,12 +567,9 @@ impl<'a> Translate<'a> {
                     Some(IdIndex::Fun(_)) => panic!("closures are always given a name"),
                     Some(IdIndex::Local(i, t)) => {
                         self.out.push(GetLocal(i));
-                        // environment is 4 bytes at the start
-                        self.out.push(I64Const(0xffff0000));
-                        self.out.push(I64Xor);
-                        self.out.push(I32WrapI64);
+                        self.rt_call("closure_env");
                         let (params_tys, ret_ty) = match t {
-                            N::Type::Fn(fn_ty) => {
+                            N::Type::Closure(fn_ty) => {
                                 (types_as_wasm(&fn_ty.args), option_as_wasm(&fn_ty.result))
                             }
                             _ => panic!("identifier {:?} is not function-typed", f),
@@ -594,10 +582,7 @@ impl<'a> Translate<'a> {
                             self.get_id(arg);
                         }
                         self.out.push(GetLocal(i));
-                        // function is 2 bytes after env
-                        self.out.push(I64Const(0x0000ff00));
-                        self.out.push(I64Xor);
-                        self.out.push(I32WrapI64);
+                        self.rt_call("closure_func");
                         self.out.push(CallIndirect(*ty_index, 0));
                     }
                     _ => panic!("expected Func ID ({})", f),
@@ -617,6 +602,7 @@ impl<'a> Translate<'a> {
             }
             N::Expr::Closure(id, env) => {
                 // first, construct the environment
+                self.out.push(I32Const(env.len() as i32));
                 self.rt_call("env_alloc");
                 // init all the
                 for (i, (a, ty)) in env.iter_mut().enumerate() {
@@ -738,8 +724,9 @@ impl<'a> Translate<'a> {
                     ValueType::F32 => panic!("invalid type"),
                     ValueType::F64 => panic!("invalid in-any type"),
                 };
-                let offset = TAG_SIZE + *index * ANY_SIZE + ty_offset;
+                let offset = TAG_SIZE + LENGTH_SIZE + *index * ANY_SIZE + ty_offset;
                 // make sure you don't accidentally put ty_offset here
+                println!("{}", offset);
                 self.load(ty.clone(), offset);
             }
         }

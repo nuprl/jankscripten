@@ -182,7 +182,7 @@ fn closures() {
             var y = 6;
             var z = 7;
             var F = clos(acceptEnv, x: i32, y: i32, z: i32);
-            var res = F(); // what goes here???
+            var res = F!();
             return res;
         }
     "#,
