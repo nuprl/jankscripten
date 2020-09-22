@@ -20,7 +20,7 @@ use crate::AnyEnum;
 ///    the compiler and turn EnvGet into (local.get 0, typ.load STATIC_OFFSET)
 ///
 /// Tag | u32 | [EnvItem]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(transparent)]
 pub struct EnvPtr {
     ptr: *mut Tag,

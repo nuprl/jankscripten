@@ -10,7 +10,7 @@ use super::Tag;
 /// you must not obtain a reference to any of its fields, since it is
 /// unaligned. https://github.com/rust-lang/rust/issues/27060 it is unaligned
 /// because of the need to fit it in Any
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(packed(2))]
 pub struct Closure(pub EnvPtr, pub u16);
 impl AsI64 for Closure {}

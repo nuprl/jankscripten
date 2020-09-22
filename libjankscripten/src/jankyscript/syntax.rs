@@ -79,6 +79,9 @@ impl Func {
     pub fn arg_names(&self) -> impl Iterator<Item = &Id> {
         self.args_with_typs.iter().map(|(x, _)| x)
     }
+    pub fn take(&mut self) -> Self {
+        std::mem::replace(self, Func::new(Vec::new(), Type::Any, Stmt::Empty))
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -95,6 +98,7 @@ pub enum Expr {
     Call(Box<Expr>, Vec<Expr>),
     PrimCall(RTSFunction, Vec<Expr>),
     Func(Func),
+    Closure(Func, Vec<(Expr, Type)>),
     Coercion(Coercion, Box<Expr>),
     /// Create a new heap-allocated box, with contents of type T.
     NewRef(Box<Expr>, Type),
@@ -102,8 +106,8 @@ pub enum Expr {
     Deref(Box<Expr>),
     /// Update the contents of a heap-allocated box
     Store(Id, Box<Expr>),
-    /// the ID you're getting
-    EnvGet(Id),
+    /// the index of the variable
+    EnvGet(u32, Type),
 }
 
 #[derive(Debug, PartialEq)]

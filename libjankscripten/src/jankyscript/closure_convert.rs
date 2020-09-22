@@ -42,11 +42,7 @@ pub fn closure_convert(program: &mut Stmt) {
 }
 
 struct ClosureConversion {
-    // this could probly be in Loc but it's not used anywhere else (yet)
-    // and no, we can't avoid cloning into a stack without not using a
-    // visitor. since we always have a &mut, we can't have some list of &s
-    // sitting around somewhere
-    free_vars_stack: Vec<HashMap<Id, (u32, Type)>>,
+    free_vars_stack: Vec<HashMap<Id, u32>>,
 }
 
 impl Visitor for ClosureConversion {
@@ -55,7 +51,7 @@ impl Visitor for ClosureConversion {
             func.free_vars
                 .iter()
                 .enumerate()
-                .map(|(i, (k, v))| (k.clone(), (i as u32, v.clone())))
+                .map(|(i, (k, _))| (k.clone(), i as u32))
                 .collect(),
         );
     }
@@ -67,8 +63,24 @@ impl Visitor for ClosureConversion {
     }
     fn exit_expr(&mut self, expr: &mut Expr, _: &Loc) {
         match expr {
-            Expr::Id(id, _) if self.free(id) => {
-                *expr = Expr::EnvGet(id.clone());
+            Expr::Id(id, ty) => {
+                if let Some(e) = self.compile_id(id, ty.clone()) {
+                    *expr = e;
+                }
+            }
+            Expr::Func(func) => {
+                // remember which variables should be passed on from env vs
+                // from stack. im_rc hashmap iter is guaranteed to be
+                // consistent for the same data
+                let env = func
+                    .free_vars
+                    .iter()
+                    .map(|(id, ty)| match self.compile_id(id, ty.clone()) {
+                        Some(e) => (e, ty.clone()),
+                        None => (Expr::Id(id.clone(), ty.clone()), ty.clone()),
+                    })
+                    .collect();
+                *expr = Expr::Closure(func.take(), env);
             }
             // assigns should have been boxed so they will never be assigned
             // to free
@@ -83,7 +95,12 @@ impl ClosureConversion {
             free_vars_stack: vec![HashMap::new()],
         }
     }
-    fn free(&self, id: &Id) -> bool {
-        self.free_vars_stack.last().unwrap().contains_key(id)
+    fn free_vars(&self) -> &HashMap<Id, u32> {
+        self.free_vars_stack.last().unwrap()
+    }
+    fn compile_id(&self, id: &Id, ty: Type) -> Option<Expr> {
+        self.free_vars()
+            .get(id)
+            .and_then(|i| Some(Expr::EnvGet(*i, ty.clone())))
     }
 }

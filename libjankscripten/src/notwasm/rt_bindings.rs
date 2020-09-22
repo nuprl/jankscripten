@@ -72,12 +72,17 @@ pub fn get_rt_bindings() -> BindMap {
     // (env: Env, index, item) -> Env
     insert(m, "env_init_at", vec![I32, I32, Any], I32);
     // this could be 2 wasm instructions
-    insert(m, "closure_new", vec![I32, I32], fn_ty_(vec![], None));
+    insert(m, "closure_new", vec![I32, I32], clos_ty_(vec![], None));
     for rts in RTSFunction::iter() {
         if let RTSFunction::Todo(_) = rts {
             // can't !let
         } else {
-            m.insert(rts.name().into(), compile_ty(rts.janky_typ()));
+            // TODO(luna): this is just the worst
+            if let Closure(ty) = compile_ty(rts.janky_typ()) {
+                m.insert(rts.name().into(), Fn(ty));
+            } else {
+                panic!("rts non-function");
+            }
         }
     }
     map

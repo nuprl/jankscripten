@@ -21,6 +21,7 @@ impl Pretty for Type {
             Type::Any => pp.text("any"),
             Type::Ref(t) => pp.concat(vec![pp.text("ref"), t.pretty(pp).parens()]),
             Type::Fn(fn_t) => fn_t.pretty(pp),
+            Type::Closure(fn_t) => fn_t.pretty(pp),
         }
     }
 }
@@ -238,7 +239,7 @@ impl Pretty for Expr {
                 ])
                 .braces(),
             ]),
-            Expr::Call(f, args) => pp.concat(vec![
+            Expr::Call(f, args) | Expr::ClosureCall(f, args) => pp.concat(vec![
                 pp.as_string(f),
                 pp.intersperse(
                     args.iter().map(|a| pp.as_string(a)),

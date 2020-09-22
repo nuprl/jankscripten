@@ -134,11 +134,17 @@ pub fn func_i32_(body: Stmt) -> Function {
 pub fn id_<S: Into<String>>(a: S) -> Id {
     Id::Named(a.into())
 }
-pub fn fn_ty_<I: Into<Option<Type>>>(b: Vec<Type>, a: I) -> Type {
-    Type::Fn(FnType {
+pub fn fn_type_<I: Into<Option<Type>>>(b: Vec<Type>, a: I) -> FnType {
+    FnType {
         args: b,
         result: a.into().map(|b| Box::new(b)),
-    })
+    }
+}
+pub fn fn_ty_<I: Into<Option<Type>>>(b: Vec<Type>, a: I) -> Type {
+    Type::Fn(fn_type_(b, a))
+}
+pub fn clos_ty_<I: Into<Option<Type>>>(b: Vec<Type>, a: I) -> Type {
+    Type::Closure(fn_type_(b, a))
 }
 pub fn ref_ty_(a: Type) -> Type {
     Type::Ref(Box::new(a))

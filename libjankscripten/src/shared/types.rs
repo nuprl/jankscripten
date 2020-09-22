@@ -26,7 +26,7 @@ impl Type {
             Type::Float => NotWasmType::F64,
             Type::Int => NotWasmType::I32,
             Type::Bool => NotWasmType::Bool,
-            Type::Function(arg_typs, ret_ty) => NotWasmType::Fn(FnType {
+            Type::Function(arg_typs, ret_ty) => NotWasmType::Closure(FnType {
                 args: arg_typs.iter().map(|t| t.notwasm_typ()).collect(),
                 result: Some(Box::new(ret_ty.notwasm_typ())),
             }),

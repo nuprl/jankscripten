@@ -290,18 +290,29 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
         ),
         J::Expr::Id(x, _) => cxt.recv_a(s, Atom::Id(x)),
         J::Expr::Func(f) => {
-            let (param_names, param_tys): (Vec<_>, Vec<_>) = f.args_with_typs.into_iter().unzip();
-            let function = Function {
-                body: Stmt::Block(compile_stmt(s, *f.body).into_iter().collect()),
-                params: param_names,
-                fn_type: FnType {
-                    args: param_tys.into_iter().map(|t| compile_ty(t)).collect(),
-                    result: Some(Box::new(compile_ty(f.result_typ))),
-                },
-            };
-            let f = s.fresh();
-            s.new_function(f.clone(), function);
-            cxt.recv_a(s, Atom::Id(f))
+            let name = s.fresh();
+            let f = compile_function(s, f);
+            s.new_function(name.clone(), f);
+            cxt.recv_a(s, Atom::Id(name))
+        }
+        J::Expr::Closure(f, env) => {
+            let name = s.fresh();
+            let f = compile_function(s, f);
+            s.new_function(name.clone(), f);
+            // compile the environment, adapted from compile_exprs
+            let mut env_items = Vec::new();
+            let mut stmts = Rope::new();
+            for (e, ty) in env.into_iter() {
+                stmts = stmts.append(compile_expr(
+                    s,
+                    e,
+                    C::a(|_s, x| {
+                        env_items.push((x, compile_ty(ty)));
+                        Rope::Nil
+                    }),
+                ));
+            }
+            stmts.append(cxt.recv_e(s, Expr::Closure(name, env_items)))
         }
         J::Expr::Binary(op, e1, e2) => compile_expr(
             s,
@@ -377,7 +388,7 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             *fun,
             C::id(move |s, fun_id| {
                 compile_exprs(s, args, move |s, arg_ids| {
-                    cxt.recv_e(s, Expr::Call(fun_id, arg_ids))
+                    cxt.recv_e(s, Expr::ClosureCall(fun_id, arg_ids))
                 })
             }),
         ),
@@ -394,7 +405,7 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             *expr,
             C::e(move |_s, what| Rope::singleton(Stmt::Store(id, what))),
         ),
-        J::Expr::EnvGet(..) => todo!(),
+        J::Expr::EnvGet(i, ty) => cxt.recv_a(s, Atom::EnvGet(i, compile_ty(ty))),
     }
 }
 
@@ -461,6 +472,18 @@ fn compile_stmt_block(s: &mut S, stmt: J::Stmt) -> Stmt {
 }
 fn rope_to_block(rope: Rope<Stmt>) -> Stmt {
     Stmt::Block(rope.into_iter().collect())
+}
+
+fn compile_function<'a>(s: &'a mut S, f: J::Func) -> Function {
+    let (param_names, param_tys): (Vec<_>, Vec<_>) = f.args_with_typs.into_iter().unzip();
+    Function {
+        body: Stmt::Block(compile_stmt(s, *f.body).into_iter().collect()),
+        params: param_names,
+        fn_type: FnType {
+            args: param_tys.into_iter().map(|t| compile_ty(t)).collect(),
+            result: Some(Box::new(compile_ty(f.result_typ))),
+        },
+    }
 }
 
 pub fn from_jankyscript(janky_program: J::Stmt) -> Program {

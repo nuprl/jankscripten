@@ -55,6 +55,10 @@ pub enum Type {
     /// If `v : Fn(fn_type)` then `v` is an `i32`, which is an index of a
     /// function with the type `fn_type`.
     Fn(FnType),
+    /// If `v : Closure(fn_type)` then `v` is an `i64`, which is an EnvPtr
+    /// followed by a 16-bit truncation of a function pointer followed by 16
+    /// garbage bits
+    Closure(FnType),
     /// If `v : Any` then `v` is an `AnyEnum`.
     Any,
     /// If `v : Ref(I32)` then `v` is a `*const Tag` and `v.type_tag == I32`.
@@ -79,6 +83,7 @@ impl Type {
             Type::Bool => false,
             Type::DynObject => true,
             Type::Fn(_) => false,
+            Type::Closure(_) => true,
             Type::Ref(_) => true,
             Type::Any => true,
         }
@@ -246,7 +251,9 @@ pub enum Expr {
     /// TODO(luna): we need to detect out-of-bounds and turn into a hashmap
     ArraySet(Atom, Atom, Atom),
     HTSet(Atom, Atom, Atom),
+    /// right now, never constructed from jankyscript, only in tests
     Call(Id, Vec<Id>),
+    ClosureCall(Id, Vec<Id>),
     PrimCall(RTSFunction, Vec<Atom>),
     ObjectEmpty,
     /// ObjectSet(obj, field_name, value, typ) is obj.field_name: typ = value;
@@ -373,6 +380,7 @@ impl std::fmt::Display for Type {
                 Bool => "bool",
                 DynObject => "DynObject",
                 Fn(..) => "fn",
+                Closure(..) => "clos",
                 Any => "any",
             }
         )

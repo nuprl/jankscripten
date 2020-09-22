@@ -547,7 +547,7 @@ impl<'a> Translate<'a> {
                 for arg in args {
                     self.get_id(arg);
                 }
-                match self.id_env.get(f) {
+                match self.id_env.get(f).cloned() {
                     Some(IdIndex::Fun(i)) => {
                         // we index in notwasm by 0 = first user function. but
                         // wasm indexes by 0 = first rt function. so we have
@@ -555,7 +555,7 @@ impl<'a> Translate<'a> {
                         self.out.push(Call(i + self.rt_indexes.len() as u32));
                     }
                     Some(IdIndex::Local(i, t)) => {
-                        self.out.push(GetLocal(*i));
+                        self.out.push(GetLocal(i));
                         let (params_tys, ret_ty) = match t {
                             N::Type::Fn(fn_ty) => {
                                 (types_as_wasm(&fn_ty.args), option_as_wasm(&fn_ty.result))
@@ -566,6 +566,38 @@ impl<'a> Translate<'a> {
                             .type_indexes
                             .get(&(params_tys, ret_ty))
                             .expect("function type was not indexed");
+                        self.out.push(CallIndirect(*ty_index, 0));
+                    }
+                    _ => panic!("expected Func ID ({})", f),
+                };
+            }
+            N::Expr::ClosureCall(f, args) => {
+                match self.id_env.get(f).cloned() {
+                    Some(IdIndex::Fun(_)) => panic!("closures are always given a name"),
+                    Some(IdIndex::Local(i, t)) => {
+                        self.out.push(GetLocal(i));
+                        // environment is 4 bytes at the start
+                        self.out.push(I64Const(0xffff0000));
+                        self.out.push(I64Xor);
+                        self.out.push(I32WrapI64);
+                        let (params_tys, ret_ty) = match t {
+                            N::Type::Fn(fn_ty) => {
+                                (types_as_wasm(&fn_ty.args), option_as_wasm(&fn_ty.result))
+                            }
+                            _ => panic!("identifier {:?} is not function-typed", f),
+                        };
+                        let ty_index = self
+                            .type_indexes
+                            .get(&(params_tys, ret_ty))
+                            .expect("function type was not indexed");
+                        for arg in args {
+                            self.get_id(arg);
+                        }
+                        self.out.push(GetLocal(i));
+                        // function is 2 bytes after env
+                        self.out.push(I64Const(0x0000ff00));
+                        self.out.push(I64Xor);
+                        self.out.push(I32WrapI64);
                         self.out.push(CallIndirect(*ty_index, 0));
                     }
                     _ => panic!("expected Func ID ({})", f),
@@ -804,6 +836,7 @@ impl N::Type {
             Array => ValueType::I32,
             DynObject => ValueType::I32,
             Fn(..) => ValueType::I32,
+            Closure(..) => ValueType::I64,
             Ref(..) => ValueType::I32,
         }
     }

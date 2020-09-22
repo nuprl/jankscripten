@@ -89,7 +89,7 @@ fn fv_expr(expr: &mut Expr) -> IdMap {
             f.free_vars = fv.clone();
             fv
         }
-        Store(..) => panic!("fv happens before box_assigns"),
+        Store(..) | Closure(..) => panic!("fv happens before box_assigns"),
     }
 }
 

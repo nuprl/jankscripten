@@ -5,6 +5,6 @@ var Object: DynObject = 0;
 var global: DynObject = 0;
 function jnks_init() {
     Object = {};
-    Object.create = any(rt(object_create));
+    //Object.create = any(rt(object_create));
     global = {};
 }

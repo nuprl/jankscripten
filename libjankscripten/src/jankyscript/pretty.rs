@@ -219,7 +219,13 @@ impl Pretty for Expr {
                 .append(pp.as_string(id))
                 .append(pp.text(" = "))
                 .append(e.pretty(pp)),
-            Expr::EnvGet(id) => pp.text("env.").append(pp.as_string(id)),
+            Expr::EnvGet(i, _) => pp.text("env.").append(pp.as_string(i)),
+            Expr::Closure(_, env) => pp.text("clos").append(
+                pp.text("TODO(luna):")
+                    .append(", ")
+                    .append(pp.intersperse(env.iter().map(|(e, _)| e.pretty(pp)), pp.text(", ")))
+                    .parens(),
+            ),
         }
     }
 }

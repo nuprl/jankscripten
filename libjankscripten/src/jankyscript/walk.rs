@@ -263,6 +263,11 @@ where
                 self.walk_expr(ea, &loc);
                 self.walk_expr(eb, &loc);
             }
+            Closure(_, has_es) => {
+                for (e, _) in has_es {
+                    self.walk_expr(e, loc);
+                }
+            }
         }
         self.visitor.exit_expr(expr, loc);
     }
