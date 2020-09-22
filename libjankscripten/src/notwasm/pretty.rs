@@ -196,6 +196,7 @@ impl Pretty for Atom {
                     pp.concat(vec![l.pretty(pp), op.pretty(pp), r.pretty(pp)])
                 }
                 Atom::Deref(id) => pp.concat(vec![pp.text("*"), pp.as_string(id)]),
+                Atom::EnvGet(index, _) => pp.text("env.").append(pp.as_string(index)),
             }),
             pp.text("⚛️"),
         ])
@@ -271,6 +272,19 @@ impl Pretty for Expr {
                 a.pretty(pp).parens(),
             ]),
             Expr::Atom(a) => a.pretty(pp),
+            Expr::Closure(id, env) => pp.text("clos").append(
+                pp.as_string(id)
+                    .append(", ")
+                    .append(
+                        pp.intersperse(
+                            env.iter()
+                                .map(|(a, ty)| a.pretty(pp).append(": ").append(ty.pretty(pp))),
+                            pp.text(", "),
+                        )
+                        .brackets(),
+                    )
+                    .parens(),
+            ),
         }
     }
 }

@@ -1,3 +1,16 @@
+//! allow >32-bit types to be returned on the wasm value stack
+//!
+//! rust uses "out pointer" return style for any values larger than
+//! a pointer. this makes sense for most register machines, because a
+//! pointer is usually also the register size. however, in wasm, values
+//! on the stack can be *bigger* than a pointer. here's that check:
+//! https://github.com/rust-lang/rust/blob/2e0edc0/compiler/rustc_middle/src/ty/layout.rs#L2808-L2810
+//!
+//! by explicitly casting these values to an integer, i assume we make
+//! `is_ignore` true since they're a wasm type; this sidesteps the overzealous
+//! check:
+//! https://github.com/rust-lang/rust/blob/2e0edc0/compiler/rustc_middle/src/ty/layout.rs#L2770-L2772
+
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};

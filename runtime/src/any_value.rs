@@ -68,6 +68,7 @@ impl std::fmt::Display for HeapRefView {
             Class(_) => panic!("shouldn't have object data as value"),
             ObjectPtrPtr(_o) => todo!("TODO(luna): toString"),
             NonPtr32(_) | MutF64(_) | Ptr(_) => panic!("ref inside any"),
+            Env(_) => panic!("not a value"),
         }
     }
 }
@@ -82,6 +83,7 @@ impl std::fmt::Debug for HeapRefView {
             Class(_) => panic!("shouldn't have object data as value"),
             ObjectPtrPtr(_) => write!(f, "DynObject({})", self),
             NonPtr32(_) | MutF64(_) | Ptr(_) => panic!("ref inside any"),
+            Env(_) => panic!("not a value"),
         }
     }
 }

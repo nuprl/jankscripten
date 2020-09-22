@@ -1,14 +1,14 @@
 use super::constants::DATA_OFFSET;
 use super::{Heap, HeapPtr, Tag};
-use crate::{closure::Closure, AnyEnum, AnyPtr};
+use crate::AnyEnum;
 
 /// this is a heap-allocated environment stored in a closure
 ///
 /// as a first pass i've decided to describe environments as an array of
-/// enums. we can definitely optimize this!
+/// anys. we can definitely optimize this!
 ///
-/// 1. we could reduce their size by not padding values (right now it's 128
-///    per item because tag + up to 64 bits of data)
+/// 1. we could avoid boxing floats by using an Any+Float enum (this would
+///    ~double env sizes)
 /// 2. we could lead with all the non ptr values in one clump to be skipped
 ///    by GC
 /// 3. we could separate any, ptr, and closure, into separate arrays that
@@ -33,14 +33,21 @@ impl EnvPtr {
     /// sizeof(EnvItem) * length bytes allocated after the tag!
     /// the array does not have to be initialized, however until it is,
     /// garbage collection is unsound
+    pub unsafe fn new(ptr: *mut Tag) -> Self {
+        Self { ptr }
+    }
+    /// # Safety
+    ///
+    /// ptr should point to an aligned Env tag; there should be 4 +
+    /// sizeof(EnvItem) * length bytes allocated after the tag!
+    /// the array does not have to be initialized, however until it is,
+    /// garbage collection is unsound
     ///
     /// # other considerations
     ///
     /// if you need a zero-length environment, you should use nullptr
-    pub fn new(ptr: *mut Tag, length: u32) -> Self {
-        unsafe {
-            (ptr.add(DATA_OFFSET) as *mut u32).write(length);
-        }
+    pub unsafe fn init(ptr: *mut Tag, length: u32) -> Self {
+        (ptr.add(DATA_OFFSET) as *mut u32).write(length);
         Self { ptr }
     }
     pub fn len(&self) -> usize {
@@ -65,6 +72,7 @@ impl EnvPtr {
     unsafe fn slice(&self) -> &[EnvItem] {
         std::slice::from_raw_parts(self.slice_ptr(), self.len())
     }
+    /// the slice may point to garbage EnvItems
     fn slice_ptr(&self) -> *mut EnvItem {
         // SAFETY: as long as new was called correctly, this is a valid
         // pointer with possibly garbage data. it MAY point one byte past
@@ -86,38 +94,13 @@ impl HeapPtr for EnvPtr {
     fn get_gc_ptrs(&self, _: &Heap) -> Vec<*mut Tag> {
         let mut rv = Vec::with_capacity(self.len());
         // SAFETY: this actually isn't safe!!!
-        for val in unsafe { self.slice() } {
-            match val {
-                EnvItem::NonPtr32(..) | EnvItem::NonPtr64(..) => (),
-                EnvItem::Ptr(ptr) => rv.push(ptr.get_ptr()),
-                EnvItem::Any(any) => {
-                    if let Some(ptr) = any.get_ptr() {
-                        rv.push(ptr);
-                    }
-                }
-                EnvItem::Closure(clos) => {
-                    let env = clos.0;
-                    rv.push(env.get_ptr());
-                }
+        for item in unsafe { self.slice() } {
+            if let Some(ptr) = item.get_ptr() {
+                rv.push(ptr);
             }
         }
         rv
     }
 }
 
-/// this is not a value, it's the memory layout for one item of an environment
-pub enum EnvItem {
-    /// i32, bool
-    NonPtr32(i32),
-    /// this is just f64 i think
-    NonPtr64(i64),
-    /// ref, array, etc
-    Ptr(AnyPtr),
-    Any(AnyEnum),
-    Closure(Closure),
-}
-
-#[test]
-fn size() {
-    println!("{}", std::mem::size_of::<EnvItem>());
-}
+type EnvItem = AnyEnum;

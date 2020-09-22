@@ -220,11 +220,6 @@ impl Pretty for Expr {
                 .append(pp.text(" = "))
                 .append(e.pretty(pp)),
             Expr::EnvGet(id) => pp.text("env.").append(pp.as_string(id)),
-            Expr::EnvSet(id, e) => pp
-                .text("env.")
-                .append(pp.as_string(id))
-                .append(pp.text(" = "))
-                .append(e.pretty(pp)),
         }
     }
 }

@@ -354,6 +354,9 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             Ok(ref_ty_(ty.clone()))
         }
         Expr::Atom(a) => type_check_atom(env, a),
+        // this is really an existential type but for now i'm gonna try to
+        // get away with pretending it's a function type
+        Expr::Closure(id, _) => lookup(env, id),
     }
 }
 
@@ -457,5 +460,6 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             let _ = ensure(&format!("binary ({:?}) lhs", op), ty_in, got_r)?;
             Ok(ty_out)
         }
+        Atom::EnvGet(_, ty) => Ok(ty.clone()),
     }
 }

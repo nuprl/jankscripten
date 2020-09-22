@@ -32,7 +32,6 @@
 //!       with no fields used as a "module" (most prototypes, most top-level
 //!       objects)
 
-use super::constructors::*;
 use super::syntax::*;
 use super::walk::*;
 use im_rc::HashMap;
@@ -71,11 +70,8 @@ impl Visitor for ClosureConversion {
             Expr::Id(id, _) if self.free(id) => {
                 *expr = Expr::EnvGet(id.clone());
             }
-            Expr::Assign(lv, to) => match &**lv {
-                LValue::Id(id, _) if self.free(id) => *expr = env_set_(id.clone(), to.take()),
-                // container covered by Expr::Id
-                _ => (),
-            },
+            // assigns should have been boxed so they will never be assigned
+            // to free
             _ => (),
         }
     }

@@ -170,6 +170,27 @@ fn functions() {
 }
 
 #[test]
+fn closures() {
+    let program = parse(
+        r#"
+        function acceptEnv(_: i32) : i32 {
+            return env.0: i32 + env.1: i32 + env.2: i32;
+        }
+        function main() : i32 {
+            // as a hack, this is the "local 0" as if it was the first param
+            var x = 5;
+            var y = 6;
+            var z = 7;
+            var F = clos(acceptEnv, x: i32, y: i32, z: i32);
+            var res = F(); // what goes here???
+            return res;
+        }
+    "#,
+    );
+    expect_notwasm(18, program);
+}
+
+#[test]
 fn break_block() {
     let body = Stmt::Block(vec![
         Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(0)))),

@@ -12,6 +12,11 @@ use std::convert::TryInto;
 use Instruction::*;
 
 const JNKS_STRINGS_IDX: u32 = 0;
+/// in bytes. i don't forsee this changing as we did a lot of work getting
+/// it to fit in the largest wasm type
+const ANY_SIZE: u32 = 8;
+/// also bytes
+const TAG_SIZE: u32 = 4;
 
 type FuncTypeMap = HashMap<(Vec<ValueType>, Option<ValueType>), u32>;
 
@@ -341,7 +346,7 @@ impl<'a> Translate<'a> {
                     panic!("tried to store into non-ref");
                 };
                 self.translate_expr(expr);
-                self.store(ty, 4); // tag offset
+                self.store(ty, TAG_SIZE);
             }
             N::Stmt::Empty => (),
             N::Stmt::Block(ss) => {
@@ -578,6 +583,22 @@ impl<'a> Translate<'a> {
                     _ => self.rt_call("ref_new_ptr"),
                 }
             }
+            N::Expr::Closure(id, env) => {
+                // first, construct the environment
+                self.rt_call("env_alloc");
+                // init all the
+                for (i, (a, ty)) in env.iter_mut().enumerate() {
+                    self.out.push(I32Const(i as i32));
+                    self.translate_atom(a);
+                    self.to_any(ty);
+                    // this returns the env so we don't need locals magic
+                    self.rt_call("env_init_at");
+                }
+                // env is left on the stack. now the function is the second
+                // argument
+                self.get_id(id);
+                self.rt_call("closure_new");
+            }
         }
     }
 
@@ -593,7 +614,7 @@ impl<'a> Translate<'a> {
                 } else {
                     panic!("tried to deref non-ref");
                 };
-                self.load(ty, 4); // tag offset
+                self.load(ty, TAG_SIZE);
             }
             N::Atom::Lit(lit) => match lit {
                 N::Lit::I32(i) => self.out.push(I32Const(*i)),
@@ -623,13 +644,7 @@ impl<'a> Translate<'a> {
             }
             N::Atom::ToAny(to_any) => {
                 self.translate_atom(&mut to_any.atom);
-                match to_any.ty() {
-                    N::Type::I32 => self.rt_call("any_from_i32"),
-                    N::Type::Bool => self.rt_call("any_from_bool"),
-                    N::Type::F64 => self.rt_call("f64_to_any"),
-                    N::Type::Fn(..) => self.rt_call("any_from_fn"),
-                    _ => self.rt_call("any_from_ptr"),
-                }
+                self.to_any(to_any.ty());
             }
             N::Atom::FromAny(a, ty) => {
                 self.translate_atom(a);
@@ -682,6 +697,19 @@ impl<'a> Translate<'a> {
                 self.translate_atom(a);
                 self.translate_unop(op);
             }
+            N::Atom::EnvGet(index, ty) => {
+                // get the env which is always the first argument
+                self.out.push(GetLocal(0));
+                let ty_offset = match ty.as_wasm() {
+                    ValueType::I32 => 4,
+                    ValueType::I64 => 0,
+                    ValueType::F32 => panic!("invalid type"),
+                    ValueType::F64 => panic!("invalid in-any type"),
+                };
+                let offset = TAG_SIZE + *index * ANY_SIZE + ty_offset;
+                // make sure you don't accidentally put ty_offset here
+                self.load(ty.clone(), offset);
+            }
         }
     }
 
@@ -707,6 +735,16 @@ impl<'a> Translate<'a> {
             self.out.push(Call(*i));
         } else {
             panic!("cannot find rt {}", name);
+        }
+    }
+
+    fn to_any(&mut self, ty: &N::Type) {
+        match ty {
+            N::Type::I32 => self.rt_call("any_from_i32"),
+            N::Type::Bool => self.rt_call("any_from_bool"),
+            N::Type::F64 => self.rt_call("f64_to_any"),
+            N::Type::Fn(..) => self.rt_call("any_from_fn"),
+            _ => self.rt_call("any_from_ptr"),
         }
     }
 

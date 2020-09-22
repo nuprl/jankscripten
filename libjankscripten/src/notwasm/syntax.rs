@@ -232,6 +232,8 @@ pub enum Atom {
     Unary(UnaryOp, Box<Atom>),
     Binary(BinaryOp, Box<Atom>, Box<Atom>),
     Deref(Id), // *ref on RHS
+    /// get the given value from the environment at local 0
+    EnvGet(u32, Type),
 }
 
 // An `Expr` is an expression that may trigger garbage collection.
@@ -251,6 +253,13 @@ pub enum Expr {
     ObjectSet(Atom, Atom, Atom),
     NewRef(Atom, Type), // newRef(something)
     Atom(Atom),
+    /// create a new environment with the given atoms and their types,
+    /// in linear order. then create a closure with that environment and
+    /// the index of the function named .0
+    ///
+    /// this has to be atom, not id, because what if we need to store {x:
+    /// env.x} in a nested closure
+    Closure(Id, Vec<(Atom, Type)>),
 }
 
 #[derive(Debug, PartialEq)]

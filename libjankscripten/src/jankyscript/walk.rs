@@ -238,8 +238,7 @@ where
             | Coercion(.., e)
             | NewRef(e, ..)
             | Deref(e)
-            | Store(.., e)
-            | EnvSet(.., e) => {
+            | Store(.., e) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_expr(e, &loc);
             }

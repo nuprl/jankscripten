@@ -105,6 +105,12 @@ parser! {
             lang.reserved("any")
                 .with(lang.parens(atom(lang)))
                 .map(|a| ctor::to_any_(a)))
+        .or(
+            lang.reserved("env").skip(lang.reserved_op("."))
+                .with(lang.integer())
+                .skip(lang.reserved_op(":"))
+                .and(type_(lang))
+                .map(|(i, ty)| Atom::EnvGet(i as u32, ty)))
         .or(lang.reserved("rt").with(lang.parens(id(lang)))
             .map(|id| Atom::GetPrimFunc(id)))
         .or(lit(lang).map(|l| Atom::Lit(l)))
@@ -158,6 +164,12 @@ parser! {
         attempt(lang.reserved_op("[]").map(|_| Expr::Array))
         .or(lang.reserved_op("HT{}").map(|_| Expr::HT))
         .or(lang.reserved_op("{}").map(|_| Expr::ObjectEmpty))
+        .or(lang.reserved("clos").with(
+                lang.parens(id(lang).skip(lang.reserved_op(","))
+                    .and(sep_by(
+                            atom(lang).skip(lang.reserved_op(":")).and(type_(lang)),
+                            lang.reserved_op(",")))))
+                .map(|(id, vars)| Expr::Closure(id, vars)))
         .or(lang.reserved("arrayPush")
             .with(lang.parens(atom(lang).skip(lang.reserved_op(",")).and(atom(lang))))
             .map(|(array, member)| Expr::Push(array, member)))
@@ -383,6 +395,8 @@ pub fn parse(input: &str) -> Program {
             rest: alpha_num().or(token('_')),
             reserved: [
                 "as",
+                "clos",
+                "env",
                 "if",
                 "else",
                 "true",

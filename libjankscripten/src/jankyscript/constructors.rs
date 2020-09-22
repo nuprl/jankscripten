@@ -60,10 +60,6 @@ pub fn store_(id: Id, e1: Expr) -> Expr {
     Expr::Store(id, Box::new(e1))
 }
 
-pub fn env_set_(id: Id, e1: Expr) -> Expr {
-    Expr::EnvSet(id, Box::new(e1))
-}
-
 // Statements
 
 pub fn var_(x: Id, t: Type, e: Expr) -> Stmt {

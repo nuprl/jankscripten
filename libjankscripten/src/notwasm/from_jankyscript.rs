@@ -395,7 +395,6 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             C::e(move |_s, what| Rope::singleton(Stmt::Store(id, what))),
         ),
         J::Expr::EnvGet(..) => todo!(),
-        J::Expr::EnvSet(..) => todo!(),
     }
 }
 

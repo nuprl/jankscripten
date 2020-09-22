@@ -104,8 +104,6 @@ pub enum Expr {
     Store(Id, Box<Expr>),
     /// the ID you're getting
     EnvGet(Id),
-    /// the ID you're getting. has the value of the expression
-    EnvSet(Id, Box<Expr>),
 }
 
 #[derive(Debug, PartialEq)]

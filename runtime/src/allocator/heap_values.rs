@@ -54,6 +54,7 @@ pub enum TypeTag {
     /// The value after the tag is the address where the array of pointers
     /// begins, for this object
     ObjectPtrPtr,
+    Env,
     /// following are immediate values only ever on the heap for Ref
     Any,
     /// these should only be used for Ref, most f64s go on the f64 heap. this
@@ -116,6 +117,7 @@ pub enum HeapRefView {
     Any(AnyJSPtr),
     Class(ObjectDataPtr),
     ObjectPtrPtr(ObjectPtr),
+    Env(EnvPtr),
     NonPtr32(NonPtr32Ptr),
     MutF64(MutF64Ptr),
     Ptr(PtrPtr),
@@ -131,6 +133,7 @@ impl HeapRefView {
             Self::Any(val) => val,
             Self::Class(val) => val,
             Self::ObjectPtrPtr(val) => val,
+            Self::Env(val) => val,
             Self::NonPtr32(val) => val,
             Self::MutF64(val) => val,
             Self::Ptr(val) => val,
@@ -172,6 +175,7 @@ impl AnyPtr {
                 TypeTag::Any => HeapRefView::Any(AnyJSPtr::new_tag_unchecked(self.ptr)),
                 TypeTag::DynObject => HeapRefView::Class(ObjectDataPtr::new(self.ptr)),
                 TypeTag::ObjectPtrPtr => HeapRefView::ObjectPtrPtr(ObjectPtr::new(self.ptr)),
+                TypeTag::Env => HeapRefView::Env(EnvPtr::new(self.ptr)),
                 TypeTag::NonPtr32 => {
                     HeapRefView::NonPtr32(NonPtr32Ptr::new_tag_unchecked(self.ptr))
                 }

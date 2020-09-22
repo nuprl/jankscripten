@@ -24,9 +24,11 @@ impl std::fmt::Display for Closure {
     }
 }
 
+/// webassembly has no 16-bit value, but func should no higher than 2^16. it
+/// is truncated
 #[no_mangle]
-pub extern "C" fn closure_new(ptr: EnvPtr, func: u16) -> ClosureVal {
-    Closure(ptr, func).into()
+pub extern "C" fn closure_new(ptr: EnvPtr, func: u32) -> ClosureVal {
+    Closure(ptr, func as u16).into()
 }
 #[no_mangle]
 pub extern "C" fn closure_ptr(closure: ClosureVal) -> EnvPtr {
