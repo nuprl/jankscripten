@@ -35,7 +35,14 @@ import * as parser from '@babel/parser';
  *     1. if `p` is "__proto__", `o` has changed its prototype (bad behavior).
  *     2. if `o` is the prototype of another object, a prototype object has
  *        modified one of its properties (bad behavior).
- *     3. if `p` is "prototype" or "__proto__", `v` is a prototype object.
+ *         1. if `o.p` was previously defined, and `o.p !== v` before the
+ *            property write, this prototype chain is growing non-monotonically.
+ *            This behavior is hard to optimize and should invalidate cached 
+ *            prototype lookups.
+ *         2. otherwise, this prototype chain is growing *monotonically*.
+ *            This behavior is easier to optimize and does not invalidate
+ *            previously cached prototype lookups.
+ *     3. if `p` is "__proto__", `v` is a prototype object.
  * 
  * 2. property deletion: `delete o.p;`
  *     1. if `o` is a prototype object, a prototype object has modified one of

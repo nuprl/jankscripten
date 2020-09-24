@@ -163,8 +163,9 @@ export function checkException(loc: string) {
  * 
  * @param loc the location where this property write occurred
  * @param property the name of the property being written to
+ * @returns the name of the property being written to
  */
-export function checkForProtoSwap(loc: string, property: any) {
+export function checkForProtoSwap(loc: string, property: any): any {
     if (property === "__proto__") {
         record(prototypeChanges, loc, `prototype changed via property write`);
     }
@@ -182,6 +183,15 @@ export function recordPrototypeChange() {
     record(prototypeChanges, Error().stack as string, `prototype of object changed via Object.setPrototypeOf`);
 }
 
+/**
+ * Instrument the construction of a new object. A regular object construction,
+ * `new Array(1, 2)`, would result in a call to this function,
+ * `checkNewObject(loc, Array, [1, 2])
+ * @param loc the location where this object was created
+ * @param constructor the constructor function
+ * @param args the arguments to the constructor function
+ * @returns the new object
+ */
 export function checkNewObject(loc: string, constructor: any, args: any[]): any {
     trackPrototype(loc, constructor.prototype);
     return new constructor(...args);
@@ -189,30 +199,34 @@ export function checkNewObject(loc: string, constructor: any, args: any[]): any 
 
 export function checkPropDelete(loc: string, object: any, property: string): any {
     if (isPrototype(object)) {
-        record(prototypeChanges, loc, `prototype of object changed via property deletion`);
+        record(prototypeChanges, loc, `property DELETED on prototype object`);
     }
     delete object[property];
 }
 
-// let runtimeCall = qCall('checkPropWrite', [path.node.left.object, property, path.node.right]);
 export function checkPropWrite(loc: string, object: any, property: string, value: any): any {
+    // see PrototypeVisitor.ts for explanation of cases
+
     // is the property being written to either of these special ones?
     let propIs__proto__ = property === "__proto__";
-    let propIsPrototype = property === "prototype";
 
     // case (1.1)
     if (propIs__proto__) {
         record(prototypeChanges, loc, `prototype of object change via property write`);
-    }
-
-    // case (1.3)
-    if (propIs__proto__ || propIsPrototype) {
-        trackPrototype(loc, object);
+        trackPrototype(loc, value);
     }
 
     // handles case (1.2)
     if (isPrototype(object)) {
-        record(prototypeChanges, loc, `property modified on prototype object`)
+        // check if this prototype is monotonically growing (1.2.2) or not (1.2.1)
+
+        let childObjectLocation = prototypeObjects.get(object);
+        if (object[property] !== undefined && object[property] !== value) {
+            record(prototypeChanges, loc, `property MODIFIED on prototype object. object was assigned as prototype at ${childObjectLocation}`);
+        } else {
+            record(prototypeChanges, loc, `prototype object monotonically grew by adding a property. object was assigned as prototype at ${childObjectLocation}`);
+        }
+
     }
 
     // actually perform the property write and return its value
@@ -226,7 +240,10 @@ export function checkPropWrite(loc: string, object: any, property: string, value
  */
 export function trackPrototype(loc: string, o: any): void {
     try {
-        prototypeObjects.set(o, loc);
+        // track this prototype at the given location if we haven't already
+        if (!prototypeObjects.has(o)) {
+            prototypeObjects.set(o, loc);
+        }
     } catch(e) {
         // if this failed, the prototype was probably set to null or undefined.
         // this is perfectly valid, and it just means we can't track changes to
