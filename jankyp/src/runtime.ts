@@ -32,7 +32,7 @@ const prototypeObjects: WeakMap<any, string> = new WeakMap();
  * @param location where this happened
  * @param message a description of the bad behavior
  */
-function record(theMap: BadBehavior, location: string, message: string) {
+function record(theMap: BadBehavior, location: string, message: string): void {
     let existingMessages = theMap.get(location);
     if (existingMessages === undefined) {
         theMap.set(location, new Set([message]));
@@ -48,6 +48,7 @@ function record(theMap: BadBehavior, location: string, message: string) {
  * Expect the given value to be a number. Record bad behavior if it isn't.
  * @param loc the location where value appears
  * @param value the value that should be a number
+ * @returns the given value
  */
 export function expectNumber(loc: string, value: any): any {
     if (typeof value !== 'number') {
@@ -61,6 +62,7 @@ export function expectNumber(loc: string, value: any): any {
  * Record bad behavior if it isn't.
  * @param loc the location where the value appears
  * @param value the value that should be a primitive
+ * @returns the given value
  */
 export function checkOperand(loc: string, value: any): any {
     if (typeof value === 'object' || typeof value === 'function') {
@@ -76,7 +78,7 @@ export function checkOperand(loc: string, value: any): any {
  * @param numFormals the number of formal arguments to the function
  * @param numActuals the number of actual arguments to the function
  */
-export function checkArgs(loc: string, numFormals: number, numActuals: number) {
+export function checkArgs(loc: string, numFormals: number, numActuals: number): void {
     if (numFormals !== numActuals) {
         record(badArityBehavior, loc, `received ${numActuals} actual arguments (${numFormals} formal arguments)`);
     }
@@ -91,8 +93,9 @@ export function checkArgs(loc: string, numFormals: number, numActuals: number) {
  * @param loc the location of the function
  * @param numFormals the number of formal arguments to the function
  * @param numActuals the number of actual arguments to the function
+ * @returns the value of the field access
  */
-export function checkPlatypus(loc: string, obj: any, property: any, isCalled: boolean) {
+export function checkPlatypus(loc: string, obj: any, property: any, isCalled: boolean): any {
     const arrayPrototype = [
         // length isn't actually part of the array prototype, it's extremely special,
         // but we still don't want to include it because we'll be specially handling it
@@ -146,7 +149,7 @@ export function checkPlatypus(loc: string, obj: any, property: any, isCalled: bo
  * Record an exception that occurred as bad behavior.
  * @param loc the location where the exception was caught
  */
-export function checkException(loc: string) {
+export function checkException(loc: string): void {
     record(exceptions, loc, `exception`);
 }
 
@@ -179,7 +182,7 @@ export function checkForProtoSwap(loc: string, property: any): any {
  * 
  * The location will be inferred.
  */
-export function recordPrototypeChange() {
+export function recordPrototypeChange(): void {
     record(prototypeChanges, Error().stack as string, `prototype of object changed via Object.setPrototypeOf`);
 }
 
@@ -251,7 +254,10 @@ export function trackPrototype(loc: string, o: any): void {
     }
 }
 
-// Is the given object a prototype of another object?
+/**
+ * Is the given object a prototype of another object?
+ * @param o the object to check
+ */
 function isPrototype(o: any): boolean {
     return prototypeObjects.has(o);
 }
