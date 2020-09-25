@@ -126,6 +126,10 @@ impl<'a> ObjectDataPtr<'a> {
         let class_tag = self.class_tag();
         let classes = heap.classes.borrow();
         let class = classes.get_class(class_tag);
+        // TODO(mark): currently, the field cache is assumed to be valid
+        //             without checking the class of the object whose
+        //             offsets were cached. we must ensure the class is
+        //             identical before using the cache.
         let offset = class.lookup(name, cache)?;
         self.read_at(heap, offset)
     }
