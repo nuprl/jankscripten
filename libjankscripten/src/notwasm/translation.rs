@@ -695,6 +695,11 @@ impl<'a> Translate<'a> {
         }
     }
 
+    /// Sets up caching for a particular object field lookup in the generated
+    /// code. It does 2 things:
+    /// 1. generates wasm instructions to push the cached offset onto the stack.
+    /// 2. extends the inline cache to include a unique cache spot for these
+    ///    generated object field lookup instructions.
     fn data_cache(&mut self) {
         // the end of the data segment is the new cache
         self.out.push(GetGlobal(JNKS_STRINGS_IDX));
