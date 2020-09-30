@@ -13,6 +13,9 @@ function jnks_init() {
     // Once the default Object class is set up, object literals like `{}` can
     // be used.
 
+    // load the Object.create runtime function
+    var objectCreate = rt(object_create);
+
     // create the actual object for Object
     var nullVar = null;
     var objectClass = objectCreate(nullVar);
@@ -23,7 +26,6 @@ function jnks_init() {
     Object.prototype = objectPrototype;
 
     // assign static methods to Object
-    var objectCreate = rt(object_create);
     Object.create = any(objectCreate);
 
 
