@@ -406,6 +406,7 @@ const ALLOC_PROG: &'static str = "
     x.h = any(0);";
 
 #[test]
+#[ignore]
 fn will_gc() {
     let program = parse(&format!(
         "
