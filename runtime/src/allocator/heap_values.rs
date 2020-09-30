@@ -84,8 +84,8 @@ pub trait HeapPtr {
     fn final_drop(&self) {}
     /// this should return all the pointers to garbage collected Tags in
     /// the managed heap in the data structure, including f64s
-    fn get_gc_ptrs(&self, _heap: &Heap) -> Vec<*mut Tag> {
-        vec![]
+    fn get_gc_ptrs(&self, _heap: &Heap) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
+        (vec![], vec![])
     }
     /// easily cast any heap pointer to an any pointer (provided)
     fn as_any_ptr(&self) -> AnyPtr {
@@ -150,7 +150,7 @@ impl HeapPtr for HeapRefView {
     fn final_drop(&self) {
         self.heap_ptr().final_drop()
     }
-    fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
+    fn get_gc_ptrs(&self, heap: &Heap) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
         self.heap_ptr().get_gc_ptrs(heap)
     }
 }
@@ -196,7 +196,7 @@ impl HeapPtr for AnyPtr {
     fn final_drop(&self) {
         self.view().final_drop()
     }
-    fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
+    fn get_gc_ptrs(&self, heap: &Heap) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
         self.view().get_gc_ptrs(heap)
     }
 }
@@ -244,7 +244,7 @@ impl<T: HasTag> HeapPtr for TypePtr<T> {
         unsafe { std::ptr::drop_in_place::<T>(data_ptr(self.ptr)) }
     }
 
-    fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
+    fn get_gc_ptrs(&self, heap: &Heap) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
         self.get().get_data_ptrs(heap)
     }
 }

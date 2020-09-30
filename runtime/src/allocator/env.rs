@@ -91,15 +91,9 @@ impl HeapPtr for EnvPtr {
     ///
     /// **THIS IS UNSAFE**!!! it can't be tagged unsafe because it's a trait,
     /// but, until [init_at] has been called for every item, it is unsound
-    fn get_gc_ptrs(&self, _: &Heap) -> Vec<*mut Tag> {
-        let mut rv = Vec::with_capacity(self.len());
+    fn get_gc_ptrs(&self, _: &Heap) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
         // SAFETY: this actually isn't safe!!!
-        for item in unsafe { self.slice() } {
-            if let Some(ptr) = item.get_ptr() {
-                rv.push(ptr);
-            }
-        }
-        rv
+        AnyEnum::iter_to_ptrs(unsafe { self.slice().iter() })
     }
 }
 

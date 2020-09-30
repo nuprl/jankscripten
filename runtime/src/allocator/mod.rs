@@ -377,30 +377,23 @@ impl Heap {
         let mut current_roots = roots;
         let mut new_roots = Vec::<*mut Tag>::new();
 
-        #[allow(unused_mut)]
         let mut f64_allocator = self.f64_allocator.borrow_mut();
-        // TODO(luna): how should f64 allocation work? (see below)
-        //f64_allocator.semispace_swap();
+        f64_allocator.semispace_swap();
 
         while current_roots.is_empty() == false {
             for root in current_roots.drain(0..) {
-                if f64_allocator.is_f64(root) {
-                    // TODO(luna): i think this was bugged before but now it's more
-                    // apparent: we could rewrite the pointers when they're
-                    // in the heap, but what about when it's an Any that's an
-                    // immediate value? for now: leak!
-                    //let ptr = root as *mut f64;
-                    //unsafe { *ptr = f64_allocator.alloc(**ptr).unwrap() }
-                } else {
-                    let tag = unsafe { &mut *root };
+                let tag = unsafe { &mut *root };
 
-                    if tag.marked == true {
-                        continue;
-                    }
-                    tag.marked = true;
+                if tag.marked == true {
+                    continue;
+                }
+                tag.marked = true;
 
-                    let any_ptr = unsafe { AnyPtr::new(root) };
-                    new_roots.append(&mut any_ptr.get_gc_ptrs(self));
+                let any_ptr = unsafe { AnyPtr::new(root) };
+                let (mut tags, f64s) = any_ptr.get_gc_ptrs(self);
+                new_roots.append(&mut tags);
+                for ptr in f64s {
+                    unsafe { *ptr = f64_allocator.alloc(**ptr).unwrap() }
                 }
             }
             std::mem::swap(&mut current_roots, &mut new_roots);

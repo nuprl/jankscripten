@@ -35,16 +35,13 @@ impl HeapPtr for ObjectDataPtr {
         heap.object_data_size(heap.get_class_size(self.class_tag()))
     }
 
-    fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
-        let mut rv = vec![];
-        for member in self.as_array(heap) {
-            if let Some(any) = member {
-                if let Some(ptr) = any.get_ptr() {
-                    rv.push(ptr);
-                }
-            }
-        }
-        rv
+    fn get_gc_ptrs(&self, heap: &Heap) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
+        // TODO(luna): we should remove the option anyway
+        AnyEnum::iter_to_ptrs(
+            self.as_array(heap)
+                .iter()
+                .map(|x| x.as_ref().unwrap_or(&AnyEnum::Undefined)),
+        )
     }
 }
 
@@ -164,8 +161,8 @@ impl HeapPtr for ObjectPtr {
     fn get_data_size(&self, _heap: &Heap) -> usize {
         ALIGNMENT
     }
-    fn get_gc_ptrs(&self, _heap: &Heap) -> Vec<*mut Tag> {
-        vec![(**self).get_ptr()]
+    fn get_gc_ptrs(&self, _heap: &Heap) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
+        (vec![(**self).get_ptr() as *const _ as *mut _], vec![])
     }
 }
 
@@ -180,7 +177,7 @@ mod test {
         let heap = Heap::new((ALIGNMENT * 7) as isize);
         let obj_ptr = heap.alloc_object(0).unwrap();
         let ptrs = obj_ptr.get_gc_ptrs(&heap);
-        assert_eq!(ptrs.len(), 1);
-        assert_eq!(unsafe { *ptrs[0] }.type_tag, TypeTag::DynObject);
+        assert_eq!(ptrs.0.len(), 1);
+        assert_eq!(unsafe { *(ptrs.0[0]) }.type_tag, TypeTag::DynObject);
     }
 }

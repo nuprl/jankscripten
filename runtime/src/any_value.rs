@@ -24,8 +24,6 @@ pub enum AnyEnum {
     ///
     /// also, eventually we will distinguish functions and closures in any,
     /// because some functions will not be closure-converted. but not yet
-    ///
-    /// TODO(luna): Fn(Closure)
     Fn(i32),
     Undefined,
     Null,
