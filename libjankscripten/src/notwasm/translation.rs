@@ -521,7 +521,22 @@ impl<'a> Translate<'a> {
                 self.rt_call("object_set");
             }
             N::Expr::ObjectEmpty => {
-                self.rt_call("object_empty");
+                // New objects like `{}` or `new Object()` are created using
+                // the runtime function `jnks_new_object`, which is located in
+                // `runtime.notwasm`. We have to find the function index of
+                // this runtime function and call it.
+                //
+                // The reason we use a runtime function to create `{}` as
+                // opposed to creating a legitimately empty object is because
+                // `{}` inherits from the default Object prototype, which
+                // must be resolved dynamically.
+                if let Some(IdIndex::Fun(jnks_new_object)) = 
+                    self.id_env.get(&N::Id::Named("jnks_new_object".to_string()))
+                {
+                    self.out.push(Call(*jnks_new_object + self.rt_indexes.len() as u32))
+                } else {
+                    panic!("where's jnks_new_object?");
+                }
             }
             N::Expr::Push(array, val) => {
                 self.translate_atom(array);

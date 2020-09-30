@@ -130,8 +130,20 @@ impl<'a> ObjectDataPtr<'a> {
         //             without checking the class of the object whose
         //             offsets were cached. we must ensure the class is
         //             identical before using the cache.
-        let offset = class.lookup(name, cache)?;
-        self.read_at(heap, offset)
+        let maybe_offset = class.lookup(name, cache);
+        match maybe_offset {
+            Some(offset) => self.read_at(heap, offset),
+            None => {
+                // let proto_ptr = this.get("__proto__");
+                // if (proto_ptr && proto_ptr !== null) {
+                //     return proto_ptr.get(name)
+                // } else {
+                //     return undefined;
+                // }
+                // this.get(heap, "__proto__".into_string())
+                todo!()
+            }
+        }
     }
 
     fn as_array(&self, heap: &Heap) -> &mut [Option<AnyEnum>] {

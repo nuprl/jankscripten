@@ -3,8 +3,41 @@
 // a lazy static
 var Object: DynObject = 0;
 var global: DynObject = 0;
+
+// Initialize JankScripten runtime.
 function jnks_init() {
-    Object = {};
-    Object.create = any(rt(object_create));
+    // Create the Object class. This means creating a (really) empty object,
+    // giving it a prototype, and assigning its static methods, such as
+    // Object.create.
+    // 
+    // Once the default Object class is set up, object literals like `{}` can
+    // be used.
+
+    // create the actual object for Object
+    var nullVar = null;
+    var objectClass = objectCreate(nullVar);
+    Object = objectClass as DynObject;
+
+    // set a completely empty prototype
+    var objectPrototype = objectCreate(nullVar);
+    Object.prototype = objectPrototype;
+
+    // assign static methods to Object
+    var objectCreate = rt(object_create);
+    Object.create = any(objectCreate);
+
+
+    // Now that the default Object class has been set up, create the global 
+    // object.
     global = {};
+}
+
+// Runtime function to create a regular empty object like `{}` or
+// `new Object()`.
+function jnks_new_object(): DynObject {
+    // Create new object that inherits from Object.prototype.
+    var objectCreate = Object.create as (any) -> any;
+    var objectPrototype = Object.prototype;
+    var newObject = objectCreate(objectPrototype);
+    return newObject as DynObject;
 }
