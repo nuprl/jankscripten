@@ -134,14 +134,25 @@ impl<'a> ObjectDataPtr<'a> {
         match maybe_offset {
             Some(offset) => self.read_at(heap, offset),
             None => {
+                let proto_offset = class.lookup("__proto__".into(), &mut -1)?;
+                let proto = self.read_at(heap, proto_offset)?;
+                match proto {
+                    AnyEnum::Ptr(p) => match p.view() {
+                        HeapRefView::ObjectPtrPtr(proto_obj) => {
+                            // no cache for reads on prototype chain
+                            proto_obj.get(heap, name, &mut -1)
+                        },
+                        _ => todo!(),
+                    },
+                    _ => todo!(),
+                }
                 // let proto_ptr = this.get("__proto__");
                 // if (proto_ptr && proto_ptr !== null) {
                 //     return proto_ptr.get(name)
                 // } else {
                 //     return undefined;
                 // }
-                // this.get(heap, "__proto__".into_string())
-                todo!()
+                // todo!()
             }
         }
     }
