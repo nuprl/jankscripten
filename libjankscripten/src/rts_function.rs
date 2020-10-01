@@ -92,7 +92,7 @@ impl RTSFunction {
             ModF64 => Function(vec![Float, Float], Box::new(Float)),
             StrictEqual | Equal | StrictNotEqual | NotEqual => {
                 Function(vec![Any, Any], Box::new(Bool))
-            },
+            }
             ObjectCreate => Function(vec![Any], Box::new(Any)),
         }
     }

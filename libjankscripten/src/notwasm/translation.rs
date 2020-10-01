@@ -530,10 +530,12 @@ impl<'a> Translate<'a> {
                 // opposed to creating a legitimately empty object is because
                 // `{}` inherits from the default Object prototype, which
                 // must be resolved dynamically.
-                if let Some(IdIndex::Fun(jnks_new_object)) = 
-                    self.id_env.get(&N::Id::Named("jnks_new_object".to_string()))
+                if let Some(IdIndex::Fun(jnks_new_object)) = self
+                    .id_env
+                    .get(&N::Id::Named("jnks_new_object".to_string()))
                 {
-                    self.out.push(Call(*jnks_new_object + self.rt_indexes.len() as u32))
+                    self.out
+                        .push(Call(*jnks_new_object + self.rt_indexes.len() as u32))
                 } else {
                     panic!("where's jnks_new_object?");
                 }

@@ -141,7 +141,7 @@ impl<'a> ObjectDataPtr<'a> {
                         HeapRefView::ObjectPtrPtr(proto_obj) => {
                             // no cache for reads on prototype chain
                             proto_obj.get(heap, name, &mut -1)
-                        },
+                        }
                         _ => todo!(),
                     },
                     _ => todo!(),

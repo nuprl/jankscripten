@@ -12,12 +12,12 @@ type BindMap = HashMap<std::string::String, Type>;
 
 /// Generate a map of the runtime functions available to NotWasm.
 /// Each runtime function is mapped to its NotWasm type signature.
-/// 
+///
 /// This map is comprised of runtime functions from two different sources:
 /// 1. Functions manually inserted into the map inside this function.
 /// 2. Functions automatically inserted from RTSFunction. RTSFunction
 ///    includes the runtime functions available at all layers of the
-///    compiler, including JavaScript itself. Only higher-level runtime 
+///    compiler, including JavaScript itself. Only higher-level runtime
 ///    functions are in RTSFunction, like Object.create.
 pub fn get_rt_bindings() -> BindMap {
     let mut map = HashMap::new();
