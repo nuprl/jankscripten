@@ -80,7 +80,7 @@ fn typeof_as_str(a: Any) -> &'static str {
             | HeapRefView::Ptr(_)
             | HeapRefView::Env(_) => panic!("not a value"),
         },
-        AnyEnum::Fn(_) => "function",
+        AnyEnum::Closure(_) => "function",
         AnyEnum::Undefined => "undefined",
         AnyEnum::Null => "object",
     }

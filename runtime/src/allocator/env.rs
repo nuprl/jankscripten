@@ -38,6 +38,16 @@ impl EnvPtr {
     }
     /// # Safety
     ///
+    /// nothing should ever happen to the environment, period. it can't be
+    /// stored in a structure. it can't be dereferenced, it can't be
+    /// initialized, sliced, nothing
+    pub unsafe fn null() -> Self {
+        Self {
+            ptr: std::ptr::null_mut(),
+        }
+    }
+    /// # Safety
+    ///
     /// ptr should point to an aligned Env tag; there should be 4 +
     /// sizeof(EnvItem) * length bytes allocated after the tag!
     /// the array does not have to be initialized, however until it is,

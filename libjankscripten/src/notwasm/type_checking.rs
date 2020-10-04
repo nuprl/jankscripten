@@ -354,6 +354,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             if let Type::Closure(fn_ty) = got_f {
                 // arity check
                 if actuals.len() + 1 != fn_ty.args.len() {
+                    println!("{:?} {:?}", actuals, fn_ty.args);
                     return Err(TypeCheckingError::ArityMismatch(
                         id_f.clone(),
                         actuals.len() + 1 - fn_ty.args.len(),
@@ -405,8 +406,15 @@ fn assert_variant_of_any(ty: &Type) -> TypeCheckingResult<()> {
         Type::String => Ok(()),
         // We need to think this through. We cannot store arbitrary functions
         // inside an Any.
-        Type::Fn(_) => Ok(()), // TODO(luna): see above
-        Type::Closure(_) => invalid_in_context("TODO(luna): support closure in any", &ty),
+        Type::Fn(ty) => {
+            // TODO(luna): env
+            if Some(&Type::I32) == ty.args.get(0) {
+                Ok(())
+            } else {
+                error!("function must accept dummy environment to be any-ified")
+            }
+        }
+        Type::Closure(_) => Ok(()),
         // The following turn into pointers, and an Any can store a pointer
         Type::HT => Ok(()),
         Type::Array => Ok(()),

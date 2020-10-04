@@ -1,7 +1,7 @@
 //! An enum that can store any type known to the runtime
 
-pub use crate::allocator::{AnyPtr, HeapRefView};
-//use crate::closure::{Closure, ClosureVal};
+pub use crate::allocator::{heap_types::EnvPtr, AnyPtr, HeapRefView};
+use crate::closure::{Closure, ClosureVal};
 use crate::heap;
 use crate::i64_val::*;
 
@@ -24,7 +24,7 @@ pub enum AnyEnum {
     ///
     /// also, eventually we will distinguish functions and closures in any,
     /// because some functions will not be closure-converted. but not yet
-    Fn(i32),
+    Closure(Closure),
     Undefined,
     Null,
 }
@@ -37,7 +37,7 @@ impl std::fmt::Debug for AnyEnum {
             F64(ptr) => write!(f, "F64({})", unsafe { ptr.read() }),
             Bool(b) => write!(f, "Bool({})", b),
             Ptr(ptr) => write!(f, "{:?}", ptr.view()),
-            Fn(n) => write!(f, "Fn({})", n),
+            Closure(n) => write!(f, "Fn({})", n),
             Undefined => write!(f, "undefined"),
             Null => write!(f, "null"),
         }
@@ -51,7 +51,7 @@ impl std::fmt::Display for AnyEnum {
             F64(ptr) => write!(f, "{}", unsafe { ptr.read() }),
             Bool(b) => write!(f, "{}", b),
             Ptr(p) => write!(f, "{}", p.view()),
-            Fn(_) | Undefined | Null => write!(f, "{:?}", self),
+            Closure(_) | Undefined | Null => write!(f, "{:?}", self),
         }
     }
 }
@@ -118,7 +118,7 @@ pub extern "C" fn any_to_f64(any: AnyValue) -> f64 {
             HeapRefView::String(s) => s.parse().unwrap_or(f64::NAN),
             _ => f64::NAN,
         },
-        AnyEnum::Fn(_) => f64::NAN,
+        AnyEnum::Closure(_) => f64::NAN,
         AnyEnum::Undefined => f64::NAN,
         AnyEnum::Null => 0.,
     }
@@ -129,23 +129,27 @@ pub extern "C" fn f64_to_any(x: f64) -> AnyValue {
     return heap().f64_to_any(x);
 }
 
-//#[no_mangle]
-//pub extern "C" fn any_from_fn<'a>(val: ClosureVal) -> AnyValue {
-//    AnyEnum::Fn(*val).into()
-//}
-//#[no_mangle]
-//pub extern "C" fn any_to_fn<'a>(val: AnyValue) -> ClosureVal {
-//    if let AnyEnum::Fn(inner) = *val {
-//        inner.into()
-//    } else {
-//        panic!("unwrap incorrect type {}", stringify!(Fn));
-//    }
-//}
+#[no_mangle]
+pub extern "C" fn any_from_closure<'a>(val: ClosureVal) -> AnyValue {
+    AnyEnum::Closure(*val).into()
+}
+#[no_mangle]
+pub extern "C" fn any_to_closure<'a>(val: AnyValue) -> ClosureVal {
+    if let AnyEnum::Closure(inner) = *val {
+        inner.into()
+    } else {
+        panic!("unwrap incorrect type {}", stringify!(Fn));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn any_from_fn<'a>(val: u32) -> AnyValue {
+    AnyEnum::Closure(Closure(unsafe { EnvPtr::null() }, val as u16)).into()
+}
 
 decl_proj_fns!(any_from_i32, any_to_i32, I32, i32);
 decl_proj_fns!(any_from_bool, any_to_bool, Bool, bool);
 decl_proj_fns!(any_from_ptr, any_to_ptr, Ptr, AnyPtr);
-decl_proj_fns!(any_from_fn, any_to_fn, Fn, i32);
 
 #[no_mangle]
 pub extern "C" fn get_undefined() -> AnyValue {

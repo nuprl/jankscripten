@@ -47,7 +47,7 @@ pub fn abstract_eq(a: AnyEnum, b: AnyEnum) -> bool {
         },
         // when fns become closures they might need to gain an impl PartialEq
         // which should only return true on pointer equality
-        (AnyEnum::Fn(a), AnyEnum::Fn(b)) => return a == b,
+        (AnyEnum::Closure(a), AnyEnum::Closure(b)) => return a == b,
         (AnyEnum::Undefined, AnyEnum::Undefined) => return true,
         (AnyEnum::Null, AnyEnum::Null) => return true,
         // not the same type. on to rule 2!

@@ -380,7 +380,7 @@ impl std::fmt::Display for Type {
                 Bool => "bool",
                 DynObject => "DynObject",
                 Fn(..) => "fn",
-                Closure(..) => "clos",
+                Closure(..) => "closure",
                 Any => "any",
             }
         )

@@ -670,7 +670,8 @@ impl<'a> Translate<'a> {
                     N::Type::I32 => self.rt_call("any_to_i32"),
                     N::Type::Bool => self.rt_call("any_to_bool"),
                     N::Type::F64 => self.rt_call("any_to_f64"),
-                    N::Type::Fn(..) => self.rt_call("any_to_fn"),
+                    N::Type::Fn(..) => panic!("cannot attain function from any"),
+                    N::Type::Closure(..) => self.rt_call("any_to_closure"),
                     _ => self.rt_call("any_to_ptr"),
                 }
             }
@@ -763,6 +764,7 @@ impl<'a> Translate<'a> {
             N::Type::Bool => self.rt_call("any_from_bool"),
             N::Type::F64 => self.rt_call("f64_to_any"),
             N::Type::Fn(..) => self.rt_call("any_from_fn"),
+            N::Type::Closure(..) => self.rt_call("any_from_closure"),
             _ => self.rt_call("any_from_ptr"),
         }
     }

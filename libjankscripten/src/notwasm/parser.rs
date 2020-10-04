@@ -187,19 +187,28 @@ parser! {
 }
 
 parser! {
+    fn fn_type['a, 'b, I](lang: &'b Lang<'a,I>)(I) -> FnType
+    where [I: Stream<Item = char>]
+    {
+        lang.parens(sep_by(type_(lang), lang.reserved_op(",")))
+            .skip(lang.reserved_op("->"))
+            .and(type_(lang).map(|t| Some(Box::new(t))).or(lang.reserved("void").map(|_| None)))
+            .map(|(args, result)| FnType {
+                args,
+                result
+            })
+    }
+}
+
+parser! {
     fn type_['a, 'b, I](lang: &'b Lang<'a, I>)(I) -> Type
     where [ I: Stream<Item = char>]
     {
         lang.reserved("i32").with(value(Type::I32))
             .or(lang.reserved("str").with(value(Type::String)))
             .or(lang.reserved("bool").with(value(Type::Bool)))
-            .or(lang.parens(sep_by(type_(lang), lang.reserved_op(",")))
-                .skip(lang.reserved_op("->"))
-                .and(type_(lang).map(|t| Some(Box::new(t))).or(lang.reserved("void").map(|_| None)))
-                .map(|(args, result)| Type::Fn(FnType {
-                    args,
-                    result
-                })))
+            .or(fn_type(lang).map(|f| Type::Fn(f)))
+            .or(lang.reserved("clos").with(fn_type(lang)).map(|f| Type::Closure(f)))
             .or(lang.reserved("f64").with(value(Type::F64)))
             .or(lang.reserved("any").with(value(Type::Any)))
             .or(lang.reserved("DynObject").with(value(Type::DynObject)))
