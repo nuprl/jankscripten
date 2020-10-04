@@ -1,5 +1,4 @@
 use super::constructors::*;
-use super::from_jankyscript::compile_ty;
 use super::syntax::Type;
 use crate::rts_function::RTSFunction;
 use std::collections::HashMap;
@@ -91,8 +90,7 @@ pub fn get_rt_bindings() -> BindMap {
         if let RTSFunction::Todo(_) = rts {
             // can't !let
         } else {
-            // TODO(luna): this is just the worst
-            if let Closure(ty) = compile_ty(rts.janky_typ()) {
+            if let Fn(ty) = rts.janky_typ().notwasm_typ() {
                 m.insert(rts.name().into(), Fn(ty));
             } else {
                 panic!("rts non-function");

@@ -210,7 +210,17 @@ fn compile_exprs<'a>(
 }
 
 pub fn compile_ty(janky_typ: J::Type) -> Type {
-    janky_typ.notwasm_typ()
+    // why the seemingly double behavior?
+    // we turn Fn into Closure only when it's in the program, not in
+    // RTSFunctions
+    match janky_typ.notwasm_typ() {
+        Type::Fn(mut fn_ty) => {
+            // TODO(luna): env
+            fn_ty.args.insert(0, Type::I32);
+            Type::Closure(fn_ty)
+        }
+        got => got,
+    }
 }
 
 fn coercion_to_expr(c: J::Coercion, a: Atom) -> Atom {
@@ -475,7 +485,10 @@ fn rope_to_block(rope: Rope<Stmt>) -> Stmt {
 }
 
 fn compile_function<'a>(s: &'a mut S, f: J::Func) -> Function {
-    let (param_names, param_tys): (Vec<_>, Vec<_>) = f.args_with_typs.into_iter().unzip();
+    let (param_names, param_tys): (Vec<_>, Vec<_>) =
+        std::iter::once((Id::Generated("_", 341), J::Type::Int))
+            .chain(f.args_with_typs.into_iter())
+            .unzip();
     Function {
         body: Stmt::Block(compile_stmt(s, *f.body).into_iter().collect()),
         params: param_names,

@@ -602,15 +602,20 @@ impl<'a> Translate<'a> {
             }
             N::Expr::Closure(id, env) => {
                 // first, construct the environment
-                self.out.push(I32Const(env.len() as i32));
-                self.rt_call("env_alloc");
-                // init all the
-                for (i, (a, ty)) in env.iter_mut().enumerate() {
-                    self.out.push(I32Const(i as i32));
-                    self.translate_atom(a);
-                    self.to_any(ty);
-                    // this returns the env so we don't need locals magic
-                    self.rt_call("env_init_at");
+                if env.len() == 0 {
+                    // nullptr; will never be read
+                    self.out.push(I32Const(0));
+                } else {
+                    self.out.push(I32Const(env.len() as i32));
+                    self.rt_call("env_alloc");
+                    // init all the
+                    for (i, (a, ty)) in env.iter_mut().enumerate() {
+                        self.out.push(I32Const(i as i32));
+                        self.translate_atom(a);
+                        self.to_any(ty);
+                        // this returns the env so we don't need locals magic
+                        self.rt_call("env_init_at");
+                    }
                 }
                 // env is left on the stack. now the function is the second
                 // argument
@@ -672,6 +677,7 @@ impl<'a> Translate<'a> {
                     N::Type::F64 => self.rt_call("any_to_f64"),
                     N::Type::Fn(..) => panic!("cannot attain function from any"),
                     N::Type::Closure(..) => self.rt_call("any_to_closure"),
+                    N::Type::Any => (),
                     _ => self.rt_call("any_to_ptr"),
                 }
             }
@@ -727,7 +733,6 @@ impl<'a> Translate<'a> {
                 };
                 let offset = TAG_SIZE + LENGTH_SIZE + *index * ANY_SIZE + ty_offset;
                 // make sure you don't accidentally put ty_offset here
-                println!("{}", offset);
                 self.load(ty.clone(), offset);
             }
         }
@@ -765,6 +770,7 @@ impl<'a> Translate<'a> {
             N::Type::F64 => self.rt_call("f64_to_any"),
             N::Type::Fn(..) => self.rt_call("any_from_fn"),
             N::Type::Closure(..) => self.rt_call("any_from_closure"),
+            N::Type::Any => (),
             _ => self.rt_call("any_from_ptr"),
         }
     }

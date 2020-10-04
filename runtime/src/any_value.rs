@@ -81,7 +81,7 @@ impl std::fmt::Debug for HeapRefView {
             Class(_) => panic!("shouldn't have object data as value"),
             ObjectPtrPtr(_) => write!(f, "DynObject({})", self),
             NonPtr32(_) | MutF64(_) | Ptr(_) => panic!("ref inside any"),
-            Env(_) => panic!("not a value"),
+            Env(e) => write!(f, "Env({:?})", e),
         }
     }
 }
@@ -101,7 +101,7 @@ macro_rules! decl_proj_fns {
                 inner.into()
             } else {
                 log!("cannot unwrap {:?} as {}", *val, stringify!($any_name));
-                panic!();
+                panic!("");
             }
         }
     };

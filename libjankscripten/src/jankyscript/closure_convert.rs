@@ -55,12 +55,6 @@ impl Visitor for ClosureConversion {
                 .collect(),
         );
     }
-    fn exit_fn(&mut self, func: &mut Func, _: &Loc) {
-        self.free_vars_stack.pop();
-        // TODO(luna): Type::Env
-        func.args_with_typs
-            .insert(0, (Id::Generated("env", 0), Type::Int));
-    }
     fn exit_expr(&mut self, expr: &mut Expr, _: &Loc) {
         match expr {
             Expr::Id(id, ty) => {
@@ -69,6 +63,9 @@ impl Visitor for ClosureConversion {
                 }
             }
             Expr::Func(func) => {
+                // this has to happen first so that free_vars will reflect
+                // the scope of the containing function not the function itself
+                self.free_vars_stack.pop();
                 // remember which variables should be passed on from env vs
                 // from stack. im_rc hashmap iter is guaranteed to be
                 // consistent for the same data
@@ -80,6 +77,12 @@ impl Visitor for ClosureConversion {
                         None => (Expr::Id(id.clone(), ty.clone()), ty.clone()),
                     })
                     .collect();
+                // you might think that here is where we want to insert the environment
+                // as a parameter. but if we did that we would have to rewrite all our
+                // coercions as well! so instead, we just translate *any* FnType in
+                // the whole program with an environmented type in
+                // from_jankyscript. when we no longer closure-convert all functions,
+                // this may need to change
                 *expr = Expr::Closure(func.take(), env);
             }
             // assigns should have been boxed so they will never be assigned

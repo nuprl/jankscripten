@@ -16,6 +16,16 @@ macro_rules! log {
     )
 }
 
+#[allow(unused)]
+macro_rules! log_panic {
+    ($($t:tt)*) => (
+        {
+            log!($($t)*);
+            std::panic!("log panic")
+        }
+    )
+}
+
 pub mod any_value;
 pub mod array;
 pub mod closure;

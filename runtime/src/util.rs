@@ -37,7 +37,7 @@ pub fn unwrap_log<T>(value: Option<T>, message: &'static str) -> T {
         Some(v) => v,
         None => {
             log(message);
-            panic!(message); // the message does not appear
+            panic!("{}", message); // the message does not appear
         }
     }
 }

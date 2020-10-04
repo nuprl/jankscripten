@@ -20,7 +20,7 @@ use crate::AnyEnum;
 ///    the compiler and turn EnvGet into (local.get 0, typ.load STATIC_OFFSET)
 ///
 /// Tag | u32 | [EnvItem]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 #[repr(transparent)]
 pub struct EnvPtr {
     ptr: *mut Tag,
@@ -104,6 +104,12 @@ impl HeapPtr for EnvPtr {
     fn get_gc_ptrs(&self, _: &Heap) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
         // SAFETY: this actually isn't safe!!!
         AnyEnum::iter_to_ptrs(unsafe { self.slice().iter() })
+    }
+}
+
+impl std::fmt::Debug for EnvPtr {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", unsafe { self.slice().iter() })
     }
 }
 

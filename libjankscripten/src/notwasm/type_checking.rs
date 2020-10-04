@@ -289,8 +289,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
         }
         Expr::PrimCall(prim, args) => {
             match prim.janky_typ().notwasm_typ() {
-                // it's not a closure, but notwasm_typ always thinks it is
-                Type::Closure(fn_ty) => {
+                Type::Fn(fn_ty) => {
                     let arg_tys = args
                         .into_iter()
                         .map(|a| type_check_atom(env, a))
@@ -322,29 +321,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
         Expr::Call(id_f, actuals) => {
             let got_f = lookup(env, id_f)?;
             if let Type::Fn(fn_ty) = got_f {
-                // arity check
-                if actuals.len() != fn_ty.args.len() {
-                    return Err(TypeCheckingError::ArityMismatch(
-                        id_f.clone(),
-                        actuals.len() - fn_ty.args.len(),
-                    ));
-                }
-
-                // match formals and actuals
-                let mut nth = 0;
-                for (actual, formal) in actuals.iter().zip(fn_ty.args.iter()) {
-                    let got = lookup(env, actual)?;
-                    let _ = ensure(
-                        &format!("call {:?} (argument #{})", id_f, nth),
-                        formal.clone(),
-                        got,
-                    )?;
-                    nth += 1;
-                }
-
-                // return type or any
-                // ??? MMG do we need a void/unit type?
-                Ok(fn_ty.result.map(|b| *b).unwrap_or(Type::Any))
+                type_check_call(env, id_f, actuals, fn_ty, false)
             } else {
                 Err(TypeCheckingError::ExpectedFunction(id_f.clone(), got_f))
             }
@@ -352,30 +329,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
         Expr::ClosureCall(id_f, actuals) => {
             let got_f = lookup(env, id_f)?;
             if let Type::Closure(fn_ty) = got_f {
-                // arity check
-                if actuals.len() + 1 != fn_ty.args.len() {
-                    println!("{:?} {:?}", actuals, fn_ty.args);
-                    return Err(TypeCheckingError::ArityMismatch(
-                        id_f.clone(),
-                        actuals.len() + 1 - fn_ty.args.len(),
-                    ));
-                }
-
-                // match formals and actuals
-                let mut nth = 0;
-                for (actual, formal) in actuals.iter().zip(fn_ty.args.iter()) {
-                    let got = lookup(env, actual)?;
-                    let _ = ensure(
-                        &format!("call {:?} (argument #{})", id_f, nth),
-                        formal.clone(),
-                        got,
-                    )?;
-                    nth += 1;
-                }
-
-                // return type or any
-                // ??? MMG do we need a void/unit type?
-                Ok(fn_ty.result.map(|b| *b).unwrap_or(Type::Any))
+                type_check_call(env, id_f, actuals, fn_ty, true)
             } else {
                 Err(TypeCheckingError::ExpectedFunction(id_f.clone(), got_f))
             }
@@ -395,6 +349,58 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             Err(e) => Err(e),
         },
     }
+}
+
+/// implicit_arg is true in a closure; typechecks as if fn_ty started with
+/// an Env
+fn type_check_call(
+    env: &Env,
+    id_f: &Id,
+    actuals: &[Id],
+    fn_ty: FnType,
+    implicit_arg: bool,
+) -> TypeCheckingResult<Type> {
+    // arity check
+    let actuals_len = actuals.len() + if implicit_arg { 1 } else { 0 };
+    if actuals_len != fn_ty.args.len() {
+        return Err(TypeCheckingError::ArityMismatch(
+            id_f.clone(),
+            actuals_len - fn_ty.args.len(),
+        ));
+    }
+
+    // match formals and actuals
+    let mut nth = 0;
+    let mut args_iter = fn_ty.args.iter();
+    if implicit_arg {
+        match args_iter.next() {
+            // TODO(luna): (not related to this location but getting it down):
+            // ids don't match types because Function isn't rewritten (right?)
+            // TODO(luna): env
+            Some(Type::I32) => (),
+            Some(got) => {
+                return Err(TypeCheckingError::TypeMismatch(
+                    String::from("closure must accept environment"),
+                    Type::I32,
+                    got.clone(),
+                ))
+            }
+            None => unreachable!(),
+        }
+    }
+    for (actual, formal) in actuals.iter().zip(args_iter) {
+        let got = lookup(env, actual)?;
+        let _ = ensure(
+            &format!("call {:?} (argument #{})", id_f, nth),
+            formal.clone(),
+            got,
+        )?;
+        nth += 1;
+    }
+
+    // return type or any
+    // ??? MMG do we need a void/unit type?
+    Ok(fn_ty.result.map(|b| *b).unwrap_or(Type::Any))
 }
 
 fn assert_variant_of_any(ty: &Type) -> TypeCheckingResult<()> {
