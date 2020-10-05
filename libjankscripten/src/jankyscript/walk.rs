@@ -233,12 +233,7 @@ where
                 }
             }
             // 1xExpr
-            Dot(e, ..)
-            | Unary(.., e)
-            | Coercion(.., e)
-            | NewRef(e, ..)
-            | Deref(e)
-            | Store(.., e) => {
+            Dot(e, ..) | Unary(.., e) | Coercion(.., e) | NewRef(e, ..) | Deref(e, ..) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_expr(e, &loc);
             }
@@ -258,7 +253,7 @@ where
                 }
             }
             // 2xExpr
-            Bracket(ea, eb) | Binary(.., ea, eb) => {
+            Bracket(ea, eb) | Binary(.., ea, eb) | Store(ea, eb, ..) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_expr(ea, &loc);
                 self.walk_expr(eb, &loc);

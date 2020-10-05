@@ -627,16 +627,8 @@ impl<'a> Translate<'a> {
 
     fn translate_atom(&mut self, atom: &mut N::Atom) {
         match atom {
-            N::Atom::Deref(id) => {
-                // dereferences are implemented as raw memory reads
-                let ty = self
-                    .get_id(id)
-                    .expect("add types to globals to support global ref");
-                let ty = if let N::Type::Ref(b_ty) = ty {
-                    *b_ty
-                } else {
-                    panic!("tried to deref non-ref");
-                };
+            N::Atom::Deref(a, ty) => {
+                self.translate_atom(a);
                 self.load(ty, TAG_SIZE);
             }
             N::Atom::Lit(lit) => match lit {
@@ -733,12 +725,12 @@ impl<'a> Translate<'a> {
                 };
                 let offset = TAG_SIZE + LENGTH_SIZE + *index * ANY_SIZE + ty_offset;
                 // make sure you don't accidentally put ty_offset here
-                self.load(ty.clone(), offset);
+                self.load(ty, offset);
             }
         }
     }
 
-    fn load(&mut self, ty: N::Type, offset: u32) {
+    fn load(&mut self, ty: &N::Type, offset: u32) {
         match ty.as_wasm() {
             ValueType::I32 => self.out.push(I32Load(2, offset)),
             ValueType::I64 => self.out.push(I64Load(2, offset)),
@@ -792,7 +784,7 @@ impl<'a> Translate<'a> {
             IdIndex::RTGlobal(n, ty) => {
                 self.out.push(GetGlobal(*n));
                 let ty = ty.clone();
-                self.load(ty.clone(), 0);
+                self.load(&ty, 0);
                 Some(ty)
             }
             // notwasm indexes from our functions, wasm indexes from rt

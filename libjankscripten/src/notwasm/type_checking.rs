@@ -184,7 +184,7 @@ fn type_check_stmt(env: Env, s: &mut Stmt, ret_ty: &Option<Type>) -> TypeCheckin
 
             let type_pointed_to = ensure_ref("ref type", got_id)?;
 
-            let _ = ensure("ref store", type_pointed_to, got_expr)?;
+            ensure("ref store", type_pointed_to, got_expr)?;
 
             Ok(env)
         }
@@ -431,7 +431,11 @@ fn assert_variant_of_any(ty: &Type) -> TypeCheckingResult<()> {
 
 fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
     match a {
-        Atom::Deref(id) => ensure_ref("dereference", lookup(env, id)?),
+        Atom::Deref(a, ty) => ensure(
+            "dereference",
+            ty.clone(),
+            ensure_ref("deref atom", type_check_atom(env, a)?)?,
+        ),
         Atom::Lit(l) => Ok(l.notwasm_typ()),
         Atom::ToAny(to_any) => {
             let ty = type_check_atom(env, &mut to_any.atom)?;

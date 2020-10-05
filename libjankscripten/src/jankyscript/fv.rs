@@ -77,7 +77,7 @@ fn fv_expr(expr: &mut Expr) -> IdMap {
         Lit(_) | EnvGet(..) => empty(),
         Object(kvs) => IdMap::unions(kvs.iter_mut().map(|(_, v)| fv_expr(v))),
         Array(es) => IdMap::unions(es.iter_mut().map(|e| fv_expr(e))),
-        Dot(e, _) | Unary(_, e) | Coercion(_, e) | NewRef(e, ..) | Deref(e) => fv_expr(e),
+        Dot(e, _) | Unary(_, e) | Coercion(_, e) | NewRef(e, ..) | Deref(e, ..) => fv_expr(e),
         Bracket(e1, e2) => fv_expr(e1).union(fv_expr(e2)),
         Binary(_, e1, e2) => fv_expr(e1).union(fv_expr(e2)),
         Assign(lv, e) => fv_lv(lv).union(fv_expr(e)),

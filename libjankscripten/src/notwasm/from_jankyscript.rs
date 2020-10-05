@@ -407,13 +407,21 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             *expr,
             C::a(move |s, of| cxt.recv_e(s, Expr::NewRef(of, compile_ty(ty)))),
         ),
-        J::Expr::Deref(expr) => {
-            compile_expr(s, *expr, C::id(move |s, of| cxt.recv_a(s, deref_(of))))
-        }
-        J::Expr::Store(id, expr) => compile_expr(
+        J::Expr::Deref(expr, ty) => compile_expr(
             s,
             *expr,
-            C::e(move |_s, what| Rope::singleton(Stmt::Store(id, what))),
+            C::a(move |s, of| cxt.recv_a(s, deref_(of, compile_ty(ty)))),
+        ),
+        J::Expr::Store(into, expr, _) => compile_expr(
+            s,
+            *into,
+            C::id(move |s, into| {
+                compile_expr(
+                    s,
+                    *expr,
+                    C::e(move |_s, what| Rope::singleton(Stmt::Store(into, what))),
+                )
+            }),
         ),
         J::Expr::EnvGet(i, ty) => cxt.recv_a(s, Atom::EnvGet(i, compile_ty(ty))),
     }

@@ -31,7 +31,15 @@ impl Visitor for BoxVisitor {
         // variables
         let old = self.to_box_stack.last().unwrap().clone();
         let new = func.assigned_free_children.clone();
-        self.to_box_stack.push(old.union(new));
+        let to_box = old.union(new);
+        self.to_box_stack.push(to_box.clone());
+        // we'll be changing the types of some of our free variables to ref,
+        // and we need those types so let's record that change
+        for (k, v) in func.free_vars.iter_mut() {
+            if self.should_box(k) {
+                *v = Type::Ref(Box::new(v.clone()));
+            }
+        }
         // now we want to box up parameters. we can't expect the parameter
         // to be boxed because how would we know? parameters are always any. so
         // what we do is change the parameter to a fresh name, and assign the
@@ -52,11 +60,16 @@ impl Visitor for BoxVisitor {
     }
     fn exit_expr(&mut self, expr: &mut Expr, _: &Loc) {
         match expr {
-            Expr::Id(id, _) if self.should_box(id) => *expr = deref_(expr.take()),
+            Expr::Id(id, ty) if self.should_box(id) => {
+                let old_ty = ty.clone();
+                let new_ty = ref_ty_(old_ty.clone());
+                *ty = new_ty.clone();
+                *expr = deref_(expr.take(), old_ty)
+            }
             Expr::Assign(lv, to) => {
-                match &**lv {
-                    LValue::Id(id, _) if self.should_box(id) => {
-                        *expr = store_(id.clone(), to.take())
+                match &mut **lv {
+                    LValue::Id(id, ty) if self.should_box(id) => {
+                        *expr = store_(id.clone(), to.take(), ty.clone())
                     }
                     // []/. => boxed already!
                     _ => (),

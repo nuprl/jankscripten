@@ -52,12 +52,16 @@ pub fn new_ref_(e1: Expr, ty: Type) -> Expr {
     Expr::NewRef(Box::new(e1), ty)
 }
 
-pub fn deref_(e1: Expr) -> Expr {
-    Expr::Deref(Box::new(e1))
+pub fn deref_(e1: Expr, ty: Type) -> Expr {
+    Expr::Deref(Box::new(e1), ty)
 }
 
-pub fn store_(id: Id, e1: Expr) -> Expr {
-    Expr::Store(id, Box::new(e1))
+pub fn store_(id: Id, e1: Expr, ty: Type) -> Expr {
+    Expr::Store(
+        Box::new(Expr::Id(id, ref_ty_(ty.clone()))),
+        Box::new(e1),
+        ty,
+    )
 }
 
 // Statements
@@ -88,4 +92,10 @@ pub fn empty_() -> Stmt {
 
 pub fn return_(e: Expr) -> Stmt {
     Stmt::Return(Box::new(e))
+}
+
+// Types
+
+pub fn ref_ty_(ty: Type) -> Type {
+    Type::Ref(Box::new(ty))
 }

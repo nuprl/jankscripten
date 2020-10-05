@@ -101,6 +101,7 @@ impl ClosureConversion {
     fn free_vars(&self) -> &HashMap<Id, u32> {
         self.free_vars_stack.last().unwrap()
     }
+    /// if id is free, then turn it into an EnvGet, otherwise return None
     fn compile_id(&self, id: &Id, ty: Type) -> Option<Expr> {
         self.free_vars()
             .get(id)

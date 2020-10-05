@@ -89,8 +89,8 @@ pub fn eq_(a: Atom, b: Atom) -> Atom {
 pub fn len_(a: Atom) -> Atom {
     Atom::StringLen(Box::new(a))
 }
-pub fn deref_(a: Id) -> Atom {
-    Atom::Deref(a)
+pub fn deref_(a: Atom, b: Type) -> Atom {
+    Atom::Deref(Box::new(a), b)
 }
 pub const TRUE_: Atom = Atom::Lit(Lit::Bool(true));
 pub const FALSE_: Atom = Atom::Lit(Lit::Bool(false));

@@ -103,9 +103,10 @@ pub enum Expr {
     /// Create a new heap-allocated box, with contents of type T.
     NewRef(Box<Expr>, Type),
     /// Read from a heap-allocated box
-    Deref(Box<Expr>),
-    /// Update the contents of a heap-allocated box
-    Store(Id, Box<Expr>),
+    Deref(Box<Expr>, Type),
+    /// Update the contents of a heap-allocated box.
+    /// stores .1 into the location indicated by .0
+    Store(Box<Expr>, Box<Expr>, Type),
     /// the index of the variable
     EnvGet(u32, Type),
 }

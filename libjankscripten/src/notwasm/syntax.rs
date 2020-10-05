@@ -234,7 +234,7 @@ pub enum Atom {
     StringLen(Box<Atom>),
     Unary(UnaryOp, Box<Atom>),
     Binary(BinaryOp, Box<Atom>, Box<Atom>),
-    Deref(Id), // *ref on RHS
+    Deref(Box<Atom>, Type),
     /// get the given value from the environment at local 0
     EnvGet(u32, Type),
 }

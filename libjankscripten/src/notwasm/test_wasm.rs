@@ -314,7 +314,7 @@ fn basic_ref() {
         r#"
         function main() : i32 {
             var r = newRef(150, i32);
-            return *r;
+            return *r: i32;
         }
         "#,
     );
@@ -330,7 +330,7 @@ fn basic_ref_mutation() {
             var r = newRef(150, i32);
             var s = r;
             *s = 130;
-            return *r;
+            return *r: i32;
         }
         "#,
     );
