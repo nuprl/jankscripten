@@ -215,8 +215,7 @@ pub fn compile_ty(janky_typ: J::Type) -> Type {
     // RTSFunctions
     match janky_typ.notwasm_typ() {
         Type::Fn(mut fn_ty) => {
-            // TODO(luna): env
-            fn_ty.args.insert(0, Type::I32);
+            fn_ty.args.insert(0, Type::Env);
             Type::Closure(fn_ty)
         }
         got => got,

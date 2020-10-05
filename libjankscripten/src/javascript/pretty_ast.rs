@@ -29,15 +29,10 @@ impl Stmt {
                 .append(D::text(";")),
             If(cond, then, other) => D::text("if (")
                 .append(cond.to_doc())
-                // TODO(luna):
-                // if (cond)
-                //     one_off()
                 .append(D::text(") "))
                 .append(then.to_doc())
-                // same here
                 .append(D::text(" else "))
                 .append(other.to_doc()),
-            // TODO(luna): what to do about blocks being not pretty
             Switch(descr, cases, default) => D::text("switch (")
                 .append(descr.to_doc())
                 .append(D::text(") {"))

@@ -1,9 +1,7 @@
 function sillyAdder(x) {
-    // TODO(luna): fix param boxing so we don't need this
-    var realX = x;
     return function(y) {
-        realX += 1;
-        return realX + y;
+        x += 1;
+        return x + y;
     }
 }
 

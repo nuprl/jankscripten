@@ -30,7 +30,7 @@ pub extern "C" fn object_get(object: ObjectPtr, field: StringPtr, cache: &mut is
 /// as returning a DynObject even though it's ultimately stored in a DynObject
 /// and thus is coerced into an Any::Fun
 #[no_mangle]
-pub extern "C" fn object_create(maybe_prototype_chain: AnyValue) -> AnyValue {
+pub extern "C" fn object_create(_env: EnvPtr, maybe_prototype_chain: AnyValue) -> AnyValue {
     AnyEnum::Ptr(
         match *maybe_prototype_chain {
             AnyEnum::Null => object_empty(),

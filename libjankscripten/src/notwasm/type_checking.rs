@@ -374,14 +374,11 @@ fn type_check_call(
     let mut args_iter = fn_ty.args.iter();
     if implicit_arg {
         match args_iter.next() {
-            // TODO(luna): (not related to this location but getting it down):
-            // ids don't match types because Function isn't rewritten (right?)
-            // TODO(luna): env
-            Some(Type::I32) => (),
+            Some(Type::Env) => (),
             Some(got) => {
                 return Err(TypeCheckingError::TypeMismatch(
                     String::from("closure must accept environment"),
-                    Type::I32,
+                    Type::Env,
                     got.clone(),
                 ))
             }
@@ -405,6 +402,8 @@ fn type_check_call(
 
 fn assert_variant_of_any(ty: &Type) -> TypeCheckingResult<()> {
     match ty {
+        // an any can be stored in an any right? but, i can see why you
+        // wouldn't want to generate code that does so
         Type::Any => invalid_in_context("cannot be stored in an Any", &ty),
         Type::I32 => Ok(()),
         Type::F64 => Ok(()),
@@ -413,8 +412,7 @@ fn assert_variant_of_any(ty: &Type) -> TypeCheckingResult<()> {
         // We need to think this through. We cannot store arbitrary functions
         // inside an Any.
         Type::Fn(ty) => {
-            // TODO(luna): env
-            if Some(&Type::I32) == ty.args.get(0) {
+            if Some(&Type::Env) == ty.args.get(0) {
                 Ok(())
             } else {
                 error!("function must accept dummy environment to be any-ified")
@@ -425,7 +423,8 @@ fn assert_variant_of_any(ty: &Type) -> TypeCheckingResult<()> {
         Type::HT => Ok(()),
         Type::Array => Ok(()),
         Type::DynObject => Ok(()),
-        Type::Ref(..) => todo!(),
+        Type::Ref(..) => invalid_in_context("ref should not be stored in Any", &ty),
+        Type::Env => invalid_in_context("environments are not values", &ty),
     }
 }
 

@@ -43,13 +43,14 @@ impl Visitor for BoxVisitor {
         // now we want to box up parameters. we can't expect the parameter
         // to be boxed because how would we know? parameters are always any. so
         // what we do is change the parameter to a fresh name, and assign the
-        // original name to newRef(fresh)
+        // original name to it. we don't box it because it'll be handled by the
+        // rest of the visitor
         for (name, ty) in &mut func.args_with_typs {
             if self.should_box(name) {
                 let real_name = name.clone();
                 *name = self.ng.fresh("to_box");
                 func.body = Box::new(block_(vec![
-                    var_to_new_ref(real_name, ty, Expr::Id(name.clone(), ty.clone())),
+                    var_(real_name, ty.clone(), Expr::Id(name.clone(), ty.clone())),
                     (*func.body).take(),
                 ]));
             }

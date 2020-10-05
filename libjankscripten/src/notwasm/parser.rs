@@ -216,6 +216,7 @@ parser! {
             .or(lang.reserved("HT").with(value(Type::HT)))
             .or(lang.reserved("Array").with(value(Type::Array)))
             .or(lang.reserved("Ref").with(lang.parens(type_(lang))).map(|t| ctor::ref_ty_(t)))
+            .or(lang.reserved("env").with(value(Type::Env)))
     }
 }
 

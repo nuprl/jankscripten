@@ -45,7 +45,7 @@ pub fn get_rt_bindings() -> BindMap {
     // I32s are caches here
     insert(m, "object_set", vec![DynObject, String, Any, I32], Any);
     insert(m, "object_get", vec![DynObject, String, I32], Any);
-    insert(m, "object_create", vec![Any], Any);
+    insert(m, "object_create", vec![Env, Any], Any);
     insert(m, "string_len", vec![String], I32);
     // I32 is any I32-sized data
     insert(m, "ref_new_non_ptr_32", vec![I32], ref_ty_(I32));

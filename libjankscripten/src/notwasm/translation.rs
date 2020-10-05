@@ -825,6 +825,7 @@ impl N::Type {
             Fn(..) => ValueType::I32,
             Closure(..) => ValueType::I64,
             Ref(..) => ValueType::I32,
+            Env => ValueType::I32,
         }
     }
 }

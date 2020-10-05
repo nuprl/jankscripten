@@ -173,7 +173,7 @@ fn functions() {
 fn closures() {
     let program = parse(
         r#"
-        function acceptEnv(_: i32) : i32 {
+        function acceptEnv(_: env) : i32 {
             return env.0: i32 + env.1: i32 + env.2: i32;
         }
         function main() : i32 {
@@ -276,20 +276,20 @@ fn function_any() {
             var result = 0;
             var the5 = 5;
             if (takesTwoArgs) {
-                // TODO(luna): a. this will become an env type, b. maybe closure
-                // types shouldn't include their environment argument?
-                var arity2 = anyFunc as clos(i32, i32, i32) -> i32;
+                // TODO(luna): maybe closure types shouldn't include their
+                // environment argument?
+                var arity2 = anyFunc as clos(env, i32, i32) -> i32;
                 result = arity2!(the5, the5);
             } else {
-                var arity1 = anyFunc as clos(i32, i32) -> i32;
+                var arity1 = anyFunc as clos(env, i32) -> i32;
                 result = arity1!(the5);
             }
             return result;
         }
-        function add2(dummyEnv: i32, n: i32): i32 {
+        function add2(dummyEnv: env, n: i32): i32 {
             return n + 2;
         }
-        function add(dummyEnv: i32, n: i32, m: i32): i32 {
+        function add(dummyEnv: env, n: i32, m: i32): i32 {
             return n + m;
         }
         function main(): i32 {

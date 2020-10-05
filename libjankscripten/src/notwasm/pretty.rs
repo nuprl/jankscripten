@@ -22,6 +22,7 @@ impl Pretty for Type {
             Type::Ref(t) => pp.concat(vec![pp.text("ref"), t.pretty(pp).parens()]),
             Type::Fn(fn_t) => fn_t.pretty(pp),
             Type::Closure(fn_t) => pp.text("clos").append(fn_t.pretty(pp)),
+            Type::Env => pp.text("env"),
         }
     }
 }

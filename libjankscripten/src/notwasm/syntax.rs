@@ -63,11 +63,17 @@ pub enum Type {
     Any,
     /// If `v : Ref(I32)` then `v` is a `*const Tag` and `v.type_tag == NonPtr32`.
     /// If `v : Ref(Bool)` then `v` is a `*const Tag` and `v.type_tag == NonPtr32`.
-    /// If `v : Ref(F64)` then `v` is a `*const Tag` and TODO
+    /// If `v : Ref(F64)` then `v` is a `*const Tag` and resides in the f64 heap
     /// If `v : Ref(Any)` then `v` is a `*const Tag` and `v.type_tag == Any`.
     /// If `v : Ref(T)` and T is represented as a `*const Tag`, then `v` is a
     /// `*const Tag` `v.type_tag == Ptr`.
     Ref(Box<Type>),
+    /// If `v : Env` then `v` is a `*const Tag` and `v.type_tag == Env`.
+    /// Envs are not values, nor are they really types!!! An env actually has
+    /// an existential type associated with each closure, but we simply say that
+    /// all envs are "equal enough" for the code generation we do after closure
+    /// conversion
+    Env,
 }
 
 impl Type {
@@ -84,6 +90,9 @@ impl Type {
             Type::Closure(_) => true,
             Type::Ref(_) => true,
             Type::Any => true,
+            // uhhh i don't think there's a way for there to be a live env when
+            // there's not a live closure? so this could probably become false?
+            Type::Env => true,
         }
     }
 }
@@ -380,6 +389,7 @@ impl std::fmt::Display for Type {
                 Fn(..) => "fn",
                 Closure(..) => "closure",
                 Any => "any",
+                Env => "env",
             }
         )
     }
