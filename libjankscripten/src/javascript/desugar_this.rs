@@ -42,7 +42,13 @@ impl Visitor for ThisParameter<'_> {
                 let obj_name = self.ng.fresh("new_obj");
 
                 // Object.create(f.prototype)
-                let new_obj = call_(dot_(id_("Object"), "create"), vec![Expr::Dot(Box::new(Expr::Id(func_name.clone())), Id::Named("prototype".to_string()))]);
+                let new_obj = call_(
+                    dot_(id_("Object"), "create"),
+                    vec![Expr::Dot(
+                        Box::new(Expr::Id(func_name.clone())),
+                        Id::Named("prototype".to_string()),
+                    )],
+                );
 
                 // Insert into the surrounding syntax block:
                 //     let $name = Object.create(f.prototype);
