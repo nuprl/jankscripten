@@ -682,12 +682,8 @@ impl<'a> Translate<'a> {
         }
     }
     fn notwasm_rt_call(&mut self, name: &str) {
-        if let Some(IdIndex::Fun(func)) = self
-            .id_env
-            .get(&N::Id::Named(name.to_string()))
-        {
-            self.out
-                .push(Call(*func + self.rt_indexes.len() as u32))
+        if let Some(IdIndex::Fun(func)) = self.id_env.get(&N::Id::Named(name.to_string())) {
+            self.out.push(Call(*func + self.rt_indexes.len() as u32))
         } else {
             panic!("cannot find notwasm runtime function {}", name);
         }
