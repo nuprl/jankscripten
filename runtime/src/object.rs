@@ -26,7 +26,7 @@ pub extern "C" fn object_get<'a>(
     field: StringPtr,
     cache: &mut isize,
 ) -> AnyValue {
-    object.get(heap(), field, cache).unwrap().into()
+    object.get(heap(), field, cache).into()
 }
 
 /// global.Object.create
