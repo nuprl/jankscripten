@@ -34,12 +34,15 @@ function jnks_init() {
     global = {};
 }
 
+// Cached Object functions to be used in jnks_new_object.
+// ASSUMPTION: Object.prototype is never modified by user code.
+var jnks_objectCreate = Object.create as (any) -> any;
+var jnks_objectPrototype = Object.prototype;
+
 // Runtime function to create a regular empty object like `{}` or
 // `new Object()`.
 function jnks_new_object(): DynObject {
     // Create new object that inherits from Object.prototype.
-    var objectCreate = Object.create as (any) -> any;
-    var objectPrototype = Object.prototype;
-    var newObject = objectCreate(objectPrototype);
+    var newObject = jnks_objectCreate(jnks_objectPrototype);
     return newObject as DynObject;
 }
