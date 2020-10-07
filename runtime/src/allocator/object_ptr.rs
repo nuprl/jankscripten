@@ -132,12 +132,12 @@ impl<'a> ObjectDataPtr<'a> {
         // There are 3 cases to consider for a property read `obj[prop]`:
         //
         // 1. `obj` has a field named `prop`       ~~> return `obj[prop]`
-        // 
+        //
         // 2. `obj` has a field named "__proto__"  ~~> return `obj.__proto__[prop]`
         //                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         //                                             this will recursively search
         //                                                  the prototype chain
-        // 
+        //
         // 3. "__proto__" field is missing or null ~~> return `undefined`
 
         // Test Case 1: `obj` has a field named `prop`.
@@ -153,8 +153,9 @@ impl<'a> ObjectDataPtr<'a> {
 
         if let Some(offset) = maybe_offset {
             // this is Case 1
-            return self.read_at(heap, offset)
-                .expect("object missing offset spceified by its hidden class")
+            return self
+                .read_at(heap, offset)
+                .expect("object missing offset spceified by its hidden class");
         }
 
         // Test Case 2: `obj` has a field named "__proto__".
@@ -170,7 +171,7 @@ impl<'a> ObjectDataPtr<'a> {
                     // this is Case 2. Perform the same read on the proto obj.
 
                     // -1 because we don't cache reads on the prototype chain
-                    return proto_obj.get(heap, name, &mut -1)
+                    return proto_obj.get(heap, name, &mut -1);
                 }
             }
         }
@@ -178,7 +179,7 @@ impl<'a> ObjectDataPtr<'a> {
         // This is Case 3. `obj` doesn't have `prop`, and `__proto__` is
         // missing or not an object.
 
-        return AnyEnum::Undefined
+        return AnyEnum::Undefined;
     }
 
     fn as_array(&self, heap: &Heap) -> &mut [Option<AnyEnum>] {
