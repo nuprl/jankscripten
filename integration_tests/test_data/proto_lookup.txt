@@ -1,0 +1,3 @@
+String(Colored Rectangle)
+I32(20)
+String(Red)

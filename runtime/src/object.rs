@@ -26,7 +26,7 @@ pub extern "C" fn object_get<'a>(
     field: StringPtr,
     cache: &mut isize,
 ) -> AnyValue {
-    object.get(heap(), field, cache).unwrap().into()
+    object.get(heap(), field, cache).into()
 }
 
 /// global.Object.create
@@ -37,13 +37,14 @@ pub extern "C" fn object_get<'a>(
 pub extern "C" fn object_create(maybe_prototype_chain: AnyValue) -> AnyValue {
     AnyEnum::Ptr(
         match *maybe_prototype_chain {
+            // Create a legitimately empty object. No properties or prototype.
             AnyEnum::Null => object_empty(),
             AnyEnum::Ptr(p) => match p.view() {
                 HeapRefView::ObjectPtrPtr(_o) => {
-                    // TODO(luna): support prototype chain. this should probably
-                    // look something like
-                    // object_empty().insert("__proto__", o)
-                    object_empty()
+                    // Create new object that inherits from the given prototype
+                    let mut new_object = object_empty();
+                    new_object.insert(heap(), "__proto__".into(), maybe_prototype_chain, &mut -1);
+                    new_object
                 }
                 _ => panic!("not an object or null"),
             },

@@ -193,7 +193,9 @@ fn translate_func(
     // before the code, if this is main we have to call init()
     if name == &N::Id::Named("main".to_string()) {
         if let (Some(IdIndex::Fun(jnks_init)), Some(init)) = (
+            // this is jnks_init, the notwasm runtime function
             id_env.get(&N::Id::Named("jnks_init".to_string())),
+            // this is init, the rust runtime function
             rt_indexes.get("init"),
         ) {
             insts = vec![Call(*init), Call(*jnks_init + rt_indexes.len() as u32)];
@@ -521,7 +523,16 @@ impl<'a> Translate<'a> {
                 self.rt_call("object_set");
             }
             N::Expr::ObjectEmpty => {
-                self.rt_call("object_empty");
+                // New objects like `{}` or `new Object()` are created using
+                // the runtime function `jnks_new_object`, which is located in
+                // `runtime.notwasm`. We have to find the function index of
+                // this runtime function and call it.
+                //
+                // The reason we use a runtime function to create `{}` as
+                // opposed to creating a legitimately empty object is because
+                // `{}` inherits from the default Object prototype, which
+                // must be resolved dynamically.
+                self.notwasm_rt_call("jnks_new_object");
             }
             N::Expr::Push(array, val) => {
                 self.translate_atom(array);
@@ -670,6 +681,13 @@ impl<'a> Translate<'a> {
             panic!("cannot find rt {}", name);
         }
     }
+    fn notwasm_rt_call(&mut self, name: &str) {
+        if let Some(IdIndex::Fun(func)) = self.id_env.get(&N::Id::Named(name.to_string())) {
+            self.out.push(Call(*func + self.rt_indexes.len() as u32))
+        } else {
+            panic!("cannot find notwasm runtime function {}", name);
+        }
+    }
 
     fn get_id(&mut self, id: &N::Id) {
         match self
@@ -695,6 +713,11 @@ impl<'a> Translate<'a> {
         }
     }
 
+    /// Sets up caching for a particular object field lookup in the generated
+    /// code. It does 2 things:
+    /// 1. generates wasm instructions to push the cached offset onto the stack.
+    /// 2. extends the inline cache to include a unique cache spot for these
+    ///    generated object field lookup instructions.
     fn data_cache(&mut self) {
         // the end of the data segment is the new cache
         self.out.push(GetGlobal(JNKS_STRINGS_IDX));

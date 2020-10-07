@@ -26,15 +26,44 @@ impl Visitor for ThisParameter<'_> {
                 _ => args.insert(0, UNDEFINED_),
             },
             Expr::New(f, args) => {
-                // new MyFunc() => var fresh = Object.create({}), MyFunc(fresh), fresh
+                // Desugar `new` into:
+                //     new MyFunc() => var $func = MyFunc; var $obj = Object.create($func.prototype), $func.call($obj, args...), $obj
+
+                // syntax block surrounding this new expression
                 let cxt = loc.enclosing_block().unwrap();
-                let obj_name = self.ng.fresh("new");
-                // Object.create({})
-                let new_obj = call_(dot_(id_("Object"), "create"), vec![Expr::Object(vec![])]);
+
+                // generate a new name for the function
+                let func_name = self.ng.fresh("new_constructor");
+
+                // let $func = func;
+                cxt.insert(cxt.index, vardecl1_(func_name.clone(), f.take()));
+
+                // generate a new name for the object
+                let obj_name = self.ng.fresh("new_obj");
+
+                // Object.create(f.prototype)
+                let new_obj = call_(
+                    dot_(id_("Object"), "create"),
+                    vec![Expr::Dot(
+                        Box::new(Expr::Id(func_name.clone())),
+                        Id::Named("prototype".to_string()),
+                    )],
+                );
+
+                // Insert into the surrounding syntax block:
+                //     let $name = Object.create(f.prototype);
                 cxt.insert(cxt.index, vardecl1_(obj_name.clone(), new_obj));
+
+                // args => $obj, args...
                 args.insert(0, id_(obj_name.clone()));
-                let new_call = call_(f.take(), std::mem::replace(args, vec![]));
+
+                // generate constructor call
+                let new_call = call_(Expr::Id(func_name.clone()), std::mem::replace(args, vec![]));
+
+                // insert that into the surrounding syntax block
                 cxt.insert(cxt.index, expr_(new_call));
+
+                // make the entire `new` expression evaluate to just the new object
                 *expr = id_(obj_name);
             }
             Expr::Func(_, params, _) => {

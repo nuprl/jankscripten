@@ -230,13 +230,11 @@ fn insert_object() {
         AnyEnum::I32(32).into()
     );
     assert!(matches!(
-        obj.get(&heap, heap.alloc_str("x").unwrap(), &mut cache)
-            .expect("no x"),
+        obj.get(&heap, heap.alloc_str("x").unwrap(), &mut cache),
         AnyEnum::I32(32)
     ));
     assert!(matches!(
-        obj.get(&heap, heap.alloc_str("x").unwrap(), &mut -1)
-            .expect("no x"),
+        obj.get(&heap, heap.alloc_str("x").unwrap(), &mut -1),
         AnyEnum::I32(32)
     ));
 }

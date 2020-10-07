@@ -28,6 +28,7 @@ pub enum RTSFunction {
     Equal,
     StrictNotEqual,
     NotEqual,
+    ObjectCreate,
 }
 
 impl RTSFunction {
@@ -51,6 +52,7 @@ impl RTSFunction {
             Equal => "janky_equal",
             StrictNotEqual => "janky_strict_not_equal",
             NotEqual => "janky_not_equal",
+            ObjectCreate => "object_create",
         }
     }
 
@@ -91,6 +93,7 @@ impl RTSFunction {
             StrictEqual | Equal | StrictNotEqual | NotEqual => {
                 Function(vec![Any, Any], Box::new(Bool))
             }
+            ObjectCreate => Function(vec![Any], Box::new(Any)),
         }
     }
 }
@@ -117,6 +120,7 @@ impl std::fmt::Display for RTSFunction {
                 Equal => "==",
                 StrictNotEqual => "!==",
                 NotEqual => "!=",
+                ObjectCreate => "object_create",
             }
         )
     }

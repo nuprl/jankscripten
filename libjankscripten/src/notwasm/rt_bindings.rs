@@ -10,10 +10,21 @@ const KEY: Type = Type::String;
 
 type BindMap = HashMap<std::string::String, Type>;
 
+/// Generate a map of the runtime functions available to NotWasm.
+/// Each runtime function is mapped to its NotWasm type signature.
+///
+/// This map is comprised of runtime functions from two different sources:
+/// 1. Functions manually inserted into the map inside this function.
+/// 2. Functions automatically inserted from RTSFunction. RTSFunction
+///    includes the runtime functions available at all layers of the
+///    compiler, including JavaScript itself. Only higher-level runtime
+///    functions are in RTSFunction, like Object.create.
 pub fn get_rt_bindings() -> BindMap {
     let mut map = HashMap::new();
     let m = &mut map;
     let mono = |t| t;
+
+    // Step 1: Manually insert runtime functions for NotWasm.
     insert(m, "ht_new", vec![], HT);
     insert(m, "ht_get", vec![HT, KEY], Any);
     insert(m, "ht_set", vec![HT, KEY, Any], Any);
@@ -44,7 +55,6 @@ pub fn get_rt_bindings() -> BindMap {
     // I32s are caches here
     insert(m, "object_set", vec![DynObject, String, Any, I32], Any);
     insert(m, "object_get", vec![DynObject, String, I32], Any);
-    insert(m, "object_create", vec![Any], Any);
     insert(m, "string_len", vec![String], I32);
     insert(m, "ref_new", vec![I32], I32);
     insert(m, "init", vec![], None);
@@ -61,10 +71,13 @@ pub fn get_rt_bindings() -> BindMap {
     );
     insert(m, "any_to_f64", vec![Any], F64);
     insert(m, "f64_to_any", vec![F64], Any);
+
+    // Step 2: automatically insert runtime functions from RTSFunction.
     for rts in RTSFunction::iter() {
         if let RTSFunction::Todo(_) = rts {
             // can't !let
         } else {
+            // Automatically generate the name and notwasm type
             m.insert(rts.name().into(), compile_ty(rts.janky_typ()));
         }
     }

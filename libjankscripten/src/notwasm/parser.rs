@@ -19,6 +19,7 @@ parser! {
         .or(lang.integer().map(|n| Lit::I32(n as i32)))
         .or(lang.reserved("true").with(value(Lit::Bool(true))))
         .or(lang.reserved("false").with(value(Lit::Bool(false))))
+        .or(lang.reserved("null").with(value(Lit::Null)))
         .or(lang.string_literal().map(|s| Lit::String(s)))
 
     }
