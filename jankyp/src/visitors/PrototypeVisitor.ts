@@ -67,6 +67,8 @@ export const PrototypeVisitor: JankyPVisitor = {
                 // Deals with cases (4) and (5).
                 // Monkey patch Object.setPrototypeOf to record this bad behavior.
                 // Also monkey patch Object.create to track prototype objects.
+                // Also tracks the prototypes of the fundamental built-in JS
+                // classes.
 
                 let monkeyPatch = `
                 let $jankyp_old_Object_setPrototypeOf = Object.setPrototypeOf;
@@ -74,11 +76,17 @@ export const PrototypeVisitor: JankyPVisitor = {
                 Object.setPrototypeOf = function(obj, proto) {
                     (${qJankyp.name}).recordPrototypeChange();
                     return $jankyp_old_Object_setPrototypeOf(obj, proto);
-                }
+                };
                 Object.create = function(proto, propertiesObject) {
                     (${qJankyp.name}).trackPrototype("", proto);
                     return $jankyp_old_Object_create(proto, propertiesObject);
-                }
+                };
+
+                // Track prototypes of fundamental, built-in JS classes.
+                (${qJankyp.name}).trackPrototype(Object.prototype);
+                (${qJankyp.name}).trackPrototype(Function.prototype);
+                (${qJankyp.name}).trackPrototype(Boolean.prototype);
+                (${qJankyp.name}).trackPrototype(Symbol.prototype);
                 `;
 
                 let monkeyPatchStmts = parser.parse(monkeyPatch).program.body;
