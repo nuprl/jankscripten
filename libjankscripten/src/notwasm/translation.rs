@@ -193,7 +193,9 @@ fn translate_func(
     // before the code, if this is main we have to call init()
     if name == &N::Id::Named("main".to_string()) {
         if let (Some(IdIndex::Fun(jnks_init)), Some(init)) = (
+            // this is jnks_init, the notwasm runtime function
             id_env.get(&N::Id::Named("jnks_init".to_string())),
+            // this is init, the rust runtime function
             rt_indexes.get("init"),
         ) {
             insts = vec![Call(*init), Call(*jnks_init + rt_indexes.len() as u32)];
@@ -530,15 +532,7 @@ impl<'a> Translate<'a> {
                 // opposed to creating a legitimately empty object is because
                 // `{}` inherits from the default Object prototype, which
                 // must be resolved dynamically.
-                if let Some(IdIndex::Fun(jnks_new_object)) = self
-                    .id_env
-                    .get(&N::Id::Named("jnks_new_object".to_string()))
-                {
-                    self.out
-                        .push(Call(*jnks_new_object + self.rt_indexes.len() as u32))
-                } else {
-                    panic!("where's jnks_new_object?");
-                }
+                self.notwasm_rt_call("jnks_new_object");
             }
             N::Expr::Push(array, val) => {
                 self.translate_atom(array);
@@ -685,6 +679,17 @@ impl<'a> Translate<'a> {
             self.out.push(Call(*i));
         } else {
             panic!("cannot find rt {}", name);
+        }
+    }
+    fn notwasm_rt_call(&mut self, name: &str) {
+        if let Some(IdIndex::Fun(func)) = self
+            .id_env
+            .get(&N::Id::Named(name.to_string()))
+        {
+            self.out
+                .push(Call(*func + self.rt_indexes.len() as u32))
+        } else {
+            panic!("cannot find notwasm runtime function {}", name);
         }
     }
 
