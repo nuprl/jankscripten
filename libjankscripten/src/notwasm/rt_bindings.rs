@@ -9,12 +9,23 @@ const KEY: Type = Type::String;
 
 type BindMap = HashMap<std::string::String, Type>;
 
+/// Generate a map of the runtime functions available to NotWasm.
+/// Each runtime function is mapped to its NotWasm type signature.
+///
+/// This map is comprised of runtime functions from two different sources:
+/// 1. Functions manually inserted into the map inside this function.
+/// 2. Functions automatically inserted from RTSFunction. RTSFunction
+///    includes the runtime functions available at all layers of the
+///    compiler, including JavaScript itself. Only higher-level runtime
+///    functions are in RTSFunction, like Object.create.
 pub fn get_rt_bindings() -> BindMap {
     let mut map = HashMap::new();
     let m = &mut map;
     let mono = |t| t;
     let a_fn = fn_ty_(vec![], None);
     let a_clos = clos_ty_(vec![], None);
+
+    // Step 1: Manually insert runtime functions for NotWasm.
     insert(m, "ht_new", vec![], HT);
     insert(m, "ht_get", vec![HT, KEY], Any);
     insert(m, "ht_set", vec![HT, KEY, Any], Any);
@@ -42,10 +53,10 @@ pub fn get_rt_bindings() -> BindMap {
     insert(m, "get_undefined", vec![], Any);
     insert(m, "get_null", vec![], Any);
     insert(m, "object_empty", vec![], DynObject);
+    insert(m, "object_create", vec![Env, Any], Any);
     // I32s are caches here
     insert(m, "object_set", vec![DynObject, String, Any, I32], Any);
     insert(m, "object_get", vec![DynObject, String, I32], Any);
-    insert(m, "object_create", vec![Env, Any], Any);
     insert(m, "string_len", vec![String], I32);
     // I32 is any I32-sized data
     insert(m, "ref_new_non_ptr_32", vec![I32], ref_ty_(I32));
@@ -86,15 +97,14 @@ pub fn get_rt_bindings() -> BindMap {
     // -> Env
     insert(m, "closure_env", vec![a_clos.clone()], I32);
     insert(m, "closure_func", vec![a_clos.clone()], a_fn.clone());
+
+    // Step 2: automatically insert runtime functions from RTSFunction.
     for rts in RTSFunction::iter() {
         if let RTSFunction::Todo(_) = rts {
             // can't !let
         } else {
-            if let Fn(ty) = rts.janky_typ().notwasm_typ() {
-                m.insert(rts.name().into(), Fn(ty));
-            } else {
-                panic!("rts non-function");
-            }
+            // Automatically generate the name and notwasm type
+            m.insert(rts.name().into(), rts.janky_typ().notwasm_typ());
         }
     }
     map

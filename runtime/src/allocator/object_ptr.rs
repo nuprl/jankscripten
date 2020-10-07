@@ -106,12 +106,64 @@ impl ObjectDataPtr {
         }
     }
 
-    pub fn get(&self, heap: &Heap, name: StringPtr, cache: &mut isize) -> Option<AnyEnum> {
+    /// Reads a property from an object, searching up the prototype chain if
+    /// necessary. Returns `undefined` if the property doesn't exist anywhere
+    /// on the prototype chain.
+    pub fn get(&self, heap: &Heap, name: StringPtr, cache: &mut isize) -> AnyEnum {
+        // Reading a property from an object is a complicated process because
+        // of the prototype chain.
+        //
+        // There are 3 cases to consider for a property read `obj[prop]`:
+        //
+        // 1. `obj` has a field named `prop`       ~~> return `obj[prop]`
+        //
+        // 2. `obj` has a field named "__proto__"  ~~> return `obj.__proto__[prop]`
+        //                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        //                                             this will recursively search
+        //                                                  the prototype chain
+        //
+        // 3. "__proto__" field is missing or null ~~> return `undefined`
+
+        // Test Case 1: `obj` has a field named `prop`.
+        // Check `obj`'s class for `prop`
         let class_tag = self.class_tag();
         let classes = heap.classes.borrow();
         let class = classes.get_class(class_tag);
-        let offset = class.lookup(name, cache)?;
-        self.read_at(heap, offset)
+        // TODO(mark): currently, the field cache is assumed to be valid
+        //             without checking the class of the object whose
+        //             offsets were cached. we must ensure the class is
+        //             identical before using the cache.
+        let maybe_offset = class.lookup(name, cache);
+
+        if let Some(offset) = maybe_offset {
+            // this is Case 1
+            return self
+                .read_at(heap, offset)
+                .expect("object missing offset spceified by its hidden class");
+        }
+
+        // Test Case 2: `obj` has a field named "__proto__".
+        let maybe_proto_offset = class.lookup("__proto__".into(), &mut -1);
+        if let Some(proto_offset) = maybe_proto_offset {
+            // Get the prototype object
+            let proto_val = self.read_at(heap, proto_offset).unwrap();
+
+            // Is it a real object that we can read from? As opposed to `null`
+            // or any other type of value.
+            if let AnyEnum::Ptr(proto_ptr) = proto_val {
+                if let HeapRefView::ObjectPtrPtr(proto_obj) = proto_ptr.view() {
+                    // this is Case 2. Perform the same read on the proto obj.
+
+                    // -1 because we don't cache reads on the prototype chain
+                    return proto_obj.get(heap, name, &mut -1);
+                }
+            }
+        }
+
+        // This is Case 3. `obj` doesn't have `prop`, and `__proto__` is
+        // missing or not an object.
+
+        return AnyEnum::Undefined;
     }
 
     fn as_array(&self, heap: &Heap) -> &mut [Option<AnyEnum>] {
