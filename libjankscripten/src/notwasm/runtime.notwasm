@@ -1,18 +1,12 @@
-// because of the type annotations, since int has the same wasm type
-// as DynObject, i think i can get away with this in order to create
-// a lazy static
-// var object_empty: () -> DynObject = rt(object_empty);
-var Object: DynObject; // = object_empty();// 0;
-var global: DynObject; // = object_empty();// 0;
+// Lazily-initialized global variables. DO NOT READ FROM THESE UNTIL THEY HAVE
+// BEEN WRITTEN TO.
+var Object: DynObject;
+var global: DynObject;
 
 // Cached Object properties to be used in jnks_new_object.
 // ASSUMPTION: Object.prototype is never modified by user code.
-var jnks_objectCreate: (any) -> any; // = id; // Object.create as (any) -> any;
-var jnks_objectPrototype: any; // = any(0); // Object.prototype;
-
-// function id(x: any): any {
-//     return x;
-// }
+var jnks_objectCreate: (any) -> any;
+var jnks_objectPrototype: any;
 
 // Initialize JankScripten runtime.
 function jnks_init() {
