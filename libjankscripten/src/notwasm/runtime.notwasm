@@ -1,8 +1,18 @@
 // because of the type annotations, since int has the same wasm type
 // as DynObject, i think i can get away with this in order to create
 // a lazy static
-var Object: DynObject = 0;
-var global: DynObject = 0;
+// var object_empty: () -> DynObject = rt(object_empty);
+var Object: DynObject; // = object_empty();// 0;
+var global: DynObject; // = object_empty();// 0;
+
+// Cached Object properties to be used in jnks_new_object.
+// ASSUMPTION: Object.prototype is never modified by user code.
+var jnks_objectCreate: (any) -> any; // = id; // Object.create as (any) -> any;
+var jnks_objectPrototype: any; // = any(0); // Object.prototype;
+
+// function id(x: any): any {
+//     return x;
+// }
 
 // Initialize JankScripten runtime.
 function jnks_init() {
@@ -28,21 +38,20 @@ function jnks_init() {
     // assign static methods to Object
     Object.create = any(objectCreate);
 
+    // Cache Object properties for jnks_new_object
+    jnks_objectCreate = objectCreate;
+    jnks_objectPrototype = objectPrototype;
 
     // Now that the default Object class has been set up, create the global 
     // object.
     global = {};
 }
 
-// Cached Object functions to be used in jnks_new_object.
-// ASSUMPTION: Object.prototype is never modified by user code.
-var jnks_objectCreate = Object.create as (any) -> any;
-var jnks_objectPrototype = Object.prototype;
-
 // Runtime function to create a regular empty object like `{}` or
 // `new Object()`.
 function jnks_new_object(): DynObject {
     // Create new object that inherits from Object.prototype.
-    var newObject = jnks_objectCreate(jnks_objectPrototype);
+    var objectCreate = jnks_objectCreate;
+    var newObject = objectCreate(jnks_objectPrototype);
     return newObject as DynObject;
 }

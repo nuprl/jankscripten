@@ -112,7 +112,15 @@ pub fn type_check(p: &mut Program) -> TypeCheckingResult<()> {
             return Err(TypeCheckingError::MultiplyDefined(id.clone()));
         }
     }
-    for (id, g) in p.globals.iter() {
+    for (id, g) in p.globals.iter_mut() {
+        // if the global is initialized
+        if let Some(atom) = &mut g.atom {
+            // type check it
+            let got = type_check_atom(&env, atom)?;
+            ensure("global var type", g.ty.clone(), got)?;
+        }
+
+        // Insert the global into the environment
         if env.insert(id.clone(), g.ty.clone()).is_some() {
             return Err(TypeCheckingError::MultiplyDefined(id.clone()));
         }

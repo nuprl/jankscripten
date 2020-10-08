@@ -298,8 +298,11 @@ pub struct Global {
     pub ty: Type,
     /// restricted to a const expression.
     /// also, parity_wasm restricts it to one instruction (this is not a
-    /// wasm restriction and could theoretically be fixed)
-    pub atom: Atom,
+    /// wasm restriction and could theoretically be fixed).
+    /// The atom is optional to allow for lazily-initialized globals in the
+    /// runtime. If you don't specify a value for the global, it will be 0.
+    /// Write to a lazy global before ever reading from it.
+    pub atom: Option<Atom>,
 }
 
 #[derive(Debug, PartialEq)]

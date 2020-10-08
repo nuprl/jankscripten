@@ -103,7 +103,19 @@ pub fn translate_parity(mut program: N::Program) -> Module {
     for global in program.globals.values_mut() {
         let mut visitor =
             Translate::new(&rt_indexes, &type_indexes, &global_env, &mut program.data);
-        visitor.translate_atom(&mut global.atom);
+        if let Some(atom) = &mut global.atom {
+            visitor.translate_atom(atom);
+        } else {
+            // This global var is initialized lazily. it's default value will
+            // be 0. We just need to figure out if wasm is expecting an i32 or
+            // i64.
+            let zero = match global.ty {
+                N::Type::Any => I64Const(0),
+                _ => I32Const(0),
+            };
+
+            visitor.out.push(zero);
+        }
         let mut insts = visitor.out;
         assert_eq!(
             insts.len(),
