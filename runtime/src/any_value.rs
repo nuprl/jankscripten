@@ -1,7 +1,7 @@
 //! An enum that can store any type known to the runtime
 
 pub use crate::allocator::{AnyPtr, HeapRefView};
-use crate::heap;
+use crate::wasm32::heap;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::ops::{Deref, DerefMut};
 
