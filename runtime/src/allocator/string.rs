@@ -1,6 +1,7 @@
 use super::constants::DATA_OFFSET;
 use super::heap_values::*;
 use super::Heap;
+use crate::wasm32;
 use std::ops::Deref;
 
 /// A managed thin pointer to a string. Interned strings are also tagged
@@ -52,7 +53,7 @@ impl Deref for StringPtr {
 /// would allow us to skip this
 impl From<&str> for StringPtr {
     fn from(s: &str) -> Self {
-        crate::heap().alloc_str_or_gc(s)
+        wasm32::heap().alloc_str_or_gc(s)
     }
 }
 impl std::fmt::Debug for StringPtr {

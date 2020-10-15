@@ -5,7 +5,6 @@
 
 use super::constructors::*;
 use super::syntax as S;
-use swc_atoms::JsWord;
 use swc_common::{FileName, SourceMap, Span};
 use swc_ecma_ast as swc;
 use swc_ecma_parser::{lexer, Parser, StringInput, Syntax};
@@ -17,11 +16,11 @@ pub enum ParseError {
     /// An error from the SWC parser.
     #[error("SWC error")]
     // TODO(mark): figure out how to print the error, it doesn't
-    //             implement the Display trait or anything like it
+    //             implement the Display trait or anything like it.
+    // NOTE(arjun): It looks like it contains a (Span, SyntaxError), where
+    // both types are defined in an swc_ module. I suspect the SyntaxError
+    // can be printed.
     SWC(swc_ecma_parser::error::Error),
-    /// An error while parsing a string literal
-    #[error("String literal parse error: {0}")]
-    String(String),
     /// The SWC AST had a JavaScript feature that we do not support.
     #[error("Unsupported: {0}")]
     Unsupported(String),
@@ -39,7 +38,7 @@ impl From<swc_ecma_parser::error::Error> for ParseError {
 /// Parse a full JavaScript program from source code into our JavaScript AST.
 pub fn parse(js_code: &str) -> ParseResult<S::Stmt> {
     // The SourceMap keeps track of all the source files given to the parser.
-    // All sourcespans given to us by the parser library are actually indices
+    // All spans given to us by the parser library are actually indices
     // into this source map.
     let source_map: SourceMap = Default::default();
 
@@ -51,7 +50,7 @@ pub fn parse(js_code: &str) -> ParseResult<S::Stmt> {
 
     // Create a lexer for the parser
     let lexer = lexer::Lexer::new(
-        // We want to parse ecmascript
+        // We want to parse ECMAScript
         Syntax::Es(Default::default()),
         // JscTarget defaults to es5
         Default::default(),
@@ -67,11 +66,6 @@ pub fn parse(js_code: &str) -> ParseResult<S::Stmt> {
 
     // Parse the library's AST into our AST
     parse_script(script, &source_map)
-}
-
-/// A parsing result used for an unsupported feature of JavaScript.
-fn unsupported<T>(span: Span, source_map: &SourceMap) -> Result<T, ParseError> {
-    unsupported_message("unsupported feature", span, source_map)
 }
 
 macro_rules! unsupported {
@@ -98,15 +92,6 @@ fn unsupported_message<T>(msg: &str, span: Span, source_map: &SourceMap) -> Resu
 /// Construct a parse *error* with the given message and location.
 fn unsupported_error(msg: &str, span: Span, source_map: &SourceMap) -> ParseError {
     ParseError::Unsupported(format!("{} at {}", msg, source_map.span_to_string(span)))
-}
-
-/// An error occurred while attempting to parse a string literal from the SWC AST
-fn str_error(msg: &str, span: Span, source_map: &SourceMap) -> ParseError {
-    ParseError::String(format!(
-        "tried to parse string literal at {} but failed at {}",
-        source_map.span_to_string(span),
-        msg
-    ))
 }
 
 // parse an id out of an swc identifier
@@ -643,9 +628,7 @@ fn parse_func_arg(arg: swc::Param, source_map: &SourceMap) -> ParseResult<S::Id>
 fn parse_lit(lit: swc::Lit, source_map: &SourceMap) -> ParseResult<S::Lit> {
     use swc::Lit::*;
     match lit {
-        Str(swc::Str { value, span, .. }) => {
-            Ok(S::Lit::String(parse_string(value, span, source_map)?))
-        }
+        Str(swc::Str { value, span, .. }) => Ok(S::Lit::String(value.to_string())),
         Bool(swc::Bool { value, span }) => Ok(S::Lit::Bool(value)),
         Null(swc::Null { span }) => Ok(S::Lit::Null),
         Num(swc::Number { value, span }) => Ok(S::Lit::Num(parse_num(value))),
@@ -659,98 +642,6 @@ fn parse_lit(lit: swc::Lit, source_map: &SourceMap) -> ParseResult<S::Lit> {
             unsupported_message("jsx string literal", span, source_map)
         }
     }
-}
-
-// TODO(arjun): Someone needs to read the ECMAScript specification to confirm
-// that the code here is legit.
-/// Parse a string literal from the SWC AST. `span` should be the sourcespan of
-/// the surrounding expression.
-fn parse_string(s: JsWord, span: Span, source_map: &SourceMap) -> ParseResult<String> {
-    let literal_chars = s.to_string();
-
-    let mut buf = String::with_capacity(literal_chars.len());
-    let mut iter = literal_chars.chars().peekable();
-    while let Some(ch) = iter.next() {
-        if ch != '\\' {
-            buf.push(ch);
-            continue;
-        }
-        match iter
-            .next()
-            .ok_or(str_error("character after backslash", span, source_map))?
-        {
-            '\'' | '"' | '\\' => buf.push(ch),
-            'n' => buf.push('\n'),
-            'r' => buf.push('\r'),
-            't' => buf.push('\t'),
-            'f' => buf.push('\x0C'),
-            'b' => buf.push('\x08'),
-            'v' => buf.push('\x0B'),
-            'x' => {
-                let s = format!(
-                    "{}{}",
-                    iter.next()
-                        .ok_or(str_error("first hex digit after \\x", span, source_map))?,
-                    iter.next()
-                        .ok_or(str_error("second hex digit after \\x", span, source_map))?,
-                );
-                let n = u8::from_str_radix(&s, 16).map_err(|_| {
-                    str_error(&format!("invalid escape \\x{}", &s), span, source_map)
-                })?;
-                buf.push(n as char);
-            }
-            'u' => {
-                let s = format!(
-                    "{}{}{}{}",
-                    iter.next()
-                        .ok_or(str_error("first hex digit after \\x", span, source_map))?,
-                    iter.next()
-                        .ok_or(str_error("second hex digit after \\x", span, source_map))?,
-                    iter.next()
-                        .ok_or(str_error("third hex digit after \\x", span, source_map))?,
-                    iter.next()
-                        .ok_or(str_error("fourth hex digit after \\x", span, source_map))?
-                );
-                let n = u16::from_str_radix(&s, 16).map_err(|_| {
-                    str_error(&format!("invalid unicode escape {}", &s), span, source_map)
-                })?;
-                buf.push(std::char::from_u32(n as u32).ok_or(str_error(
-                    &format!("invalid Unicode character {}", n),
-                    span,
-                    source_map,
-                ))?);
-            }
-            ch => {
-                if ch < '0' || ch > '9' {
-                    // JavaScript allows you to escape any character. If it's not a valid escape
-                    // sequence, you just get the character itself. For example, '\😂' === '😂'.
-                    buf.push(ch);
-                } else {
-                    let mut octal_str = String::with_capacity(2);
-                    // First octal digit
-                    octal_str.push(ch);
-                    // Potentially octal digit
-                    match iter.peek() {
-                        Some(ch) if *ch >= '0' && *ch <= '7' => {
-                            octal_str.push(*ch);
-                            iter.next(); // consume
-                        }
-                        _ => (),
-                    }
-                    let n = u32::from_str_radix(&octal_str, 8).map_err(|_| {
-                        str_error(
-                            &format!("invalid octal escape \\u{}", &octal_str),
-                            span,
-                            source_map,
-                        )
-                    })?;
-                    // 2-digit octal value is in range for UTF-8, thus unwrap should succeed
-                    buf.push(std::char::from_u32(n).unwrap());
-                }
-            }
-        }
-    }
-    return Ok(buf);
 }
 
 /// `span` is the span of the surrounding object literal.

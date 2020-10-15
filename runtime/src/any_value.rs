@@ -2,8 +2,9 @@
 
 pub use crate::allocator::{heap_types::EnvPtr, AnyPtr, HeapRefView};
 use crate::closure::{Closure, ClosureVal};
-use crate::heap;
 use crate::i64_val::*;
+use crate::wasm32::heap;
+use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 
 /// this is the actual Any type, however it should never be returned or
 /// accepted as a parameter, because rust will refuse to turn it into an i64
@@ -29,8 +30,8 @@ pub enum AnyEnum {
     Null,
 }
 
-impl std::fmt::Debug for AnyEnum {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Debug for AnyEnum {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
         use AnyEnum::*;
         match self {
             I32(n) => write!(f, "I32({})", n),
@@ -43,8 +44,8 @@ impl std::fmt::Debug for AnyEnum {
         }
     }
 }
-impl std::fmt::Display for AnyEnum {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for AnyEnum {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
         use AnyEnum::*;
         match self {
             I32(n) => write!(f, "{}", n),
@@ -55,8 +56,8 @@ impl std::fmt::Display for AnyEnum {
         }
     }
 }
-impl std::fmt::Display for HeapRefView {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for HeapRefView {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
         use HeapRefView::*;
         match *self {
             String(s) => write!(f, "{}", &*s),
@@ -70,8 +71,8 @@ impl std::fmt::Display for HeapRefView {
         }
     }
 }
-impl std::fmt::Debug for HeapRefView {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Debug for HeapRefView {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
         use HeapRefView::*;
         match *self {
             String(_) => write!(f, "String({})", self),
