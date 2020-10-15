@@ -5,8 +5,6 @@ const LEN: usize = 1000;
 /// we can store it in a 64-bit integer value, and still have room left for tag
 /// bits. Thus, we store `*const f64` in our `Any` values, which allows an `Any`
 /// to be a 64-bit integer that does not need to be heap allocated.
-///
-/// TODO(arjun): We need to implement garbage collection.
 pub struct F64Allocator {
     // TODO(arjun): No more that one thousand floats.
     current_space: Box<[f64; LEN]>,

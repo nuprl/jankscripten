@@ -14,7 +14,7 @@ pub fn desugar(stmt: &mut Stmt, ng: &mut NameGen) {
     // accesses are immediately applied
     desugar_function_applications::desugar_function_applications(stmt, ng);
     //dep: desugar_vardecls needs desugar_loops to be simple
-    desugar_vardecls::desugar_vardecls(stmt, ng);
+    desugar_vardecls::desugar_vardecls(stmt);
     //dep: desugar_updates needs desugar_function_applications to work properly
     desugar_updates::desugar_updates(stmt, ng);
     lift_vars::lift_vars(stmt);

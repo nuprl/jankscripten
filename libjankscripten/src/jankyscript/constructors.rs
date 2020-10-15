@@ -1,6 +1,6 @@
 use super::syntax::*;
 use crate::shared::coercions::Coercion;
-use crate::shared::types::Type;
+use crate::shared::Type;
 
 // Lit
 
@@ -33,8 +33,8 @@ pub fn binary_(op: super::super::notwasm::syntax::BinaryOp, e1: Expr, e2: Expr) 
 pub fn assign_(lv: LValue, e: Expr) -> Expr {
     Expr::Assign(Box::new(lv), Box::new(e))
 }
-pub fn assign_var_(x: Id, e: Expr) -> Expr {
-    Expr::Assign(Box::new(LValue::Id(x)), Box::new(e))
+pub fn assign_var_(x: Id, ty: Type, e: Expr) -> Expr {
+    Expr::Assign(Box::new(LValue::Id(x, ty)), Box::new(e))
 }
 
 pub fn unary_(op: super::super::notwasm::syntax::UnaryOp, e1: Expr) -> Expr {
@@ -46,6 +46,22 @@ pub fn coercion_(c: Coercion, e: Expr) -> Expr {
         Coercion::Id(_) => e,
         _ => Expr::Coercion(c, Box::new(e)),
     }
+}
+
+pub fn new_ref_(e1: Expr, ty: Type) -> Expr {
+    Expr::NewRef(Box::new(e1), ty)
+}
+
+pub fn deref_(e1: Expr, ty: Type) -> Expr {
+    Expr::Deref(Box::new(e1), ty)
+}
+
+pub fn store_(id: Id, e1: Expr, ty: Type) -> Expr {
+    Expr::Store(
+        Box::new(Expr::Id(id, ref_ty_(ty.clone()))),
+        Box::new(e1),
+        ty,
+    )
 }
 
 // Statements
@@ -76,4 +92,10 @@ pub fn empty_() -> Stmt {
 
 pub fn return_(e: Expr) -> Stmt {
     Stmt::Return(Box::new(e))
+}
+
+// Types
+
+pub fn ref_ty_(ty: Type) -> Type {
+    Type::Ref(Box::new(ty))
 }

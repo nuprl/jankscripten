@@ -6,7 +6,7 @@ use crate::notwasm::syntax as NotWasm;
 use crate::rts_function::RTSFunction;
 use crate::shared::coercions::*;
 use crate::shared::std_lib::get_global_object;
-use crate::shared::types::Type;
+use crate::shared::Type;
 use im_rc::HashMap;
 use thiserror::Error;
 
@@ -275,7 +275,7 @@ impl InsertCoercions {
             )),
             Expr::Id(id) => {
                 if let Some(EnvItem::JsId(ty)) = env.env.get(&id) {
-                    Ok((Janky::Expr::Id(id), ty.clone()))
+                    Ok((Janky::Expr::Id(id, ty.clone()), ty.clone()))
                 } else {
                     todo!("Identifier: {:?}", id)
                 }
@@ -326,7 +326,7 @@ impl InsertCoercions {
                     let (_, into_ty) = self.expr_and_type(Expr::Id(id.clone()), env)?;
                     Ok((
                         Janky_::assign_(
-                            Janky::LValue::Id(id),
+                            Janky::LValue::Id(id, into_ty.clone()),
                             self.expr(*e, into_ty.clone(), env)?,
                         ),
                         into_ty,

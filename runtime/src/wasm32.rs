@@ -7,8 +7,6 @@
 //!   of num::add)
 //! - all externed return values must be <= 64 bits
 
-type Key = crate::heap_types::StringPtr;
-
 #[allow(unused)]
 macro_rules! log {
     ($($t:tt)*) => (
@@ -20,6 +18,7 @@ use crate::allocator::Tag;
 use crate::allocator::*;
 use crate::any_value::AnyEnum;
 use crate::any_value::AnyValue;
+use crate::closure::ClosureVal;
 
 static mut HEAP: Option<Heap> = None;
 
@@ -54,6 +53,13 @@ pub fn set_any_in_current_shadow_frame_slot(any: AnyValue, slot: usize) {
     heap().set_any_in_current_shadow_frame_slot(slot, any);
 }
 
+#[no_mangle]
+pub fn set_closure_in_current_shadow_frame_slot(closure: ClosureVal, slot: usize) {
+    let env = closure.0;
+    heap().set_in_current_shadow_frame_slot(slot, env.get_ptr());
+}
+
+/// returns Any::I32(42) because jankyscript requires return values
 #[no_mangle]
 pub fn log_any(_this: AnyValue, any: AnyValue) -> AnyValue {
     let any: AnyEnum = *any;

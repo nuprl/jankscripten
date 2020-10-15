@@ -12,6 +12,12 @@ use std::convert::TryInto;
 use Instruction::*;
 
 const JNKS_STRINGS_IDX: u32 = 0;
+/// in bytes. i don't forsee this changing as we did a lot of work getting
+/// it to fit in the largest wasm type
+const ANY_SIZE: u32 = 8;
+/// also bytes
+const TAG_SIZE: u32 = 4;
+const LENGTH_SIZE: u32 = 4;
 
 type FuncTypeMap = HashMap<(Vec<ValueType>, Option<ValueType>), u32>;
 
@@ -299,23 +305,14 @@ impl<'a> Translate<'a> {
         }
     }
 
-    /// Produces an instruction that passes a GC root to the runtime system. There are two kinds
-    /// of roots: pointers (I32) and Any-typed values (I64) that may contain pointers, thus we
-    /// dispatch on the type of the GC root.
-    fn set_in_current_shadow_frame_slot(&self, ty: &N::Type) -> Instruction {
+    /// Pushes an instruction that passes a GC root to the runtime
+    /// system. There are multiple kinds of roots that might contain pointers,
+    /// thus we dispatch on the type of the GC root.
+    fn set_in_current_shadow_frame_slot(&mut self, ty: &N::Type) {
         match ty {
-            N::Type::Any => Call(
-                *self
-                    .rt_indexes
-                    .get("set_any_in_current_shadow_frame_slot")
-                    .unwrap(),
-            ),
-            _ => Call(
-                *self
-                    .rt_indexes
-                    .get("set_in_current_shadow_frame_slot")
-                    .unwrap(),
-            ),
+            N::Type::Any => self.rt_call("set_any_in_current_shadow_frame_slot"),
+            N::Type::Closure(..) => self.rt_call("set_closure_in_current_shadow_frame_slot"),
+            _ => self.rt_call("set_in_current_shadow_frame_slot"),
         }
     }
 
@@ -332,9 +329,18 @@ impl<'a> Translate<'a> {
         match stmt {
             N::Stmt::Store(id, expr) => {
                 // storing into a reference translates into a raw write
-                self.get_id(id);
+                // TODO(luna): this should really have the type in the
+                // AST so we don't have to do this messiness
+                let ty = self
+                    .get_id(id)
+                    .expect("add types to globals to support global ref");
+                let ty = if let N::Type::Ref(b_ty) = ty {
+                    *b_ty
+                } else {
+                    panic!("tried to store into non-ref");
+                };
                 self.translate_expr(expr);
-                self.out.push(I32Store(0, 4)); // skip 32 bits for tag in I32Ptr
+                self.store(ty, TAG_SIZE);
             }
             N::Stmt::Empty => (),
             N::Stmt::Block(ss) => {
@@ -363,8 +369,7 @@ impl<'a> Translate<'a> {
                 } else {
                     self.out.push(TeeLocal(index));
                     self.out.push(I32Const(index.try_into().unwrap()));
-                    self.out
-                        .push(self.set_in_current_shadow_frame_slot(var_stmt.ty()));
+                    self.set_in_current_shadow_frame_slot(var_stmt.ty());
                 }
             }
             N::Stmt::Expression(expr) => {
@@ -385,7 +390,7 @@ impl<'a> Translate<'a> {
                         } else {
                             self.out.push(TeeLocal(n));
                             self.out.push(I32Const((n).try_into().unwrap()));
-                            self.out.push(self.set_in_current_shadow_frame_slot(&ty));
+                            self.set_in_current_shadow_frame_slot(&ty);
                         }
                     }
                     IdIndex::Global(n) => {
@@ -395,12 +400,7 @@ impl<'a> Translate<'a> {
                     IdIndex::RTGlobal(n, ty) => {
                         self.out.push(GetGlobal(n));
                         self.translate_expr(expr);
-                        match ty.as_wasm() {
-                            ValueType::I32 => self.out.push(I32Store(2, 0)),
-                            ValueType::I64 => self.out.push(I64Store(2, 0)),
-                            ValueType::F32 => self.out.push(F32Store(2, 0)),
-                            ValueType::F64 => self.out.push(F64Store(2, 0)),
-                        }
+                        self.store(ty, 0);
                     }
                     IdIndex::Fun(..) => panic!("cannot set function"),
                 }
@@ -549,7 +549,7 @@ impl<'a> Translate<'a> {
                 for arg in args {
                     self.get_id(arg);
                 }
-                match self.id_env.get(f) {
+                match self.id_env.get(f).cloned() {
                     Some(IdIndex::Fun(i)) => {
                         // we index in notwasm by 0 = first user function. but
                         // wasm indexes by 0 = first rt function. so we have
@@ -557,7 +557,7 @@ impl<'a> Translate<'a> {
                         self.out.push(Call(i + self.rt_indexes.len() as u32));
                     }
                     Some(IdIndex::Local(i, t)) => {
-                        self.out.push(GetLocal(*i));
+                        self.out.push(GetLocal(i));
                         let (params_tys, ret_ty) = match t {
                             N::Type::Fn(fn_ty) => {
                                 (types_as_wasm(&fn_ty.args), option_as_wasm(&fn_ty.result))
@@ -573,19 +573,74 @@ impl<'a> Translate<'a> {
                     _ => panic!("expected Func ID ({})", f),
                 };
             }
-            N::Expr::NewRef(a) => {
+            N::Expr::ClosureCall(f, args) => {
+                match self.id_env.get(f).cloned() {
+                    Some(IdIndex::Fun(_)) => panic!("closures are always given a name"),
+                    Some(IdIndex::Local(i, t)) => {
+                        self.out.push(GetLocal(i));
+                        self.rt_call("closure_env");
+                        let (params_tys, ret_ty) = match t {
+                            N::Type::Closure(fn_ty) => {
+                                (types_as_wasm(&fn_ty.args), option_as_wasm(&fn_ty.result))
+                            }
+                            _ => panic!("identifier {:?} is not function-typed", f),
+                        };
+                        let ty_index = self
+                            .type_indexes
+                            .get(&(params_tys, ret_ty))
+                            .expect("function type was not indexed");
+                        for arg in args {
+                            self.get_id(arg);
+                        }
+                        self.out.push(GetLocal(i));
+                        self.rt_call("closure_func");
+                        self.out.push(CallIndirect(*ty_index, 0));
+                    }
+                    _ => panic!("expected Func ID ({})", f),
+                };
+            }
+            N::Expr::NewRef(a, ty) => {
                 self.translate_atom(a);
-                self.rt_call("ref_new");
+                match ty {
+                    N::Type::I32 | N::Type::Bool | N::Type::Fn(..) => {
+                        self.rt_call("ref_new_non_ptr_32")
+                    }
+                    N::Type::F64 => self.rt_call("ref_new_f64"),
+                    N::Type::Ref(..) => panic!("while recursive refs can be made, they shouldn't"),
+                    N::Type::Any => self.rt_call("ref_new_any"),
+                    _ => self.rt_call("ref_new_ptr"),
+                }
+            }
+            N::Expr::Closure(id, env) => {
+                // first, construct the environment
+                if env.len() == 0 {
+                    // nullptr; will never be read
+                    self.out.push(I32Const(0));
+                } else {
+                    self.out.push(I32Const(env.len() as i32));
+                    self.rt_call("env_alloc");
+                    // init all the
+                    for (i, (a, ty)) in env.iter_mut().enumerate() {
+                        self.out.push(I32Const(i as i32));
+                        self.translate_atom(a);
+                        self.to_any(ty);
+                        // this returns the env so we don't need locals magic
+                        self.rt_call("env_init_at");
+                    }
+                }
+                // env is left on the stack. now the function is the second
+                // argument
+                self.get_id(id);
+                self.rt_call("closure_new");
             }
         }
     }
 
     fn translate_atom(&mut self, atom: &mut N::Atom) {
         match atom {
-            N::Atom::Deref(a) => {
-                // dereferences are implemented as raw memory reads
+            N::Atom::Deref(a, ty) => {
                 self.translate_atom(a);
-                self.out.push(I32Load(0, 4)); // skip 32 bits for tag in I32Ptr
+                self.load(ty, TAG_SIZE);
             }
             N::Atom::Lit(lit) => match lit {
                 N::Lit::I32(i) => self.out.push(I32Const(*i)),
@@ -600,7 +655,9 @@ impl<'a> Translate<'a> {
                 N::Lit::Undefined => self.rt_call("get_undefined"),
                 N::Lit::Null => self.rt_call("get_null"),
             },
-            N::Atom::Id(id) => self.get_id(id),
+            N::Atom::Id(id) => {
+                self.get_id(id);
+            }
             N::Atom::GetPrimFunc(id) => {
                 // TODO(luna): i honestly for the life of me can't remember
                 // why we accept an &mut Atom instead of an Atom, which
@@ -613,13 +670,7 @@ impl<'a> Translate<'a> {
             }
             N::Atom::ToAny(to_any) => {
                 self.translate_atom(&mut to_any.atom);
-                match to_any.ty() {
-                    N::Type::I32 => self.rt_call("any_from_i32"),
-                    N::Type::Bool => self.rt_call("any_from_bool"),
-                    N::Type::F64 => self.rt_call("f64_to_any"),
-                    N::Type::Fn(..) => self.rt_call("any_from_fn"),
-                    _ => self.rt_call("any_from_ptr"),
-                }
+                self.to_any(to_any.ty());
             }
             N::Atom::FromAny(a, ty) => {
                 self.translate_atom(a);
@@ -627,7 +678,9 @@ impl<'a> Translate<'a> {
                     N::Type::I32 => self.rt_call("any_to_i32"),
                     N::Type::Bool => self.rt_call("any_to_bool"),
                     N::Type::F64 => self.rt_call("any_to_f64"),
-                    N::Type::Fn(..) => self.rt_call("any_to_fn"),
+                    N::Type::Fn(..) => panic!("cannot attain function from any"),
+                    N::Type::Closure(..) => self.rt_call("any_to_closure"),
+                    N::Type::Any => (),
                     _ => self.rt_call("any_to_ptr"),
                 }
             }
@@ -672,8 +725,39 @@ impl<'a> Translate<'a> {
                 self.translate_atom(a);
                 self.translate_unop(op);
             }
+            N::Atom::EnvGet(index, ty) => {
+                // get the env which is always the first argument
+                self.out.push(GetLocal(0));
+                let ty_offset = match ty.as_wasm() {
+                    ValueType::I32 => 4,
+                    ValueType::I64 => 0,
+                    ValueType::F32 => panic!("invalid type"),
+                    ValueType::F64 => panic!("invalid in-any type"),
+                };
+                let offset = TAG_SIZE + LENGTH_SIZE + *index * ANY_SIZE + ty_offset;
+                // make sure you don't accidentally put ty_offset here
+                self.load(ty, offset);
+            }
         }
     }
+
+    fn load(&mut self, ty: &N::Type, offset: u32) {
+        match ty.as_wasm() {
+            ValueType::I32 => self.out.push(I32Load(2, offset)),
+            ValueType::I64 => self.out.push(I64Load(2, offset)),
+            ValueType::F32 => self.out.push(F32Load(2, offset)),
+            ValueType::F64 => self.out.push(F64Load(2, offset)),
+        }
+    }
+    fn store(&mut self, ty: N::Type, offset: u32) {
+        match ty.as_wasm() {
+            ValueType::I32 => self.out.push(I32Store(2, offset)),
+            ValueType::I64 => self.out.push(I64Store(2, offset)),
+            ValueType::F32 => self.out.push(F32Store(2, offset)),
+            ValueType::F64 => self.out.push(F64Store(2, offset)),
+        }
+    }
+
     fn rt_call(&mut self, name: &str) {
         if let Some(i) = self.rt_indexes.get(name) {
             self.out.push(Call(*i));
@@ -689,27 +773,44 @@ impl<'a> Translate<'a> {
         }
     }
 
-    fn get_id(&mut self, id: &N::Id) {
+    fn to_any(&mut self, ty: &N::Type) {
+        match ty {
+            N::Type::I32 => self.rt_call("any_from_i32"),
+            N::Type::Bool => self.rt_call("any_from_bool"),
+            N::Type::F64 => self.rt_call("f64_to_any"),
+            N::Type::Fn(..) => self.rt_call("any_from_fn"),
+            N::Type::Closure(..) => self.rt_call("any_from_closure"),
+            N::Type::Any => (),
+            _ => self.rt_call("any_from_ptr"),
+        }
+    }
+
+    fn get_id(&mut self, id: &N::Id) -> Option<N::Type> {
         match self
             .id_env
             .get(id)
             .expect(&format!("unbound identifier {:?}", id))
         {
-            IdIndex::Local(n, _) => self.out.push(GetLocal(*n)),
-            IdIndex::Global(n) => self.out.push(GetGlobal(*n)),
+            IdIndex::Local(n, ty) => {
+                self.out.push(GetLocal(*n));
+                Some(ty.clone())
+            }
+            IdIndex::Global(n) => {
+                self.out.push(GetGlobal(*n));
+                None
+            }
             IdIndex::RTGlobal(n, ty) => {
                 self.out.push(GetGlobal(*n));
-                match ty.as_wasm() {
-                    ValueType::I32 => self.out.push(I32Load(2, 0)),
-                    ValueType::I64 => self.out.push(I64Load(2, 0)),
-                    ValueType::F32 => self.out.push(F32Load(2, 0)),
-                    ValueType::F64 => self.out.push(F64Load(2, 0)),
-                }
+                let ty = ty.clone();
+                self.load(&ty, 0);
+                Some(ty)
             }
             // notwasm indexes from our functions, wasm indexes from rt
-            IdIndex::Fun(n) => self
-                .out
-                .push(I32Const(*n as i32 + self.rt_indexes.len() as i32)),
+            IdIndex::Fun(n) => {
+                self.out
+                    .push(I32Const(*n as i32 + self.rt_indexes.len() as i32));
+                None
+            }
         }
     }
 
@@ -745,7 +846,9 @@ impl N::Type {
             Array => ValueType::I32,
             DynObject => ValueType::I32,
             Fn(..) => ValueType::I32,
+            Closure(..) => ValueType::I64,
             Ref(..) => ValueType::I32,
+            Env => ValueType::I32,
         }
     }
 }

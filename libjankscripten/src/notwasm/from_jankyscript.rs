@@ -96,6 +96,7 @@ use super::super::jankyscript::syntax as J;
 use super::super::rope::Rope;
 use super::constructors::*;
 use super::syntax::*;
+use crate::shared::NameGen;
 use std::collections::HashMap;
 
 fn compile_lit(lit: J::Lit) -> Lit {
@@ -113,7 +114,7 @@ fn compile_lit(lit: J::Lit) -> Lit {
 /// State that is needed during A-normalization
 #[derive(Default)]
 struct S {
-    namegen: super::super::javascript::NameGen,
+    namegen: NameGen,
     functions: HashMap<Id, Function>,
 }
 
@@ -199,7 +200,7 @@ fn compile_exprs<'a>(
         stmts = stmts.append(compile_expr(
             s,
             e,
-            C::id(|s, x| {
+            C::id(|_s, x| {
                 ids.push(x);
                 Rope::Nil
             }),
@@ -209,19 +210,15 @@ fn compile_exprs<'a>(
 }
 
 pub fn compile_ty(janky_typ: J::Type) -> Type {
-    match janky_typ {
-        J::Type::Any => Type::Any,
-        J::Type::Bool => Type::Bool,
-        J::Type::Int => Type::I32,
-        J::Type::Float => Type::F64,
-        J::Type::DynObject => Type::DynObject,
-        J::Type::Function(params, ret) => fn_ty_(
-            params.into_iter().map(|jt| compile_ty(jt)).collect(),
-            Some(compile_ty(*ret)),
-        ),
-        J::Type::Array => Type::Array,
-        J::Type::String => Type::String,
-        _ => todo!("compile_ty {:?}", janky_typ),
+    // why the seemingly double behavior?
+    // we turn Fn into Closure only when it's in the program, not in
+    // RTSFunctions
+    match janky_typ.notwasm_typ() {
+        Type::Fn(mut fn_ty) => {
+            fn_ty.args.insert(0, Type::Env);
+            Type::Closure(fn_ty)
+        }
+        got => got,
     }
 }
 
@@ -300,20 +297,31 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             *e,
             C::a(move |s, a| cxt.recv_a(s, coercion_to_expr(coercion, a))),
         ),
-        J::Expr::Id(x) => cxt.recv_a(s, Atom::Id(x)),
+        J::Expr::Id(x, _) => cxt.recv_a(s, Atom::Id(x)),
         J::Expr::Func(f) => {
-            let (param_names, param_tys): (Vec<_>, Vec<_>) = f.args_with_typs.into_iter().unzip();
-            let function = Function {
-                body: Stmt::Block(compile_stmt(s, *f.body).into_iter().collect()),
-                params: param_names,
-                fn_type: FnType {
-                    args: param_tys.into_iter().map(|t| compile_ty(t)).collect(),
-                    result: Some(Box::new(compile_ty(f.result_typ))),
-                },
-            };
-            let f = s.fresh();
-            s.new_function(f.clone(), function);
-            cxt.recv_a(s, Atom::Id(f))
+            let name = s.fresh();
+            let f = compile_function(s, f);
+            s.new_function(name.clone(), f);
+            cxt.recv_a(s, Atom::Id(name))
+        }
+        J::Expr::Closure(f, env) => {
+            let name = s.fresh();
+            let f = compile_function(s, f);
+            s.new_function(name.clone(), f);
+            // compile the environment, adapted from compile_exprs
+            let mut env_items = Vec::new();
+            let mut stmts = Rope::new();
+            for (e, ty) in env.into_iter() {
+                stmts = stmts.append(compile_expr(
+                    s,
+                    e,
+                    C::a(|_s, x| {
+                        env_items.push((x, compile_ty(ty)));
+                        Rope::Nil
+                    }),
+                ));
+            }
+            stmts.append(cxt.recv_e(s, Expr::Closure(name, env_items)))
         }
         J::Expr::Binary(op, e1, e2) => compile_expr(
             s,
@@ -337,7 +345,7 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             // but differently. see this discussion on slack:
             // https://plasma.slack.com/archives/C013E3BK7QA/p1596656877066800
             C::a(|s, a| match *lv {
-                J::LValue::Id(id) => {
+                J::LValue::Id(id, _) => {
                     Rope::singleton(Stmt::Assign(id, atom_(a.clone()))).append(cxt.recv_a(s, a))
                 }
                 J::LValue::Dot(container, field) => {
@@ -389,15 +397,35 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             *fun,
             C::id(move |s, fun_id| {
                 compile_exprs(s, args, move |s, arg_ids| {
-                    cxt.recv_e(s, Expr::Call(fun_id, arg_ids))
+                    cxt.recv_e(s, Expr::ClosureCall(fun_id, arg_ids))
                 })
             }),
         ),
+        J::Expr::NewRef(expr, ty) => compile_expr(
+            s,
+            *expr,
+            C::a(move |s, of| cxt.recv_e(s, Expr::NewRef(of, compile_ty(ty)))),
+        ),
+        J::Expr::Deref(expr, ty) => compile_expr(
+            s,
+            *expr,
+            C::a(move |s, of| cxt.recv_a(s, deref_(of, compile_ty(ty)))),
+        ),
+        J::Expr::Store(into, expr, _) => compile_expr(
+            s,
+            *into,
+            C::id(move |s, into| {
+                compile_expr(
+                    s,
+                    *expr,
+                    C::e(move |_s, what| Rope::singleton(Stmt::Store(into, what))),
+                )
+            }),
+        ),
+        J::Expr::EnvGet(i, ty) => cxt.recv_a(s, Atom::EnvGet(i, compile_ty(ty))),
     }
 }
 
-// TODO(luna): remove this when we think we've completed this
-#[allow(unused)]
 fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
     use J::Stmt as S;
     match stmt {
@@ -409,10 +437,10 @@ fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
         //
         // var tmp = f();
         // var r = tmp + 1;
-        S::Var(x, t, e) => compile_expr(
+        S::Var(x, _, e) => compile_expr(
             s,
             *e,
-            C::e(|s, e_notwasm| Rope::singleton(Stmt::Var(VarStmt::new(x, e_notwasm)))),
+            C::e(|_s, e_notwasm| Rope::singleton(Stmt::Var(VarStmt::new(x, e_notwasm)))),
         ),
         S::Block(stmts) => Rope::singleton(Stmt::Block(
             stmts
@@ -452,7 +480,7 @@ fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
         S::Catch(_, _, _) => todo!("NotWasm needs to support exceptions"),
         S::Finally(_, _) => todo!("NotWasm needs to support exceptions"),
         S::Throw(_) => todo!("NotWasm needs to support exceptions"),
-        S::Return(e) => compile_expr(s, *e, C::a(|s, a| Rope::singleton(Stmt::Return(a)))),
+        S::Return(e) => compile_expr(s, *e, C::a(|_s, a| Rope::singleton(Stmt::Return(a)))),
     }
 }
 
@@ -461,6 +489,21 @@ fn compile_stmt_block(s: &mut S, stmt: J::Stmt) -> Stmt {
 }
 fn rope_to_block(rope: Rope<Stmt>) -> Stmt {
     Stmt::Block(rope.into_iter().collect())
+}
+
+fn compile_function<'a>(s: &'a mut S, f: J::Func) -> Function {
+    let (param_names, param_tys): (Vec<_>, Vec<_>) =
+        std::iter::once((Id::Generated("_", 341), J::Type::Int))
+            .chain(f.args_with_typs.into_iter())
+            .unzip();
+    Function {
+        body: Stmt::Block(compile_stmt(s, *f.body).into_iter().collect()),
+        params: param_names,
+        fn_type: FnType {
+            args: param_tys.into_iter().map(|t| compile_ty(t)).collect(),
+            result: Some(Box::new(compile_ty(f.result_typ))),
+        },
+    }
 }
 
 pub fn from_jankyscript(janky_program: J::Stmt) -> Program {
@@ -506,14 +549,20 @@ mod test {
             var_(
                 "b".into(),
                 Type::Float,
-                unary_(crate::notwasm::syntax::UnaryOp::Sqrt, Expr::Id("a".into())),
+                unary_(
+                    crate::notwasm::syntax::UnaryOp::Sqrt,
+                    Expr::Id("a".into(), Type::Float),
+                ),
             ),
             expr_(Expr::PrimCall(
                 RTSFunction::LogAny,
                 vec![
                     // mandatory `this` argument
                     Expr::Lit(Lit::Undefined),
-                    coercion_(Coercion::Tag(Type::Float), Expr::Id("b".into())),
+                    coercion_(
+                        Coercion::Tag(Type::Float),
+                        Expr::Id("b".into(), Type::Float),
+                    ),
                 ],
             )),
         ]);

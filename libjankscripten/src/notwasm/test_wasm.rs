@@ -170,6 +170,27 @@ fn functions() {
 }
 
 #[test]
+fn closures() {
+    let program = parse(
+        r#"
+        function acceptEnv(_: env) : i32 {
+            return env.0: i32 + env.1: i32 + env.2: i32;
+        }
+        function main() : i32 {
+            // as a hack, this is the "local 0" as if it was the first param
+            var x = 5;
+            var y = 6;
+            var z = 7;
+            var F = clos(acceptEnv, x: i32, y: i32, z: i32);
+            var res = F!();
+            return res;
+        }
+    "#,
+    );
+    expect_notwasm(18, program);
+}
+
+#[test]
 fn break_block() {
     let body = Stmt::Block(vec![
         Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(0)))),
@@ -248,12 +269,52 @@ fn trivial_indirect_call() {
 }
 
 #[test]
+fn function_any() {
+    let program = parse(
+        r#"
+        function callWith5s(anyFunc: any, takesTwoArgs: bool): i32 {
+            var result = 0;
+            var the5 = 5;
+            if (takesTwoArgs) {
+                // TODO(luna): maybe closure types shouldn't include their
+                // environment argument?
+                var arity2 = anyFunc as clos(env, i32, i32) -> i32;
+                result = arity2!(the5, the5);
+            } else {
+                var arity1 = anyFunc as clos(env, i32) -> i32;
+                result = arity1!(the5);
+            }
+            return result;
+        }
+        function add2(dummyEnv: env, n: i32): i32 {
+            return n + 2;
+        }
+        function add(dummyEnv: env, n: i32, m: i32): i32 {
+            return n + m;
+        }
+        function main(): i32 {
+            // 7
+            var anyAdd2 = any(add2);
+            var thisIsFalse = false;
+            var a = callWith5s(anyAdd2, thisIsFalse);
+            // 10
+            var anyAdd = any(add);
+            var thisIsTrue = true;
+            var b = callWith5s(anyAdd, thisIsTrue);
+            return a + b;
+        }
+    "#,
+    );
+    expect_notwasm(17, program);
+}
+
+#[test]
 fn basic_ref() {
     let program = parse(
         r#"
         function main() : i32 {
-            var r = newRef(150);
-            return *r;
+            var r = newRef(150, i32);
+            return *r: i32;
         }
         "#,
     );
@@ -266,9 +327,10 @@ fn basic_ref_mutation() {
     let program = parse(
         r#"
         function main() : i32 {
-            var r = newRef(150);
-            *r = 130;
-            return *r;
+            var r = newRef(150, i32);
+            var s = r;
+            *s = 130;
+            return *r: i32;
         }
         "#,
     );
@@ -284,7 +346,7 @@ fn ref_doesnt_mutate_variables() {
             var x = 100;
             // Refs are like OCaml refs, not like C pointers.
             // They are essentially boxes that hold values.
-            var refX = newRef(x); // copy value of x
+            var refX = newRef(x, i32); // copy value of x
 
             // set value inside box. should not change value of x
             *refX = 130;

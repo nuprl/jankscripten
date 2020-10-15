@@ -12,13 +12,12 @@ mod desugar_this;
 mod desugar_updates;
 mod desugar_vardecls;
 mod lift_vars;
-pub mod name_gen;
 mod parser;
 pub mod syntax;
 pub mod walk;
 
+pub use crate::shared::NameGen;
 pub use desugar::*;
-pub use name_gen::*;
 pub use parser::*;
 pub use syntax::*;
 pub use walk::*;

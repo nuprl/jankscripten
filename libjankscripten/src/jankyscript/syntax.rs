@@ -2,7 +2,8 @@
 
 use crate::rts_function::RTSFunction;
 pub use crate::shared::coercions::Coercion;
-pub use crate::shared::types::Type;
+pub use crate::shared::Type;
+use im_rc::HashMap;
 use im_rc::HashSet as ImmHashSet;
 
 pub type Id = super::super::javascript::Id;
@@ -38,30 +39,36 @@ impl UnaryOp {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum LValue {
-    Id(Id),
+    Id(Id, Type),
     Dot(Expr, Id),
     Bracket(Expr, Expr),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Func {
     pub result_typ: Type,
     pub args_with_typs: Vec<(Id, Type)>,
     pub body: Box<Stmt>,
-    pub free_vars: ImmHashSet<Id>,
+    pub free_vars: HashMap<Id, Type>,
+    /// this represents variables which may or may not be defined in this
+    /// function that are free (and read) in any child function AND are assigned
+    /// at some point in this function or children. these should be boxed
+    pub assigned_free_children: ImmHashSet<Id>,
 }
 
 impl Func {
     pub fn new(args_with_typs: Vec<(Id, Type)>, result_typ: Type, body: Stmt) -> Self {
         let body = Box::new(body);
-        let free_vars = ImmHashSet::new();
+        let free_vars = HashMap::new();
+        let assigned_free_children = ImmHashSet::new();
         Func {
             args_with_typs,
             result_typ,
             body,
             free_vars,
+            assigned_free_children,
         }
     }
 
@@ -72,14 +79,17 @@ impl Func {
     pub fn arg_names(&self) -> impl Iterator<Item = &Id> {
         self.args_with_typs.iter().map(|(x, _)| x)
     }
+    pub fn take(&mut self) -> Self {
+        std::mem::replace(self, Func::new(Vec::new(), Type::Any, Stmt::Empty))
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Expr {
     Lit(Lit),
     Array(Vec<Expr>),
     Object(Vec<(Key, Expr)>),
-    Id(Id),
+    Id(Id, Type),
     Dot(Box<Expr>, Id),
     Bracket(Box<Expr>, Box<Expr>),
     Unary(UnaryOp, Box<Expr>),
@@ -88,10 +98,20 @@ pub enum Expr {
     Call(Box<Expr>, Vec<Expr>),
     PrimCall(RTSFunction, Vec<Expr>),
     Func(Func),
+    Closure(Func, Vec<(Expr, Type)>),
     Coercion(Coercion, Box<Expr>),
+    /// Create a new heap-allocated box, with contents of type T.
+    NewRef(Box<Expr>, Type),
+    /// Read from a heap-allocated box
+    Deref(Box<Expr>, Type),
+    /// Update the contents of a heap-allocated box.
+    /// stores .1 into the location indicated by .0
+    Store(Box<Expr>, Box<Expr>, Type),
+    /// the index of the variable
+    EnvGet(u32, Type),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Stmt {
     Var(Id, Type, Box<Expr>),
     Block(Vec<Stmt>),

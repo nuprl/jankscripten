@@ -125,10 +125,6 @@ fn lookup(env: &Env, id: &Id) -> TypeCheckingResult<Type> {
 
 // type check an entire program.
 pub fn type_check(stmt: &mut Stmt) -> TypeCheckingResult<()> {
-    // NOTE(arjun): This is a somewhat odd place to call free_variables. However, I think we should
-    // have a function in the jankyscript submodule that does all the "necessary" stuff to the
-    // program, including type-checking and annotating the program with free variables.
-    let _fvs = super::fv::free_vars(stmt);
     match type_check_stmt(
         stmt,
         get_global_object()
@@ -291,10 +287,11 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
 
             // whether or not rval can go in lval depends on what lval is
             match &**lval {
-                LValue::Id(id) => {
+                LValue::Id(id, ty) => {
                     // what type is id?
                     let id_ty = lookup(&env, &id)?;
-                    ensure("variable assignment", id_ty, rval_ty.clone())?;
+                    ensure("rvalue assignment", ty.clone(), rval_ty.clone())?;
+                    ensure("lvalue assignment", ty.clone(), id_ty)?;
                     Ok(rval_ty)
                 }
                 LValue::Dot(e, _id) => {
@@ -345,7 +342,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             Ok(to)
         }
         Expr::Lit(l) => Ok(type_check_lit(&l)),
-        Expr::Id(id) => lookup(&env, &id),
+        Expr::Id(id, ty) => ensure("id get", ty.clone(), lookup(&env, &id)?),
         Expr::Object(props) => {
             // type check each property
             for (_key, val) in props {
@@ -415,6 +412,12 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
 
             // whole operation has output type
             Ok(ty_out)
+        }
+        Expr::NewRef(..) | Expr::Deref(..) | Expr::Store(..) => {
+            todo!("optionally, typechecking could occur after boxing")
+        }
+        Expr::EnvGet(..) | Expr::Closure(..) => {
+            panic!("typechecking should occur before closure conversion")
         }
     }
 }

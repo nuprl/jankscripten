@@ -106,6 +106,12 @@ parser! {
             lang.reserved("any")
                 .with(lang.parens(atom(lang)))
                 .map(|a| ctor::to_any_(a)))
+        .or(
+            lang.reserved("env").skip(lang.reserved_op("."))
+                .with(lang.integer())
+                .skip(lang.reserved_op(":"))
+                .and(type_(lang))
+                .map(|(i, ty)| Atom::EnvGet(i as u32, ty)))
         .or(lang.reserved("rt").with(lang.parens(id(lang)))
             .map(|id| Atom::GetPrimFunc(id)))
         .or(lit(lang).map(|l| Atom::Lit(l)))
@@ -142,7 +148,8 @@ parser! {
         )
         .or(id(lang).map(|i| Atom::Id(i)))
         .or(lang.parens(atom(lang)))
-        .or(lang.reserved_op("*").with(atom(lang).map(|a| Atom::Deref(Box::new(a)))))
+        .or(lang.reserved_op("*").with(atom(lang)).skip(lang.reserved_op(":"))
+            .and(type_(lang)).map(|(a, ty)| ctor::deref_(a, ty)))
         .and(optional(
             lang.reserved("as").with(type_(lang))))
         .map(|(atom, maybe_as_ty)| match maybe_as_ty {
@@ -159,16 +166,39 @@ parser! {
         attempt(lang.reserved_op("[]").map(|_| Expr::Array))
         .or(lang.reserved_op("HT{}").map(|_| Expr::HT))
         .or(lang.reserved_op("{}").map(|_| Expr::ObjectEmpty))
+        .or(lang.reserved("clos").with(
+                lang.parens(id(lang).skip(lang.reserved_op(","))
+                    .and(sep_by(
+                            atom(lang).skip(lang.reserved_op(":")).and(type_(lang)),
+                            lang.reserved_op(",")))))
+                .map(|(id, vars)| Expr::Closure(id, vars)))
         .or(lang.reserved("arrayPush")
             .with(lang.parens(atom(lang).skip(lang.reserved_op(",")).and(atom(lang))))
             .map(|(array, member)| Expr::Push(array, member)))
         .or(lang.reserved("sqrt").with(lang.parens(atom(lang)))
             .map(|a| Expr::Atom(ctor::sqrt_(a))))
-        .or(lang.reserved_op("newRef").with(lang.parens(atom(lang))).map(|val| Expr::NewRef(val)))
+        .or(lang.reserved_op("newRef").with(lang.parens(atom(lang).skip(lang.reserved_op(",")).and(type_(lang)))).map(|(val, ty)| Expr::NewRef(val, ty)))
+        .or(attempt(id(lang).skip(lang.reserved_op("!"))
+            .and(lang.parens(sep_by(id(lang), lang.reserved_op(","))))
+            .map(|(f, args)| Expr::ClosureCall(f, args))))
         .or(attempt(id(lang)
             .and(lang.parens(sep_by(id(lang), lang.reserved_op(","))))
             .map(|(f, args)| Expr::Call(f, args))))
         .or(atom(lang).map(|a| Expr::Atom(a)))
+    }
+}
+
+parser! {
+    fn fn_type['a, 'b, I](lang: &'b Lang<'a,I>)(I) -> FnType
+    where [I: Stream<Item = char>]
+    {
+        lang.parens(sep_by(type_(lang), lang.reserved_op(",")))
+            .skip(lang.reserved_op("->"))
+            .and(type_(lang).map(|t| Some(Box::new(t))).or(lang.reserved("void").map(|_| None)))
+            .map(|(args, result)| FnType {
+                args,
+                result
+            })
     }
 }
 
@@ -179,19 +209,15 @@ parser! {
         lang.reserved("i32").with(value(Type::I32))
             .or(lang.reserved("str").with(value(Type::String)))
             .or(lang.reserved("bool").with(value(Type::Bool)))
-            .or(lang.parens(sep_by(type_(lang), lang.reserved_op(",")))
-                .skip(lang.reserved_op("->"))
-                .and(type_(lang).map(|t| Some(Box::new(t))).or(lang.reserved("void").map(|_| None)))
-                .map(|(args, result)| Type::Fn(FnType {
-                    args,
-                    result
-                })))
+            .or(fn_type(lang).map(|f| Type::Fn(f)))
+            .or(lang.reserved("clos").with(fn_type(lang)).map(|f| Type::Closure(f)))
             .or(lang.reserved("f64").with(value(Type::F64)))
             .or(lang.reserved("any").with(value(Type::Any)))
             .or(lang.reserved("DynObject").with(value(Type::DynObject)))
             .or(lang.reserved("HT").with(value(Type::HT)))
             .or(lang.reserved("Array").with(value(Type::Array)))
             .or(lang.reserved("Ref").with(lang.parens(type_(lang))).map(|t| ctor::ref_ty_(t)))
+            .or(lang.reserved("env").with(value(Type::Env)))
     }
 }
 
@@ -384,6 +410,8 @@ pub fn parse(input: &str) -> Program {
             rest: alpha_num().or(token('_')),
             reserved: [
                 "as",
+                "clos",
+                "env",
                 "if",
                 "else",
                 "true",
@@ -413,11 +441,11 @@ pub fn parse(input: &str) -> Program {
         // not bothered to understand it. But, it ought to define a pattern that
         // matches operators. Our operators are quite straightforward.
         op: Identifier {
-            start: satisfy(|c| "+-*/[{:.<,=".chars().any(|x| x == c)),
-            rest: satisfy(|c| "]}.".chars().any(|x| x == c)),
+            start: satisfy(|c| "+-*/[{:.<,=!".chars().any(|x| x == c)),
+            rest: satisfy(|c| "]}.<>=".chars().any(|x| x == c)),
             reserved: [
                 "=", "==", "===", "+", "-", "*", "/", "[]", "{}", ":", ".", "*.", "/.", "+.", "-.",
-                "<", ",", "&", "<<",
+                "<", ",", "&", "<<", "->", "!",
             ]
             .iter()
             .map(|x| (*x).into())

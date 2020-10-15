@@ -1,91 +1,86 @@
+pub use super::env::EnvPtr;
 pub use super::object_ptr::{ObjectDataPtr, ObjectPtr};
 pub use super::string::StringPtr;
-use super::{HeapPtr, Tag, TypePtr, TypeTag};
+use super::{AnyPtr, HeapPtr, Tag, TypePtr, TypeTag};
 use crate::{AnyEnum, AnyValue, Heap, Key};
 use std::collections::HashMap;
 
 pub trait HasTag {
     const TYPE_TAG: TypeTag;
+    // never needed to supply
     fn get_tag() -> Tag {
         Tag::with_type(Self::TYPE_TAG)
     }
-    fn get_gc_ptrs(&self, _heap: &Heap) -> Vec<*mut Tag> {
-        vec![]
-    }
-    fn get_gc_f64s(&mut self, _heap: &Heap) -> Vec<*mut *const f64> {
-        vec![]
+    // must supply if might have pointers!!
+    fn get_data_ptrs(&self, _heap: &Heap) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
+        (vec![], vec![])
     }
 }
 
-pub type I32Ptr<'a> = TypePtr<'a, i32>;
-impl HasTag for i32 {
-    const TYPE_TAG: TypeTag = TypeTag::I32;
-}
-pub type AnyJSPtr<'a> = TypePtr<'a, AnyValue>;
-impl<'a> HasTag for AnyValue {
-    const TYPE_TAG: TypeTag = TypeTag::Any;
-    fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
-        (**self).get_gc_ptrs(heap)
-    }
-    fn get_gc_f64s(&mut self, heap: &Heap) -> Vec<*mut *const f64> {
-        (**self).get_gc_f64s(heap)
-    }
-}
-
-impl<'a> HasTag for ObjectDataPtr<'a> {
+impl HasTag for ObjectDataPtr {
     /// to be clear, this means the type tag OF THE POINTER
     const TYPE_TAG: TypeTag = TypeTag::ObjectPtrPtr;
 }
 
-pub type HTPtr<'a> = TypePtr<'a, HashMap<Key, AnyValue>>;
-impl<'a> HasTag for HashMap<Key, AnyValue> {
+pub type HTPtr = TypePtr<HashMap<Key, AnyValue>>;
+impl HasTag for HashMap<Key, AnyValue> {
     const TYPE_TAG: TypeTag = TypeTag::HT;
-    fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
-        let mut branches = vec![];
-        for any in self.values() {
-            branches.extend(any.get_gc_ptrs(heap));
-        }
-        branches
-    }
-    fn get_gc_f64s(&mut self, heap: &Heap) -> Vec<*mut *const f64> {
-        let mut branches = vec![];
-        for any in self.values_mut() {
-            branches.extend(any.get_gc_f64s(heap));
-        }
-        branches
+    fn get_data_ptrs(&self, _: &Heap) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
+        AnyEnum::iter_to_ptrs(self.values().map(|x| &**x))
     }
 }
 
-pub type ArrayPtr<'a> = TypePtr<'a, Vec<AnyValue>>;
-impl<'a> HasTag for Vec<AnyValue> {
+pub type ArrayPtr = TypePtr<Vec<AnyValue>>;
+impl HasTag for Vec<AnyValue> {
     const TYPE_TAG: TypeTag = TypeTag::Array;
-    fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
-        let mut branches = vec![];
-        for any in self {
-            branches.extend(any.get_gc_ptrs(heap));
-        }
-        branches
-    }
-    fn get_gc_f64s(&mut self, heap: &Heap) -> Vec<*mut *const f64> {
-        let mut branches = vec![];
-        for any in self {
-            branches.extend(any.get_gc_f64s(heap));
-        }
-        branches
+    fn get_data_ptrs(&self, _: &Heap) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
+        AnyEnum::iter_to_ptrs(self.iter().map(|x| &**x))
     }
 }
 
-impl AnyEnum<'_> {
-    pub fn get_gc_ptrs(&self, _heap: &Heap) -> Vec<*mut Tag> {
+// REF TYPES
+// =========
+
+pub type NonPtr32Ptr = TypePtr<i32>;
+impl HasTag for i32 {
+    const TYPE_TAG: TypeTag = TypeTag::NonPtr32;
+}
+pub type AnyJSPtr = TypePtr<AnyValue>;
+impl HasTag for AnyValue {
+    const TYPE_TAG: TypeTag = TypeTag::Any;
+    fn get_data_ptrs(&self, _: &Heap) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
+        AnyEnum::iter_to_ptrs(std::iter::once(&**self))
+    }
+}
+pub type MutF64Ptr = TypePtr<f64>;
+impl HasTag for f64 {
+    const TYPE_TAG: TypeTag = TypeTag::Ptr;
+}
+pub type PtrPtr = TypePtr<AnyPtr>;
+impl HasTag for AnyPtr {
+    const TYPE_TAG: TypeTag = TypeTag::Ptr;
+    fn get_data_ptrs(&self, _heap: &Heap) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
+        (vec![self.get_ptr()], vec![])
+    }
+}
+
+impl AnyEnum {
+    pub fn insert_ptr(&self, tags: &mut Vec<*mut Tag>, f64s: &mut Vec<*mut *const f64>) {
         match self {
-            Self::Ptr(ptr) => vec![ptr.get_ptr()],
-            _ => vec![],
+            Self::Ptr(ptr) => tags.push(ptr.get_ptr()),
+            Self::F64(ptr) => f64s.push(ptr as *const *const f64 as *mut _),
+            _ => (),
         }
     }
-    pub fn get_gc_f64s(&mut self, _heap: &Heap) -> Vec<*mut *const f64> {
-        match self {
-            Self::F64(ptr) => vec![&mut *ptr],
-            _ => vec![],
+    pub fn iter_to_ptrs<'a, T: Iterator<Item = &'a Self>>(
+        i: T,
+    ) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
+        let size = i.size_hint().1.unwrap_or(0);
+        let mut a = Vec::with_capacity(size);
+        let mut b = Vec::with_capacity(size);
+        for any in i {
+            any.insert_ptr(&mut a, &mut b);
         }
+        (a, b)
     }
 }

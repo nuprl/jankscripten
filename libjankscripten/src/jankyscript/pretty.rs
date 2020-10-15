@@ -29,6 +29,7 @@ impl Pretty for Type {
                 ret.pretty(pp),
             ]),
             Type::Any => pp.text("any"),
+            Type::Ref(of) => pp.text("ref").append(of.pretty(pp).parens()),
         }
     }
 }
@@ -70,7 +71,7 @@ impl Pretty for LValue {
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
         match self {
-            LValue::Id(id) => pp.as_string(id),
+            LValue::Id(id, _) => pp.as_string(id),
             LValue::Dot(e, id) => e
                 .pretty(pp)
                 .append(pp.text("."))
@@ -143,7 +144,7 @@ impl Pretty for Expr {
                     pp.text(",").append(pp.line()),
                 )
                 .braces(),
-            Expr::Id(id) => pp.as_string(id),
+            Expr::Id(id, _) => pp.as_string(id),
             Expr::Dot(e, id) => pp.concat(vec![
                 e.pretty(pp),
                 pp.text("."),
@@ -183,32 +184,72 @@ impl Pretty for Expr {
                 )
                 .parens(),
             ]),
-            Expr::Func(f) => pp.concat(vec![
-                pp.text("function"),
-                pp.intersperse(
-                    f.args_with_typs.iter().map(|(x, t)| {
-                        pp.concat(vec![
-                            pp.as_string(x),
-                            pp.space(),
-                            pp.text(":"),
-                            pp.space(),
-                            t.pretty(pp),
-                        ])
-                        .group()
-                    }),
-                    pp.text(",").append(pp.space()),
-                )
-                .parens(),
-                pp.line(),
-                pp.text("->"),
-                f.result_typ.pretty(pp),
-                pp.line(),
-                f.body.pretty(pp).nest(2).braces(),
-            ]),
+            Expr::Func(f) => f.pretty(pp),
             Expr::Coercion(c, e) => {
                 pp.concat(vec![c.pretty(pp).brackets(), pp.line(), e.pretty(pp)])
             }
+            Expr::NewRef(e, ty) => pp
+                .text("newref::")
+                .append(ty.pretty(pp))
+                .append(e.pretty(pp).parens()),
+            Expr::Deref(e, ty) => pp
+                .text("*")
+                .append(e.pretty(pp))
+                .append(pp.text(": "))
+                .append(ty.pretty(pp)),
+            Expr::Store(id, e, ty) => pp
+                .text("*")
+                .append(pp.as_string(id))
+                .append(pp.text(": "))
+                .append(ty.pretty(pp))
+                .append(pp.text(" = "))
+                .append(e.pretty(pp)),
+            Expr::EnvGet(i, ty) => pp
+                .text("env.")
+                .append(pp.as_string(i))
+                .append(pp.text(": "))
+                .append(ty.pretty(pp)),
+            Expr::Closure(f, env) => pp.text("clos").append(f.pretty(pp)).append(", ").append(
+                pp.intersperse(
+                    env.iter()
+                        .map(|(e, ty)| e.pretty(pp).append(pp.text(": ")).append(ty.pretty(pp))),
+                    pp.text(", "),
+                )
+                .brackets(),
+            ),
         }
+    }
+}
+
+impl Pretty for Func {
+    fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A>
+    where
+        D: pretty::DocAllocator<'b, A>,
+        A: std::clone::Clone,
+        <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
+    {
+        pp.concat(vec![
+            pp.text("function"),
+            pp.intersperse(
+                self.args_with_typs.iter().map(|(x, t)| {
+                    pp.concat(vec![
+                        pp.as_string(x),
+                        pp.space(),
+                        pp.text(":"),
+                        pp.space(),
+                        t.pretty(pp),
+                    ])
+                    .group()
+                }),
+                pp.text(",").append(pp.space()),
+            )
+            .parens(),
+            pp.line(),
+            pp.text("->"),
+            self.result_typ.pretty(pp),
+            pp.line(),
+            self.body.pretty(pp).nest(2).braces(),
+        ])
     }
 }
 

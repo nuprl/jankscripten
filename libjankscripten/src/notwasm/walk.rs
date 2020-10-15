@@ -135,7 +135,7 @@ where
         use Expr::*;
         self.visitor.enter_expr(expr, loc);
         match expr {
-            ObjectEmpty | HT | Array | Call(..) | PrimCall(..) => (),
+            ObjectEmpty | HT | Array | Call(..) | ClosureCall(..) | PrimCall(..) => (),
             HTSet(ea, eb, ec, ..) | ObjectSet(ea, eb, ec, ..) | ArraySet(ea, eb, ec) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
@@ -145,7 +145,12 @@ where
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
             }
-            NewRef(a) | Atom(a, ..) => self.walk_atom(a, loc),
+            NewRef(a, ..) | Atom(a, ..) => self.walk_atom(a, loc),
+            Closure(_, has_atoms) => {
+                for (a, _) in has_atoms {
+                    self.walk_atom(a, loc);
+                }
+            }
         }
         self.visitor.exit_expr(expr, loc);
     }
@@ -155,7 +160,7 @@ where
         self.visitor.enter_atom(atom, loc);
         match atom {
             // 0
-            Lit(..) | Id(..) | GetPrimFunc(..) | Deref(..) => (),
+            Lit(..) | Id(..) | GetPrimFunc(..) | Deref(..) | EnvGet(..) => (),
             ToAny(to_any) => {
                 self.walk_atom(to_any.atom.as_mut(), loc);
             }

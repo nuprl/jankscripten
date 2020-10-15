@@ -1,0 +1,6 @@
+#!/bin/sh
+
+wat2wasm $1 -o /tmp/opt-n-read.wasm
+wasm-opt -O4 /tmp/opt-n-read.wasm -o /tmp/opt.wasm
+wasm2wat /tmp/opt.wasm > /tmp/read.wat
+editor /tmp/read.wat

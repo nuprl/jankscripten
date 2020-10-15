@@ -21,8 +21,8 @@
 //! - A set of global variables that are initialized to …whataever Wasm
 //!   supports
 
-pub use super::super::javascript::Id;
 use crate::rts_function::RTSFunction;
+pub use crate::shared::Id;
 use std::collections::HashMap;
 
 /// The types of NotWasm. Every value has a unique type, thus we *do not* support
@@ -37,8 +37,8 @@ pub enum Type {
     F64,
     /// If `v : String` then `v` is a `*const Tag` followed by a 4-byte
     /// little-endian length followed by utf-8 of that length.
-    /// Even interned strings are preceded by a tag, to aid in string
-    /// unification
+    /// Even interned strings are preceded by a tag, so that interned and
+    /// uninterned strings have the same representation.
     String,
     /// If `v : HT` then `v` is a `*const Tag`, where
     ///  `v.type_tag === TypeTag::HT`.
@@ -49,13 +49,31 @@ pub enum Type {
     Bool,
     /// If `v : DynObject` then `v` is a `*const Tag` where
     /// `v.type_tag == Class`.
+    /// TODO(arjun): We do not have a type_tag called class. What is this
+    /// really supposed to be? I think it is ObjectPtrPtr.
     DynObject,
     /// If `v : Fn(fn_type)` then `v` is an `i32`, which is an index of a
     /// function with the type `fn_type`.
     Fn(FnType),
-    Ref(Box<Type>),
+    /// If `v : Closure(fn_type)` then `v` is an `i64`, which is an EnvPtr
+    /// followed by a 16-bit truncation of a function pointer followed by 16
+    /// garbage bits
+    Closure(FnType),
     /// If `v : Any` then `v` is an `AnyEnum`.
     Any,
+    /// If `v : Ref(I32)` then `v` is a `*const Tag` and `v.type_tag == NonPtr32`.
+    /// If `v : Ref(Bool)` then `v` is a `*const Tag` and `v.type_tag == NonPtr32`.
+    /// If `v : Ref(F64)` then `v` is a `*const Tag` and resides in the f64 heap
+    /// If `v : Ref(Any)` then `v` is a `*const Tag` and `v.type_tag == Any`.
+    /// If `v : Ref(T)` and T is represented as a `*const Tag`, then `v` is a
+    /// `*const Tag` `v.type_tag == Ptr`.
+    Ref(Box<Type>),
+    /// If `v : Env` then `v` is a `*const Tag` and `v.type_tag == Env`.
+    /// Envs are not values, nor are they really types!!! An env actually has
+    /// an existential type associated with each closure, but we simply say that
+    /// all envs are "equal enough" for the code generation we do after closure
+    /// conversion
+    Env,
 }
 
 impl Type {
@@ -69,8 +87,12 @@ impl Type {
             Type::Bool => false,
             Type::DynObject => true,
             Type::Fn(_) => false,
+            Type::Closure(_) => true,
             Type::Ref(_) => true,
             Type::Any => true,
+            // uhhh i don't think there's a way for there to be a live env when
+            // there's not a live closure? so this could probably become false?
+            Type::Env => true,
         }
     }
 }
@@ -221,7 +243,9 @@ pub enum Atom {
     StringLen(Box<Atom>),
     Unary(UnaryOp, Box<Atom>),
     Binary(BinaryOp, Box<Atom>, Box<Atom>),
-    Deref(Box<Atom>), // *ref on RHS
+    Deref(Box<Atom>, Type),
+    /// get the given value from the environment at local 0
+    EnvGet(u32, Type),
 }
 
 // An `Expr` is an expression that may trigger garbage collection.
@@ -234,13 +258,22 @@ pub enum Expr {
     /// TODO(luna): we need to detect out-of-bounds and turn into a hashmap
     ArraySet(Atom, Atom, Atom),
     HTSet(Atom, Atom, Atom),
+    /// right now, never constructed from jankyscript, only in tests
     Call(Id, Vec<Id>),
+    ClosureCall(Id, Vec<Id>),
     PrimCall(RTSFunction, Vec<Atom>),
     ObjectEmpty,
     /// ObjectSet(obj, field_name, value, typ) is obj.field_name: typ = value;
     ObjectSet(Atom, Atom, Atom),
-    NewRef(Atom), // newRef(something)
+    NewRef(Atom, Type), // newRef(something)
     Atom(Atom),
+    /// create a new environment with the given atoms and their types,
+    /// in linear order. then create a closure with that environment and
+    /// the index of the function named .0
+    ///
+    /// this has to be atom, not id, because what if we need to store {x:
+    /// env.x} in a nested closure
+    Closure(Id, Vec<(Atom, Type)>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -354,7 +387,9 @@ impl std::fmt::Display for Type {
                 Bool => "bool",
                 DynObject => "DynObject",
                 Fn(..) => "fn",
+                Closure(..) => "closure",
                 Any => "any",
+                Env => "env",
             }
         )
     }

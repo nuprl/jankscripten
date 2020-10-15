@@ -1,3 +1,4 @@
+use super::constructors::*;
 use super::syntax::*;
 use im_rc::HashMap;
 use thiserror::Error;
@@ -183,7 +184,7 @@ fn type_check_stmt(env: Env, s: &mut Stmt, ret_ty: &Option<Type>) -> TypeCheckin
 
             let type_pointed_to = ensure_ref("ref type", got_id)?;
 
-            let _ = ensure("ref store", type_pointed_to, got_expr)?;
+            ensure("ref store", type_pointed_to, got_expr)?;
 
             Ok(env)
         }
@@ -320,40 +321,89 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
         Expr::Call(id_f, actuals) => {
             let got_f = lookup(env, id_f)?;
             if let Type::Fn(fn_ty) = got_f {
-                // arity check
-                if actuals.len() != fn_ty.args.len() {
-                    return Err(TypeCheckingError::ArityMismatch(
-                        id_f.clone(),
-                        actuals.len() - fn_ty.args.len(),
-                    ));
-                }
-
-                // match formals and actuals
-                let mut nth = 0;
-                for (actual, formal) in actuals.iter().zip(fn_ty.args.iter()) {
-                    let got = lookup(env, actual)?;
-                    let _ = ensure(
-                        &format!("call {:?} (argument #{})", id_f, nth),
-                        formal.clone(),
-                        got,
-                    )?;
-                    nth += 1;
-                }
-
-                // return type or any
-                // ??? MMG do we need a void/unit type?
-                Ok(fn_ty.result.map(|b| *b).unwrap_or(Type::Any))
+                type_check_call(env, id_f, actuals, fn_ty, false)
             } else {
                 Err(TypeCheckingError::ExpectedFunction(id_f.clone(), got_f))
             }
         }
-        Expr::NewRef(a) => Ok(Type::Ref(Box::new(type_check_atom(env, a)?))),
+        Expr::ClosureCall(id_f, actuals) => {
+            let got_f = lookup(env, id_f)?;
+            if let Type::Closure(fn_ty) = got_f {
+                type_check_call(env, id_f, actuals, fn_ty, true)
+            } else {
+                Err(TypeCheckingError::ExpectedFunction(id_f.clone(), got_f))
+            }
+        }
+        Expr::NewRef(a, ty) => {
+            let actual = type_check_atom(env, a)?;
+            ensure("new ref", ty.clone(), actual)?;
+            Ok(ref_ty_(ty.clone()))
+        }
         Expr::Atom(a) => type_check_atom(env, a),
+        // this is really an existential type but for now i'm gonna try to
+        // get away with pretending Type::Closure((i32) -> i32; [i32]) ==
+        // Type::Closure((i32 -> i32; [])
+        Expr::Closure(id, _) => match lookup(env, id) {
+            Ok(Type::Fn(fn_ty)) => Ok(Type::Closure(fn_ty)),
+            Ok(got) => Err(TypeCheckingError::ExpectedFunction(id.clone(), got)),
+            Err(e) => Err(e),
+        },
     }
+}
+
+/// implicit_arg is true in a closure; typechecks as if fn_ty started with
+/// an Env
+fn type_check_call(
+    env: &Env,
+    id_f: &Id,
+    actuals: &[Id],
+    fn_ty: FnType,
+    implicit_arg: bool,
+) -> TypeCheckingResult<Type> {
+    // arity check
+    let actuals_len = actuals.len() + if implicit_arg { 1 } else { 0 };
+    if actuals_len != fn_ty.args.len() {
+        return Err(TypeCheckingError::ArityMismatch(
+            id_f.clone(),
+            actuals_len - fn_ty.args.len(),
+        ));
+    }
+
+    // match formals and actuals
+    let mut nth = 0;
+    let mut args_iter = fn_ty.args.iter();
+    if implicit_arg {
+        match args_iter.next() {
+            Some(Type::Env) => (),
+            Some(got) => {
+                return Err(TypeCheckingError::TypeMismatch(
+                    String::from("closure must accept environment"),
+                    Type::Env,
+                    got.clone(),
+                ))
+            }
+            None => unreachable!(),
+        }
+    }
+    for (actual, formal) in actuals.iter().zip(args_iter) {
+        let got = lookup(env, actual)?;
+        let _ = ensure(
+            &format!("call {:?} (argument #{})", id_f, nth),
+            formal.clone(),
+            got,
+        )?;
+        nth += 1;
+    }
+
+    // return type or any
+    // ??? MMG do we need a void/unit type?
+    Ok(fn_ty.result.map(|b| *b).unwrap_or(Type::Any))
 }
 
 fn assert_variant_of_any(ty: &Type) -> TypeCheckingResult<()> {
     match ty {
+        // an any can be stored in an any right? but, i can see why you
+        // wouldn't want to generate code that does so
         Type::Any => invalid_in_context("cannot be stored in an Any", &ty),
         Type::I32 => Ok(()),
         Type::F64 => Ok(()),
@@ -361,18 +411,30 @@ fn assert_variant_of_any(ty: &Type) -> TypeCheckingResult<()> {
         Type::String => Ok(()),
         // We need to think this through. We cannot store arbitrary functions
         // inside an Any.
-        Type::Fn(_) => Ok(()), // TODO(luna): see above
+        Type::Fn(ty) => {
+            if Some(&Type::Env) == ty.args.get(0) {
+                Ok(())
+            } else {
+                error!("function must accept dummy environment to be any-ified")
+            }
+        }
+        Type::Closure(_) => Ok(()),
         // The following turn into pointers, and an Any can store a pointer
         Type::HT => Ok(()),
         Type::Array => Ok(()),
         Type::DynObject => Ok(()),
-        Type::Ref(..) => todo!(),
+        Type::Ref(..) => invalid_in_context("ref should not be stored in Any", &ty),
+        Type::Env => invalid_in_context("environments are not values", &ty),
     }
 }
 
 fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
     match a {
-        Atom::Deref(a) => ensure_ref("dereference", type_check_atom(env, a)?),
+        Atom::Deref(a, ty) => ensure(
+            "dereference",
+            ty.clone(),
+            ensure_ref("deref atom", type_check_atom(env, a)?)?,
+        ),
         Atom::Lit(l) => Ok(l.notwasm_typ()),
         Atom::ToAny(to_any) => {
             let ty = type_check_atom(env, &mut to_any.atom)?;
@@ -452,5 +514,6 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             let _ = ensure(&format!("binary ({:?}) lhs", op), ty_in, got_r)?;
             Ok(ty_out)
         }
+        Atom::EnvGet(_, ty) => Ok(ty.clone()),
     }
 }

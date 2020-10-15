@@ -6,11 +6,9 @@ use super::*;
 // Ex. var x = 1, y = 2;     =>    var x = 1;  var y = 2;
 // note: depends on desugar_loops in case of multiple variables declared in for loop
 
-struct SeparateVarDecls<'a> {
-    ng: &'a mut NameGen,
-}
+struct SeparateVarDecls;
 
-impl Visitor for SeparateVarDecls<'_> {
+impl Visitor for SeparateVarDecls {
     fn exit_stmt(&mut self, stmt: &mut Stmt, loc: &Loc) {
         match stmt {
             Stmt::VarDecl(decls) => {
@@ -34,7 +32,7 @@ impl Visitor for SeparateVarDecls<'_> {
     }
 }
 
-pub fn desugar_vardecls(program: &mut Stmt, namegen: &mut NameGen) {
-    let mut v = SeparateVarDecls { ng: namegen };
+pub fn desugar_vardecls(program: &mut Stmt) {
+    let mut v = SeparateVarDecls;
     program.walk(&mut v);
 }

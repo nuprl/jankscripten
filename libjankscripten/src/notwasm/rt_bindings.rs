@@ -1,5 +1,4 @@
 use super::constructors::*;
-use super::from_jankyscript::compile_ty;
 use super::syntax::Type;
 use crate::rts_function::RTSFunction;
 use std::collections::HashMap;
@@ -23,6 +22,8 @@ pub fn get_rt_bindings() -> BindMap {
     let mut map = HashMap::new();
     let m = &mut map;
     let mono = |t| t;
+    let a_fn = fn_ty_(vec![], None);
+    let a_clos = clos_ty_(vec![], None);
 
     // Step 1: Manually insert runtime functions for NotWasm.
     insert(m, "ht_new", vec![], HT);
@@ -38,25 +39,31 @@ pub fn get_rt_bindings() -> BindMap {
         "any_from",
         vec![&mono],
         &|_| Any,
-        vec![I32, Bool, fn_ty_(vec![], None)],
+        vec![I32, Bool, a_clos.clone(), a_fn.clone()],
     );
     insert_mono(
         m,
         "any_to",
         vec![&|_| Any],
         &mono,
-        vec![I32, Bool, fn_ty_(vec![], None)],
+        vec![I32, Bool, a_clos.clone()],
     );
     insert(m, "any_from_ptr", vec![I32], Any);
     insert(m, "any_to_ptr", vec![Any], I32);
     insert(m, "get_undefined", vec![], Any);
     insert(m, "get_null", vec![], Any);
     insert(m, "object_empty", vec![], DynObject);
+    insert(m, "object_create", vec![Env, Any], Any);
     // I32s are caches here
     insert(m, "object_set", vec![DynObject, String, Any, I32], Any);
     insert(m, "object_get", vec![DynObject, String, I32], Any);
     insert(m, "string_len", vec![String], I32);
-    insert(m, "ref_new", vec![I32], I32);
+    // I32 is any I32-sized data
+    insert(m, "ref_new_non_ptr_32", vec![I32], ref_ty_(I32));
+    insert(m, "ref_new_f64", vec![F64], ref_ty_(F64));
+    insert(m, "ref_new_any", vec![Any], ref_ty_(Any));
+    // I32 is any POINTER, will return a pointer to THAT
+    insert(m, "ref_new_ptr", vec![I32], ref_ty_(I32));
     insert(m, "init", vec![], None);
     insert(m, "gc_enter_fn", vec![I32], None);
     insert(m, "gc_exit_fn", vec![], None);
@@ -69,8 +76,27 @@ pub fn get_rt_bindings() -> BindMap {
         vec![Any, I32],
         None,
     );
+    insert(
+        m,
+        "set_closure_in_current_shadow_frame_slot",
+        vec![clos_ty_(vec![], None), I32],
+        None,
+    );
     insert(m, "any_to_f64", vec![Any], F64);
     insert(m, "f64_to_any", vec![F64], Any);
+    // length -> Env
+    insert(m, "env_alloc", vec![I32], I32);
+    // TODO(luna): this could be a single wasm instruction too
+    // (env: Env, index, item) -> Env
+    insert(m, "env_init_at", vec![I32, I32, Any], I32);
+    // this could be 2 wasm instructions
+    insert(m, "closure_new", vec![I32, I32], a_clos.clone());
+    // i tried writing these 2 in wasm too but it got more complicated than i'd
+    // like; i don't think i'd write it smarter than the rust compiler inlining
+    // aside; and i hope we can inline the runtime automatically at some point
+    // -> Env
+    insert(m, "closure_env", vec![a_clos.clone()], I32);
+    insert(m, "closure_func", vec![a_clos.clone()], a_fn.clone());
 
     // Step 2: automatically insert runtime functions from RTSFunction.
     for rts in RTSFunction::iter() {
@@ -78,7 +104,7 @@ pub fn get_rt_bindings() -> BindMap {
             // can't !let
         } else {
             // Automatically generate the name and notwasm type
-            m.insert(rts.name().into(), compile_ty(rts.janky_typ()));
+            m.insert(rts.name().into(), rts.janky_typ().notwasm_typ());
         }
     }
     map

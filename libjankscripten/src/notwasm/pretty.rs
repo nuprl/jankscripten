@@ -21,6 +21,8 @@ impl Pretty for Type {
             Type::Any => pp.text("any"),
             Type::Ref(t) => pp.concat(vec![pp.text("ref"), t.pretty(pp).parens()]),
             Type::Fn(fn_t) => fn_t.pretty(pp),
+            Type::Closure(fn_t) => pp.text("clos").append(fn_t.pretty(pp)),
+            Type::Env => pp.text("env"),
         }
     }
 }
@@ -195,7 +197,8 @@ impl Pretty for Atom {
                 Atom::Binary(op, l, r) => {
                     pp.concat(vec![l.pretty(pp), op.pretty(pp), r.pretty(pp)])
                 }
-                Atom::Deref(a) => pp.concat(vec![pp.text("*"), a.pretty(pp)]),
+                Atom::Deref(a, _) => pp.concat(vec![pp.text("*"), a.pretty(pp)]),
+                Atom::EnvGet(index, _) => pp.text("env.").append(pp.as_string(index)),
             }),
             pp.text("⚛️"),
         ])
@@ -237,7 +240,7 @@ impl Pretty for Expr {
                 ])
                 .braces(),
             ]),
-            Expr::Call(f, args) => pp.concat(vec![
+            Expr::Call(f, args) | Expr::ClosureCall(f, args) => pp.concat(vec![
                 pp.as_string(f),
                 pp.intersperse(
                     args.iter().map(|a| pp.as_string(a)),
@@ -265,8 +268,25 @@ impl Pretty for Expr {
                 ])
                 .braces(),
             ]),
-            Expr::NewRef(a) => pp.concat(vec![pp.text("new_ref"), a.pretty(pp).parens()]),
+            Expr::NewRef(a, ty) => pp.concat(vec![
+                pp.text("new_ref::"),
+                ty.pretty(pp),
+                a.pretty(pp).parens(),
+            ]),
             Expr::Atom(a) => a.pretty(pp),
+            Expr::Closure(id, env) => pp.text("clos").append(
+                pp.as_string(id)
+                    .append(", ")
+                    .append(
+                        pp.intersperse(
+                            env.iter()
+                                .map(|(a, ty)| a.pretty(pp).append(": ").append(ty.pretty(pp))),
+                            pp.text(", "),
+                        )
+                        .brackets(),
+                    )
+                    .parens(),
+            ),
         }
     }
 }

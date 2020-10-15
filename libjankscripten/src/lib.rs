@@ -21,12 +21,11 @@ where
     G: FnOnce(&notwasm::syntax::Program) -> (),
 {
     let mut js_ast = javascript::parse(js_code)?;
-    let mut ng = javascript::NameGen::default();
+    let mut ng = shared::NameGen::default();
     javascript::desugar(&mut js_ast, &mut ng);
     let jankier_ast = jankierscript::from_javascript(js_ast);
     let mut janky_ast = jankierscript::insert_coercions(jankier_ast)?;
-    inspect_janky(&janky_ast);
-    jankyscript::type_checking::type_check(&mut janky_ast)?;
+    jankyscript::compile(&mut janky_ast, inspect_janky)?;
     let notwasm_ast = notwasm::from_jankyscript(janky_ast);
     let wasm_bin = notwasm::compile(notwasm_ast, inspect_notwasm)?;
     Ok(wasm_bin)
