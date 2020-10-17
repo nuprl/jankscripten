@@ -71,8 +71,8 @@ impl Visitor for GotoVisitor {
                 *stmt = if_(get_id_("inGoto", s), Empty, stmt.take(), s)
             }
             If(cond, cons, alt, s) => {
-                let cons_cond = bounds_check_if(cons, cond.take(), s);
-                let alt_cond = bounds_check(alt, s);
+                let cons_cond = bounds_check_if(cons, cond.take(), *s);
+                let alt_cond = bounds_check(alt, *s);
                 *stmt = if_(
                     cons_cond,
                     cons.take(),
@@ -81,7 +81,7 @@ impl Visitor for GotoVisitor {
                 )
             }
             &mut Loop(ref mut body, s) => {
-                let cond = bounds_check(body, &mut s);
+                let cond = bounds_check(body, s);
                 *stmt = if_(cond, stmt.take(), Stmt::Empty, s)
             }
             // the rest fall into ~3 groups
@@ -104,28 +104,28 @@ fn is_call(stmt: &Stmt) -> bool {
         _ => false,
     }
 }
-fn bounds_check_maybe_if(body: &mut Stmt, alt_check: Atom, s: &Span) -> Atom {
+fn bounds_check_maybe_if(body: &mut Stmt, alt_check: Atom, s: Span) -> Atom {
     if let Some((lo, hi)) = bounds(body) {
         let if_goto = band_(
-            gte_(get_id_("gotoTarget", *s), i32_(lo, *s), *s),
-            lte_(get_id_("gotoTarget", *s), i32_(hi, *s), *s),
-            *s,
+            gte_(get_id_("gotoTarget", s), i32_(lo, s), s),
+            lte_(get_id_("gotoTarget", s), i32_(hi, s), s),
+            s,
         );
-        let in_goto_case = band_(get_id_("inGoto", *s), if_goto, *s);
-        bor_(alt_check, in_goto_case, *s)
+        let in_goto_case = band_(get_id_("inGoto", s), if_goto, s);
+        bor_(alt_check, in_goto_case, s)
     } else {
         alt_check
     }
 }
-fn bounds_check_if(body: &mut Stmt, not_goto_check: Atom, s: &Span) -> Atom {
+fn bounds_check_if(body: &mut Stmt, not_goto_check: Atom, s: Span) -> Atom {
     bounds_check_maybe_if(
         body,
-        band_(not_goto_check, not_(get_id_("inGoto", *s), *s), *s),
+        band_(not_goto_check, not_(get_id_("inGoto", s), s), s),
         s,
     )
 }
-fn bounds_check(body: &mut Stmt, s: &Span) -> Atom {
-    bounds_check_maybe_if(body, not_(get_id_("inGoto", *s), *s), s)
+fn bounds_check(body: &mut Stmt, s: Span) -> Atom {
+    bounds_check_maybe_if(body, not_(get_id_("inGoto", s), s), s)
 }
 
 /// since labels are ordered, we can define n belongs to L as min <= n <= max

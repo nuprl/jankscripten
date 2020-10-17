@@ -345,7 +345,7 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 compile_expr(
                     state,
                     *e2,
-                    C::a(|state, a2| {
+                    C::a(move |state, a2| {
                         cxt.recv_a(state, Atom::Binary(op, Box::new(a1), Box::new(a2), s))
                     }),
                 )
@@ -361,7 +361,7 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             // introducing new locals for assignment expressions
             // but differently. see this discussion on slack:
             // https://plasma.slack.com/archives/C013E3BK7QA/p1596656877066800
-            C::a(|state, a| match *lv {
+            C::a(move |state, a| match *lv {
                 J::LValue::Id(id, _) => Rope::singleton(Stmt::Assign(id, atom_(a.clone(), s), s))
                     .append(cxt.recv_a(state, a)),
                 J::LValue::Dot(container, field) => {
