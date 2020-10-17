@@ -41,7 +41,7 @@ impl<'a> SwitchToIf<'a> {
 impl Visitor for SwitchToIf<'_> {
     fn enter_stmt(&mut self, stmt: &mut Stmt, _loc: &Loc) {
         match stmt {
-            Stmt::Switch(.., _s) => {
+            Stmt::Switch(.., _) => {
                 let name = self.ng.fresh("sw");
                 self.name_stack.push(name.clone());
             }
@@ -94,7 +94,7 @@ impl Visitor for SwitchToIf<'_> {
                 // add default case (if applicable)
                 let d = default.take();
                 match d {
-                    Stmt::Block(mut dv, _s) => {
+                    Stmt::Block(mut dv, _) => {
                         for s in dv.drain(0..) {
                             v.push(s);
                         }

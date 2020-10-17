@@ -96,9 +96,9 @@ impl Visitor for GotoVisitor {
 fn is_call(stmt: &Stmt) -> bool {
     use Stmt::*;
     match stmt {
-        Assign(_, Expr::Call(..), _s) => true,
-        Var(var_stmt, _s) => match var_stmt.named {
-            Expr::Call(.., _s) => true,
+        Assign(_, Expr::Call(..), _) => true,
+        Var(var_stmt, _) => match var_stmt.named {
+            Expr::Call(.., _) => true,
             _ => false,
         },
         _ => false,
@@ -136,7 +136,7 @@ struct LabelBoundsVisitor {
 impl Visitor for LabelBoundsVisitor {
     fn exit_stmt(&mut self, stmt: &mut Stmt) {
         match stmt {
-            Stmt::Label(Lbl::App(n), .., _s) => {
+            Stmt::Label(Lbl::App(n), .., _) => {
                 if let Some((lo, hi)) = self.bounds.as_mut() {
                     if n < lo {
                         *lo = *n;

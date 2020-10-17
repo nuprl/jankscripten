@@ -14,7 +14,7 @@ impl Stmt {
     pub fn to_doc(&self) -> D<()> {
         use Stmt::*;
         match self {
-            Block(stmts, _s) => D::text("{")
+            Block(stmts, _) => D::text("{")
                 .append(
                     D::line()
                         .append(D::intersperse(stmts.iter().map(Stmt::to_doc), D::line()))
@@ -23,17 +23,17 @@ impl Stmt {
                 .append(D::line())
                 .append(D::text("}")),
             Empty => D::text(";"),
-            Expr(e, _s) => D::text("(")
+            Expr(e, _) => D::text("(")
                 .append(e.to_doc())
                 .append(D::text(")"))
                 .append(D::text(";")),
-            If(cond, then, other, _s) => D::text("if (")
+            If(cond, then, other, _) => D::text("if (")
                 .append(cond.to_doc())
                 .append(D::text(") "))
                 .append(then.to_doc())
                 .append(D::text(" else "))
                 .append(other.to_doc()),
-            Switch(descr, cases, default, _s) => D::text("switch (")
+            Switch(descr, cases, default, _) => D::text("switch (")
                 .append(descr.to_doc())
                 .append(D::text(") {"))
                 .append(
@@ -54,16 +54,16 @@ impl Stmt {
                 // TODO: might have extra line, if default is Empty
                 .append(D::line())
                 .append(D::text("}")),
-            While(cond, body, _s) => D::text("while (")
+            While(cond, body, _) => D::text("while (")
                 .append(cond.to_doc())
                 .append(D::text(") "))
                 .append(body.to_doc()),
-            DoWhile(body, cond, _s) => D::text("do ")
+            DoWhile(body, cond, _) => D::text("do ")
                 .append(body.to_doc())
                 .append(D::text(" while ("))
                 .append(cond.to_doc())
                 .append(D::text(")")),
-            For(init, cond, advance, body, _s) => D::text("for (")
+            For(init, cond, advance, body, _) => D::text("for (")
                 .append(init.to_doc())
                 .append(D::text("; "))
                 .append(cond.to_doc())
@@ -71,34 +71,34 @@ impl Stmt {
                 .append(advance.to_doc())
                 .append(D::text(") "))
                 .append(body.to_doc()),
-            ForIn(is_decl, name, container, body, _s) => D::text("for (")
+            ForIn(is_decl, name, container, body, _) => D::text("for (")
                 .append(if *is_decl { D::text("var ") } else { D::nil() })
                 .append(name.to_doc())
                 .append(D::text(" in "))
                 .append(container.to_doc())
                 .append(D::text(") "))
                 .append(body.to_doc()),
-            Label(name, stmt, _s) => name.to_doc().append(D::text(": ")).append(stmt.to_doc()),
-            Break(maybe_lbl, _s) => D::text("break")
+            Label(name, stmt, _) => name.to_doc().append(D::text(": ")).append(stmt.to_doc()),
+            Break(maybe_lbl, _) => D::text("break")
                 .append(option_label_to_doc(maybe_lbl))
                 .append(D::text(";")),
-            Continue(maybe_lbl, _s) => D::text("continue")
+            Continue(maybe_lbl, _) => D::text("continue")
                 .append(option_label_to_doc(maybe_lbl))
                 .append(D::text(";")),
-            Catch(try_in, bind, catch, _s) => D::text("try ")
+            Catch(try_in, bind, catch, _) => D::text("try ")
                 .append(try_in.to_doc())
                 .append(D::text(" catch ("))
                 .append(bind.to_doc())
                 .append(D::text(") "))
                 .append(catch.to_doc()),
-            Finally(try_catch, final_block, _s) => try_catch
+            Finally(try_catch, final_block, _) => try_catch
                 .to_doc()
                 .append(D::text(" finally "))
                 .append(final_block.to_doc()),
-            Throw(e, _s) => D::text("throw ").append(e.to_doc()).append(D::text(";")),
-            VarDecl(decls, _s) => vardecls_to_doc(decls).append(D::text(";")),
-            Func(name, params, body, _s) => func_to_doc(Some(name), params, body),
-            Return(e, _s) => D::text("return ").append(e.to_doc()).append(D::text(";")),
+            Throw(e, _) => D::text("throw ").append(e.to_doc()).append(D::text(";")),
+            VarDecl(decls, _) => vardecls_to_doc(decls).append(D::text(";")),
+            Func(name, params, body, _) => func_to_doc(Some(name), params, body),
+            Return(e, _) => D::text("return ").append(e.to_doc()).append(D::text(";")),
         }
     }
     pub fn to_pretty(&self, width: usize) -> String {
@@ -113,11 +113,11 @@ impl Expr {
     pub fn to_doc(&self) -> D<()> {
         use Expr::*;
         match self {
-            Lit(lit, _s) => lit.to_doc(),
-            Array(es, _s) => D::text("[")
+            Lit(lit, _) => lit.to_doc(),
+            Array(es, _) => D::text("[")
                 .append(D::intersperse(es.iter().map(Expr::to_doc), D::text(", ")))
                 .append(D::text("]")),
-            Object(kes, _s) => D::text("{")
+            Object(kes, _) => D::text("{")
                 .append(D::intersperse(
                     kes.iter().map(|(k, e)| {
                         (match k {
@@ -131,46 +131,46 @@ impl Expr {
                 ))
                 .append("}"),
             This => D::text("this"),
-            Id(x, _s) => x.to_doc(),
-            Dot(e, id, _s) => e.to_doc().append(D::text(".")).append(id.to_doc()),
-            Bracket(cont, ind, _s) => cont
+            Id(x, _) => x.to_doc(),
+            Dot(e, id, _) => e.to_doc().append(D::text(".")).append(id.to_doc()),
+            Bracket(cont, ind, _) => cont
                 .to_doc()
                 .append(D::text("["))
                 .append(ind.to_doc())
                 .append(D::text("]")),
-            New(cons, args, _s) => D::text("new ").append(fn_call_to_doc(cons, args)),
-            Unary(op, e, _s) => unary_op_to_doc(op)
+            New(cons, args, _) => D::text("new ").append(fn_call_to_doc(cons, args)),
+            Unary(op, e, _) => unary_op_to_doc(op)
                 .append(D::text("("))
                 .append(e.to_doc())
                 .append(D::text(")")),
-            Binary(op, a, b, _s) => D::text("(")
+            Binary(op, a, b, _) => D::text("(")
                 .append(a.to_doc())
                 .append(D::space())
                 .append(op.to_doc())
                 .append(D::space())
                 .append(b.to_doc())
                 .append(D::text(")")),
-            UnaryAssign(op, lval, _s) => match op {
+            UnaryAssign(op, lval, _) => match op {
                 UnaryAssignOp::PreInc => D::text("++").append(lval.to_doc()),
                 UnaryAssignOp::PreDec => D::text("--").append(lval.to_doc()),
                 UnaryAssignOp::PostInc => lval.to_doc().append(D::text("++")),
                 UnaryAssignOp::PostDec => lval.to_doc().append(D::text("--")),
             },
-            If(cond, then, other, _s) => cond
+            If(cond, then, other, _) => cond
                 .to_doc()
                 .append(D::text(" ? "))
                 .append(then.to_doc())
                 .append(D::text(" : "))
                 .append(other.to_doc()),
-            Assign(op, lval, to, _s) => lval
+            Assign(op, lval, to, _) => lval
                 .to_doc()
                 .append(D::space())
                 .append(assign_op_to_doc(op))
                 .append(D::space())
                 .append(to.to_doc()),
-            Call(clos, args, _s) => fn_call_to_doc(clos, args),
-            Func(maybe_name, params, body, _s) => func_to_doc(maybe_name.as_ref(), params, body),
-            Seq(es, _s) => D::text("(")
+            Call(clos, args, _) => fn_call_to_doc(clos, args),
+            Func(maybe_name, params, body, _) => func_to_doc(maybe_name.as_ref(), params, body),
+            Seq(es, _) => D::text("(")
                 .append(D::intersperse(es.iter().map(Expr::to_doc), D::text(", ")))
                 .append(D::text(")")),
         }

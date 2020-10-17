@@ -141,11 +141,11 @@ pub fn type_check(stmt: &mut Stmt) -> TypeCheckingResult<()> {
 fn type_check_stmt(stmt: &Stmt, env: Env, ret_ty: &Option<Type>) -> TypeCheckingResult<Env> {
     match stmt {
         Stmt::Empty => Ok(env),
-        Stmt::Expr(e, _s) => {
+        Stmt::Expr(e, _) => {
             type_check_expr(&e, env.clone())?;
             Ok(env)
         }
-        Stmt::Finally(try_body, finally_body, _s) => {
+        Stmt::Finally(try_body, finally_body, _) => {
             // try_body should be well-typed
             type_check_stmt(&try_body, env.clone(), ret_ty)?;
 
@@ -154,7 +154,7 @@ fn type_check_stmt(stmt: &Stmt, env: Env, ret_ty: &Option<Type>) -> TypeChecking
 
             Ok(env)
         }
-        Stmt::Catch(try_body, ex_name, catch_body, _s) => {
+        Stmt::Catch(try_body, ex_name, catch_body, _) => {
             // try_body should be well-typed
             type_check_stmt(&try_body, env.clone(), ret_ty)?;
 
@@ -164,30 +164,30 @@ fn type_check_stmt(stmt: &Stmt, env: Env, ret_ty: &Option<Type>) -> TypeChecking
 
             Ok(env)
         }
-        Stmt::Loop(body, _s) => {
+        Stmt::Loop(body, _) => {
             // type check body in a new scope
             type_check_stmt(&body, env.clone(), ret_ty)?;
 
             Ok(env)
         }
-        Stmt::Throw(e, _s) => {
+        Stmt::Throw(e, _) => {
             // expression we're throwing should be well-typed
             type_check_expr(&e, env.clone())?;
 
             Ok(env)
         }
-        Stmt::Break(_id, _s) => {
+        Stmt::Break(_id, _) => {
             // TODO: label checking
             Ok(env)
         }
-        Stmt::Label(_id, stmt, _s) => {
+        Stmt::Label(_id, stmt, _) => {
             // TODO: label checking
 
             type_check_stmt(&stmt, env.clone(), ret_ty)?;
 
             Ok(env)
         }
-        Stmt::Var(x, t, e, _s) => {
+        Stmt::Var(x, t, e, _) => {
             ensure(
                 "variable declaration matches given type",
                 t.clone(),
@@ -196,7 +196,7 @@ fn type_check_stmt(stmt: &Stmt, env: Env, ret_ty: &Option<Type>) -> TypeChecking
 
             Ok(env.update(x.clone(), t.clone()))
         }
-        Stmt::If(c, t, e, _s) => {
+        Stmt::If(c, t, e, _) => {
             ensure("if condition", Type::Bool, type_check_expr(c, env.clone())?)?;
 
             type_check_stmt(&t, env.clone(), ret_ty)?;
@@ -204,11 +204,11 @@ fn type_check_stmt(stmt: &Stmt, env: Env, ret_ty: &Option<Type>) -> TypeChecking
 
             Ok(env)
         }
-        Stmt::Block(stmts, _s) => {
+        Stmt::Block(stmts, _) => {
             type_check_stmts(stmts, env.clone(), ret_ty)?;
             Ok(env)
         }
-        Stmt::Return(e, _s) => {
+        Stmt::Return(e, _) => {
             let e_type = type_check_expr(e, env.clone())?;
 
             match ret_ty {
@@ -268,7 +268,7 @@ fn type_check_fun_call(
 
 fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
     match expr {
-        Expr::Func(f, _s) => {
+        Expr::Func(f, _) => {
             // type check body under assumption that args have the specified
             // types
             let mut function_env = env.clone();
@@ -281,7 +281,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
                 Box::new(f.result_typ.clone()),
             ))
         }
-        Expr::Assign(lval, rval, _s) => {
+        Expr::Assign(lval, rval, _) => {
             // rval should be well typed
             let rval_ty = type_check_expr(&rval, env.clone())?;
 
@@ -320,14 +320,14 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
                 }
             }
         }
-        Expr::Call(fun, args, _s) => {
+        Expr::Call(fun, args, _) => {
             // get the type of the given function
             let fun_type = type_check_expr(fun, env.clone())?;
 
             // type check this call
             type_check_fun_call(fun_type, args, env)
         }
-        Expr::Coercion(coercion, e, _s) => {
+        Expr::Coercion(coercion, e, _) => {
             // type the expression. regardless of the coercion, the expression
             // needs to be well-typed.
             let actual_type = type_check_expr(e, env)?;
@@ -341,9 +341,9 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             // we can, so we will have the output type of the coercion
             Ok(to)
         }
-        Expr::Lit(l, _s) => Ok(type_check_lit(&l)),
-        Expr::Id(id, ty, _s) => ensure("id get", ty.clone(), lookup(&env, &id)?),
-        Expr::Object(props, _s) => {
+        Expr::Lit(l, _) => Ok(type_check_lit(&l)),
+        Expr::Id(id, ty, _) => ensure("id get", ty.clone(), lookup(&env, &id)?),
+        Expr::Object(props, _) => {
             // type check each property
             for (_key, val) in props {
                 type_check_expr(val, env.clone())?;
@@ -351,7 +351,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
 
             Ok(Type::DynObject)
         }
-        Expr::Array(vals, _s) => {
+        Expr::Array(vals, _) => {
             // type check each element
             for val in vals {
                 type_check_expr(val, env.clone())?;
@@ -359,7 +359,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
 
             Ok(Type::Array)
         }
-        Expr::Dot(obj, _prop, _s) => {
+        Expr::Dot(obj, _prop, _) => {
             let obj_type = type_check_expr(obj, env)?;
 
             ensure(
@@ -374,7 +374,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
 
             Ok(Type::Any)
         }
-        Expr::Bracket(obj, dyn_prop, _s) => {
+        Expr::Bracket(obj, dyn_prop, _) => {
             let obj_type = type_check_expr(obj, env.clone())?;
 
             ensure_indexable("brackets object", obj_type)?;
@@ -386,14 +386,14 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             // see Expr::Dot case for why we're returning Any
             Ok(Type::Any)
         }
-        Expr::PrimCall(prim, args, _s) => {
+        Expr::PrimCall(prim, args, _) => {
             // get the type of the primitive function we're calling
             let prim_type = prim.janky_typ();
 
             // type check this function call
             type_check_fun_call(prim_type, args, env)
         }
-        Expr::Unary(op, e, _s) => {
+        Expr::Unary(op, e, _) => {
             // ensure expr has expected input type
             let (ty_in, ty_out) = op.janky_typ();
             let got = type_check_expr(e, env)?;
@@ -402,7 +402,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             // whole operation has output type
             Ok(ty_out)
         }
-        Expr::Binary(op, e_l, e_r, _s) => {
+        Expr::Binary(op, e_l, e_r, _) => {
             // ensure exprs have expected input type
             let (ty_in, ty_out) = op.janky_typ();
             let got_l = type_check_expr(e_l, env.clone())?;

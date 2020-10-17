@@ -166,11 +166,11 @@ where
         match stmt {
             // 0
             Empty | Break(_, _) | Continue(_, _) => (),
-            Label(.., a, _s) => {
+            Label(.., a, _) => {
                 let loc = Loc::Node(Context::Stmt, loc);
                 self.walk_stmt(a, &loc);
             }
-            Func(.., a, _s) => {
+            Func(.., a, _) => {
                 let loc = Loc::Node(Context::FunctionBody, loc);
                 self.walk_stmt(a, &loc);
             }
@@ -181,7 +181,7 @@ where
                 self.walk_stmt(b, &loc);
             }
             // 1x[Stmt]
-            Block(ss, _s) => {
+            Block(ss, _) => {
                 let mut block_cxt = BlockContext::new(0, ss.len());
                 for (index, st) in ss.iter_mut().enumerate() {
                     block_cxt.index = index;
@@ -191,7 +191,7 @@ where
                 block_cxt.apply_patches(ss);
             }
             // 1x{ .., Stmt }
-            VarDecl(vds, _s) => {
+            VarDecl(vds, _) => {
                 for super::VarDecl { name: _, named } in vds {
                     let loc = Loc::Node(Context::VarDeclRhs, loc);
                     self.walk_expr(named, &loc);
@@ -209,14 +209,14 @@ where
                 self.walk_stmt(st, &loc);
             }
             // 1xExpr, 2xStmt
-            If(e, sa, sb, _s) => {
+            If(e, sa, sb, _) => {
                 let loc = Loc::Node(Context::Stmt, loc);
                 self.walk_expr(e, &loc);
                 self.walk_stmt(sa, &loc);
                 self.walk_stmt(sb, &loc);
             }
             // 1xExpr, 1xStmt, 1x[(Expr,Stmt)]
-            Switch(e, es_ss, st, _s) => {
+            Switch(e, es_ss, st, _) => {
                 let loc = Loc::Node(Context::Switch, &loc);
                 self.walk_expr(e, &loc);
                 es_ss.iter_mut().for_each(|(e, st)| {
@@ -226,7 +226,7 @@ where
                 self.walk_stmt(st, &loc);
             }
             // 2xExpr, 1xStmt
-            For(_, ea, eb, st, _s) => {
+            For(_, ea, eb, st, _) => {
                 let loc = Loc::Node(Context::Loop, &loc);
                 self.walk_expr(ea, &loc);
                 self.walk_expr(eb, &loc);
@@ -243,11 +243,11 @@ where
             // 0
             Lit(_, _) | This | Id(_, _) => (),
             // 1xLValue
-            UnaryAssign(.., lv, _s) => {
+            UnaryAssign(.., lv, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_lval(lv, &loc);
             }
-            Func(.., st, _s) => {
+            Func(.., st, _) => {
                 let loc = Loc::Node(Context::FunctionBody, loc);
                 self.walk_stmt(st, &loc);
             }
@@ -259,7 +259,7 @@ where
                 }
             }
             // 1x[(_, Expr)]
-            Object(ks_es, _s) => {
+            Object(ks_es, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 for (_, e) in ks_es {
                     self.walk_expr(e, &loc);
@@ -271,7 +271,7 @@ where
                 self.walk_expr(e, &loc);
             }
             // 1xExpr, 1xLValue
-            Assign(op, lv, e, _s) => {
+            Assign(op, lv, e, _) => {
                 let lv_loc = Loc::Node(Context::LValue, loc);
                 self.walk_lval(lv, &lv_loc);
                 let rv_loc = Loc::Node(Context::AssignRhs(*op), loc);
@@ -292,7 +292,7 @@ where
                 self.walk_expr(eb, &loc);
             }
             // 3xExpr
-            If(ea, eb, ec, _s) => {
+            If(ea, eb, ec, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_expr(ea, &loc);
                 self.walk_expr(eb, &loc);

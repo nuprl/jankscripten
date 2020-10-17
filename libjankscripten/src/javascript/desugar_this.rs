@@ -10,7 +10,7 @@ struct ThisParameter<'a> {
 impl Visitor for ThisParameter<'_> {
     fn exit_expr(&mut self, expr: &mut Expr, loc: &Loc) {
         match expr {
-            Expr::Call(f, args, _s) => match &mut **f {
+            Expr::Call(f, args, _) => match &mut **f {
                 // only syntactically immediate bracket/dot preserves the
                 // object as `this`
                 Expr::Bracket(obj, _, s) | Expr::Dot(obj, _, s) => {
@@ -72,7 +72,7 @@ impl Visitor for ThisParameter<'_> {
                 // make the entire `new` expression evaluate to just the new object
                 *expr = id_(obj_name, *s);
             }
-            Expr::Func(_, params, _, _s) => {
+            Expr::Func(_, params, _, _) => {
                 // yes for once using a named id is correct here, because
                 // it's a special name that may or may not be used by the body
                 params.insert(0, self.this_name.clone());

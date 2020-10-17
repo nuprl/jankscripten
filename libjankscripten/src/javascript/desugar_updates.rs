@@ -13,7 +13,7 @@ struct DesugarFancyUpdates<'a> {
 impl Visitor for DesugarFancyUpdates<'_> {
     fn exit_expr(&mut self, expr: &mut Expr, loc: &Loc) {
         match expr {
-            Expr::Assign(AssignOp::Equal, _lv, _rhs, _s) => {}
+            Expr::Assign(AssignOp::Equal, _lv, _rhs, _) => {}
             Expr::Assign(op, lv, rhs, s) => {
                 *expr = self.desugar_assign_op(
                     match op {

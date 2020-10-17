@@ -473,7 +473,7 @@ fn compile_stmt<'a>(state: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
             s,
         )),
         S::Empty => Rope::singleton(Stmt::Empty),
-        S::Expr(e, _s) => compile_expr(
+        S::Expr(e, _) => compile_expr(
             state,
             *e,
             // We could use a C::e context. However, the C::a context will make generated code
@@ -503,9 +503,9 @@ fn compile_stmt<'a>(state: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
             s,
         )),
         S::Break(x, s) => Rope::singleton(Stmt::Break(Label::Named(x.to_pretty(80)), s)),
-        S::Catch(_, _, _, _s) => todo!("NotWasm needs to support exceptions"),
-        S::Finally(_, _, _s) => todo!("NotWasm needs to support exceptions"),
-        S::Throw(_, _s) => todo!("NotWasm needs to support exceptions"),
+        S::Catch(_, _, _, _) => todo!("NotWasm needs to support exceptions"),
+        S::Finally(_, _, _) => todo!("NotWasm needs to support exceptions"),
+        S::Throw(_, _) => todo!("NotWasm needs to support exceptions"),
         S::Return(e, s) => {
             compile_expr(state, *e, C::a(|_s, a| Rope::singleton(Stmt::Return(a, s))))
         }

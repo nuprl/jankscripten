@@ -71,7 +71,7 @@ impl Visitor for LabelLoops<'_> {
     /// on loops, add their break name to the stack
     fn enter_stmt(&mut self, node: &mut Stmt, _loc: &Loc) {
         // if it's already there use that
-        if let Label(break_name, labeled, _s) = node {
+        if let Label(break_name, labeled, _) = node {
             if if_loop_then_body(labeled).is_some() {
                 // this allows continue to be desugared (see precondition
                 // at that match arm)
