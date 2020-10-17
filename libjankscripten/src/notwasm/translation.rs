@@ -451,7 +451,7 @@ impl<'a> Translate<'a> {
             N::Stmt::Trap => {
                 self.out.push(Unreachable);
             }
-            N::Stmt::Goto(.., _) => {
+            N::Stmt::Goto(..) => {
                 panic!(
                     "this should be NotWasm, not GotoWasm. did you run elim_gotos? did it work?"
                 );
@@ -678,8 +678,8 @@ impl<'a> Translate<'a> {
                     N::Type::I32 => self.rt_call("any_to_i32"),
                     N::Type::Bool => self.rt_call("any_to_bool"),
                     N::Type::F64 => self.rt_call("any_to_f64"),
-                    N::Type::Fn(.., _) => panic!("cannot attain function from any"),
-                    N::Type::Closure(.., _) => self.rt_call("any_to_closure"),
+                    N::Type::Fn(..) => panic!("cannot attain function from any"),
+                    N::Type::Closure(..) => self.rt_call("any_to_closure"),
                     N::Type::Any => (),
                     _ => self.rt_call("any_to_ptr"),
                 }

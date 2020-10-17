@@ -74,10 +74,10 @@ fn fv_expr(expr: &mut Expr) -> IdMap {
     use Expr::*;
     match expr {
         Id(x, ty, _) => IdMap::unit(x.clone(), ty.clone()),
-        Lit(_, _) | EnvGet(.., _) => empty(),
+        Lit(_, _) | EnvGet(..) => empty(),
         Object(kvs, _) => IdMap::unions(kvs.iter_mut().map(|(_, v)| fv_expr(v))),
         Array(es, _) => IdMap::unions(es.iter_mut().map(|e| fv_expr(e))),
-        Dot(e, _, _) | Unary(_, e, _) | Coercion(_, e, _) | NewRef(e, .., _) | Deref(e, .., _) => {
+        Dot(e, _, _) | Unary(_, e, _) | Coercion(_, e, _) | NewRef(e, ..) | Deref(e, ..) => {
             fv_expr(e)
         }
         Bracket(e1, e2, _) => fv_expr(e1).union(fv_expr(e2)),
@@ -91,7 +91,7 @@ fn fv_expr(expr: &mut Expr) -> IdMap {
             f.free_vars = fv.clone();
             fv
         }
-        Store(.., _) | Closure(.., _) => panic!("fv happens before box_assigns"),
+        Store(..) | Closure(..) => panic!("fv happens before box_assigns"),
     }
 }
 

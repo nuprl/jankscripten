@@ -101,7 +101,7 @@ where
         // recurse
         match stmt {
             // 0
-            Empty | Break(.., _) | Goto(.., _) | Trap => (),
+            Empty | Break(..) | Goto(..) | Trap => (),
             // 1xStmt
             Label(.., a, _) | Loop(a, _) => self.walk_stmt(a, loc),
             // 1x[Stmt]
@@ -135,17 +135,17 @@ where
         use Expr::*;
         self.visitor.enter_expr(expr, loc);
         match expr {
-            ObjectEmpty | HT | Array | Call(.., _) | ClosureCall(.., _) | PrimCall(.., _) => (),
-            HTSet(ea, eb, ec, .., _) | ObjectSet(ea, eb, ec, .., _) | ArraySet(ea, eb, ec, _) => {
+            ObjectEmpty | HT | Array | Call(..) | ClosureCall(..) | PrimCall(..) => (),
+            HTSet(ea, eb, ec, ..) | ObjectSet(ea, eb, ec, ..) | ArraySet(ea, eb, ec, _) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
                 self.walk_atom(ec, loc);
             }
-            Push(ea, eb, .., _) => {
+            Push(ea, eb, ..) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
             }
-            NewRef(a, .., _) | Atom(a, .., _) => self.walk_atom(a, loc),
+            NewRef(a, ..) | Atom(a, ..) => self.walk_atom(a, loc),
             Closure(_, has_atoms, _) => {
                 for (a, _) in has_atoms {
                     self.walk_atom(a, loc);
@@ -160,22 +160,22 @@ where
         self.visitor.enter_atom(atom, loc);
         match atom {
             // 0
-            Lit(.., _) | Id(.., _) | GetPrimFunc(.., _) | Deref(.., _) | EnvGet(.., _) => (),
+            Lit(..) | Id(..) | GetPrimFunc(..) | Deref(..) | EnvGet(..) => (),
             ToAny(to_any, _) => {
                 self.walk_atom(to_any.atom.as_mut(), loc);
             }
             FloatToInt(ea, _)
             | IntToFloat(ea, _)
             | StringLen(ea, _)
-            | ArrayLen(ea, .., _)
+            | ArrayLen(ea, ..)
             | Unary(.., ea, _)
-            | FromAny(ea, .., _) => {
+            | FromAny(ea, ..) => {
                 self.walk_atom(ea, loc);
             }
-            HTGet(ea, eb, .., _)
-            | ObjectGet(ea, eb, .., _)
+            HTGet(ea, eb, ..)
+            | ObjectGet(ea, eb, ..)
             | Binary(.., ea, eb, _)
-            | Index(ea, eb, .., _) => {
+            | Index(ea, eb, ..) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
             }

@@ -211,7 +211,7 @@ where
         self.visitor.enter_expr(expr, loc);
         match expr {
             // 0
-            Lit(_, _) | Id(.., _) | EnvGet(.., _) => (),
+            Lit(_, _) | Id(..) | EnvGet(..) => (),
             Func(f, _) => {
                 let loc = Loc::Node(Context::FunctionBody, loc);
                 self.visitor.enter_fn(f, &loc);
@@ -233,11 +233,11 @@ where
                 }
             }
             // 1xExpr
-            Dot(e, .., _)
+            Dot(e, ..)
             | Unary(.., e, _)
             | Coercion(.., e, _)
-            | NewRef(e, .., _)
-            | Deref(e, .., _) => {
+            | NewRef(e, ..)
+            | Deref(e, ..) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_expr(e, &loc);
             }
@@ -257,7 +257,7 @@ where
                 }
             }
             // 2xExpr
-            Bracket(ea, eb, _) | Binary(.., ea, eb, _) | Store(ea, eb, .., _) => {
+            Bracket(ea, eb, _) | Binary(.., ea, eb, _) | Store(ea, eb, ..) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_expr(ea, &loc);
                 self.walk_expr(eb, &loc);

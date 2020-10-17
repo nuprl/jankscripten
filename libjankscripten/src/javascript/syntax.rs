@@ -191,7 +191,7 @@ impl Expr {
             // Copying an object, array, or function will alter their identity.
             Expr::Array(_, _) => false,
             Expr::Object(_, _) => false,
-            Expr::Func(.., _) => false,
+            Expr::Func(..) => false,
             _ => false,
         }
     }
