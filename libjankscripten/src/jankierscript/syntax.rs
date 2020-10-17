@@ -6,6 +6,7 @@
 pub use crate::shared::Id;
 pub use crate::shared::Span;
 pub use crate::shared::Type;
+pub use swc_common::DUMMY_SP;
 
 #[derive(Debug)]
 pub enum LValue {
@@ -20,7 +21,7 @@ pub type BinOp = super::super::javascript::BinaryOp;
 pub enum Expr {
     Lit(super::super::javascript::Lit, Span),
     Array(Vec<Expr>, Span),
-    Object(Vec<(super::super::javascript::Key, Expr, Span)>, Span),
+    Object(Vec<(super::super::javascript::Key, Expr)>, Span),
     Id(Id, Span),
     Dot(Box<Expr>, Id, Span),
     Bracket(Box<Expr>, Box<Expr>, Span),
@@ -28,7 +29,7 @@ pub enum Expr {
     Binary(BinOp, Box<Expr>, Box<Expr>, Span),
     Assign(Box<LValue>, Box<Expr>, Span),
     Call(Box<Expr>, Vec<Expr>, Span),
-    Func(Option<Type>, Vec<(Id, Option<Type>, Span)>, Box<Stmt>, Span),
+    Func(Option<Type>, Vec<(Id, Option<Type>)>, Box<Stmt>, Span),
 }
 
 #[derive(Debug)]

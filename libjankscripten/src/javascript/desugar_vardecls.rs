@@ -19,10 +19,10 @@ impl Visitor for SeparateVarDecls {
 
                     // insert previous decls in order above stmt
                     for decl in decls.drain(0..) {
-                        block_ctx.insert(block_ctx.index, vardecl1_(decl.name, *decl.named));
+                        block_ctx.insert(block_ctx.index, vardecl1_(decl.name, *decl.named, *s));
                     }
 
-                    *stmt = vardecl1_(last_decl.name, *last_decl.named);
+                    *stmt = vardecl1_(last_decl.name, *last_decl.named, *s);
                 }
             }
             _ => {

@@ -34,6 +34,7 @@ impl Visitor for DesugarFancyUpdates<'_> {
                     lv,
                     rhs,
                     loc,
+                    *s,
                 )
             }
             Expr::UnaryAssign(op, lv, s) => {
@@ -53,14 +54,23 @@ impl Visitor for DesugarFancyUpdates<'_> {
                 // We can do a bit better than cases above suggest by using the  is_essentially_atom
                 // methods to avoid introducing unnecessary temporary variables.
                 let block = loc.enclosing_block().unwrap();
-                let e = self.lval_to_expr(lv, loc);
+                let e = self.lval_to_expr(lv, loc, *s);
                 // Insert the statement 'atom = atom + 1' immediately before this expression.
                 block.insert(
                     block.index,
-                    expr_(assign_(
-                        lv.take(),
-                        binary_(op.binop(), e.clone(), Expr::Lit(Lit::Num(Num::Int(1)))),
-                    )),
+                    expr_(
+                        assign_(
+                            lv.take(),
+                            binary_(
+                                op.binop(),
+                                e.clone(),
+                                Expr::Lit(Lit::Num(Num::Int(1)), *s),
+                                *s,
+                            ),
+                            *s,
+                        ),
+                        *s,
+                    ),
                 );
                 if op.is_prefix() {
                     *expr = e;
@@ -69,7 +79,8 @@ impl Visitor for DesugarFancyUpdates<'_> {
                     *expr = binary_(
                         op.other_binop(),
                         e.clone(),
-                        Expr::Lit(Lit::Num(Num::Int(1))),
+                        Expr::Lit(Lit::Num(Num::Int(1)), *s),
+                        *s,
                     )
                 }
             }
@@ -81,27 +92,27 @@ impl Visitor for DesugarFancyUpdates<'_> {
 }
 
 impl DesugarFancyUpdates<'_> {
-    fn lval_to_expr(&mut self, lv: &mut LValue, loc: &Loc) -> Expr {
+    fn lval_to_expr(&mut self, lv: &mut LValue, loc: &Loc, s: Span) -> Expr {
         match lv {
-            LValue::Id(x) => id_(x.clone()),
+            LValue::Id(x) => id_(x.clone(), s),
             LValue::Dot(e, x) => {
                 let cxt = loc.enclosing_block().unwrap();
-                self.lift_to_id(cxt, e);
-                dot_(e.clone(), x.clone())
+                self.lift_to_id(cxt, e, s);
+                dot_(e.clone(), x.clone(), s)
             }
             LValue::Bracket(e1, e2) => {
                 let cxt = loc.enclosing_block().unwrap();
-                self.lift_to_id(cxt, e1);
-                self.lift_to_id(cxt, e2);
-                bracket_(e1.clone(), e2.clone())
+                self.lift_to_id(cxt, e1, s);
+                self.lift_to_id(cxt, e2, s);
+                bracket_(e1.clone(), e2.clone(), s)
             }
         }
     }
-    fn lift_to_id(&mut self, cxt: &BlockContext, expr: &mut Expr) {
+    fn lift_to_id(&mut self, cxt: &BlockContext, expr: &mut Expr, s: Span) {
         if !expr.is_essentially_atom() {
             let e_name = self.ng.fresh("update_assign");
-            cxt.insert(cxt.index, vardecl1_(e_name.clone(), expr.take()));
-            *expr = id_(e_name);
+            cxt.insert(cxt.index, vardecl1_(e_name.clone(), expr.take(), s));
+            *expr = id_(e_name, s);
         }
     }
     fn desugar_assign_op(
@@ -110,11 +121,13 @@ impl DesugarFancyUpdates<'_> {
         lv: &mut LValue,
         rhs: &mut Expr,
         loc: &Loc,
+        s: Span,
     ) -> Expr {
-        let expr = self.lval_to_expr(lv, loc);
+        let expr = self.lval_to_expr(lv, loc, s);
         assign_(
             lv.take(),
-            binary_(BinOp::BinaryOp(bin_op), expr, rhs.take()),
+            binary_(BinOp::BinaryOp(bin_op), expr, rhs.take(), s),
+            s,
         )
     }
 }

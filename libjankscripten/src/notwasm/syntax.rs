@@ -25,6 +25,7 @@ use crate::rts_function::RTSFunction;
 pub use crate::shared::Id;
 pub use crate::shared::Span;
 use std::collections::HashMap;
+pub use swc_common::DUMMY_SP;
 
 /// The types of NotWasm. Every value has a unique type, thus we *do not* support
 /// subtyping. The comment for each variant describes the shape of the value
@@ -274,7 +275,7 @@ pub enum Expr {
     ///
     /// this has to be atom, not id, because what if we need to store {x:
     /// env.x} in a nested closure
-    Closure(Id, Vec<(Atom, Type, Span)>, Span),
+    Closure(Id, Vec<(Atom, Type)>, Span),
 }
 
 #[derive(Debug, PartialEq)]

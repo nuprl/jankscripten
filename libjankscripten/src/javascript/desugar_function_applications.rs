@@ -10,7 +10,7 @@ struct NameFunctionCalls<'a> {
 impl Visitor for NameFunctionCalls<'_> {
     fn exit_expr(&mut self, expr: &mut Expr, loc: &Loc) {
         match expr {
-            Expr::Call(_fid, _args, s) => {
+            &mut Expr::Call(_, _, s) => {
                 match loc {
                     Loc::Node(Context::VarDeclRhs, _) => {
                         // already being named, so no worries
@@ -21,8 +21,8 @@ impl Visitor for NameFunctionCalls<'_> {
                     _ => {
                         let block_ctx = loc.enclosing_block().expect("Block context expected");
                         let name = self.ng.fresh("f_call");
-                        block_ctx.insert(block_ctx.index, vardecl1_(name.clone(), expr.clone()));
-                        *expr = id_(name);
+                        block_ctx.insert(block_ctx.index, vardecl1_(name.clone(), expr.clone(), s));
+                        *expr = id_(name, s);
                     }
                 }
             }

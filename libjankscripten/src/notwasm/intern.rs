@@ -86,13 +86,23 @@ mod test {
             "#,
         );
         intern(&mut program);
+        let s = DUMMY_SP;
         let indexed_func = Function {
-            body: Stmt::Block(vec![
-                Stmt::Var(VarStmt::new(id_("a"), atom_(Atom::Lit(Lit::Interned(0))))),
-                // 4(tag) + 4(len) + 6 -> 14 ->(align) -> 16
-                Stmt::Var(VarStmt::new(id_("b"), atom_(Atom::Lit(Lit::Interned(16))))),
-                Stmt::Return(i32_(0)),
-            ]),
+            body: Stmt::Block(
+                vec![
+                    Stmt::Var(
+                        VarStmt::new(id_("a"), atom_(Atom::Lit(Lit::Interned(0), s), s)),
+                        s,
+                    ),
+                    // 4(tag) + 4(len) + 6 -> 14 ->(align) -> 16
+                    Stmt::Var(
+                        VarStmt::new(id_("b"), atom_(Atom::Lit(Lit::Interned(16), s), s)),
+                        s,
+                    ),
+                    Stmt::Return(i32_(0, s), s),
+                ],
+                s,
+            ),
             fn_type: FnType {
                 args: vec![],
                 result: Some(Box::new(Type::I32)),

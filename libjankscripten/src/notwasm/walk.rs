@@ -218,7 +218,7 @@ impl Atom {
     /// value. this is used to gain ownership of a mutable reference,
     /// especially in [Atom::walk]
     pub fn take(&mut self) -> Self {
-        std::mem::replace(self, Atom::Lit(Lit::Bool(false)))
+        std::mem::replace(self, Atom::Lit(Lit::Bool(false), DUMMY_SP))
     }
 }
 

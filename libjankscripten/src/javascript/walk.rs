@@ -165,7 +165,7 @@ where
         // recurse
         match stmt {
             // 0
-            Empty | Break(_, s) | Continue(_, s) => (),
+            Empty | Break(_, _) | Continue(_, _) => (),
             Label(.., a, s) => {
                 let loc = Loc::Node(Context::Stmt, loc);
                 self.walk_stmt(a, &loc);
@@ -219,7 +219,7 @@ where
             Switch(e, es_ss, st, s) => {
                 let loc = Loc::Node(Context::Switch, &loc);
                 self.walk_expr(e, &loc);
-                es_ss.iter_mut().for_each(|(e, st, s)| {
+                es_ss.iter_mut().for_each(|(e, st)| {
                     self.walk_expr(e, &loc);
                     self.walk_stmt(st, &loc);
                 });
@@ -367,6 +367,6 @@ impl Expr {
     /// Replace this statement with `undefined` and return its old
     /// value.
     pub fn take(&mut self) -> Self {
-        std::mem::replace(self, Expr::Lit(Lit::Undefined))
+        std::mem::replace(self, Expr::Lit(Lit::Undefined, DUMMY_SP))
     }
 }

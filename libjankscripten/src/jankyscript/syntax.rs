@@ -6,6 +6,7 @@ pub use crate::shared::Span;
 pub use crate::shared::Type;
 use im_rc::HashMap;
 use im_rc::HashSet as ImmHashSet;
+pub use swc_common::DUMMY_SP;
 
 pub type Id = super::super::javascript::Id;
 pub type Lit = super::super::javascript::Lit;
@@ -89,7 +90,7 @@ impl Func {
 pub enum Expr {
     Lit(Lit, Span),
     Array(Vec<Expr>, Span),
-    Object(Vec<(Key, Expr, Span)>, Span),
+    Object(Vec<(Key, Expr)>, Span),
     Id(Id, Type, Span),
     Dot(Box<Expr>, Id, Span),
     Bracket(Box<Expr>, Box<Expr>, Span),
@@ -99,7 +100,7 @@ pub enum Expr {
     Call(Box<Expr>, Vec<Expr>, Span),
     PrimCall(RTSFunction, Vec<Expr>, Span),
     Func(Func, Span),
-    Closure(Func, Vec<(Expr, Type, Span)>, Span),
+    Closure(Func, Vec<(Expr, Type)>, Span),
     Coercion(Coercion, Box<Expr>, Span),
     /// Create a new heap-allocated box, with contents of type T.
     NewRef(Box<Expr>, Type, Span),

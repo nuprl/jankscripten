@@ -192,17 +192,25 @@ fn closures() {
 
 #[test]
 fn break_block() {
-    let body = Stmt::Block(vec![
-        Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(0)))),
-        label_(
-            "dont_do",
-            Stmt::Block(vec![
-                Stmt::Break("dont_do".into()),
-                Stmt::Assign(id_("x"), atom_(i32_(1))),
-            ]),
-        ),
-        Stmt::Return(get_id_("x")),
-    ]);
+    let s = DUMMY_SP;
+    let body = Stmt::Block(
+        vec![
+            Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(0, s), s)), s),
+            label_(
+                "dont_do",
+                Stmt::Block(
+                    vec![
+                        Stmt::Break("dont_do".into(), s),
+                        Stmt::Assign(id_("x"), atom_(i32_(1, s), s), s),
+                    ],
+                    s,
+                ),
+                s,
+            ),
+            Stmt::Return(get_id_("x", s), s),
+        ],
+        s,
+    );
     let program = test_program_(body);
     expect_notwasm(0, program);
 }
@@ -363,77 +371,92 @@ fn ref_doesnt_mutate_variables() {
 #[test]
 #[ignore]
 fn goto_skips_stuff() {
-    let skip_to_here = func_i32_(Stmt::Return(i32_(7)));
-    let main_body = Stmt::Block(vec![
-        // hopefully it stays 5
-        Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5)))),
-        Stmt::Goto(Label::App(0)),
-        // this is the part we wanna skip
-        Stmt::Assign(id_("x"), atom_(i32_(2))),
-        // goto goes here
-        Stmt::Expression(Expr::Call(id_("other"), vec![])),
-        Stmt::Return(get_id_("x")),
-    ]);
-    let program = program2_(func_i32_(main_body), skip_to_here);
+    let skip_to_here = func_i32_(Stmt::Return(i32_(7, *s), *s), *s);
+    let main_body = Stmt::Block(
+        vec![
+            // hopefully it stays 5
+            Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5, *s), *s)), *s),
+            Stmt::Goto(Label::App(0), *s),
+            // this is the part we wanna skip
+            Stmt::Assign(id_("x"), atom_(i32_(2, *s), *s), *s),
+            // goto goes here
+            Stmt::Expression(Expr::Call(id_("other"), vec![], *s), *s),
+            Stmt::Return(get_id_("x", *s), *s),
+        ],
+        *s,
+    );
+    let program = program2_(func_i32_(main_body, *s), skip_to_here);
     expect_notwasm(5, program);
 }
 #[test]
 #[ignore]
 fn goto_skips_loop() {
-    let skip_to_here = func_i32_(Stmt::Return(i32_(7)));
-    let main_body = Stmt::Block(vec![
-        // hopefully it stays 5
-        Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5)))),
-        Stmt::Goto(Label::App(0)),
-        // this is the part we wanna skip
-        loop_(Stmt::Empty),
-        // goto goes here
-        Stmt::Expression(Expr::Call(id_("other"), vec![])),
-        Stmt::Return(get_id_("x")),
-    ]);
-    let program = program2_(func_i32_(main_body), skip_to_here);
+    let skip_to_here = func_i32_(Stmt::Return(i32_(7, *s), *s), *s);
+    let main_body = Stmt::Block(
+        vec![
+            // hopefully it stays 5
+            Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5, *s), *s)), *s),
+            Stmt::Goto(Label::App(0), *s),
+            // this is the part we wanna skip
+            loop_(Stmt::Empty, *s),
+            // goto goes here
+            Stmt::Expression(Expr::Call(id_("other"), vec![], *s), *s),
+            Stmt::Return(get_id_("x", *s), *s),
+        ],
+        *s,
+    );
+    let program = program2_(func_i32_(main_body, *s), skip_to_here);
     expect_notwasm(5, program);
 }
 #[test]
 #[ignore]
 fn goto_enters_if() {
-    let skip_to_here = func_i32_(Stmt::Return(i32_(7)));
-    let main_body = Stmt::Block(vec![
-        // hopefully it stays 5
-        Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5)))),
-        Stmt::Goto(Label::App(0)),
-        if_(
-            TRUE_,
-            // this is the part we wanna skip
-            Stmt::Assign(id_("x"), atom_(i32_(2))),
-            // goto goes here
-            Stmt::Expression(Expr::Call(id_("other"), vec![])),
-        ),
-        Stmt::Return(get_id_("x")),
-    ]);
-    let program = program2_(func_i32_(main_body), skip_to_here);
+    let skip_to_here = func_i32_(Stmt::Return(i32_(7, *s), *s), *s);
+    let main_body = Stmt::Block(
+        vec![
+            // hopefully it stays 5
+            Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5, *s), *s)), *s),
+            Stmt::Goto(Label::App(0), *s),
+            if_(
+                TRUE_,
+                // this is the part we wanna skip
+                Stmt::Assign(id_("x"), atom_(i32_(2, *s), *s), *s),
+                // goto goes here
+                Stmt::Expression(Expr::Call(id_("other"), vec![], *s), *s),
+            , *s),
+            Stmt::Return(get_id_("x", *s), *s),
+        ],
+        *s,
+    );
+    let program = program2_(func_i32_(main_body, *s), skip_to_here);
     expect_notwasm(5, program);
 }
 
 #[test]
 fn strings() {
-    let body = Stmt::Block(vec![
-        Stmt::Var(VarStmt::new(id_("s"), atom_(str_("wow, thanks")))),
-        Stmt::Return(len_(get_id_("s"))),
-    ]);
+    let body = Stmt::Block(
+        vec![
+            Stmt::Var(
+                VarStmt::new(id_("s"), atom_(str_("wow, thanks", *s), *s)),
+                *s,
+            ),
+            Stmt::Return(len_(get_id_("s", *s), *s), *s),
+        ],
+        *s,
+    );
     let program = test_program_(body);
     expect_notwasm(11, program);
 }
 
 #[test]
 fn globals() {
-    let mut program = test_program_(Stmt::Return(get_id_("MY_GLOBAL")));
+    let mut program = test_program_(Stmt::Return(get_id_("MY_GLOBAL", *s), *s));
     program.globals.insert(
         id_("MY_GLOBAL"),
         Global {
             is_mut: false,
             ty: Type::I32,
-            atom: i32_(5),
+            atom: i32_(5, *s),
         },
     );
     expect_notwasm(5, program);

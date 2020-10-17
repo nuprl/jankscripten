@@ -53,7 +53,7 @@ impl Visitor for SwitchToIf<'_> {
         match stmt {
             Stmt::Break(None, s) => {
                 if loc.in_switch_block() {
-                    *stmt = Stmt::Break(Some(self.enclosing_switch_name()));
+                    *stmt = Stmt::Break(Some(self.enclosing_switch_name()), *s);
                 }
             }
             Stmt::Switch(expr, cases, default, s) => {
@@ -64,24 +64,30 @@ impl Visitor for SwitchToIf<'_> {
                 let fallthrough = self.ng.fresh("fallthrough");
 
                 let mut v = vec![
-                    vardecl1_(fallthrough.clone(), FALSE_),
-                    vardecl1_(test_id.clone(), test),
+                    vardecl1_(fallthrough.clone(), FALSE_, *s),
+                    vardecl1_(test_id.clone(), test, *s),
                 ];
 
                 // create if statements for cases (test === e || fallthrough)
-                for (e, s) in cases.drain(0..) {
+                for (e, stmt) in cases.drain(0..) {
                     v.push(if_(
                         binary_(
                             BinOp::LogicalOp(LogicalOp::Or),
                             binary_(
                                 BinOp::BinaryOp(BinaryOp::StrictEqual),
-                                id_(test_id.clone()),
+                                id_(test_id.clone(), *s),
                                 e.clone(),
+                                *s,
                             ),
-                            id_(fallthrough.clone()),
+                            id_(fallthrough.clone(), *s),
+                            *s,
                         ),
-                        Stmt::Block(vec![s, expr_(assign_(fallthrough.clone(), TRUE_))]),
+                        Stmt::Block(
+                            vec![stmt, expr_(assign_(fallthrough.clone(), TRUE_, *s), *s)],
+                            *s,
+                        ),
                         Stmt::Empty,
+                        *s,
                     ))
                 }
 
@@ -102,7 +108,7 @@ impl Visitor for SwitchToIf<'_> {
                 }
 
                 // create labeled block w if statements/default
-                *stmt = label_(name, Stmt::Block(v))
+                *stmt = label_(name, Stmt::Block(v, *s), *s)
             }
             _ => {
                 // not a switch statement, proceed as usual

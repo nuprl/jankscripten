@@ -5,6 +5,7 @@
 
 pub use crate::shared::Id;
 pub use crate::shared::Span;
+pub use swc_common::DUMMY_SP;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum BinOp {
@@ -119,7 +120,7 @@ impl<T: Into<Id>> From<T> for LValue {
 pub enum Expr {
     Lit(Lit, Span),
     Array(Vec<Expr>, Span),
-    Object(Vec<(Key, Expr, Span)>, Span),
+    Object(Vec<(Key, Expr)>, Span),
     This,
     Id(Id, Span),
     Dot(Box<Expr>, Id, Span),
@@ -153,7 +154,7 @@ pub enum Stmt {
     Empty,
     Expr(Box<Expr>, Span),
     If(Box<Expr>, Box<Stmt>, Box<Stmt>, Span),
-    Switch(Box<Expr>, Vec<(Expr, Stmt, Span)>, Box<Stmt>, Span),
+    Switch(Box<Expr>, Vec<(Expr, Stmt)>, Box<Stmt>, Span),
     While(Box<Expr>, Box<Stmt>, Span),
     DoWhile(Box<Stmt>, Box<Expr>, Span),
     For(ForInit, Box<Expr>, Box<Expr>, Box<Stmt>, Span),
