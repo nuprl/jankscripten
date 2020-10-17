@@ -242,7 +242,7 @@ impl Pretty for Expr {
                 ])
                 .braces(),
             ]),
-            Expr::Call(f, args, s) | Expr::ClosureCall(f, args, s) => pp.concat(vec![
+            Expr::Call(f, args, _) | Expr::ClosureCall(f, args, _) => pp.concat(vec![
                 pp.as_string(f),
                 pp.intersperse(
                     args.iter().map(|a| pp.as_string(a)),

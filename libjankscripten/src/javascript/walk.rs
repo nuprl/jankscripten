@@ -175,7 +175,7 @@ where
                 self.walk_stmt(a, &loc);
             }
             // 2xStmt
-            Finally(a, b, s) | Catch(a, .., b, s) => {
+            Finally(a, b, _) | Catch(a, .., b, _) => {
                 let loc = Loc::Node(Context::Stmt, loc);
                 self.walk_stmt(a, &loc);
                 self.walk_stmt(b, &loc);
@@ -198,12 +198,12 @@ where
                 }
             }
             // 1xExpr
-            Throw(a, s) | Return(a, s) | Expr(a, s) => {
+            Throw(a, _) | Return(a, _) | Expr(a, _) => {
                 let loc = Loc::Node(Context::Stmt, loc);
                 self.walk_expr(a, &loc);
             }
             // 1xExpr, 1xStmt
-            DoWhile(st, e, s) | ForIn(.., e, st, s) | While(e, st, s) => {
+            DoWhile(st, e, _) | ForIn(.., e, st, _) | While(e, st, _) => {
                 let loc = Loc::Node(Context::Loop, loc);
                 self.walk_expr(e, &loc);
                 self.walk_stmt(st, &loc);
@@ -252,7 +252,7 @@ where
                 self.walk_stmt(st, &loc);
             }
             // 1x[Expr]
-            Array(es, s) | Seq(es, s) => {
+            Array(es, _) | Seq(es, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 for e in es {
                     self.walk_expr(e, &loc);
@@ -266,7 +266,7 @@ where
                 }
             }
             // 1xExpr
-            Dot(e, .., s) | Unary(.., e, s) => {
+            Dot(e, .., _) | Unary(.., e, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_expr(e, &loc);
             }
@@ -278,7 +278,7 @@ where
                 self.walk_expr(e, &rv_loc);
             }
             // 1xExpr, 1x[Expr]
-            New(e, es, s) | Call(e, es, s) => {
+            New(e, es, _) | Call(e, es, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_expr(e, &loc);
                 for e in es {
@@ -286,7 +286,7 @@ where
                 }
             }
             // 2xExpr
-            Bracket(ea, eb, s) | Binary(.., ea, eb, s) => {
+            Bracket(ea, eb, _) | Binary(.., ea, eb, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_expr(ea, &loc);
                 self.walk_expr(eb, &loc);

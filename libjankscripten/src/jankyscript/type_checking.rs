@@ -413,10 +413,10 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             // whole operation has output type
             Ok(ty_out)
         }
-        Expr::NewRef(.., s) | Expr::Deref(.., s) | Expr::Store(.., s) => {
+        Expr::NewRef(..) | Expr::Deref(..) | Expr::Store(..) => {
             todo!("optionally, typechecking could occur after boxing")
         }
-        Expr::EnvGet(.., s) | Expr::Closure(.., s) => {
+        Expr::EnvGet(..) | Expr::Closure(..) => {
             panic!("typechecking should occur before closure conversion")
         }
     }
