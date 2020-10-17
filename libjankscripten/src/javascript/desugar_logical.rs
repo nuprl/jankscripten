@@ -15,7 +15,7 @@ impl Visitor for DesugarLogical<'_> {
     fn exit_expr(&mut self, expr: &mut Expr, loc: &Loc) {
         let ctx = loc.enclosing_block().expect("expected block context");
         match expr {
-            Expr::Binary(BinOp::LogicalOp(op), left, right) => {
+            Expr::Binary(BinOp::LogicalOp(op), left, right, s) => {
                 let left_name = self.0.fresh("left");
                 let (cons, alt, op_name) = match op {
                     LogicalOp::And => (right.take(), id_(left_name.clone()), "and"),
@@ -32,7 +32,7 @@ impl Visitor for DesugarLogical<'_> {
                 ctx.insert(ctx.index, if_stmt);
                 *expr = id_(result);
             }
-            Expr::If(cond, cons, alt) => {
+            Expr::If(cond, cons, alt, s) => {
                 let result = self.0.fresh("if_expr");
                 ctx.insert(ctx.index, vardecl1_(result.clone(), UNDEFINED_));
                 let if_stmt = if_(
@@ -43,7 +43,7 @@ impl Visitor for DesugarLogical<'_> {
                 ctx.insert(ctx.index, if_stmt);
                 *expr = id_(result);
             }
-            Expr::Seq(es) => {
+            Expr::Seq(es, s) => {
                 let last = es.pop().expect("sequence with no exprs");
                 for e in es {
                     ctx.insert(ctx.index, expr_(e.take()));

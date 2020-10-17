@@ -11,7 +11,7 @@ struct LiftVars;
 
 impl Visitor for LiftVars {
     fn exit_stmt(&mut self, stmt: &mut Stmt, loc: &Loc) {
-        if let Stmt::VarDecl(decl) = stmt {
+        if let Stmt::VarDecl(decl, s) = stmt {
             let decl1 = decl.pop().expect("no decls in vardecl");
             assert_eq!(decl.pop(), None, "vardecls not desugared");
             let new_decl = vardecl1_(decl1.name.clone(), UNDEFINED_);

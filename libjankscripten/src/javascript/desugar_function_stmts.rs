@@ -9,7 +9,7 @@ fn take_fun_stmt(stmt: &mut Stmt) -> Option<(Id, Vec<Id>, Box<Stmt>)> {
     if let Stmt::Func(..) = stmt {
         let fun_stmt = stmt.take();
         match fun_stmt {
-            Stmt::Func(name, args, body) => {
+            Stmt::Func(name, args, body, s) => {
                 return Some((name, args, body));
             }
             _ => unreachable!(),

@@ -4,6 +4,7 @@
 //! annoying features, such as `with`.
 
 pub use crate::shared::Id;
+pub use crate::shared::Span;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum BinOp {
@@ -181,15 +182,15 @@ impl Expr {
     /// effects or invalidating object identities.
     pub fn is_essentially_atom(&self) -> bool {
         match self {
-            Expr::Lit(_) => true,
+            Expr::Lit(_, _) => true,
             Expr::This => true,
-            Expr::Id(_) => true,
-            Expr::Dot(e, _) => e.is_essentially_atom(),
-            Expr::Bracket(e1, e2) => e1.is_essentially_atom() && e2.is_essentially_atom(),
+            Expr::Id(_, _) => true,
+            Expr::Dot(e, _, _) => e.is_essentially_atom(),
+            Expr::Bracket(e1, e2, _) => e1.is_essentially_atom() && e2.is_essentially_atom(),
             // Copying an object, array, or function will alter their identity.
-            Expr::Array(_) => false,
-            Expr::Object(_) => false,
-            Expr::Func(..) => false,
+            Expr::Array(_, _) => false,
+            Expr::Object(_, _) => false,
+            Expr::Func(.., _) => false,
             _ => false,
         }
     }

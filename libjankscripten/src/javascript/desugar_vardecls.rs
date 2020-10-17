@@ -11,7 +11,7 @@ struct SeparateVarDecls;
 impl Visitor for SeparateVarDecls {
     fn exit_stmt(&mut self, stmt: &mut Stmt, loc: &Loc) {
         match stmt {
-            Stmt::VarDecl(decls) => {
+            Stmt::VarDecl(decls, s) => {
                 if decls.len() > 1 {
                     let block_ctx = loc.enclosing_block().expect("Block context expected");
                     // save last decl to replace original statement

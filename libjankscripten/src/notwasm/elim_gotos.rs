@@ -31,7 +31,7 @@ impl Visitor for GotoVisitor {
     fn exit_stmt(&mut self, stmt: &mut Stmt) {
         use Stmt::*;
         match stmt {
-            Goto(Lbl::App(l)) => {
+            Goto(Lbl::App(l, s)) => {
                 *stmt = if_(
                     get_id_("inGoto"),
                     Empty,
@@ -41,7 +41,7 @@ impl Visitor for GotoVisitor {
                     ]),
                 )
             }
-            Label(Lbl::App(n), call) if is_call(call) => {
+            Label(Lbl::App(n), call, s) if is_call(call) => {
                 *stmt = if_(
                     // i think bor/band is fine because these are all
                     // already-computed booleans (except eq) but it could be
@@ -54,10 +54,10 @@ impl Visitor for GotoVisitor {
                     Empty,
                 );
             }
-            Var(..) | Assign(..) if !is_call(stmt) => {
+            Var(.., s) | Assign(.., s) if !is_call(stmt) => {
                 *stmt = if_(get_id_("inGoto"), Empty, stmt.take())
             }
-            If(cond, cons, alt) => {
+            If(cond, cons, alt, s) => {
                 let cons_cond = bounds_check_if(cons, cond.take());
                 let alt_cond = bounds_check(alt);
                 *stmt = if_(
@@ -66,7 +66,7 @@ impl Visitor for GotoVisitor {
                     if_(alt_cond, alt.take(), Stmt::Empty),
                 )
             }
-            Loop(body) => {
+            Loop(body, s) => {
                 let cond = bounds_check(body);
                 *stmt = if_(cond, stmt.take(), Stmt::Empty)
             }
@@ -82,9 +82,9 @@ impl Visitor for GotoVisitor {
 fn is_call(stmt: &Stmt) -> bool {
     use Stmt::*;
     match stmt {
-        Assign(_, Expr::Call(..)) => true,
-        Var(var_stmt) => match var_stmt.named {
-            Expr::Call(..) => true,
+        Assign(_, Expr::Call(..), s) => true,
+        Var(var_stmt, s) => match var_stmt.named {
+            Expr::Call(.., s) => true,
             _ => false,
         },
         _ => false,
@@ -117,7 +117,7 @@ struct LabelBoundsVisitor {
 impl Visitor for LabelBoundsVisitor {
     fn exit_stmt(&mut self, stmt: &mut Stmt) {
         match stmt {
-            Stmt::Label(Lbl::App(n), ..) => {
+            Stmt::Label(Lbl::App(n), .., s) => {
                 if let Some((lo, hi)) = self.bounds.as_mut() {
                     if n < lo {
                         *lo = *n;

@@ -23,6 +23,7 @@
 
 use crate::rts_function::RTSFunction;
 pub use crate::shared::Id;
+pub use crate::shared::Span;
 use std::collections::HashMap;
 
 /// The types of NotWasm. Every value has a unique type, thus we *do not* support

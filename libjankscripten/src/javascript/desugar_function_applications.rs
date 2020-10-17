@@ -10,7 +10,7 @@ struct NameFunctionCalls<'a> {
 impl Visitor for NameFunctionCalls<'_> {
     fn exit_expr(&mut self, expr: &mut Expr, loc: &Loc) {
         match expr {
-            Expr::Call(_fid, _args) => {
+            Expr::Call(_fid, _args, s) => {
                 match loc {
                     Loc::Node(Context::VarDeclRhs, _) => {
                         // already being named, so no worries

@@ -237,8 +237,8 @@ fn coercion_to_expr(c: J::Coercion, a: Atom) -> Atom {
 
 fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
     match expr {
-        J::Expr::Lit(lit) => cxt.recv_a(s, Atom::Lit(compile_lit(lit))),
-        J::Expr::Array(members) => compile_exprs(s, members, move |s, member_ids| {
+        J::Expr::Lit(lit, s) => cxt.recv_a(s, Atom::Lit(compile_lit(lit))),
+        J::Expr::Array(members, s) => compile_exprs(s, members, move |s, member_ids| {
             let array_name = s.fresh();
             let mut rv = Rope::singleton(Stmt::Var(VarStmt::new(array_name.clone(), Expr::Array)));
             for member_id in member_ids {
@@ -249,7 +249,7 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             }
             rv.append(cxt.recv_a(s, Atom::Id(array_name)))
         }),
-        J::Expr::Object(keys_exprs) => {
+        J::Expr::Object(keys_exprs, s) => {
             let (keys, exprs): (Vec<_>, Vec<_>) = keys_exprs.into_iter().unzip();
             compile_exprs(s, exprs, move |s, ids| {
                 // TODO: semi-static classes when objects are defined like this
@@ -270,18 +270,18 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 rv.append(cxt.recv_a(s, Atom::Id(obj_name)))
             })
         }
-        J::Expr::Dot(obj, field) => compile_expr(
+        J::Expr::Dot(obj, field, s) => compile_expr(
             s,
             *obj,
             C::a(move |s, obj| cxt.recv_a(s, object_get_(obj, str_(field.into_name())))),
         ),
-        J::Expr::Unary(op, expr) => {
+        J::Expr::Unary(op, expr, s) => {
             compile_expr(s, *expr, C::a(move |s, a| cxt.recv_a(s, unary_(op, a))))
         }
         // TODO(luna): i think JankyScript bracket supports like
         // object/hashtable fetch by name, so we have to descriminate based
         // on type or something(?)
-        J::Expr::Bracket(arr, index) => compile_expr(
+        J::Expr::Bracket(arr, index, s) => compile_expr(
             s,
             *arr,
             C::a(move |s, arr| {
@@ -292,19 +292,19 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 )
             }),
         ),
-        J::Expr::Coercion(coercion, e) => compile_expr(
+        J::Expr::Coercion(coercion, e, s) => compile_expr(
             s,
             *e,
             C::a(move |s, a| cxt.recv_a(s, coercion_to_expr(coercion, a))),
         ),
-        J::Expr::Id(x, _) => cxt.recv_a(s, Atom::Id(x)),
-        J::Expr::Func(f) => {
+        J::Expr::Id(x, _, s) => cxt.recv_a(s, Atom::Id(x)),
+        J::Expr::Func(f, s) => {
             let name = s.fresh();
             let f = compile_function(s, f);
             s.new_function(name.clone(), f);
             cxt.recv_a(s, Atom::Id(name))
         }
-        J::Expr::Closure(f, env) => {
+        J::Expr::Closure(f, env, s) => {
             let name = s.fresh();
             let f = compile_function(s, f);
             s.new_function(name.clone(), f);
@@ -323,7 +323,7 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             }
             stmts.append(cxt.recv_e(s, Expr::Closure(name, env_items)))
         }
-        J::Expr::Binary(op, e1, e2) => compile_expr(
+        J::Expr::Binary(op, e1, e2, s) => compile_expr(
             s,
             *e1,
             C::a(move |s, a1| {
@@ -334,7 +334,7 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 )
             }),
         ),
-        J::Expr::Assign(lv, e) => compile_expr(
+        J::Expr::Assign(lv, e, s) => compile_expr(
             s,
             *e,
             // TODO(luna): if we change Assign to an expression, we can make
@@ -383,7 +383,7 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 }
             }),
         ),
-        J::Expr::PrimCall(prim_name, args) => compile_exprs(s, args, move |s, arg_ids| {
+        J::Expr::PrimCall(prim_name, args, s) => compile_exprs(s, args, move |s, arg_ids| {
             cxt.recv_e(
                 s,
                 Expr::PrimCall(
@@ -392,7 +392,7 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 ),
             )
         }),
-        J::Expr::Call(fun, args) => compile_expr(
+        J::Expr::Call(fun, args, s) => compile_expr(
             s,
             *fun,
             C::id(move |s, fun_id| {
@@ -401,17 +401,17 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 })
             }),
         ),
-        J::Expr::NewRef(expr, ty) => compile_expr(
+        J::Expr::NewRef(expr, ty, s) => compile_expr(
             s,
             *expr,
             C::a(move |s, of| cxt.recv_e(s, Expr::NewRef(of, compile_ty(ty)))),
         ),
-        J::Expr::Deref(expr, ty) => compile_expr(
+        J::Expr::Deref(expr, ty, s) => compile_expr(
             s,
             *expr,
             C::a(move |s, of| cxt.recv_a(s, deref_(of, compile_ty(ty)))),
         ),
-        J::Expr::Store(into, expr, _) => compile_expr(
+        J::Expr::Store(into, expr, _, s) => compile_expr(
             s,
             *into,
             C::id(move |s, into| {
@@ -422,7 +422,7 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 )
             }),
         ),
-        J::Expr::EnvGet(i, ty) => cxt.recv_a(s, Atom::EnvGet(i, compile_ty(ty))),
+        J::Expr::EnvGet(i, ty, s) => cxt.recv_a(s, Atom::EnvGet(i, compile_ty(ty))),
     }
 }
 

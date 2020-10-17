@@ -23,7 +23,7 @@ pub fn desugar_loops(script: &mut Stmt, ng: &mut NameGen) {
 struct ForToWhile;
 impl Visitor for ForToWhile {
     fn enter_stmt(&mut self, node: &mut Stmt, _loc: &Loc) {
-        if let For(init, cond, advance, body) = node {
+        if let For(init, cond, advance, body, s) = node {
             let init = match init {
                 ForInit::Expr(e) => expr_(e.take()),
                 ForInit::Decl(ds) => Stmt::VarDecl(std::mem::replace(ds, vec![])),
@@ -64,7 +64,7 @@ impl Visitor for LabelLoops<'_> {
     /// on loops, add their break name to the stack
     fn enter_stmt(&mut self, node: &mut Stmt, _loc: &Loc) {
         // if it's already there use that
-        if let Label(break_name, labeled) = node {
+        if let Label(break_name, labeled, s) = node {
             if if_loop_then_body(labeled).is_some() {
                 // this allows continue to be desugared (see precondition
                 // at that match arm)
@@ -86,7 +86,7 @@ impl Visitor for LabelLoops<'_> {
         match node {
             // break to name needs no change
             // Some(unwrap) ensures we get our label
-            Break(None) => {
+            Break(None, s) => {
                 // precondition we have a labeled loop
                 //     $break_0: while (true) {
                 //         break;
@@ -102,7 +102,7 @@ impl Visitor for LabelLoops<'_> {
                         .clone(),
                 ))
             }
-            Continue(None) => {
+            Continue(None, s) => {
                 // precondition we have a labeled loop and labeled body
                 //     $break_0: while (true) $cont_0: {
                 //         continue;
@@ -120,7 +120,7 @@ impl Visitor for LabelLoops<'_> {
                         .clone(),
                 ));
             }
-            Continue(Some(other)) => {
+            Continue(Some(other), s) => {
                 // precondition we have a labeled loop and labeled body
                 //     my_loop: while (true) $cont_0: {
                 //         continue my_loop;
@@ -183,12 +183,12 @@ struct ExplicitBreaks;
 impl Visitor for ExplicitBreaks {
     fn exit_stmt(&mut self, node: &mut Stmt, _loc: &Loc) {
         match node {
-            While(cond, body) | For(.., cond, _, body) => {
+            While(cond, body, s) | For(.., cond, _, body, s) => {
                 // if you don't add a block, inserted statements will go above
                 *body = Box::new(Block(vec![if_(cond.take(), body.take(), Break(None))]));
                 *cond = Box::new(TRUE_);
             }
-            DoWhile(body, cond) => {
+            DoWhile(body, cond, s) => {
                 // if you don't add a block, inserted statements will go above
                 let new_body = Block(vec![
                     body.take(),

@@ -4,6 +4,7 @@
 //! produce a program in this language.
 
 pub use crate::shared::Id;
+pub use crate::shared::Span;
 pub use crate::shared::Type;
 
 #[derive(Debug)]

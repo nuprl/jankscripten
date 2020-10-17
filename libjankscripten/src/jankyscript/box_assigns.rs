@@ -61,13 +61,13 @@ impl Visitor for BoxVisitor {
     }
     fn exit_expr(&mut self, expr: &mut Expr, _: &Loc) {
         match expr {
-            Expr::Id(id, ty) if self.should_box(id) => {
+            Expr::Id(id, ty, s) if self.should_box(id) => {
                 let old_ty = ty.clone();
                 let new_ty = ref_ty_(old_ty.clone());
                 *ty = new_ty.clone();
                 *expr = deref_(expr.take(), old_ty)
             }
-            Expr::Assign(lv, to) => {
+            Expr::Assign(lv, to, s) => {
                 match &mut **lv {
                     LValue::Id(id, ty) if self.should_box(id) => {
                         *expr = store_(id.clone(), to.take(), ty.clone())
@@ -81,7 +81,7 @@ impl Visitor for BoxVisitor {
     }
     fn exit_stmt(&mut self, stmt: &mut Stmt, _: &Loc) {
         match stmt {
-            Stmt::Var(id, ty, expr) if self.should_box(id) => {
+            Stmt::Var(id, ty, expr, s) if self.should_box(id) => {
                 *stmt = var_to_new_ref(id.clone(), ty, expr.take());
             }
             _ => (),

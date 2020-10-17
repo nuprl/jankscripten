@@ -129,14 +129,14 @@ impl Pretty for Expr {
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
         match self {
-            Expr::Lit(lit) => lit.pretty(pp),
-            Expr::Array(es) => pp
+            Expr::Lit(lit, _) => lit.pretty(pp),
+            Expr::Array(es, _) => pp
                 .intersperse(
                     es.iter().map(|e| e.pretty(pp)),
                     pp.text(",").append(pp.line()),
                 )
                 .brackets(),
-            Expr::Object(kvs) => pp
+            Expr::Object(kvs, _) => pp
                 .intersperse(
                     kvs.iter().map(|(k, v)| {
                         pp.concat(vec![k.pretty(pp), pp.text(":"), pp.line(), v.pretty(pp)])
@@ -144,16 +144,16 @@ impl Pretty for Expr {
                     pp.text(",").append(pp.line()),
                 )
                 .braces(),
-            Expr::Id(id, _) => pp.as_string(id),
-            Expr::Dot(e, id) => pp.concat(vec![
+            Expr::Id(id, _, _) => pp.as_string(id),
+            Expr::Dot(e, id, _) => pp.concat(vec![
                 e.pretty(pp),
                 pp.text("."),
                 pp.line_(),
                 pp.as_string(id),
             ]),
-            Expr::Bracket(e1, e2) => pp.concat(vec![e1.pretty(pp), e2.pretty(pp).brackets()]),
-            Expr::Unary(op, e) => op.pretty(pp).append(e.pretty(pp).parens()),
-            Expr::Binary(op, e1, e2) => pp.intersperse(
+            Expr::Bracket(e1, e2, _) => pp.concat(vec![e1.pretty(pp), e2.pretty(pp).brackets()]),
+            Expr::Unary(op, e, _) => op.pretty(pp).append(e.pretty(pp).parens()),
+            Expr::Binary(op, e1, e2, _) => pp.intersperse(
                 vec![
                     e1.pretty(pp).parens(), // TODO(michael) sometimes omit parens?
                     op.pretty(pp),
@@ -161,14 +161,14 @@ impl Pretty for Expr {
                 ],
                 pp.line(),
             ),
-            Expr::Assign(lv, e) => pp.concat(vec![
+            Expr::Assign(lv, e, _) => pp.concat(vec![
                 lv.pretty(pp),
                 pp.space(),
                 pp.text("="),
                 pp.line(),
                 e.pretty(pp),
             ]),
-            Expr::Call(e, args) => pp.concat(vec![
+            Expr::Call(e, args, _) => pp.concat(vec![
                 e.pretty(pp),
                 pp.intersperse(
                     args.iter().map(|e| e.pretty(pp)),
@@ -176,7 +176,7 @@ impl Pretty for Expr {
                 )
                 .parens(),
             ]),
-            Expr::PrimCall(rts, args) => pp.concat(vec![
+            Expr::PrimCall(rts, args, _) => pp.concat(vec![
                 pp.text(rts.name()),
                 pp.intersperse(
                     args.iter().map(|e| e.pretty(pp)),
@@ -184,32 +184,32 @@ impl Pretty for Expr {
                 )
                 .parens(),
             ]),
-            Expr::Func(f) => f.pretty(pp),
-            Expr::Coercion(c, e) => {
+            Expr::Func(f, _) => f.pretty(pp),
+            Expr::Coercion(c, e, _) => {
                 pp.concat(vec![c.pretty(pp).brackets(), pp.line(), e.pretty(pp)])
             }
-            Expr::NewRef(e, ty) => pp
+            Expr::NewRef(e, ty, _) => pp
                 .text("newref::")
                 .append(ty.pretty(pp))
                 .append(e.pretty(pp).parens()),
-            Expr::Deref(e, ty) => pp
+            Expr::Deref(e, ty, _) => pp
                 .text("*")
                 .append(e.pretty(pp))
                 .append(pp.text(": "))
                 .append(ty.pretty(pp)),
-            Expr::Store(id, e, ty) => pp
+            Expr::Store(id, e, ty, _) => pp
                 .text("*")
                 .append(pp.as_string(id))
                 .append(pp.text(": "))
                 .append(ty.pretty(pp))
                 .append(pp.text(" = "))
                 .append(e.pretty(pp)),
-            Expr::EnvGet(i, ty) => pp
+            Expr::EnvGet(i, ty, _) => pp
                 .text("env.")
                 .append(pp.as_string(i))
                 .append(pp.text(": "))
                 .append(ty.pretty(pp)),
-            Expr::Closure(f, env) => pp.text("clos").append(f.pretty(pp)).append(", ").append(
+            Expr::Closure(f, env, _) => pp.text("clos").append(f.pretty(pp)).append(", ").append(
                 pp.intersperse(
                     env.iter()
                         .map(|(e, ty)| e.pretty(pp).append(pp.text(": ")).append(ty.pretty(pp))),
@@ -261,7 +261,7 @@ impl Pretty for Stmt {
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
         match self {
-            Stmt::Var(id, t, e) => pp
+            Stmt::Var(id, t, e, _) => pp
                 .concat(vec![
                     pp.text("let"),
                     pp.space(),
@@ -275,7 +275,7 @@ impl Pretty for Stmt {
                 ])
                 .group()
                 .append(pp.concat(vec![pp.line(), e.pretty(pp).nest(2).group(), pp.text(";")])),
-            Stmt::Block(stmts) => pp
+            Stmt::Block(stmts, _) => pp
                 .concat(vec![
                     pp.hardline(),
                     pp.intersperse(
@@ -286,8 +286,8 @@ impl Pretty for Stmt {
                 ])
                 .braces(),
             Stmt::Empty => pp.hardline(),
-            Stmt::Expr(e) => e.pretty(pp).append(";").group(),
-            Stmt::If(e1, s2, s3) => pp.intersperse(
+            Stmt::Expr(e, _) => e.pretty(pp).append(";").group(),
+            Stmt::If(e1, s2, s3, _) => pp.intersperse(
                 vec![
                     pp.concat(vec![pp.text("if"), pp.space(), e1.pretty(pp).parens()])
                         .group(),
@@ -297,20 +297,20 @@ impl Pretty for Stmt {
                 ],
                 pp.hardline(),
             ),
-            Stmt::Loop(s) => pp.concat(vec![pp.text("loop"), pp.hardline(), s.pretty(pp)]),
-            Stmt::Label(lbl, s) => pp.concat(vec![
+            Stmt::Loop(s, _) => pp.concat(vec![pp.text("loop"), pp.hardline(), s.pretty(pp)]),
+            Stmt::Label(lbl, s, _) => pp.concat(vec![
                 pp.as_string(lbl),
                 pp.text(":"),
                 pp.line(),
                 s.pretty(pp).nest(2),
             ]),
-            Stmt::Break(lbl) => pp.concat(vec![
+            Stmt::Break(lbl, _) => pp.concat(vec![
                 pp.text("break"),
                 pp.space(),
                 pp.as_string(lbl),
                 pp.text(";"),
             ]),
-            Stmt::Catch(s1, id, s2) => pp.concat(vec![
+            Stmt::Catch(s1, id, s2, _) => pp.concat(vec![
                 pp.text("try"),
                 pp.space(),
                 s1.pretty(pp).nest(2),
@@ -320,7 +320,7 @@ impl Pretty for Stmt {
                 pp.line(),
                 s2.pretty(pp).nest(2),
             ]),
-            Stmt::Finally(s1, s2) => pp.concat(vec![
+            Stmt::Finally(s1, s2, _) => pp.concat(vec![
                 pp.text("try"),
                 pp.space(),
                 s1.pretty(pp).nest(2),
@@ -329,13 +329,13 @@ impl Pretty for Stmt {
                 pp.line(),
                 s2.pretty(pp).nest(2),
             ]),
-            Stmt::Throw(e) => pp.concat(vec![
+            Stmt::Throw(e, _) => pp.concat(vec![
                 pp.text("throw"),
                 pp.space(),
                 e.pretty(pp),
                 pp.text(";"),
             ]),
-            Stmt::Return(e) => pp.concat(vec![
+            Stmt::Return(e, _) => pp.concat(vec![
                 pp.text("return"),
                 pp.space(),
                 e.pretty(pp),

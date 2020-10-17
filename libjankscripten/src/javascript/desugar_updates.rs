@@ -13,8 +13,8 @@ struct DesugarFancyUpdates<'a> {
 impl Visitor for DesugarFancyUpdates<'_> {
     fn exit_expr(&mut self, expr: &mut Expr, loc: &Loc) {
         match expr {
-            Expr::Assign(AssignOp::Equal, _lv, _rhs) => {}
-            Expr::Assign(op, lv, rhs) => {
+            Expr::Assign(AssignOp::Equal, _lv, _rhs, s) => {}
+            Expr::Assign(op, lv, rhs, s) => {
                 *expr = self.desugar_assign_op(
                     match op {
                         AssignOp::Equal => unreachable!(),
@@ -36,7 +36,7 @@ impl Visitor for DesugarFancyUpdates<'_> {
                     loc,
                 )
             }
-            Expr::UnaryAssign(op, lv) => {
+            Expr::UnaryAssign(op, lv, s) => {
                 // There are four essential cases
                 //
                 // ++x => x = x + 1, x

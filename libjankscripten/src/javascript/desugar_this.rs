@@ -10,10 +10,10 @@ struct ThisParameter<'a> {
 impl Visitor for ThisParameter<'_> {
     fn exit_expr(&mut self, expr: &mut Expr, loc: &Loc) {
         match expr {
-            Expr::Call(f, args) => match &mut **f {
+            Expr::Call(f, args, s) => match &mut **f {
                 // only syntactically immediate bracket/dot preserves the
                 // object as `this`
-                Expr::Bracket(obj, _) | Expr::Dot(obj, _) => {
+                Expr::Bracket(obj, _, s) | Expr::Dot(obj, _, s) => {
                     // fresh the obj so we can pass it to the method
                     let cxt = loc.enclosing_block().unwrap();
                     let obj_name = self.ng.fresh("obj4this");
@@ -25,9 +25,9 @@ impl Visitor for ThisParameter<'_> {
                 // play nice with "use strict";
                 _ => args.insert(0, UNDEFINED_),
             },
-            Expr::New(f, args) => {
+            Expr::New(f, args, s) => {
                 // Desugar `new` into:
-                //     new MyFunc() => var $func = MyFunc; var $obj = Object.create($func.prototype), $func.call($obj, args...), $obj
+                //     new MyFunc(, s) => var $func = MyFunc; var $obj = Object.create($func.prototype), $func.call($obj, args...), $obj
 
                 // syntax block surrounding this new expression
                 let cxt = loc.enclosing_block().unwrap();
@@ -66,7 +66,7 @@ impl Visitor for ThisParameter<'_> {
                 // make the entire `new` expression evaluate to just the new object
                 *expr = id_(obj_name);
             }
-            Expr::Func(_, params, _) => {
+            Expr::Func(_, params, _, s) => {
                 // yes for once using a named id is correct here, because
                 // it's a special name that may or may not be used by the body
                 params.insert(0, self.this_name.clone());

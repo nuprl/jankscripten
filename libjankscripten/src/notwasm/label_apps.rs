@@ -18,11 +18,11 @@ impl Visitor for LabelAppsVisitor {
     fn exit_stmt(&mut self, stmt: &mut Stmt) {
         use Stmt::*;
         match stmt {
-            Assign(_, Expr::Call(..)) => {
+            Assign(_, Expr::Call(..), s) => {
                 *stmt = label_(super::syntax::Label::App(self.n), stmt.take());
                 self.n += 1;
             }
-            Var(var_stmt) => {
+            Var(var_stmt, s) => {
                 if let Expr::Call(..) = var_stmt.named {
                     *stmt = label_(super::syntax::Label::App(self.n), stmt.take());
                     self.n += 1;

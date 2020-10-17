@@ -30,7 +30,7 @@ struct InternVisitor {
 impl Visitor for InternVisitor {
     fn exit_atom(&mut self, atom: &mut Atom, _loc: &mut Loc) {
         match atom {
-            Atom::Lit(old_lit @ Lit::String(_)) => {
+            Atom::Lit(old_lit @ Lit::String(_), s) => {
                 let lit = std::mem::replace(old_lit, Lit::I32(0));
                 if let Lit::String(s) = lit {
                     if let Some(offset) = self.already_interned.get(&s) {

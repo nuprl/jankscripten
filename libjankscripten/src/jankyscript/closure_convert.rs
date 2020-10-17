@@ -57,12 +57,12 @@ impl Visitor for ClosureConversion {
     }
     fn exit_expr(&mut self, expr: &mut Expr, _: &Loc) {
         match expr {
-            Expr::Id(id, ty) => {
+            Expr::Id(id, ty, s) => {
                 if let Some(e) = self.compile_id(id, ty.clone()) {
                     *expr = e;
                 }
             }
-            Expr::Func(func) => {
+            Expr::Func(func, s) => {
                 // this has to happen first so that free_vars will reflect
                 // the scope of the containing function not the function itself
                 self.free_vars_stack.pop();
