@@ -1,6 +1,7 @@
 use super::compile;
 use super::intern::intern;
 use super::parser::parse;
+use super::syntax::DUMMY_SP as D_S;
 use super::syntax::*;
 use std::fmt::Debug;
 use std::io::Write;
@@ -371,64 +372,65 @@ fn ref_doesnt_mutate_variables() {
 #[test]
 #[ignore]
 fn goto_skips_stuff() {
-    let skip_to_here = func_i32_(Stmt::Return(i32_(7, *s), *s), *s);
+    let skip_to_here = func_i32_(Stmt::Return(i32_(7, D_S), D_S), D_S);
     let main_body = Stmt::Block(
         vec![
             // hopefully it stays 5
-            Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5, *s), *s)), *s),
-            Stmt::Goto(Label::App(0), *s),
+            Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5, D_S), D_S)), D_S),
+            Stmt::Goto(Label::App(0), D_S),
             // this is the part we wanna skip
-            Stmt::Assign(id_("x"), atom_(i32_(2, *s), *s), *s),
+            Stmt::Assign(id_("x"), atom_(i32_(2, D_S), D_S), D_S),
             // goto goes here
-            Stmt::Expression(Expr::Call(id_("other"), vec![], *s), *s),
-            Stmt::Return(get_id_("x", *s), *s),
+            Stmt::Expression(Expr::Call(id_("other"), vec![], D_S), D_S),
+            Stmt::Return(get_id_("x", D_S), D_S),
         ],
-        *s,
+        D_S,
     );
-    let program = program2_(func_i32_(main_body, *s), skip_to_here);
+    let program = program2_(func_i32_(main_body, D_S), skip_to_here);
     expect_notwasm(5, program);
 }
 #[test]
 #[ignore]
 fn goto_skips_loop() {
-    let skip_to_here = func_i32_(Stmt::Return(i32_(7, *s), *s), *s);
+    let skip_to_here = func_i32_(Stmt::Return(i32_(7, D_S), D_S), D_S);
     let main_body = Stmt::Block(
         vec![
             // hopefully it stays 5
-            Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5, *s), *s)), *s),
-            Stmt::Goto(Label::App(0), *s),
+            Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5, D_S), D_S)), D_S),
+            Stmt::Goto(Label::App(0), D_S),
             // this is the part we wanna skip
-            loop_(Stmt::Empty, *s),
+            loop_(Stmt::Empty, D_S),
             // goto goes here
-            Stmt::Expression(Expr::Call(id_("other"), vec![], *s), *s),
-            Stmt::Return(get_id_("x", *s), *s),
+            Stmt::Expression(Expr::Call(id_("other"), vec![], D_S), D_S),
+            Stmt::Return(get_id_("x", D_S), D_S),
         ],
-        *s,
+        D_S,
     );
-    let program = program2_(func_i32_(main_body, *s), skip_to_here);
+    let program = program2_(func_i32_(main_body, D_S), skip_to_here);
     expect_notwasm(5, program);
 }
 #[test]
 #[ignore]
 fn goto_enters_if() {
-    let skip_to_here = func_i32_(Stmt::Return(i32_(7, *s), *s), *s);
+    let skip_to_here = func_i32_(Stmt::Return(i32_(7, D_S), D_S), D_S);
     let main_body = Stmt::Block(
         vec![
             // hopefully it stays 5
-            Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5, *s), *s)), *s),
-            Stmt::Goto(Label::App(0), *s),
+            Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5, D_S), D_S)), D_S),
+            Stmt::Goto(Label::App(0), D_S),
             if_(
                 TRUE_,
                 // this is the part we wanna skip
-                Stmt::Assign(id_("x"), atom_(i32_(2, *s), *s), *s),
+                Stmt::Assign(id_("x"), atom_(i32_(2, D_S), D_S), D_S),
                 // goto goes here
-                Stmt::Expression(Expr::Call(id_("other"), vec![], *s), *s),
-            , *s),
-            Stmt::Return(get_id_("x", *s), *s),
+                Stmt::Expression(Expr::Call(id_("other"), vec![], D_S), D_S),
+                D_S,
+            ),
+            Stmt::Return(get_id_("x", D_S), D_S),
         ],
-        *s,
+        D_S,
     );
-    let program = program2_(func_i32_(main_body, *s), skip_to_here);
+    let program = program2_(func_i32_(main_body, D_S), skip_to_here);
     expect_notwasm(5, program);
 }
 
@@ -437,12 +439,12 @@ fn strings() {
     let body = Stmt::Block(
         vec![
             Stmt::Var(
-                VarStmt::new(id_("s"), atom_(str_("wow, thanks", *s), *s)),
-                *s,
+                VarStmt::new(id_("s"), atom_(str_("wow, thanks", D_S), D_S)),
+                D_S,
             ),
-            Stmt::Return(len_(get_id_("s", *s), *s), *s),
+            Stmt::Return(len_(get_id_("s", D_S), D_S), D_S),
         ],
-        *s,
+        D_S,
     );
     let program = test_program_(body);
     expect_notwasm(11, program);
@@ -450,13 +452,13 @@ fn strings() {
 
 #[test]
 fn globals() {
-    let mut program = test_program_(Stmt::Return(get_id_("MY_GLOBAL", *s), *s));
+    let mut program = test_program_(Stmt::Return(get_id_("MY_GLOBAL", D_S), D_S));
     program.globals.insert(
         id_("MY_GLOBAL"),
         Global {
             is_mut: false,
             ty: Type::I32,
-            atom: i32_(5, *s),
+            atom: i32_(5, D_S),
         },
     );
     expect_notwasm(5, program);

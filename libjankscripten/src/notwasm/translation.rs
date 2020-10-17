@@ -327,7 +327,7 @@ impl<'a> Translate<'a> {
     // to clone `env` when we enter a new block scope.
     pub(self) fn translate_rec(&mut self, env: &Env, stmt: &mut N::Stmt) {
         match stmt {
-            N::Stmt::Store(id, expr, s) => {
+            N::Stmt::Store(id, expr, _s) => {
                 // storing into a reference translates into a raw write
                 // TODO(luna): this should really have the type in the
                 // AST so we don't have to do this messiness
@@ -343,14 +343,14 @@ impl<'a> Translate<'a> {
                 self.store(ty, TAG_SIZE);
             }
             N::Stmt::Empty => (),
-            N::Stmt::Block(ss, s) => {
+            N::Stmt::Block(ss, _s) => {
                 // don't surround in an actual block, those are only useful
                 // when labeled
                 for s in ss {
                     self.translate_rec(env, s);
                 }
             }
-            N::Stmt::Var(var_stmt, s) => {
+            N::Stmt::Var(var_stmt, _s) => {
                 // Binds variable in env after compiling expr (prevents
                 // circularity).
                 self.translate_expr(&mut var_stmt.named);
@@ -372,11 +372,11 @@ impl<'a> Translate<'a> {
                     self.set_in_current_shadow_frame_slot(var_stmt.ty());
                 }
             }
-            N::Stmt::Expression(expr, s) => {
+            N::Stmt::Expression(expr, _s) => {
                 self.translate_expr(expr);
                 self.out.push(Drop); // side-effects only, please
             }
-            N::Stmt::Assign(id, expr, s) => {
+            N::Stmt::Assign(id, expr, _s) => {
                 match self
                     .id_env
                     .get(id)
@@ -405,7 +405,7 @@ impl<'a> Translate<'a> {
                     IdIndex::Fun(..) => panic!("cannot set function"),
                 }
             }
-            N::Stmt::If(cond, conseq, alt, s) => {
+            N::Stmt::If(cond, conseq, alt, _s) => {
                 self.translate_atom(cond);
                 self.out.push(If(BlockType::NoResult));
                 let mut env1 = env.clone();
@@ -415,7 +415,7 @@ impl<'a> Translate<'a> {
                 self.translate_rec(&env1, alt);
                 self.out.push(End);
             }
-            N::Stmt::Loop(body, s) => {
+            N::Stmt::Loop(body, _s) => {
                 // breaks should be handled by surrounding label already
                 self.out.push(Loop(BlockType::NoResult));
                 let mut env1 = env.clone();
@@ -425,7 +425,7 @@ impl<'a> Translate<'a> {
                 self.out.push(Br(0));
                 self.out.push(End);
             }
-            N::Stmt::Label(x, stmt, s) => {
+            N::Stmt::Label(x, stmt, _s) => {
                 if let N::Label::App(_) = x {
                     panic!("Label::App was not elimineted by elim_gotos");
                 }
@@ -435,7 +435,7 @@ impl<'a> Translate<'a> {
                 self.translate_rec(&mut env1, stmt);
                 self.out.push(End);
             }
-            N::Stmt::Break(label, s) => {
+            N::Stmt::Break(label, _s) => {
                 let l = TranslateLabel::Label(label.clone());
                 let i = env
                     .labels
@@ -443,7 +443,7 @@ impl<'a> Translate<'a> {
                     .expect(&format!("unbound label {:?}", label));
                 self.out.push(Br(i as u32));
             }
-            N::Stmt::Return(atom, s) => {
+            N::Stmt::Return(atom, _s) => {
                 self.rt_call("gc_exit_fn");
                 self.translate_atom(atom);
                 self.out.push(Return);
@@ -451,7 +451,7 @@ impl<'a> Translate<'a> {
             N::Stmt::Trap => {
                 self.out.push(Unreachable);
             }
-            N::Stmt::Goto(.., s) => {
+            N::Stmt::Goto(.., _s) => {
                 panic!(
                     "this should be NotWasm, not GotoWasm. did you run elim_gotos? did it work?"
                 );
@@ -500,22 +500,22 @@ impl<'a> Translate<'a> {
 
     fn translate_expr(&mut self, expr: &mut N::Expr) {
         match expr {
-            N::Expr::Atom(atom, s) => self.translate_atom(atom),
+            N::Expr::Atom(atom, _s) => self.translate_atom(atom),
             N::Expr::HT => self.rt_call("ht_new"),
             N::Expr::Array => self.rt_call("array_new"),
-            N::Expr::ArraySet(arr, index, value, s) => {
+            N::Expr::ArraySet(arr, index, value, _s) => {
                 self.translate_atom(arr);
                 self.translate_atom(index);
                 self.translate_atom(value);
                 self.rt_call("array_set");
             }
-            N::Expr::HTSet(ht, field, val, s) => {
+            N::Expr::HTSet(ht, field, val, _s) => {
                 self.translate_atom(ht);
                 self.translate_atom(field);
                 self.translate_atom(val);
                 self.rt_call("ht_set");
             }
-            N::Expr::ObjectSet(obj, field, val, s) => {
+            N::Expr::ObjectSet(obj, field, val, _s) => {
                 self.translate_atom(obj);
                 self.translate_atom(field);
                 self.translate_atom(val);
@@ -534,18 +534,18 @@ impl<'a> Translate<'a> {
                 // must be resolved dynamically.
                 self.notwasm_rt_call("jnks_new_object");
             }
-            N::Expr::Push(array, val, s) => {
+            N::Expr::Push(array, val, _s) => {
                 self.translate_atom(array);
                 self.translate_atom(val);
                 self.rt_call("array_push");
             }
-            N::Expr::PrimCall(rts_func, args, s) => {
+            N::Expr::PrimCall(rts_func, args, _s) => {
                 for arg in args {
                     self.translate_atom(arg);
                 }
                 self.rt_call(rts_func.name());
             }
-            N::Expr::Call(f, args, s) => {
+            N::Expr::Call(f, args, _s) => {
                 for arg in args {
                     self.get_id(arg);
                 }
@@ -573,7 +573,7 @@ impl<'a> Translate<'a> {
                     _ => panic!("expected Func ID ({})", f),
                 };
             }
-            N::Expr::ClosureCall(f, args, s) => {
+            N::Expr::ClosureCall(f, args, _s) => {
                 match self.id_env.get(f).cloned() {
                     Some(IdIndex::Fun(_)) => panic!("closures are always given a name"),
                     Some(IdIndex::Local(i, t)) => {
@@ -599,7 +599,7 @@ impl<'a> Translate<'a> {
                     _ => panic!("expected Func ID ({})", f),
                 };
             }
-            N::Expr::NewRef(a, ty, s) => {
+            N::Expr::NewRef(a, ty, _s) => {
                 self.translate_atom(a);
                 match ty {
                     N::Type::I32 | N::Type::Bool | N::Type::Fn(..) => {
@@ -611,7 +611,7 @@ impl<'a> Translate<'a> {
                     _ => self.rt_call("ref_new_ptr"),
                 }
             }
-            N::Expr::Closure(id, env, s) => {
+            N::Expr::Closure(id, env, _s) => {
                 // first, construct the environment
                 if env.len() == 0 {
                     // nullptr; will never be read
@@ -638,11 +638,11 @@ impl<'a> Translate<'a> {
 
     fn translate_atom(&mut self, atom: &mut N::Atom) {
         match atom {
-            N::Atom::Deref(a, ty, s) => {
+            N::Atom::Deref(a, ty, _s) => {
                 self.translate_atom(a);
                 self.load(ty, TAG_SIZE);
             }
-            N::Atom::Lit(lit, s) => match lit {
+            N::Atom::Lit(lit, _s) => match lit {
                 N::Lit::I32(i) => self.out.push(I32Const(*i)),
                 N::Lit::F64(f) => self.out.push(F64Const(unsafe { std::mem::transmute(*f) })),
                 N::Lit::Interned(addr) => {
@@ -655,10 +655,10 @@ impl<'a> Translate<'a> {
                 N::Lit::Undefined => self.rt_call("get_undefined"),
                 N::Lit::Null => self.rt_call("get_null"),
             },
-            N::Atom::Id(id, s) => {
+            N::Atom::Id(id, _s) => {
                 self.get_id(id);
             }
-            N::Atom::GetPrimFunc(id, s) => {
+            N::Atom::GetPrimFunc(id, _s) => {
                 // TODO(luna): i honestly for the life of me can't remember
                 // why we accept an &mut Atom instead of an Atom, which
                 // would avoid this clone
@@ -668,64 +668,64 @@ impl<'a> Translate<'a> {
                     panic!("cannot find rt {}", id);
                 }
             }
-            N::Atom::ToAny(to_any, s) => {
+            N::Atom::ToAny(to_any, _s) => {
                 self.translate_atom(&mut to_any.atom);
                 self.to_any(to_any.ty());
             }
-            N::Atom::FromAny(a, ty, s) => {
+            N::Atom::FromAny(a, ty, _s) => {
                 self.translate_atom(a);
                 match ty {
                     N::Type::I32 => self.rt_call("any_to_i32"),
                     N::Type::Bool => self.rt_call("any_to_bool"),
                     N::Type::F64 => self.rt_call("any_to_f64"),
-                    N::Type::Fn(.., s) => panic!("cannot attain function from any"),
-                    N::Type::Closure(.., s) => self.rt_call("any_to_closure"),
+                    N::Type::Fn(.., _s) => panic!("cannot attain function from any"),
+                    N::Type::Closure(.., _s) => self.rt_call("any_to_closure"),
                     N::Type::Any => (),
                     _ => self.rt_call("any_to_ptr"),
                 }
             }
-            N::Atom::FloatToInt(a, s) => {
+            N::Atom::FloatToInt(a, _s) => {
                 self.translate_atom(a);
                 self.out.push(I32TruncSF64);
             }
-            N::Atom::IntToFloat(a, s) => {
+            N::Atom::IntToFloat(a, _s) => {
                 self.translate_atom(a);
                 self.out.push(F64ConvertSI32);
             }
-            N::Atom::HTGet(ht, field, s) => {
+            N::Atom::HTGet(ht, field, _s) => {
                 self.translate_atom(ht);
                 self.translate_atom(field);
                 self.rt_call("ht_get");
             }
-            N::Atom::ObjectGet(obj, field, s) => {
+            N::Atom::ObjectGet(obj, field, _s) => {
                 self.translate_atom(obj);
                 self.translate_atom(field);
                 self.data_cache();
                 self.rt_call("object_get");
             }
-            N::Atom::Index(arr, index, s) => {
+            N::Atom::Index(arr, index, _s) => {
                 self.translate_atom(arr);
                 self.translate_atom(index);
                 self.rt_call("array_index");
             }
-            N::Atom::ArrayLen(array, s) => {
+            N::Atom::ArrayLen(array, _s) => {
                 self.translate_atom(array);
                 self.rt_call("array_len");
             }
-            N::Atom::StringLen(string, s) => {
+            N::Atom::StringLen(string, _s) => {
                 self.translate_atom(string);
                 self.rt_call("string_len");
             }
-            N::Atom::Binary(op, a, b, s) => {
+            N::Atom::Binary(op, a, b, _s) => {
                 self.translate_atom(a);
                 self.translate_atom(b);
                 self.translate_binop(op);
             }
-            N::Atom::Unary(op, a, s) => {
+            N::Atom::Unary(op, a, _s) => {
                 self.translate_atom(a);
                 self.translate_unop(op);
             }
-            N::Atom::EnvGet(index, ty, s) => {
+            N::Atom::EnvGet(index, ty, _s) => {
                 // get the env which is always the first argument
                 self.out.push(GetLocal(0));
                 let ty_offset = match ty.as_wasm() {

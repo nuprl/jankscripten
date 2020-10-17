@@ -4,7 +4,7 @@ use crate::shared::Type;
 
 // Lit
 
-pub fn num_(n: Num, s: Span) -> Lit {
+pub fn num_(n: Num, _s: Span) -> Lit {
     Lit::Num(n)
 }
 
@@ -97,6 +97,6 @@ pub fn return_(e: Expr, s: Span) -> Stmt {
 
 // Types
 
-pub fn ref_ty_(ty: Type, s: Span) -> Type {
+pub fn ref_ty_(ty: Type, _s: Span) -> Type {
     Type::Ref(Box::new(ty))
 }

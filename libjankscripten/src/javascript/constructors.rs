@@ -156,10 +156,10 @@ pub fn lambda<I: Into<Id>>(b: Vec<I>, c: Stmt, s: Span) -> Expr {
 }
 
 // lvals
-pub fn lval_id_<I: Into<Id>>(a: I, s: Span) -> LValue {
+pub fn lval_id_<I: Into<Id>>(a: I, _s: Span) -> LValue {
     LValue::Id(a.into())
 }
 
-pub fn lval_dot_<I: Into<Id>>(a: Expr, b: I, s: Span) -> LValue {
+pub fn lval_dot_<I: Into<Id>>(a: Expr, b: I, _s: Span) -> LValue {
     LValue::Dot(a, b.into())
 }

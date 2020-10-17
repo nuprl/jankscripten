@@ -121,7 +121,7 @@ pub fn program2_(main: Function, other: Function) -> Program {
 pub fn test_program_(body: Stmt) -> Program {
     program1_(func_i32_(body, DUMMY_SP))
 }
-pub fn func_i32_(body: Stmt, s: Span) -> Function {
+pub fn func_i32_(body: Stmt, _s: Span) -> Function {
     Function {
         body,
         fn_type: FnType {

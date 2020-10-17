@@ -305,7 +305,7 @@ impl Stmt {
     ///         match stmt {
     ///             Stmt::Empty => {
     ///                 let old = stmt.take();
-    ///                 *stmt = Stmt::Block(vec![]);
+    ///                 *stmt = old;
     ///             }
     ///             _ => (),
     ///         }
