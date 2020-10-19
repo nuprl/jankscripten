@@ -18,13 +18,13 @@ impl Visitor for LabelAppsVisitor {
     fn exit_stmt(&mut self, stmt: &mut Stmt) {
         use Stmt::*;
         match stmt {
-            Assign(_, Expr::Call(..)) => {
-                *stmt = label_(super::syntax::Label::App(self.n), stmt.take());
+            &mut Assign(_, Expr::Call(..), s) => {
+                *stmt = label_(super::syntax::Label::App(self.n), stmt.take(), s);
                 self.n += 1;
             }
-            Var(var_stmt) => {
+            &mut Var(ref mut var_stmt, s) => {
                 if let Expr::Call(..) = var_stmt.named {
-                    *stmt = label_(super::syntax::Label::App(self.n), stmt.take());
+                    *stmt = label_(super::syntax::Label::App(self.n), stmt.take(), s);
                     self.n += 1;
                 }
             }
@@ -48,16 +48,25 @@ mod test {
             "#,
         );
         label_apps(&mut program);
-        let expected_body = Stmt::Block(vec![
-            label_(
-                Label::App(0),
-                Stmt::Var(VarStmt::new(id_("x"), Expr::Call(id_("aCall"), vec![]))),
-            ),
-            label_(
-                Label::App(1),
-                Stmt::Assign(id_("x"), Expr::Call(id_("callTwo"), vec![])),
-            ),
-        ]);
+        let s = DUMMY_SP;
+        let expected_body = Stmt::Block(
+            vec![
+                label_(
+                    Label::App(0),
+                    Stmt::Var(
+                        VarStmt::new(id_("x"), Expr::Call(id_("aCall"), vec![], s)),
+                        s,
+                    ),
+                    s,
+                ),
+                label_(
+                    Label::App(1),
+                    Stmt::Assign(id_("x"), Expr::Call(id_("callTwo"), vec![], s), s),
+                    s,
+                ),
+            ],
+            s,
+        );
         let expected = test_program_(expected_body);
         assert_eq!(program, expected);
     }

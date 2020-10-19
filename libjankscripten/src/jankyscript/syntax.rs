@@ -2,9 +2,11 @@
 
 use crate::rts_function::RTSFunction;
 pub use crate::shared::coercions::Coercion;
+pub use crate::shared::Span;
 pub use crate::shared::Type;
 use im_rc::HashMap;
 use im_rc::HashSet as ImmHashSet;
+pub use swc_common::DUMMY_SP;
 
 pub type Id = super::super::javascript::Id;
 pub type Lit = super::super::javascript::Lit;
@@ -86,43 +88,43 @@ impl Func {
 
 #[derive(Debug, PartialEq)]
 pub enum Expr {
-    Lit(Lit),
-    Array(Vec<Expr>),
-    Object(Vec<(Key, Expr)>),
-    Id(Id, Type),
-    Dot(Box<Expr>, Id),
-    Bracket(Box<Expr>, Box<Expr>),
-    Unary(UnaryOp, Box<Expr>),
-    Binary(BinaryOp, Box<Expr>, Box<Expr>),
-    Assign(Box<LValue>, Box<Expr>),
-    Call(Box<Expr>, Vec<Expr>),
-    PrimCall(RTSFunction, Vec<Expr>),
-    Func(Func),
-    Closure(Func, Vec<(Expr, Type)>),
-    Coercion(Coercion, Box<Expr>),
+    Lit(Lit, Span),
+    Array(Vec<Expr>, Span),
+    Object(Vec<(Key, Expr)>, Span),
+    Id(Id, Type, Span),
+    Dot(Box<Expr>, Id, Span),
+    Bracket(Box<Expr>, Box<Expr>, Span),
+    Unary(UnaryOp, Box<Expr>, Span),
+    Binary(BinaryOp, Box<Expr>, Box<Expr>, Span),
+    Assign(Box<LValue>, Box<Expr>, Span),
+    Call(Box<Expr>, Vec<Expr>, Span),
+    PrimCall(RTSFunction, Vec<Expr>, Span),
+    Func(Func, Span),
+    Closure(Func, Vec<(Expr, Type)>, Span),
+    Coercion(Coercion, Box<Expr>, Span),
     /// Create a new heap-allocated box, with contents of type T.
-    NewRef(Box<Expr>, Type),
+    NewRef(Box<Expr>, Type, Span),
     /// Read from a heap-allocated box
-    Deref(Box<Expr>, Type),
+    Deref(Box<Expr>, Type, Span),
     /// Update the contents of a heap-allocated box.
     /// stores .1 into the location indicated by .0
-    Store(Box<Expr>, Box<Expr>, Type),
+    Store(Box<Expr>, Box<Expr>, Type, Span),
     /// the index of the variable
-    EnvGet(u32, Type),
+    EnvGet(u32, Type, Span),
 }
 
 #[derive(Debug, PartialEq)]
 pub enum Stmt {
-    Var(Id, Type, Box<Expr>),
-    Block(Vec<Stmt>),
+    Var(Id, Type, Box<Expr>, Span),
+    Block(Vec<Stmt>, Span),
     Empty,
-    Expr(Box<Expr>),
-    If(Box<Expr>, Box<Stmt>, Box<Stmt>),
-    Loop(Box<Stmt>),
-    Label(Id, Box<Stmt>),
-    Break(Id),
-    Catch(Box<Stmt>, Id, Box<Stmt>),
-    Finally(Box<Stmt>, Box<Stmt>),
-    Throw(Box<Expr>),
-    Return(Box<Expr>),
+    Expr(Box<Expr>, Span),
+    If(Box<Expr>, Box<Stmt>, Box<Stmt>, Span),
+    Loop(Box<Stmt>, Span),
+    Label(Id, Box<Stmt>, Span),
+    Break(Id, Span),
+    Catch(Box<Stmt>, Id, Box<Stmt>, Span),
+    Finally(Box<Stmt>, Box<Stmt>, Span),
+    Throw(Box<Expr>, Span),
+    Return(Box<Expr>, Span),
 }

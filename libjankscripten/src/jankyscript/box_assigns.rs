@@ -49,10 +49,18 @@ impl Visitor for BoxVisitor {
             if self.should_box(name) {
                 let real_name = name.clone();
                 *name = self.ng.fresh("to_box");
-                func.body = Box::new(block_(vec![
-                    var_(real_name, ty.clone(), Expr::Id(name.clone(), ty.clone())),
-                    (*func.body).take(),
-                ]));
+                func.body = Box::new(block_(
+                    vec![
+                        var_(
+                            real_name,
+                            ty.clone(),
+                            Expr::Id(name.clone(), ty.clone(), DUMMY_SP),
+                            DUMMY_SP,
+                        ),
+                        (*func.body).take(),
+                    ],
+                    DUMMY_SP,
+                ));
             }
         }
     }
@@ -61,16 +69,16 @@ impl Visitor for BoxVisitor {
     }
     fn exit_expr(&mut self, expr: &mut Expr, _: &Loc) {
         match expr {
-            Expr::Id(id, ty) if self.should_box(id) => {
+            &mut Expr::Id(ref id, ref mut ty, s) if self.should_box(id) => {
                 let old_ty = ty.clone();
-                let new_ty = ref_ty_(old_ty.clone());
+                let new_ty = ref_ty_(old_ty.clone(), s);
                 *ty = new_ty.clone();
-                *expr = deref_(expr.take(), old_ty)
+                *expr = deref_(expr.take(), old_ty, s)
             }
-            Expr::Assign(lv, to) => {
+            Expr::Assign(lv, to, s) => {
                 match &mut **lv {
                     LValue::Id(id, ty) if self.should_box(id) => {
-                        *expr = store_(id.clone(), to.take(), ty.clone())
+                        *expr = store_(id.clone(), to.take(), ty.clone(), *s)
                     }
                     // []/. => boxed already!
                     _ => (),
@@ -81,8 +89,8 @@ impl Visitor for BoxVisitor {
     }
     fn exit_stmt(&mut self, stmt: &mut Stmt, _: &Loc) {
         match stmt {
-            Stmt::Var(id, ty, expr) if self.should_box(id) => {
-                *stmt = var_to_new_ref(id.clone(), ty, expr.take());
+            Stmt::Var(id, ty, expr, s) if self.should_box(id) => {
+                *stmt = var_to_new_ref(id.clone(), ty, expr.take(), *s);
             }
             _ => (),
         }
@@ -102,10 +110,11 @@ impl BoxVisitor {
 
 /// provide: the name to assign to; the type of the expr unboxed, and the
 /// expr the var is assigned to
-fn var_to_new_ref(id: Id, ty: &Type, expr: Expr) -> Stmt {
+fn var_to_new_ref(id: Id, ty: &Type, expr: Expr, s: Span) -> Stmt {
     var_(
         id,
         Type::Ref(Box::new(ty.clone())),
-        new_ref_(expr, ty.clone()),
+        new_ref_(expr, ty.clone(), s),
+        s,
     )
 }

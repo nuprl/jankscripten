@@ -1,4 +1,5 @@
 use super::constructors as ctor;
+use super::syntax::DUMMY_SP as D_S;
 use super::syntax::*;
 use combine::parser;
 use combine::parser::char::{alpha_num, letter, string};
@@ -74,7 +75,7 @@ parser! {
             .and(optional(binop_prec_mul(lang)
                 .and(product(lang))))
             .map(|(lhs, maybe_op_rhs)| match maybe_op_rhs {
-                Some((op, rhs)) => ctor::binary_(op, lhs, rhs),
+                Some((op, rhs)) => ctor::binary_(op, lhs, rhs, D_S),
                 None => lhs,
             })
     }
@@ -88,7 +89,7 @@ parser! {
             .and(optional(binop_prec_add(lang)
                 .and(atom(lang))))
             .map(|(lhs, maybe_op_rhs)| match maybe_op_rhs {
-                Some((op, rhs)) => ctor::binary_(op, lhs, rhs),
+                Some((op, rhs)) => ctor::binary_(op, lhs, rhs, D_S),
                 None => lhs,
             })
     }
@@ -99,42 +100,42 @@ parser! {
     where [I: Stream<Item = char>]
     {
         lang.reserved("sqrt").with(lang.parens(atom(lang)))
-            .map(|a| ctor::sqrt_(a))
+            .map(|a| ctor::sqrt_(a, D_S))
         .or(lang.reserved("strlen").with(lang.parens(atom(lang)))
-            .map(|a| ctor::len_(a)))
+            .map(|a| ctor::len_(a, D_S)))
         .or(
             lang.reserved("any")
                 .with(lang.parens(atom(lang)))
-                .map(|a| ctor::to_any_(a)))
+                .map(|a| ctor::to_any_(a, D_S)))
         .or(
             lang.reserved("env").skip(lang.reserved_op("."))
                 .with(lang.integer())
                 .skip(lang.reserved_op(":"))
                 .and(type_(lang))
-                .map(|(i, ty)| Atom::EnvGet(i as u32, ty)))
+                .map(|(i, ty)| Atom::EnvGet(i as u32, ty, D_S)))
         .or(lang.reserved("rt").with(lang.parens(id(lang)))
-            .map(|id| Atom::GetPrimFunc(id)))
-        .or(lit(lang).map(|l| Atom::Lit(l)))
+            .map(|id| Atom::GetPrimFunc(id, D_S)))
+        .or(lit(lang).map(|l| Atom::Lit(l, D_S)))
         .or(attempt(id(lang)
             .skip(lang.reserved_op("."))
             .and(id(lang))
             .map(|(x, field)|
                 ctor::object_get_(
-                    Atom::Id(x),
-                    ctor::str_(field.into_name()),
-                )
+                    Atom::Id(x, D_S),
+                    ctor::str_(field.into_name(), D_S),
+                D_S)
             ))
         )
         .or(attempt(id(lang)
             .skip(lang.reserved_op("<<"))
             .and(id(lang))
             .map(|(x, field)| if field == ctor::id_("length") {
-                ctor::array_len_(Atom::Id(x))
+                ctor::array_len_(Atom::Id(x, D_S), D_S)
             } else {
                 ctor::ht_get_(
-                    Atom::Id(x),
-                    ctor::str_(field.into_name()),
-                )
+                    Atom::Id(x, D_S),
+                    ctor::str_(field.into_name(), D_S),
+                D_S)
             }))
         )
         .or(attempt(id(lang)
@@ -142,18 +143,18 @@ parser! {
             .and(atom(lang))
             .skip(lang.reserved_op("]"))
             .map(|(array, index)| ctor::index_(
-                Atom::Id(array),
+                Atom::Id(array, D_S),
                 index,
-            )))
+            D_S)))
         )
-        .or(id(lang).map(|i| Atom::Id(i)))
+        .or(id(lang).map(|i| Atom::Id(i, D_S)))
         .or(lang.parens(atom(lang)))
         .or(lang.reserved_op("*").with(atom(lang)).skip(lang.reserved_op(":"))
-            .and(type_(lang)).map(|(a, ty)| ctor::deref_(a, ty)))
+            .and(type_(lang)).map(|(a, ty)| ctor::deref_(a, ty, D_S)))
         .and(optional(
             lang.reserved("as").with(type_(lang))))
         .map(|(atom, maybe_as_ty)| match maybe_as_ty {
-            Some(ty) => ctor::from_any_(atom, ty),
+            Some(ty) => ctor::from_any_(atom, ty, D_S),
             None => atom,
         })
     }
@@ -171,20 +172,20 @@ parser! {
                     .and(sep_by(
                             atom(lang).skip(lang.reserved_op(":")).and(type_(lang)),
                             lang.reserved_op(",")))))
-                .map(|(id, vars)| Expr::Closure(id, vars)))
+                .map(|(id, vars)| Expr::Closure(id, vars, D_S)))
         .or(lang.reserved("arrayPush")
             .with(lang.parens(atom(lang).skip(lang.reserved_op(",")).and(atom(lang))))
-            .map(|(array, member)| Expr::Push(array, member)))
+            .map(|(array, member)| Expr::Push(array, member, D_S)))
         .or(lang.reserved("sqrt").with(lang.parens(atom(lang)))
-            .map(|a| Expr::Atom(ctor::sqrt_(a))))
-        .or(lang.reserved_op("newRef").with(lang.parens(atom(lang).skip(lang.reserved_op(",")).and(type_(lang)))).map(|(val, ty)| Expr::NewRef(val, ty)))
+            .map(|a| Expr::Atom(ctor::sqrt_(a, D_S), D_S)))
+        .or(lang.reserved_op("newRef").with(lang.parens(atom(lang).skip(lang.reserved_op(",")).and(type_(lang)))).map(|(val, ty)| Expr::NewRef(val, ty, D_S)))
         .or(attempt(id(lang).skip(lang.reserved_op("!"))
             .and(lang.parens(sep_by(id(lang), lang.reserved_op(","))))
-            .map(|(f, args)| Expr::ClosureCall(f, args))))
+            .map(|(f, args)| Expr::ClosureCall(f, args, D_S))))
         .or(attempt(id(lang)
             .and(lang.parens(sep_by(id(lang), lang.reserved_op(","))))
-            .map(|(f, args)| Expr::Call(f, args))))
-        .or(atom(lang).map(|a| Expr::Atom(a)))
+            .map(|(f, args)| Expr::Call(f, args, D_S))))
+        .or(atom(lang).map(|a| Expr::Atom(a, D_S)))
     }
 }
 
@@ -231,7 +232,7 @@ parser! {
             .skip(lang.reserved_op("="))
             .and(expr(lang))
             .skip(lang.reserved_op(";"))
-            .map(|((id, ty), named)| Stmt::Var(VarStmt { id, named, ty }));
+            .map(|((id, ty), named)| Stmt::Var(VarStmt { id, named, ty }, D_S));
 
         enum IdRhsInStmt {
             Expr(Expr),
@@ -242,8 +243,8 @@ parser! {
            .and((lang.reserved_op("=").with(expr(lang)).skip(lang.reserved_op(";")).map(|e| IdRhsInStmt::Expr(e)))
                 .or(lang.reserved_op(":").with(block(lang)).map(|s| IdRhsInStmt::Stmt(s))))
            .map(|(x, rhs)| match rhs {
-               IdRhsInStmt::Expr(e) => Stmt::Assign(x, e),
-               IdRhsInStmt::Stmt(s) => ctor::label_(x.into_name(), s)
+               IdRhsInStmt::Expr(e) => Stmt::Assign(x, e, D_S),
+               IdRhsInStmt::Stmt(s) => ctor::label_(x.into_name(), s, D_S)
            }));
 
         let object_set = id(lang)
@@ -255,10 +256,10 @@ parser! {
             .map(|((ht, field), atom)| Stmt::Var(
                 VarStmt::new(ctor::id_("_"),
                 Expr::ObjectSet(
-                    Atom::Id(ht),
-                    ctor::str_(field.into_name()),
+                    Atom::Id(ht, D_S),
+                    ctor::str_(field.into_name(), D_S),
                     atom,
-                ))));
+                D_S)), D_S));
 
         let ht_set = attempt(id(lang)
             .skip(lang.reserved_op("<<"))
@@ -270,44 +271,44 @@ parser! {
                 VarStmt::new(
                     ctor::id_("_"),
                     Expr::HTSet(
-                        Atom::Id(ht),
-                        ctor::str_(field.into_name()),
-                        atom)))));
+                        Atom::Id(ht, D_S),
+                        ctor::str_(field.into_name(), D_S),
+                        atom, D_S)), D_S)));
 
         let if_ = lang.reserved("if")
             .with(lang.parens(atom(lang)))
             .and(block(lang))
             .skip(lang.reserved("else"))
             .and(block(lang))
-            .map(|((a, s1), s2)| Stmt::If(a, Box::new(s1), Box::new(s2)));
+            .map(|((a, s1), s2)| Stmt::If(a, Box::new(s1), Box::new(s2), D_S));
 
         let loop_ = lang.reserved("loop")
             .with(block(lang))
-            .map(|s| Stmt::Loop(Box::new(s)));
+            .map(|s| Stmt::Loop(Box::new(s), D_S));
 
         let return_ = lang.reserved("return")
             .with(atom(lang))
             .skip(lang.reserved_op(";"))
-            .map(|a| Stmt::Return(a));
+            .map(|a| Stmt::Return(a, D_S));
 
         let break_ = lang.reserved("break")
             .with(id(lang))
             .skip(lang.reserved_op(";"))
-            .map(|l| Stmt::Break(Label::Named(l.into_name())));
+            .map(|l| Stmt::Break(Label::Named(l.into_name()), D_S));
 
         let while_ = lang.reserved("while")
             .with(lang.parens(atom(lang)))
             .and(block(lang))
-            .map(|(test,body)| ctor::while_(test, body));
+            .map(|(test,body)| ctor::while_(test, body, D_S));
 
         let store = lang.reserved_op("*")
             .with(id(lang))
             .skip(lang.reserved_op("="))
             .and(expr(lang))
             .skip(lang.reserved_op(";"))
-            .map(|(id, expr)| Stmt::Store(id, expr));
+            .map(|(id, expr)| Stmt::Store(id, expr, D_S));
 
-        let expression = expr(lang).skip(lang.reserved_op(";")).map(|e| Stmt::Expression(e));
+        let expression = expr(lang).skip(lang.reserved_op(";")).map(|e| Stmt::Expression(e, D_S));
 
         choice((
             var,
@@ -331,7 +332,7 @@ parser! {
     where [I: Stream<Item = char>]
     {
         lang.braces(many(stmt(lang)))
-            .map(|ss| Stmt::Block(ss))
+            .map(|ss| Stmt::Block(ss, D_S))
     }
 }
 

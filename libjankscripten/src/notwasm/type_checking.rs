@@ -155,7 +155,7 @@ fn type_check_function(mut env: Env, id: &Id, f: &mut Function) -> TypeCheckingR
 fn type_check_stmt(env: Env, s: &mut Stmt, ret_ty: &Option<Type>) -> TypeCheckingResult<Env> {
     match s {
         Stmt::Empty => Ok(env),
-        Stmt::Var(var_stmt) => {
+        Stmt::Var(var_stmt, _) => {
             let ty = type_check_expr(&env, &mut var_stmt.named)?;
             var_stmt.set_ty(ty.clone());
             let id = &var_stmt.id;
@@ -173,12 +173,12 @@ fn type_check_stmt(env: Env, s: &mut Stmt, ret_ty: &Option<Type>) -> TypeCheckin
                 Ok(env.update(id.clone(), ty.clone()))
             }
         }
-        Stmt::Expression(e) => {
+        Stmt::Expression(e, _) => {
             let _ = type_check_expr(&env, e)?;
 
             Ok(env)
         }
-        Stmt::Store(id, e) => {
+        Stmt::Store(id, e, _) => {
             let got_id = lookup(&env, id)?;
             let got_expr = type_check_expr(&env, e)?;
 
@@ -188,14 +188,14 @@ fn type_check_stmt(env: Env, s: &mut Stmt, ret_ty: &Option<Type>) -> TypeCheckin
 
             Ok(env)
         }
-        Stmt::Assign(id, e) => {
+        Stmt::Assign(id, e, _) => {
             let got_id = lookup(&env, id)?;
             let got_expr = type_check_expr(&env, e)?;
             ensure("assign", got_id, got_expr)?;
 
             Ok(env)
         }
-        Stmt::If(a_cond, s_then, s_else) => {
+        Stmt::If(a_cond, s_then, s_else, _) => {
             let got = type_check_atom(&env, a_cond)?;
             let _ = ensure("if (conditional)", Type::Bool, got)?;
 
@@ -205,17 +205,17 @@ fn type_check_stmt(env: Env, s: &mut Stmt, ret_ty: &Option<Type>) -> TypeCheckin
 
             Ok(env)
         }
-        Stmt::Loop(s_body) => {
+        Stmt::Loop(s_body, _) => {
             type_check_stmt(env.clone(), s_body, ret_ty)?;
             Ok(env)
         }
-        Stmt::Label(_lbl, s_body) => {
+        Stmt::Label(_lbl, s_body, _) => {
             // LATER label checking
             type_check_stmt(env.clone(), s_body, ret_ty)?;
             Ok(env)
         }
-        Stmt::Break(_lbl) => Ok(env),
-        Stmt::Return(a) => {
+        Stmt::Break(_lbl, _) => Ok(env),
+        Stmt::Return(a, _) => {
             let got = type_check_atom(&env, a)?;
 
             // ??? MMG if ret_ty = None, can one return early?
@@ -228,7 +228,7 @@ fn type_check_stmt(env: Env, s: &mut Stmt, ret_ty: &Option<Type>) -> TypeCheckin
                 }
             }
         }
-        Stmt::Block(ss) => {
+        Stmt::Block(ss, _) => {
             let mut env_inner = env.clone();
 
             for s in ss.iter_mut() {
@@ -238,7 +238,7 @@ fn type_check_stmt(env: Env, s: &mut Stmt, ret_ty: &Option<Type>) -> TypeCheckin
             Ok(env)
         }
         Stmt::Trap => Ok(env),
-        Stmt::Goto(_lbl) => unimplemented!(),
+        Stmt::Goto(_lbl, _) => unimplemented!(),
     }
 }
 
@@ -247,7 +247,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
         Expr::HT => Ok(Type::HT),
         Expr::Array => Ok(Type::Array),
         Expr::ObjectEmpty => Ok(Type::DynObject),
-        Expr::Push(a_arr, a_elt) => {
+        Expr::Push(a_arr, a_elt, _) => {
             let got_arr = type_check_atom(env, a_arr)?;
             let got_elt = type_check_atom(env, a_elt)?;
 
@@ -256,7 +256,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
 
             Ok(Type::I32) // returns length
         }
-        Expr::ArraySet(a_arr, a_idx, a_val) => {
+        Expr::ArraySet(a_arr, a_idx, a_val, _) => {
             let got_arr = type_check_atom(env, a_arr)?;
             let got_idx = type_check_atom(env, a_idx)?;
             let got_val = type_check_atom(env, a_val)?;
@@ -265,7 +265,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             let _ = ensure("array set (value)", Type::Any, got_val);
             Ok(Type::Any)
         }
-        Expr::HTSet(a_ht, a_field, a_val) => {
+        Expr::HTSet(a_ht, a_field, a_val, _) => {
             let got_ht = type_check_atom(env, a_ht)?;
             let got_field = type_check_atom(env, a_field)?;
             let got_val = type_check_atom(env, a_val)?;
@@ -276,7 +276,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
 
             Ok(Type::Any) // returns value set
         }
-        Expr::ObjectSet(a_obj, a_field, a_val) => {
+        Expr::ObjectSet(a_obj, a_field, a_val, _) => {
             let got_obj = type_check_atom(env, a_obj)?;
             let got_field = type_check_atom(env, a_field)?;
             let got_val = type_check_atom(env, a_val)?;
@@ -287,7 +287,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
 
             Ok(Type::Any) // returns value set
         }
-        Expr::PrimCall(prim, args) => {
+        Expr::PrimCall(prim, args, _) => {
             match prim.janky_typ().notwasm_typ() {
                 Type::Fn(fn_ty) => {
                     let arg_tys = args
@@ -318,7 +318,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
                 _ => error!("primitive is not a function ({:?})", prim),
             }
         }
-        Expr::Call(id_f, actuals) => {
+        Expr::Call(id_f, actuals, _) => {
             let got_f = lookup(env, id_f)?;
             if let Type::Fn(fn_ty) = got_f {
                 type_check_call(env, id_f, actuals, fn_ty, false)
@@ -326,7 +326,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
                 Err(TypeCheckingError::ExpectedFunction(id_f.clone(), got_f))
             }
         }
-        Expr::ClosureCall(id_f, actuals) => {
+        Expr::ClosureCall(id_f, actuals, _) => {
             let got_f = lookup(env, id_f)?;
             if let Type::Closure(fn_ty) = got_f {
                 type_check_call(env, id_f, actuals, fn_ty, true)
@@ -334,16 +334,16 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
                 Err(TypeCheckingError::ExpectedFunction(id_f.clone(), got_f))
             }
         }
-        Expr::NewRef(a, ty) => {
+        Expr::NewRef(a, ty, _) => {
             let actual = type_check_atom(env, a)?;
             ensure("new ref", ty.clone(), actual)?;
             Ok(ref_ty_(ty.clone()))
         }
-        Expr::Atom(a) => type_check_atom(env, a),
+        Expr::Atom(a, _) => type_check_atom(env, a),
         // this is really an existential type but for now i'm gonna try to
         // get away with pretending Type::Closure((i32) -> i32; [i32]) ==
         // Type::Closure((i32 -> i32; [])
-        Expr::Closure(id, _) => match lookup(env, id) {
+        Expr::Closure(id, _, _) => match lookup(env, id) {
             Ok(Type::Fn(fn_ty)) => Ok(Type::Closure(fn_ty)),
             Ok(got) => Err(TypeCheckingError::ExpectedFunction(id.clone(), got)),
             Err(e) => Err(e),
@@ -430,54 +430,54 @@ fn assert_variant_of_any(ty: &Type) -> TypeCheckingResult<()> {
 
 fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
     match a {
-        Atom::Deref(a, ty) => ensure(
+        Atom::Deref(a, ty, _) => ensure(
             "dereference",
             ty.clone(),
             ensure_ref("deref atom", type_check_atom(env, a)?)?,
         ),
-        Atom::Lit(l) => Ok(l.notwasm_typ()),
-        Atom::ToAny(to_any) => {
+        Atom::Lit(l, _) => Ok(l.notwasm_typ()),
+        Atom::ToAny(to_any, _) => {
             let ty = type_check_atom(env, &mut to_any.atom)?;
             assert_variant_of_any(&ty)?;
             to_any.set_ty(ty);
             Ok(Type::Any)
         }
-        Atom::FromAny(a, ty) => {
+        Atom::FromAny(a, ty, _) => {
             let got = type_check_atom(env, a)?;
             ensure("from_any", Type::Any, got)?;
             Ok(ty.clone())
         }
-        Atom::FloatToInt(a) => {
+        Atom::FloatToInt(a, _) => {
             let got = type_check_atom(env, a)?;
             ensure("float to int", Type::F64, got)?;
             Ok(Type::I32)
         }
-        Atom::IntToFloat(a) => {
+        Atom::IntToFloat(a, _) => {
             let got = type_check_atom(env, a)?;
             ensure("int to float", Type::I32, got)?;
             Ok(Type::F64)
         }
-        Atom::Id(id) => lookup(env, id),
-        Atom::GetPrimFunc(id) => lookup(env, id),
-        Atom::StringLen(a) => {
+        Atom::Id(id, _) => lookup(env, id),
+        Atom::GetPrimFunc(id, _) => lookup(env, id),
+        Atom::StringLen(a, _) => {
             let ty = type_check_atom(env, a)?;
             let _ = ensure("string len", Type::String, ty)?;
 
             Ok(Type::I32)
         }
-        Atom::ArrayLen(a) => {
+        Atom::ArrayLen(a, _) => {
             let got = type_check_atom(env, a)?;
             ensure("array len", Type::Array, got)?;
             Ok(Type::I32)
         }
-        Atom::Index(a_arr, a_idx) => {
+        Atom::Index(a_arr, a_idx, _) => {
             let got_arr = type_check_atom(env, a_arr)?;
             let got_idx = type_check_atom(env, a_idx)?;
             let _ = ensure("arrayi ndex (index)", Type::I32, got_idx)?;
             let _ = ensure("array index (array)", Type::Array, got_arr);
             Ok(Type::Any)
         }
-        Atom::ObjectGet(a_obj, a_field) => {
+        Atom::ObjectGet(a_obj, a_field, _) => {
             let got_obj = type_check_atom(env, a_obj)?;
             let got_field = type_check_atom(env, a_field)?;
 
@@ -485,7 +485,7 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             let _ = ensure("object field", Type::DynObject, got_obj)?;
             Ok(Type::Any)
         }
-        Atom::HTGet(a_ht, a_field) => {
+        Atom::HTGet(a_ht, a_field, _) => {
             let got_ht = type_check_atom(env, a_ht)?;
             let got_field = type_check_atom(env, a_field)?;
 
@@ -494,19 +494,19 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
 
             Ok(Type::Any)
         }
-        Atom::Unary(op, a) => {
+        Atom::Unary(op, a, _) => {
             let (ty_in, ty_out) = op.notwasm_typ();
             let got = type_check_atom(env, a)?;
             let _ = ensure(&format!("unary ({:?})", op), ty_in, got)?;
             Ok(ty_out)
         }
-        Atom::Binary(BinaryOp::PtrEq, a_l, a_r) => {
+        Atom::Binary(BinaryOp::PtrEq, a_l, a_r, _) => {
             let got_l = type_check_atom(env, a_l)?;
             let got_r = type_check_atom(env, a_r)?;
             let _ = ensure("binary (===) lhs", got_l.clone(), got_r.clone())?;
             Ok(Type::Bool)
         }
-        Atom::Binary(op, a_l, a_r) => {
+        Atom::Binary(op, a_l, a_r, _) => {
             let (ty_in, ty_out) = op.notwasm_typ();
             let got_l = type_check_atom(env, a_l)?;
             let got_r = type_check_atom(env, a_r)?;
@@ -514,6 +514,6 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             let _ = ensure(&format!("binary ({:?}) lhs", op), ty_in, got_r)?;
             Ok(ty_out)
         }
-        Atom::EnvGet(_, ty) => Ok(ty.clone()),
+        Atom::EnvGet(_, ty, _) => Ok(ty.clone()),
     }
 }
