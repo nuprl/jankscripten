@@ -103,9 +103,9 @@ where
             // 0
             Empty | Break(..) | Goto(..) | Trap => (),
             // 1xStmt
-            Label(.., a) | Loop(a) => self.walk_stmt(a, loc),
+            Label(.., a, _) | Loop(a, _) => self.walk_stmt(a, loc),
             // 1x[Stmt]
-            Block(ss) => {
+            Block(ss, _) => {
                 let mut block_cxt = BlockContext::new(0, ss.len());
                 for (index, s) in ss.iter_mut().enumerate() {
                     block_cxt.index = index;
@@ -114,15 +114,15 @@ where
                 }
                 block_cxt.apply_patches(ss);
             }
-            Var(var_stmt) => {
+            Var(var_stmt, _) => {
                 self.walk_expr(&mut var_stmt.named, loc);
             }
             // 1xExpr
-            Expression(a) | Assign(.., a) | Store(.., a) => self.walk_expr(a, loc),
+            Expression(a, _) | Assign(.., a, _) | Store(.., a, _) => self.walk_expr(a, loc),
             // 1xAtom
-            Return(a) => self.walk_atom(a, loc),
+            Return(a, _) => self.walk_atom(a, loc),
             // 1xExpr, 2xStmt
-            If(e, sa, sb) => {
+            If(e, sa, sb, _) => {
                 self.walk_atom(e, loc);
                 self.walk_stmt(sa, loc);
                 self.walk_stmt(sb, loc);
@@ -135,8 +135,8 @@ where
         use Expr::*;
         self.visitor.enter_expr(expr, loc);
         match expr {
-            ObjectEmpty | HT | Array | Call(..) | PrimCall(..) => (),
-            HTSet(ea, eb, ec, ..) | ObjectSet(ea, eb, ec, ..) | ArraySet(ea, eb, ec) => {
+            ObjectEmpty | HT | Array | Call(..) | ClosureCall(..) | PrimCall(..) => (),
+            HTSet(ea, eb, ec, ..) | ObjectSet(ea, eb, ec, ..) | ArraySet(ea, eb, ec, _) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
                 self.walk_atom(ec, loc);
@@ -145,7 +145,12 @@ where
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
             }
-            NewRef(a) | Atom(a, ..) => self.walk_atom(a, loc),
+            NewRef(a, ..) | Atom(a, ..) => self.walk_atom(a, loc),
+            Closure(_, has_atoms, _) => {
+                for (a, _) in has_atoms {
+                    self.walk_atom(a, loc);
+                }
+            }
         }
         self.visitor.exit_expr(expr, loc);
     }
@@ -155,19 +160,22 @@ where
         self.visitor.enter_atom(atom, loc);
         match atom {
             // 0
-            Lit(..) | Id(..) | GetPrimFunc(..) | Deref(..) => (),
-            ToAny(to_any) => {
+            Lit(..) | Id(..) | GetPrimFunc(..) | Deref(..) | EnvGet(..) => (),
+            ToAny(to_any, _) => {
                 self.walk_atom(to_any.atom.as_mut(), loc);
             }
-            FloatToInt(ea)
-            | IntToFloat(ea)
-            | StringLen(ea)
+            FloatToInt(ea, _)
+            | IntToFloat(ea, _)
+            | StringLen(ea, _)
             | ArrayLen(ea, ..)
-            | Unary(.., ea)
+            | Unary(.., ea, _)
             | FromAny(ea, ..) => {
                 self.walk_atom(ea, loc);
             }
-            HTGet(ea, eb, ..) | ObjectGet(ea, eb, ..) | Binary(.., ea, eb) | Index(ea, eb, ..) => {
+            HTGet(ea, eb, ..)
+            | ObjectGet(ea, eb, ..)
+            | Binary(.., ea, eb, _)
+            | Index(ea, eb, ..) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
             }
@@ -210,7 +218,7 @@ impl Atom {
     /// value. this is used to gain ownership of a mutable reference,
     /// especially in [Atom::walk]
     pub fn take(&mut self) -> Self {
-        std::mem::replace(self, Atom::Lit(Lit::Bool(false)))
+        std::mem::replace(self, Atom::Lit(Lit::Bool(false), DUMMY_SP))
     }
 }
 

@@ -1,9 +1,10 @@
 // An implementation of our simplified JavaScript parser using swc_ecma_parser
 // as a backend.
 
+#![allow(unused_variables)]
+
 use super::constructors::*;
 use super::syntax as S;
-use swc_atoms::JsWord;
 use swc_common::{FileName, SourceMap, Span};
 use swc_ecma_ast as swc;
 use swc_ecma_parser::{lexer, Parser, StringInput, Syntax};
@@ -15,11 +16,11 @@ pub enum ParseError {
     /// An error from the SWC parser.
     #[error("SWC error")]
     // TODO(mark): figure out how to print the error, it doesn't
-    //             implement the Display trait or anything like it
+    //             implement the Display trait or anything like it.
+    // NOTE(arjun): It looks like it contains a (Span, SyntaxError), where
+    // both types are defined in an swc_ module. I suspect the SyntaxError
+    // can be printed.
     SWC(swc_ecma_parser::error::Error),
-    /// An error while parsing a string literal
-    #[error("String literal parse error: {0}")]
-    String(String),
     /// The SWC AST had a JavaScript feature that we do not support.
     #[error("Unsupported: {0}")]
     Unsupported(String),
@@ -37,7 +38,7 @@ impl From<swc_ecma_parser::error::Error> for ParseError {
 /// Parse a full JavaScript program from source code into our JavaScript AST.
 pub fn parse(js_code: &str) -> ParseResult<S::Stmt> {
     // The SourceMap keeps track of all the source files given to the parser.
-    // All sourcespans given to us by the parser library are actually indices
+    // All spans given to us by the parser library are actually indices
     // into this source map.
     let source_map: SourceMap = Default::default();
 
@@ -49,7 +50,7 @@ pub fn parse(js_code: &str) -> ParseResult<S::Stmt> {
 
     // Create a lexer for the parser
     let lexer = lexer::Lexer::new(
-        // We want to parse ecmascript
+        // We want to parse ECMAScript
         Syntax::Es(Default::default()),
         // JscTarget defaults to es5
         Default::default(),
@@ -65,11 +66,6 @@ pub fn parse(js_code: &str) -> ParseResult<S::Stmt> {
 
     // Parse the library's AST into our AST
     parse_script(script, &source_map)
-}
-
-/// A parsing result used for an unsupported feature of JavaScript.
-fn unsupported<T>(span: Span, source_map: &SourceMap) -> Result<T, ParseError> {
-    unsupported_message("unsupported feature", span, source_map)
 }
 
 macro_rules! unsupported {
@@ -98,15 +94,6 @@ fn unsupported_error(msg: &str, span: Span, source_map: &SourceMap) -> ParseErro
     ParseError::Unsupported(format!("{} at {}", msg, source_map.span_to_string(span)))
 }
 
-/// An error occurred while attempting to parse a string literal from the SWC AST
-fn str_error(msg: &str, span: Span, source_map: &SourceMap) -> ParseError {
-    ParseError::String(format!(
-        "tried to parse string literal at {} but failed at {}",
-        source_map.span_to_string(span),
-        msg
-    ))
-}
-
 // parse an id out of an swc identifier
 fn parse_id(ident: swc::Ident) -> S::Id {
     S::Id::Named(ident.sym.to_string())
@@ -122,12 +109,12 @@ fn parse_script(script: swc::Script, source_map: &SourceMap) -> ParseResult<S::S
     // it in a block statement.
 
     if stmts.len() == 1 {
-        if let S::Stmt::Block(_) = stmts[0] {
+        if let S::Stmt::Block(_, s) = stmts[0] {
             return Ok(stmts.pop().unwrap());
         }
     }
 
-    Ok(S::Stmt::Block(stmts))
+    Ok(S::Stmt::Block(stmts, S::DUMMY_SP))
 }
 
 /// Parse multiple swc statements.
@@ -143,8 +130,11 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
     use swc::Stmt::*;
     match stmt {
         Block(block_stmt) => parse_block(block_stmt, source_map),
-        Break(break_stmt) => Ok(break_(break_stmt.label.map(parse_id))),
-        Continue(continue_stmt) => Ok(continue_(continue_stmt.label.map(parse_id))),
+        Break(break_stmt) => Ok(break_(break_stmt.label.map(parse_id), break_stmt.span)),
+        Continue(continue_stmt) => Ok(continue_(
+            continue_stmt.label.map(parse_id),
+            continue_stmt.span,
+        )),
         Debugger(debugger_stmt) => unsupported!(debugger_stmt.span, source_map),
         Decl(decl) => {
             let decl = parse_decl(decl, source_map)?;
@@ -153,10 +143,10 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
         DoWhile(do_while_stmt) => {
             let body = parse_stmt(*do_while_stmt.body, source_map)?;
             let test = parse_expr(*do_while_stmt.test, source_map)?;
-            Ok(dowhile_(body, test))
+            Ok(dowhile_(body, test, do_while_stmt.span))
         }
         Empty(empty_stmt) => Ok(S::Stmt::Empty),
-        Expr(swc::ExprStmt { span, expr }) => Ok(expr_(parse_expr(*expr, source_map)?)),
+        Expr(swc::ExprStmt { span, expr }) => Ok(expr_(parse_expr(*expr, source_map)?, span)),
         For(for_stmt) => {
             let init = match for_stmt.init {
                 None => S::ForInit::Expr(Box::new(UNDEFINED_)),
@@ -188,6 +178,7 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
                 parse_opt_expr(for_stmt.test, source_map)?,
                 parse_opt_expr(for_stmt.update, source_map)?,
                 parse_stmt(*for_stmt.body, source_map)?,
+                for_stmt.span,
             ))
         }
         ForIn(swc::ForInStmt {
@@ -265,6 +256,7 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
                 parse_id(id),
                 parse_expr(*right, source_map)?,
                 parse_stmt(*body, source_map)?,
+                span,
             ))
         }
         ForOf(for_of_stmt) => unsupported!(for_of_stmt.span, source_map),
@@ -278,13 +270,17 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
             // alternate
             let else_stmt = parse_opt_stmt(if_stmt.alt, source_map)?;
 
-            Ok(if_(cond_expr, then_stmt, else_stmt))
+            Ok(if_(cond_expr, then_stmt, else_stmt, if_stmt.span))
         }
         Labeled(labeled_stmt) => Ok(label_(
             parse_id(labeled_stmt.label),
             parse_stmt(*labeled_stmt.body, source_map)?,
+            labeled_stmt.span,
         )),
-        Return(return_stmt) => Ok(return_(parse_opt_expr(return_stmt.arg, source_map)?)),
+        Return(return_stmt) => Ok(return_(
+            parse_opt_expr(return_stmt.arg, source_map)?,
+            return_stmt.span,
+        )),
         Switch(swc::SwitchStmt {
             discriminant,
             cases,
@@ -316,9 +312,13 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
                 parse_expr(*discriminant, source_map)?,
                 cases.collect(),
                 default_case,
+                span,
             ))
         }
-        Throw(throw_stmt) => Ok(throw_(parse_expr(*throw_stmt.arg, source_map)?)),
+        Throw(throw_stmt) => Ok(throw_(
+            parse_expr(*throw_stmt.arg, source_map)?,
+            throw_stmt.span,
+        )),
         Try(try_stmt) => {
             // deal with each possible part of the try statement separately,
             // wrap them as we encounter the different layers.
@@ -338,6 +338,7 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
                     stmt,
                     parse_id_from_pattern(pattern, span, source_map)?,
                     parse_block(body, source_map)?,
+                    span,
                 ),
 
                 Some(_) => return unsupported!(try_stmt.span, source_map),
@@ -346,7 +347,10 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
             // 3. finalizer
             let stmt = match try_stmt.finalizer {
                 None => stmt,
-                Some(block) => finally_(stmt, parse_block(block, source_map)?),
+                Some(block) => {
+                    let block_span = block.span;
+                    finally_(stmt, parse_block(block, source_map)?, block_span)
+                }
             };
 
             // we're done
@@ -355,7 +359,7 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
         While(while_stmt) => {
             let test = parse_expr(*while_stmt.test, source_map)?;
             let body = parse_stmt(*while_stmt.body, source_map)?;
-            Ok(while_(test, body))
+            Ok(while_(test, body, while_stmt.span))
         }
         With(with_stmt) => unsupported!(with_stmt.span, source_map),
     }
@@ -382,7 +386,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
                 .into_iter()
                 .map(|e| parse_opt_expr_or_spread(e, source_map))
                 .collect();
-            Ok(S::Expr::Array(elems?))
+            Ok(S::Expr::Array(elems?, span))
         }
         Arrow(arrow_expr) => unsupported!(arrow_expr.span, source_map),
         Assign(swc::AssignExpr {
@@ -394,7 +398,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             let op = parse_assign_op(op, span, source_map)?;
             let left = parse_pat_or_expr(left, span, source_map)?;
             let right = parse_expr(*right, source_map)?;
-            Ok(op_assign_(op, left, right))
+            Ok(op_assign_(op, left, right, span))
         }
         Await(await_expr) => unsupported!(await_expr.span, source_map),
         Bin(swc::BinExpr {
@@ -407,7 +411,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             let left = parse_expr(*left, source_map)?;
             let right = parse_expr(*right, source_map)?;
 
-            Ok(binary_(op, left, right))
+            Ok(binary_(op, left, right, span))
         }
         Class(class_expr) => unsupported!(class_expr.class.span, source_map),
         Call(swc::CallExpr {
@@ -421,7 +425,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
                 .map(|e| parse_expr_or_spread(e, source_map))
                 .collect();
             let callee = parse_expr_or_super(callee, source_map);
-            Ok(call_(callee?, args?))
+            Ok(call_(callee?, args?, span))
         }
         Cond(swc::CondExpr {
             test,
@@ -432,7 +436,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             let test = parse_expr(*test, source_map)?;
             let cons = parse_expr(*cons, source_map)?;
             let alt = parse_expr(*alt, source_map)?;
-            Ok(if_expr_(test, cons, alt))
+            Ok(if_expr_(test, cons, alt, span))
         }
         Fn(swc::FnExpr { ident, function }) => {
             // parse parts
@@ -440,12 +444,16 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
                 Some(ident) => Some(parse_id(ident)),
                 None => None,
             };
+            let span = function.span;
             let (params, body) = parse_function(function, source_map)?;
 
             // put it all together
-            Ok(expr_func_(ident, params, body))
+            Ok(expr_func_(ident, params, body, span))
         }
-        Ident(ident) => Ok(id_(parse_id(ident))),
+        Ident(ident) => {
+            let span = ident.span;
+            Ok(id_(parse_id(ident), span))
+        }
         Invalid(invalid) => unsupported!(invalid.span, source_map),
         JSXElement(jsx_element) => unsupported!(jsx_element.span, source_map),
         JSXEmpty(jsx_empty) => unsupported!(jsx_empty.span, source_map),
@@ -454,7 +462,10 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
         JSXNamespacedName(jsx_namespaced_name) => {
             unsupported!(jsx_namespaced_name.name.span, source_map)
         }
-        Lit(lit) => Ok(S::Expr::Lit(parse_lit(lit, source_map)?)),
+        Lit(lit) => {
+            let (lit, span) = parse_lit(lit, source_map)?;
+            Ok(S::Expr::Lit(lit, span))
+        }
         Member(swc::MemberExpr {
             obj,
             prop,
@@ -463,10 +474,10 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
         }) => {
             let obj = parse_expr_or_super(obj, source_map)?;
             if computed {
-                Ok(bracket_(obj, parse_expr(*prop, source_map)?))
+                Ok(bracket_(obj, parse_expr(*prop, source_map)?, span))
             } else {
                 match *prop {
-                    Ident(id) => Ok(dot_(obj, parse_id(id))),
+                    Ident(id) => Ok(dot_(obj, parse_id(id), span)),
                     _ => unsupported!(span, source_map),
                 }
             }
@@ -494,14 +505,14 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
                 None => Ok(Vec::new()),
             };
             let callee = parse_expr(*callee, source_map);
-            Ok(new_(callee?, args?))
+            Ok(new_(callee?, args?, span))
         }
         Object(swc::ObjectLit { props, span }) => {
             let props: ParseResult<Vec<_>> = props
                 .into_iter()
                 .map(|p| parse_prop_or_spread(p, span, source_map))
                 .collect();
-            Ok(S::Expr::Object(props?))
+            Ok(S::Expr::Object(props?, span))
         }
         OptChain(swc::OptChainExpr { span, .. }) => unsupported!(span, source_map),
         Paren(swc::ParenExpr { expr, .. }) => parse_expr(*expr, source_map),
@@ -511,7 +522,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
                 .into_iter()
                 .map(|e| parse_expr(*e, source_map))
                 .collect();
-            Ok(S::Expr::Seq(exprs?))
+            Ok(S::Expr::Seq(exprs?, span))
         }
         TaggedTpl(tagged_tpl) => unsupported!(tagged_tpl.span, source_map),
         This(swc::ThisExpr { span }) => Ok(S::Expr::This),
@@ -524,7 +535,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
         Unary(swc::UnaryExpr { op, arg, span }) => {
             let op = parse_unary_op(op, span, source_map)?;
             let arg = parse_expr(*arg, source_map)?;
-            Ok(unary_(op, arg))
+            Ok(unary_(op, arg, span))
         }
         Update(swc::UpdateExpr {
             span,
@@ -535,7 +546,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             let op = parse_update_op(op, prefix, span, source_map)?;
             let arg = parse_lvalue_from_expr(*arg, span, source_map)?;
 
-            Ok(unaryassign_(op, arg))
+            Ok(unaryassign_(op, arg, span))
         }
         Yield(yield_expr) => unsupported!(yield_expr.span, source_map),
     }
@@ -556,7 +567,10 @@ fn parse_opt_expr(
 
 /// Parse an swc block statement.
 fn parse_block(block: swc::BlockStmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
-    Ok(S::Stmt::Block(parse_stmts(block.stmts, source_map)?))
+    Ok(S::Stmt::Block(
+        parse_stmts(block.stmts, source_map)?,
+        block.span,
+    ))
 }
 
 /// Parse an swc pattern expecting an id. `span` should be the source location of
@@ -606,7 +620,10 @@ fn parse_switch_case(
         None => None,
         Some(e) => Some(parse_expr(*e, source_map)?),
     };
-    Ok((test, S::Stmt::Block(parse_stmts(case.cons, source_map)?)))
+    Ok((
+        test,
+        S::Stmt::Block(parse_stmts(case.cons, source_map)?, case.span),
+    ))
 }
 
 fn parse_expr_or_super(eos: swc::ExprOrSuper, source_map: &SourceMap) -> ParseResult<S::Expr> {
@@ -638,15 +655,13 @@ fn parse_func_arg(arg: swc::Param, source_map: &SourceMap) -> ParseResult<S::Id>
     Ok(parse_id_from_pattern(arg.pat, arg.span, source_map)?)
 }
 
-fn parse_lit(lit: swc::Lit, source_map: &SourceMap) -> ParseResult<S::Lit> {
+fn parse_lit(lit: swc::Lit, source_map: &SourceMap) -> ParseResult<(S::Lit, Span)> {
     use swc::Lit::*;
     match lit {
-        Str(swc::Str { value, span, .. }) => {
-            Ok(S::Lit::String(parse_string(value, span, source_map)?))
-        }
-        Bool(swc::Bool { value, span }) => Ok(S::Lit::Bool(value)),
-        Null(swc::Null { span }) => Ok(S::Lit::Null),
-        Num(swc::Number { value, span }) => Ok(S::Lit::Num(parse_num(value))),
+        Str(swc::Str { value, span, .. }) => Ok((S::Lit::String(value.to_string()), span)),
+        Bool(swc::Bool { value, span }) => Ok((S::Lit::Bool(value), span)),
+        Null(swc::Null { span }) => Ok((S::Lit::Null, span)),
+        Num(swc::Number { value, span }) => Ok((S::Lit::Num(parse_num(value)), span)),
         BigInt(swc::BigInt { value, span }) => {
             unsupported_message("big int literal", span, source_map)
         }
@@ -657,98 +672,6 @@ fn parse_lit(lit: swc::Lit, source_map: &SourceMap) -> ParseResult<S::Lit> {
             unsupported_message("jsx string literal", span, source_map)
         }
     }
-}
-
-// TODO(arjun): Someone needs to read the ECMAScript specification to confirm
-// that the code here is legit.
-/// Parse a string literal from the SWC AST. `span` should be the sourcespan of
-/// the surrounding expression.
-fn parse_string(s: JsWord, span: Span, source_map: &SourceMap) -> ParseResult<String> {
-    let literal_chars = s.to_string();
-
-    let mut buf = String::with_capacity(literal_chars.len());
-    let mut iter = literal_chars.chars().peekable();
-    while let Some(ch) = iter.next() {
-        if ch != '\\' {
-            buf.push(ch);
-            continue;
-        }
-        match iter
-            .next()
-            .ok_or(str_error("character after backslash", span, source_map))?
-        {
-            '\'' | '"' | '\\' => buf.push(ch),
-            'n' => buf.push('\n'),
-            'r' => buf.push('\r'),
-            't' => buf.push('\t'),
-            'f' => buf.push('\x0C'),
-            'b' => buf.push('\x08'),
-            'v' => buf.push('\x0B'),
-            'x' => {
-                let s = format!(
-                    "{}{}",
-                    iter.next()
-                        .ok_or(str_error("first hex digit after \\x", span, source_map))?,
-                    iter.next()
-                        .ok_or(str_error("second hex digit after \\x", span, source_map))?,
-                );
-                let n = u8::from_str_radix(&s, 16).map_err(|_| {
-                    str_error(&format!("invalid escape \\x{}", &s), span, source_map)
-                })?;
-                buf.push(n as char);
-            }
-            'u' => {
-                let s = format!(
-                    "{}{}{}{}",
-                    iter.next()
-                        .ok_or(str_error("first hex digit after \\x", span, source_map))?,
-                    iter.next()
-                        .ok_or(str_error("second hex digit after \\x", span, source_map))?,
-                    iter.next()
-                        .ok_or(str_error("third hex digit after \\x", span, source_map))?,
-                    iter.next()
-                        .ok_or(str_error("fourth hex digit after \\x", span, source_map))?
-                );
-                let n = u16::from_str_radix(&s, 16).map_err(|_| {
-                    str_error(&format!("invalid unicode escape {}", &s), span, source_map)
-                })?;
-                buf.push(std::char::from_u32(n as u32).ok_or(str_error(
-                    &format!("invalid Unicode character {}", n),
-                    span,
-                    source_map,
-                ))?);
-            }
-            ch => {
-                if ch < '0' || ch > '9' {
-                    // JavaScript allows you to escape any character. If it's not a valid escape
-                    // sequence, you just get the character itself. For example, '\😂' === '😂'.
-                    buf.push(ch);
-                } else {
-                    let mut octal_str = String::with_capacity(2);
-                    // First octal digit
-                    octal_str.push(ch);
-                    // Potentially octal digit
-                    match iter.peek() {
-                        Some(ch) if *ch >= '0' && *ch <= '7' => {
-                            octal_str.push(*ch);
-                            iter.next(); // consume
-                        }
-                        _ => (),
-                    }
-                    let n = u32::from_str_radix(&octal_str, 8).map_err(|_| {
-                        str_error(
-                            &format!("invalid octal escape \\u{}", &octal_str),
-                            span,
-                            source_map,
-                        )
-                    })?;
-                    // 2-digit octal value is in range for UTF-8, thus unwrap should succeed
-                    buf.push(std::char::from_u32(n).unwrap());
-                }
-            }
-        }
-    }
-    return Ok(buf);
 }
 
 /// `span` is the span of the surrounding object literal.
@@ -1018,7 +941,7 @@ fn parse_decl(decl: swc::Decl, source_map: &SourceMap) -> ParseResult<S::Stmt> {
                 .into_iter()
                 .map(|d| parse_var_declarator(d, source_map))
                 .collect();
-            Ok(S::Stmt::VarDecl(decls?))
+            Ok(S::Stmt::VarDecl(decls?, span))
         }
         Fn(swc::FnDecl {
             ident,
@@ -1026,8 +949,9 @@ fn parse_decl(decl: swc::Decl, source_map: &SourceMap) -> ParseResult<S::Stmt> {
             function,
         }) => {
             let ident = parse_id(ident);
+            let span = function.span;
             let (params, body) = parse_function(function, source_map)?;
-            Ok(S::Stmt::Func(ident, params, Box::new(body)))
+            Ok(S::Stmt::Func(ident, params, Box::new(body), span))
         }
         unsupported_decl => unsupported!(span_from_decl(unsupported_decl), source_map),
     }

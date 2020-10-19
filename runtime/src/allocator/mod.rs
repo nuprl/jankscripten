@@ -6,6 +6,7 @@ use std::alloc::Layout;
 use std::cell::RefCell;
 mod class_list;
 mod constants;
+mod env;
 mod heap_values;
 mod layout;
 mod object_ptr;
@@ -155,6 +156,10 @@ impl Heap {
     // NOTE(arjun): It is now clear to me that the lifetime parameter on heap values
     // is pointless.
     pub fn f64_to_any(&self, x: f64) -> AnyValue {
+        AnyEnum::F64(self.alloc_f64_or_gc(x)).into()
+    }
+
+    pub fn alloc_f64_or_gc(&self, x: f64) -> *const f64 {
         let mut opt_ptr = self.f64_allocator.borrow_mut().alloc(x);
         if let None = opt_ptr {
             self.gc();
@@ -163,9 +168,7 @@ impl Heap {
             // should use a raw pointer.
             opt_ptr = self.f64_allocator.borrow_mut().alloc(x);
         }
-        let ptr = unwrap_log(opt_ptr, "out of f64 memory");
-        let any = AnyEnum::F64(ptr);
-        unsafe { std::mem::transmute(any) }
+        unwrap_log(opt_ptr, "out of f64 memory")
     }
 
     /**
@@ -267,6 +270,28 @@ impl Heap {
             }
         }
     }
+    /// # Safety
+    ///
+    /// [alloc_env_or_gc]
+    unsafe fn alloc_env(&self, length: u32) -> Option<EnvPtr> {
+        // + 4 for the length (not the tag, which isn't included)
+        let size = std::mem::size_of::<AnyEnum>() * length as usize + 4;
+        let tag_ptr = self.alloc_slice(Tag::with_type(TypeTag::Env), size as isize)?;
+        Some(EnvPtr::init(tag_ptr, length))
+    }
+    /// SAFETY:
+    ///
+    /// this is unsafe for the same reason as EnvPtr::new(); it makes GC do
+    /// UB unless/until you fill in the environment with values
+    pub unsafe fn alloc_env_or_gc(&self, length: u32) -> EnvPtr {
+        match self.alloc_env(length) {
+            Some(ptr) => ptr,
+            None => {
+                self.gc();
+                self.alloc_env(length).expect("out of memory even after gc")
+            }
+        }
+    }
     /// allocate a tag immediately followed by slice of memory of a fixed
     /// size in bytes
     ///
@@ -364,9 +389,10 @@ impl Heap {
                 }
                 tag.marked = true;
 
-                let mut any_ptr = unsafe { AnyPtr::new(root) };
-                new_roots.append(&mut any_ptr.get_gc_ptrs(self));
-                for ptr in any_ptr.get_gc_f64s(self) {
+                let any_ptr = unsafe { AnyPtr::new(root) };
+                let (mut tags, f64s) = any_ptr.get_gc_ptrs(self);
+                new_roots.append(&mut tags);
+                for ptr in f64s {
                     unsafe { *ptr = f64_allocator.alloc(**ptr).unwrap() }
                 }
             }

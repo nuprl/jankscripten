@@ -1,0 +1,4 @@
+#!/bin/sh
+
+wasm2wat --no-check $1 > $1.wat
+wat2wasm $1.wat

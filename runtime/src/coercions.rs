@@ -30,7 +30,6 @@ pub fn i32s_or_as_f64s_any(
 
 /// adapted from https://ecma-international.org/ecma-262/5.1/#sec-11.9.3
 pub fn abstract_eq(a: AnyEnum, b: AnyEnum) -> bool {
-    use crate::HeapPtr;
     // 1. same type
     // number == number
     if let Some(res) = i32s_or_as_f64s(a.into(), b.into(), |a, b| a == b, |a, b| a == b) {
@@ -41,14 +40,14 @@ pub fn abstract_eq(a: AnyEnum, b: AnyEnum) -> bool {
         (AnyEnum::Bool(a), AnyEnum::Bool(b)) => return a == b,
         (AnyEnum::Ptr(a), AnyEnum::Ptr(b)) => match (a.view(), b.view()) {
             (HeapRefView::String(a), HeapRefView::String(b)) => return a == b,
-            (HeapRefView::I32(a), b) | (b, HeapRefView::I32(a)) => {
-                return abstract_eq(AnyEnum::I32(*a), AnyEnum::Ptr(b.as_any_ptr()))
+            (HeapRefView::NonPtr32(_), _) | (_, HeapRefView::NonPtr32(_)) => {
+                panic!("ref is not a value")
             }
             _ => todo!(),
         },
         // when fns become closures they might need to gain an impl PartialEq
         // which should only return true on pointer equality
-        (AnyEnum::Fn(a), AnyEnum::Fn(b)) => return a == b,
+        (AnyEnum::Closure(a), AnyEnum::Closure(b)) => return a == b,
         (AnyEnum::Undefined, AnyEnum::Undefined) => return true,
         (AnyEnum::Null, AnyEnum::Null) => return true,
         // not the same type. on to rule 2!
@@ -80,7 +79,7 @@ fn even_abstract_eq(a: AnyEnum, b: AnyEnum) -> Option<bool> {
                 _ => return None,
             },
             // 8
-            HeapRefView::I32(i) => abstract_eq(a, AnyEnum::I32(*i)),
+            HeapRefView::NonPtr32(_) => panic!("ref is not a value"),
             // 8
             _ => todo!("javascript spec ToPrimitive / DefaultValue"),
         },

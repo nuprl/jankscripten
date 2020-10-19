@@ -4,28 +4,28 @@ use super::{heap, heap_types::ArrayPtr};
 use crate::AnyValue;
 
 #[no_mangle]
-pub extern "C" fn array_new<'a>() -> ArrayPtr<'a> {
+pub extern "C" fn array_new() -> ArrayPtr {
     heap().alloc_or_gc(Vec::new())
 }
 
 #[no_mangle]
-pub extern "C" fn array_index<'a>(array: ArrayPtr<'a>, index: i32) -> AnyValue {
+pub extern "C" fn array_index(array: ArrayPtr, index: i32) -> AnyValue {
     array[index as usize].clone()
 }
 
 #[no_mangle]
-pub extern "C" fn array_set<'a>(mut array: ArrayPtr<'a>, index: i32, val: AnyValue) -> AnyValue {
+pub extern "C" fn array_set(mut array: ArrayPtr, index: i32, val: AnyValue) -> AnyValue {
     array[index as usize] = val;
     val
 }
 
 #[no_mangle]
-pub extern "C" fn array_len<'a>(array: ArrayPtr<'a>) -> i32 {
+pub extern "C" fn array_len(array: ArrayPtr) -> i32 {
     array.len() as i32
 }
 
 #[no_mangle]
-pub extern "C" fn array_push<'a>(mut array: ArrayPtr<'a>, value: AnyValue) -> i32 {
+pub extern "C" fn array_push(mut array: ArrayPtr, value: AnyValue) -> i32 {
     array.push(value);
     array.len() as i32
 }

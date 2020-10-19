@@ -5,7 +5,7 @@ var global: DynObject;
 
 // Cached Object properties to be used in jnks_new_object.
 // ASSUMPTION: Object.prototype is never modified by user code.
-var jnks_objectCreate: (any) -> any;
+var jnks_objectCreate: clos(env, any) -> any;
 var jnks_objectPrototype: any;
 
 // Initialize JankScripten runtime.
@@ -18,15 +18,16 @@ function jnks_init() {
     // be used.
 
     // load the Object.create runtime function
-    var objectCreate = rt(object_create);
+    var objectCreateF = rt(object_create);
+    var objectCreate = clos(objectCreateF, );
 
     // create the actual object for Object
     var nullVar = null;
-    var objectClass = objectCreate(nullVar);
+    var objectClass = objectCreate!(nullVar);
     Object = objectClass as DynObject;
 
     // set a completely empty prototype
-    var objectPrototype = objectCreate(nullVar);
+    var objectPrototype = objectCreate!(nullVar);
     Object.prototype = objectPrototype;
 
     // assign static methods to Object
@@ -46,6 +47,6 @@ function jnks_init() {
 function jnks_new_object(): DynObject {
     // Create new object that inherits from Object.prototype.
     var objectCreate = jnks_objectCreate;
-    var newObject = objectCreate(jnks_objectPrototype);
+    var newObject = objectCreate!(jnks_objectPrototype);
     return newObject as DynObject;
 }

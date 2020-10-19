@@ -3,7 +3,7 @@
 use crate::notwasm::syntax::{FnType, Type as NotWasmType};
 
 // TODO(arjun): should be exactly the same as NotWasm types for a first pass.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
     Any,
     Float,
@@ -13,6 +13,9 @@ pub enum Type {
     String,
     Array,
     DynObject,
+    /// Ref(T) is the type of heap-allocated boxes that contain values of type
+    /// T.
+    Ref(Box<Type>),
     // TODO: others
 }
 
@@ -30,6 +33,7 @@ impl Type {
             Type::String => NotWasmType::String,
             Type::Array => NotWasmType::Array,
             Type::DynObject => NotWasmType::DynObject,
+            Type::Ref(of) => NotWasmType::Ref(Box::new(of.notwasm_typ())),
         }
     }
 
@@ -73,6 +77,7 @@ impl std::fmt::Display for Type {
                 Type::DynObject => "DynObject",
                 Type::Function(..) => "fn",
                 Type::Any => "any",
+                Type::Ref(..) => "ref",
             }
         )
     }

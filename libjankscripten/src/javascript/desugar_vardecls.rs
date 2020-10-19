@@ -6,14 +6,12 @@ use super::*;
 // Ex. var x = 1, y = 2;     =>    var x = 1;  var y = 2;
 // note: depends on desugar_loops in case of multiple variables declared in for loop
 
-struct SeparateVarDecls<'a> {
-    ng: &'a mut NameGen,
-}
+struct SeparateVarDecls;
 
-impl Visitor for SeparateVarDecls<'_> {
+impl Visitor for SeparateVarDecls {
     fn exit_stmt(&mut self, stmt: &mut Stmt, loc: &Loc) {
         match stmt {
-            Stmt::VarDecl(decls) => {
+            Stmt::VarDecl(decls, s) => {
                 if decls.len() > 1 {
                     let block_ctx = loc.enclosing_block().expect("Block context expected");
                     // save last decl to replace original statement
@@ -21,10 +19,10 @@ impl Visitor for SeparateVarDecls<'_> {
 
                     // insert previous decls in order above stmt
                     for decl in decls.drain(0..) {
-                        block_ctx.insert(block_ctx.index, vardecl1_(decl.name, *decl.named));
+                        block_ctx.insert(block_ctx.index, vardecl1_(decl.name, *decl.named, *s));
                     }
 
-                    *stmt = vardecl1_(last_decl.name, *last_decl.named);
+                    *stmt = vardecl1_(last_decl.name, *last_decl.named, *s);
                 }
             }
             _ => {
@@ -34,7 +32,7 @@ impl Visitor for SeparateVarDecls<'_> {
     }
 }
 
-pub fn desugar_vardecls(program: &mut Stmt, namegen: &mut NameGen) {
-    let mut v = SeparateVarDecls { ng: namegen };
+pub fn desugar_vardecls(program: &mut Stmt) {
+    let mut v = SeparateVarDecls;
     program.walk(&mut v);
 }

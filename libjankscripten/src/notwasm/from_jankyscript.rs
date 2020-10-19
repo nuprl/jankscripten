@@ -96,11 +96,12 @@ use super::super::jankyscript::syntax as J;
 use super::super::rope::Rope;
 use super::constructors::*;
 use super::syntax::*;
+use crate::shared::NameGen;
 use std::collections::HashMap;
 
 fn compile_lit(lit: J::Lit) -> Lit {
     match lit {
-        J::Lit::String(s) => Lit::String(s),
+        J::Lit::String(state) => Lit::String(state),
         J::Lit::Regex(_, _) => todo!("regex not supported anywhere in toolchain"),
         J::Lit::Bool(b) => Lit::Bool(b),
         J::Lit::Null => Lit::Null,
@@ -113,7 +114,7 @@ fn compile_lit(lit: J::Lit) -> Lit {
 /// State that is needed during A-normalization
 #[derive(Default)]
 struct S {
-    namegen: super::super::javascript::NameGen,
+    namegen: NameGen,
     functions: HashMap<Id, Function>,
 }
 
@@ -156,40 +157,44 @@ impl<'a> C<'a> {
         C::Id(Box::new(f))
     }
 
-    fn recv_a(self, s: &'a mut S, a: Atom) -> Rope<Stmt> {
+    fn recv_a(self, state: &'a mut S, a: Atom) -> Rope<Stmt> {
         match self {
-            C::Atom(f) => f(s, a),
+            C::Atom(f) => f(state, a),
             C::Id(f) => match a {
-                Atom::Id(x) => f(s, x),
+                Atom::Id(x, _) => f(state, x),
                 _ => {
-                    let x = s.fresh();
-                    Rope::singleton(Stmt::Var(VarStmt::new(x.clone(), Expr::Atom(a))))
-                        .append(f(s, x))
+                    let x = state.fresh();
+                    Rope::singleton(Stmt::Var(
+                        VarStmt::new(x.clone(), Expr::Atom(a, DUMMY_SP)),
+                        DUMMY_SP,
+                    ))
+                    .append(f(state, x))
                 }
             },
-            C::Expr(f) => f(s, Expr::Atom(a)),
+            C::Expr(f) => f(state, Expr::Atom(a, DUMMY_SP)),
         }
     }
 
-    fn recv_e(self, s: &'a mut S, e: Expr) -> Rope<Stmt> {
+    fn recv_e(self, state: &'a mut S, e: Expr) -> Rope<Stmt> {
         match self {
             // The Id and Atom cases are essentially identical
             C::Id(f) => {
-                let x = s.fresh();
-                Rope::singleton(Stmt::Var(VarStmt::new(x.clone(), e))).append(f(s, x))
+                let x = state.fresh();
+                Rope::singleton(Stmt::Var(VarStmt::new(x.clone(), e), DUMMY_SP)).append(f(state, x))
             }
             C::Atom(f) => {
-                let x = s.fresh();
-                Rope::singleton(Stmt::Var(VarStmt::new(x.clone(), e))).append(f(s, Atom::Id(x)))
+                let x = state.fresh();
+                Rope::singleton(Stmt::Var(VarStmt::new(x.clone(), e), DUMMY_SP))
+                    .append(f(state, Atom::Id(x, DUMMY_SP)))
             }
-            C::Expr(f) => f(s, e),
+            C::Expr(f) => f(state, e),
         }
     }
 }
 
 /// Compile a vector of expressions, name them, and send their names (in a vector) to a context.
 fn compile_exprs<'a>(
-    s: &'a mut S,
+    state: &'a mut S,
     exprs: Vec<J::Expr>,
     cxt: impl FnOnce(&'a mut S, Vec<Id>) -> Rope<Stmt>,
 ) -> Rope<Stmt> {
@@ -197,137 +202,157 @@ fn compile_exprs<'a>(
     let mut stmts = Rope::new();
     for e in exprs.into_iter() {
         stmts = stmts.append(compile_expr(
-            s,
+            state,
             e,
-            C::id(|s, x| {
+            C::id(|_s, x| {
                 ids.push(x);
                 Rope::Nil
             }),
         ));
     }
-    return stmts.append(cxt(s, ids));
+    return stmts.append(cxt(state, ids));
 }
 
 pub fn compile_ty(janky_typ: J::Type) -> Type {
-    match janky_typ {
-        J::Type::Any => Type::Any,
-        J::Type::Bool => Type::Bool,
-        J::Type::Int => Type::I32,
-        J::Type::Float => Type::F64,
-        J::Type::DynObject => Type::DynObject,
-        J::Type::Function(params, ret) => fn_ty_(
-            params.into_iter().map(|jt| compile_ty(jt)).collect(),
-            Some(compile_ty(*ret)),
-        ),
-        J::Type::Array => Type::Array,
-        J::Type::String => Type::String,
-        _ => todo!("compile_ty {:?}", janky_typ),
+    // why the seemingly double behavior?
+    // we turn Fn into Closure only when it'state in the program, not in
+    // RTSFunctions
+    match janky_typ.notwasm_typ() {
+        Type::Fn(mut fn_ty) => {
+            fn_ty.args.insert(0, Type::Env);
+            Type::Closure(fn_ty)
+        }
+        got => got,
     }
 }
 
-fn coercion_to_expr(c: J::Coercion, a: Atom) -> Atom {
+fn coercion_to_expr(c: J::Coercion, a: Atom, s: Span) -> Atom {
     use J::Coercion::*;
     match c {
-        FloatToInt => Atom::FloatToInt(Box::new(a)),
-        IntToFloat => Atom::IntToFloat(Box::new(a)),
-        Tag(..) => to_any_(a),
-        Untag(ty) => from_any_(a, compile_ty(ty)),
+        FloatToInt => Atom::FloatToInt(Box::new(a), s),
+        IntToFloat => Atom::IntToFloat(Box::new(a), s),
+        Tag(..) => to_any_(a, s),
+        Untag(ty) => from_any_(a, compile_ty(ty), s),
         Fun(..) => todo!(), // TODO(michael) needs to call something that proxies the function
         Id(..) => a,
-        Seq(c1, c2) => coercion_to_expr(*c2, coercion_to_expr(*c1, a)),
+        Seq(c1, c2) => coercion_to_expr(*c2, coercion_to_expr(*c1, a, s), s),
     }
 }
 
-fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
+fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
     match expr {
-        J::Expr::Lit(lit) => cxt.recv_a(s, Atom::Lit(compile_lit(lit))),
-        J::Expr::Array(members) => compile_exprs(s, members, move |s, member_ids| {
-            let array_name = s.fresh();
-            let mut rv = Rope::singleton(Stmt::Var(VarStmt::new(array_name.clone(), Expr::Array)));
+        J::Expr::Lit(lit, s) => cxt.recv_a(state, Atom::Lit(compile_lit(lit), s)),
+        J::Expr::Array(members, s) => compile_exprs(state, members, move |state, member_ids| {
+            let array_name = state.fresh();
+            let mut rv =
+                Rope::singleton(Stmt::Var(VarStmt::new(array_name.clone(), Expr::Array), s));
             for member_id in member_ids {
-                rv = rv.append(Rope::singleton(Stmt::Expression(Expr::Push(
-                    Atom::Id(array_name.clone()),
-                    Atom::Id(member_id),
-                ))))
+                rv = rv.append(Rope::singleton(Stmt::Expression(
+                    Expr::Push(Atom::Id(array_name.clone(), s), Atom::Id(member_id, s), s),
+                    s,
+                )))
             }
-            rv.append(cxt.recv_a(s, Atom::Id(array_name)))
+            rv.append(cxt.recv_a(state, Atom::Id(array_name, s)))
         }),
-        J::Expr::Object(keys_exprs) => {
+        J::Expr::Object(keys_exprs, s) => {
             let (keys, exprs): (Vec<_>, Vec<_>) = keys_exprs.into_iter().unzip();
-            compile_exprs(s, exprs, move |s, ids| {
+            compile_exprs(state, exprs, move |state, ids| {
                 // TODO: semi-static classes when objects are defined like this
-                let obj_name = s.fresh();
-                let mut rv =
-                    Rope::singleton(Stmt::Var(VarStmt::new(obj_name.clone(), Expr::ObjectEmpty)));
+                let obj_name = state.fresh();
+                let mut rv = Rope::singleton(Stmt::Var(
+                    VarStmt::new(obj_name.clone(), Expr::ObjectEmpty),
+                    s,
+                ));
                 for (key, id) in keys.into_iter().zip(ids) {
                     let key_str = match key {
-                        J::Key::Str(s) => s,
+                        J::Key::Str(state) => state,
                         J::Key::Int(_) => todo!(),
                     };
-                    rv = rv.append(Rope::singleton(Stmt::Expression(Expr::ObjectSet(
-                        Atom::Id(obj_name.clone()),
-                        str_(key_str),
-                        Atom::Id(id),
-                    ))))
+                    rv = rv.append(Rope::singleton(Stmt::Expression(
+                        Expr::ObjectSet(
+                            Atom::Id(obj_name.clone(), s),
+                            str_(key_str, s),
+                            Atom::Id(id, s),
+                            s,
+                        ),
+                        s,
+                    )))
                 }
-                rv.append(cxt.recv_a(s, Atom::Id(obj_name)))
+                rv.append(cxt.recv_a(state, Atom::Id(obj_name, s)))
             })
         }
-        J::Expr::Dot(obj, field) => compile_expr(
-            s,
+        J::Expr::Dot(obj, field, s) => compile_expr(
+            state,
             *obj,
-            C::a(move |s, obj| cxt.recv_a(s, object_get_(obj, str_(field.into_name())))),
+            C::a(move |state, obj| {
+                cxt.recv_a(state, object_get_(obj, str_(field.into_name(), s), s))
+            }),
         ),
-        J::Expr::Unary(op, expr) => {
-            compile_expr(s, *expr, C::a(move |s, a| cxt.recv_a(s, unary_(op, a))))
-        }
+        J::Expr::Unary(op, expr, s) => compile_expr(
+            state,
+            *expr,
+            C::a(move |state, a| cxt.recv_a(state, unary_(op, a, s))),
+        ),
         // TODO(luna): i think JankyScript bracket supports like
         // object/hashtable fetch by name, so we have to descriminate based
         // on type or something(?)
-        J::Expr::Bracket(arr, index) => compile_expr(
-            s,
+        J::Expr::Bracket(arr, index, s) => compile_expr(
+            state,
             *arr,
-            C::a(move |s, arr| {
+            C::a(move |state, arr| {
                 compile_expr(
-                    s,
+                    state,
                     *index,
-                    C::a(move |s, index| cxt.recv_a(s, index_(arr, index))),
+                    C::a(move |state, index| cxt.recv_a(state, index_(arr, index, s))),
                 )
             }),
         ),
-        J::Expr::Coercion(coercion, e) => compile_expr(
-            s,
+        J::Expr::Coercion(coercion, e, s) => compile_expr(
+            state,
             *e,
-            C::a(move |s, a| cxt.recv_a(s, coercion_to_expr(coercion, a))),
+            C::a(move |state, a| cxt.recv_a(state, coercion_to_expr(coercion, a, s))),
         ),
-        J::Expr::Id(x) => cxt.recv_a(s, Atom::Id(x)),
-        J::Expr::Func(f) => {
-            let (param_names, param_tys): (Vec<_>, Vec<_>) = f.args_with_typs.into_iter().unzip();
-            let function = Function {
-                body: Stmt::Block(compile_stmt(s, *f.body).into_iter().collect()),
-                params: param_names,
-                fn_type: FnType {
-                    args: param_tys.into_iter().map(|t| compile_ty(t)).collect(),
-                    result: Some(Box::new(compile_ty(f.result_typ))),
-                },
-            };
-            let f = s.fresh();
-            s.new_function(f.clone(), function);
-            cxt.recv_a(s, Atom::Id(f))
+        J::Expr::Id(x, _, s) => cxt.recv_a(state, Atom::Id(x, s)),
+        J::Expr::Func(f, s) => {
+            let name = state.fresh();
+            let f = compile_function(state, f, s);
+            state.new_function(name.clone(), f);
+            cxt.recv_a(state, Atom::Id(name, s))
         }
-        J::Expr::Binary(op, e1, e2) => compile_expr(
-            s,
+        J::Expr::Closure(f, env, s) => {
+            let name = state.fresh();
+            let f = compile_function(state, f, s);
+            state.new_function(name.clone(), f);
+            // compile the environment, adapted from compile_exprs
+            let mut env_items = Vec::new();
+            let mut stmts = Rope::new();
+            for (e, ty) in env.into_iter() {
+                stmts = stmts.append(compile_expr(
+                    state,
+                    e,
+                    C::a(|_s, x| {
+                        env_items.push((x, compile_ty(ty)));
+                        Rope::Nil
+                    }),
+                ));
+            }
+            stmts.append(cxt.recv_e(state, Expr::Closure(name, env_items, s)))
+        }
+        J::Expr::Binary(op, e1, e2, s) => compile_expr(
+            state,
             *e1,
-            C::a(move |s, a1| {
+            C::a(move |state, a1| {
                 compile_expr(
-                    s,
+                    state,
                     *e2,
-                    C::a(|s, a2| cxt.recv_a(s, Atom::Binary(op, Box::new(a1), Box::new(a2)))),
+                    C::a(move |state, a2| {
+                        cxt.recv_a(state, Atom::Binary(op, Box::new(a1), Box::new(a2), s))
+                    }),
                 )
             }),
         ),
-        J::Expr::Assign(lv, e) => compile_expr(
-            s,
+        J::Expr::Assign(lv, e, s) => compile_expr(
+            state,
             *e,
             // TODO(luna): if we change Assign to an expression, we can make
             // this C::e and drop the clone which will generate less useless
@@ -336,24 +361,24 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             // introducing new locals for assignment expressions
             // but differently. see this discussion on slack:
             // https://plasma.slack.com/archives/C013E3BK7QA/p1596656877066800
-            C::a(|s, a| match *lv {
-                J::LValue::Id(id) => {
-                    Rope::singleton(Stmt::Assign(id, atom_(a.clone()))).append(cxt.recv_a(s, a))
-                }
+            C::a(move |state, a| match *lv {
+                J::LValue::Id(id, _) => Rope::singleton(Stmt::Assign(id, atom_(a.clone(), s), s))
+                    .append(cxt.recv_a(state, a)),
                 J::LValue::Dot(container, field) => {
                     // TODO(luna): don't assume bracket is array
                     compile_expr(
-                        s,
+                        state,
                         container,
                         // TODO(luna): support array set in notwasm, i can't
                         // believe we don't yet
-                        C::a(move |s, cont| {
+                        C::a(move |state, cont| {
                             cxt.recv_e(
-                                s,
+                                state,
                                 Expr::ObjectSet(
                                     cont,
-                                    Atom::Lit(Lit::String(field.to_pretty(80))),
+                                    Atom::Lit(Lit::String(field.to_pretty(80)), s),
                                     a,
+                                    s,
                                 ),
                             )
                         }),
@@ -362,43 +387,68 @@ fn compile_expr<'a>(s: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 J::LValue::Bracket(container, field) => {
                     // TODO(luna): don't assume bracket is array
                     compile_expr(
-                        s,
+                        state,
                         container,
-                        C::a(move |s, cont| {
+                        C::a(move |state, cont| {
                             compile_expr(
-                                s,
+                                state,
                                 field,
-                                C::a(move |s, f| cxt.recv_e(s, Expr::ArraySet(cont, f, a))),
+                                C::a(move |state, f| {
+                                    cxt.recv_e(state, Expr::ArraySet(cont, f, a, s))
+                                }),
                             )
                         }),
                     )
                 }
             }),
         ),
-        J::Expr::PrimCall(prim_name, args) => compile_exprs(s, args, move |s, arg_ids| {
-            cxt.recv_e(
-                s,
-                Expr::PrimCall(
-                    prim_name,
-                    arg_ids.into_iter().map(|x| Atom::Id(x)).collect(),
-                ),
-            )
-        }),
-        J::Expr::Call(fun, args) => compile_expr(
-            s,
+        J::Expr::PrimCall(prim_name, args, s) => {
+            compile_exprs(state, args, move |state, arg_ids| {
+                cxt.recv_e(
+                    state,
+                    Expr::PrimCall(
+                        prim_name,
+                        arg_ids.into_iter().map(|x| Atom::Id(x, s)).collect(),
+                        s,
+                    ),
+                )
+            })
+        }
+        J::Expr::Call(fun, args, s) => compile_expr(
+            state,
             *fun,
-            C::id(move |s, fun_id| {
-                compile_exprs(s, args, move |s, arg_ids| {
-                    cxt.recv_e(s, Expr::Call(fun_id, arg_ids))
+            C::id(move |state, fun_id| {
+                compile_exprs(state, args, move |state, arg_ids| {
+                    cxt.recv_e(state, Expr::ClosureCall(fun_id, arg_ids, s))
                 })
             }),
         ),
+        J::Expr::NewRef(expr, ty, s) => compile_expr(
+            state,
+            *expr,
+            C::a(move |state, of| cxt.recv_e(state, Expr::NewRef(of, compile_ty(ty), s))),
+        ),
+        J::Expr::Deref(expr, ty, s) => compile_expr(
+            state,
+            *expr,
+            C::a(move |state, of| cxt.recv_a(state, deref_(of, compile_ty(ty), s))),
+        ),
+        J::Expr::Store(into, expr, _, s) => compile_expr(
+            state,
+            *into,
+            C::id(move |state, into| {
+                compile_expr(
+                    state,
+                    *expr,
+                    C::e(move |_s, what| Rope::singleton(Stmt::Store(into, what, s))),
+                )
+            }),
+        ),
+        J::Expr::EnvGet(i, ty, s) => cxt.recv_a(state, Atom::EnvGet(i, compile_ty(ty), s)),
     }
 }
 
-// TODO(luna): remove this when we think we've completed this
-#[allow(unused)]
-fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
+fn compile_stmt<'a>(state: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
     use J::Stmt as S;
     match stmt {
         // In JankyScript:
@@ -409,58 +459,79 @@ fn compile_stmt<'a>(s: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
         //
         // var tmp = f();
         // var r = tmp + 1;
-        S::Var(x, t, e) => compile_expr(
-            s,
+        S::Var(x, _, e, s) => compile_expr(
+            state,
             *e,
-            C::e(|s, e_notwasm| Rope::singleton(Stmt::Var(VarStmt::new(x, e_notwasm)))),
+            C::e(|_s, e_notwasm| Rope::singleton(Stmt::Var(VarStmt::new(x, e_notwasm), s))),
         ),
-        S::Block(stmts) => Rope::singleton(Stmt::Block(
+        S::Block(stmts, s) => Rope::singleton(Stmt::Block(
             stmts
                 .into_iter()
-                .map(|stmt| compile_stmt(s, stmt))
+                .map(|stmt| compile_stmt(state, stmt))
                 .flatten()
                 .collect(),
+            s,
         )),
         S::Empty => Rope::singleton(Stmt::Empty),
-        S::Expr(e) => compile_expr(
-            s,
+        S::Expr(e, _) => compile_expr(
+            state,
             *e,
             // We could use a C::e context. However, the C::a context will make generated code
             // easier to understand in trivial examples. A C::e context would discard useless
             // binary operations.
             C::a(|_s, _a_notwasm| Rope::Nil),
         ),
-        S::If(cond, then_branch, else_branch) => compile_expr(
-            s,
+        S::If(cond, then_branch, else_branch, s) => compile_expr(
+            state,
             *cond,
-            C::a(|s, a| {
+            C::a(|state, a| {
                 Rope::singleton(if_(
                     a,
-                    compile_stmt_block(s, *then_branch),
-                    compile_stmt_block(s, *else_branch),
+                    compile_stmt_block(state, *then_branch, s),
+                    compile_stmt_block(state, *else_branch, s),
+                    s,
                 ))
             }),
         ),
-        S::Loop(body) => Rope::singleton(loop_(Stmt::Block(
-            compile_stmt(s, *body).into_iter().collect(),
-        ))),
-        S::Label(x, body) => Rope::singleton(label_(
-            Label::Named(x.to_pretty(80)),
-            Stmt::Block(compile_stmt(s, *body).into_iter().collect()),
+        S::Loop(body, s) => Rope::singleton(loop_(
+            Stmt::Block(compile_stmt(state, *body).into_iter().collect(), s),
+            s,
         )),
-        S::Break(x) => Rope::singleton(Stmt::Break(Label::Named(x.to_pretty(80)))),
-        S::Catch(_, _, _) => todo!("NotWasm needs to support exceptions"),
-        S::Finally(_, _) => todo!("NotWasm needs to support exceptions"),
-        S::Throw(_) => todo!("NotWasm needs to support exceptions"),
-        S::Return(e) => compile_expr(s, *e, C::a(|s, a| Rope::singleton(Stmt::Return(a)))),
+        S::Label(x, body, s) => Rope::singleton(label_(
+            Label::Named(x.to_pretty(80)),
+            Stmt::Block(compile_stmt(state, *body).into_iter().collect(), s),
+            s,
+        )),
+        S::Break(x, s) => Rope::singleton(Stmt::Break(Label::Named(x.to_pretty(80)), s)),
+        S::Catch(_, _, _, _) => todo!("NotWasm needs to support exceptions"),
+        S::Finally(_, _, _) => todo!("NotWasm needs to support exceptions"),
+        S::Throw(_, _) => todo!("NotWasm needs to support exceptions"),
+        S::Return(e, s) => {
+            compile_expr(state, *e, C::a(|_s, a| Rope::singleton(Stmt::Return(a, s))))
+        }
     }
 }
 
-fn compile_stmt_block(s: &mut S, stmt: J::Stmt) -> Stmt {
-    rope_to_block(compile_stmt(s, stmt))
+fn compile_stmt_block(state: &mut S, stmt: J::Stmt, s: Span) -> Stmt {
+    rope_to_block(compile_stmt(state, stmt), s)
 }
-fn rope_to_block(rope: Rope<Stmt>) -> Stmt {
-    Stmt::Block(rope.into_iter().collect())
+fn rope_to_block(rope: Rope<Stmt>, s: Span) -> Stmt {
+    Stmt::Block(rope.into_iter().collect(), s)
+}
+
+fn compile_function<'a>(state: &'a mut S, f: J::Func, s: Span) -> Function {
+    let (param_names, param_tys): (Vec<_>, Vec<_>) =
+        std::iter::once((Id::Generated("_", 341), J::Type::Int))
+            .chain(f.args_with_typs.into_iter())
+            .unzip();
+    Function {
+        body: Stmt::Block(compile_stmt(state, *f.body).into_iter().collect(), s),
+        params: param_names,
+        fn_type: FnType {
+            args: param_tys.into_iter().map(|t| compile_ty(t)).collect(),
+            result: Some(Box::new(compile_ty(f.result_typ))),
+        },
+    }
 }
 
 pub fn from_jankyscript(janky_program: J::Stmt) -> Program {
@@ -469,6 +540,7 @@ pub fn from_jankyscript(janky_program: J::Stmt) -> Program {
         compile_stmt(&mut state, janky_program)
             .into_iter()
             .collect(),
+        DUMMY_SP,
     );
     state.new_function(
         Id::from("main"),
@@ -497,26 +569,44 @@ mod test {
     use crate::rts_function::RTSFunction;
     #[test]
     fn unary() {
-        let program = Stmt::Block(vec![
-            var_(
-                "a".into(),
-                Type::Float,
-                Expr::Lit(Lit::Num(Num::Float(25.))),
-            ),
-            var_(
-                "b".into(),
-                Type::Float,
-                unary_(crate::notwasm::syntax::UnaryOp::Sqrt, Expr::Id("a".into())),
-            ),
-            expr_(Expr::PrimCall(
-                RTSFunction::LogAny,
-                vec![
-                    // mandatory `this` argument
-                    Expr::Lit(Lit::Undefined),
-                    coercion_(Coercion::Tag(Type::Float), Expr::Id("b".into())),
-                ],
-            )),
-        ]);
+        let s = DUMMY_SP;
+        let program = Stmt::Block(
+            vec![
+                var_(
+                    "a".into(),
+                    Type::Float,
+                    Expr::Lit(Lit::Num(Num::Float(25.)), s),
+                    s,
+                ),
+                var_(
+                    "b".into(),
+                    Type::Float,
+                    unary_(
+                        crate::notwasm::syntax::UnaryOp::Sqrt,
+                        Expr::Id("a".into(), Type::Float, s),
+                        s,
+                    ),
+                    s,
+                ),
+                expr_(
+                    Expr::PrimCall(
+                        RTSFunction::LogAny,
+                        vec![
+                            // mandatory `this` argument
+                            Expr::Lit(Lit::Undefined, s),
+                            coercion_(
+                                Coercion::Tag(Type::Float),
+                                Expr::Id("b".into(), Type::Float, s),
+                                s,
+                            ),
+                        ],
+                        s,
+                    ),
+                    s,
+                ),
+            ],
+            s,
+        );
         expect_notwasm("F64(5)".to_string(), from_jankyscript(program));
     }
 }

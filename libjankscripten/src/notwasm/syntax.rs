@@ -21,9 +21,11 @@
 //! - A set of global variables that are initialized to …whataever Wasm
 //!   supports
 
-pub use super::super::javascript::Id;
 use crate::rts_function::RTSFunction;
+pub use crate::shared::Id;
+pub use crate::shared::Span;
 use std::collections::HashMap;
+pub use swc_common::DUMMY_SP;
 
 /// The types of NotWasm. Every value has a unique type, thus we *do not* support
 /// subtyping. The comment for each variant describes the shape of the value
@@ -37,8 +39,8 @@ pub enum Type {
     F64,
     /// If `v : String` then `v` is a `*const Tag` followed by a 4-byte
     /// little-endian length followed by utf-8 of that length.
-    /// Even interned strings are preceded by a tag, to aid in string
-    /// unification
+    /// Even interned strings are preceded by a tag, so that interned and
+    /// uninterned strings have the same representation.
     String,
     /// If `v : HT` then `v` is a `*const Tag`, where
     ///  `v.type_tag === TypeTag::HT`.
@@ -49,13 +51,31 @@ pub enum Type {
     Bool,
     /// If `v : DynObject` then `v` is a `*const Tag` where
     /// `v.type_tag == Class`.
+    /// TODO(arjun): We do not have a type_tag called class. What is this
+    /// really supposed to be? I think it is ObjectPtrPtr.
     DynObject,
     /// If `v : Fn(fn_type)` then `v` is an `i32`, which is an index of a
     /// function with the type `fn_type`.
     Fn(FnType),
-    Ref(Box<Type>),
+    /// If `v : Closure(fn_type)` then `v` is an `i64`, which is an EnvPtr
+    /// followed by a 16-bit truncation of a function pointer followed by 16
+    /// garbage bits
+    Closure(FnType),
     /// If `v : Any` then `v` is an `AnyEnum`.
     Any,
+    /// If `v : Ref(I32)` then `v` is a `*const Tag` and `v.type_tag == NonPtr32`.
+    /// If `v : Ref(Bool)` then `v` is a `*const Tag` and `v.type_tag == NonPtr32`.
+    /// If `v : Ref(F64)` then `v` is a `*const Tag` and resides in the f64 heap
+    /// If `v : Ref(Any)` then `v` is a `*const Tag` and `v.type_tag == Any`.
+    /// If `v : Ref(T)` and T is represented as a `*const Tag`, then `v` is a
+    /// `*const Tag` `v.type_tag == Ptr`.
+    Ref(Box<Type>),
+    /// If `v : Env` then `v` is a `*const Tag` and `v.type_tag == Env`.
+    /// Envs are not values, nor are they really types!!! An env actually has
+    /// an existential type associated with each closure, but we simply say that
+    /// all envs are "equal enough" for the code generation we do after closure
+    /// conversion
+    Env,
 }
 
 impl Type {
@@ -69,8 +89,12 @@ impl Type {
             Type::Bool => false,
             Type::DynObject => true,
             Type::Fn(_) => false,
+            Type::Closure(_) => true,
             Type::Ref(_) => true,
             Type::Any => true,
+            // uhhh i don't think there's a way for there to be a live env when
+            // there's not a live closure? so this could probably become false?
+            Type::Env => true,
         }
     }
 }
@@ -204,24 +228,26 @@ impl ToAny {
 /// trigger garbage collection.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Atom {
-    Lit(Lit),
-    ToAny(ToAny),
-    /// `FromAny(atom, ty)`
+    Lit(Lit, Span),
+    ToAny(ToAny, Span),
+    /// `FromAny(atom, ty, Span)`
     ///
     /// Concrete syntax: `<atom> as <ty>`
-    FromAny(Box<Atom>, Type),
-    FloatToInt(Box<Atom>), // MMG made these Atoms because they shouldn't ever allocate
-    IntToFloat(Box<Atom>),
-    HTGet(Box<Atom>, Box<Atom>),
-    ObjectGet(Box<Atom>, Box<Atom>),
-    Index(Box<Atom>, Box<Atom>),
-    ArrayLen(Box<Atom>),
-    Id(Id),
-    GetPrimFunc(Id),
-    StringLen(Box<Atom>),
-    Unary(UnaryOp, Box<Atom>),
-    Binary(BinaryOp, Box<Atom>, Box<Atom>),
-    Deref(Box<Atom>), // *ref on RHS
+    FromAny(Box<Atom>, Type, Span),
+    FloatToInt(Box<Atom>, Span), // MMG made these Atoms because they shouldn't ever allocate
+    IntToFloat(Box<Atom>, Span),
+    HTGet(Box<Atom>, Box<Atom>, Span),
+    ObjectGet(Box<Atom>, Box<Atom>, Span),
+    Index(Box<Atom>, Box<Atom>, Span),
+    ArrayLen(Box<Atom>, Span),
+    Id(Id, Span),
+    GetPrimFunc(Id, Span),
+    StringLen(Box<Atom>, Span),
+    Unary(UnaryOp, Box<Atom>, Span),
+    Binary(BinaryOp, Box<Atom>, Box<Atom>, Span),
+    Deref(Box<Atom>, Type, Span),
+    /// get the given value from the environment at local 0
+    EnvGet(u32, Type, Span),
 }
 
 // An `Expr` is an expression that may trigger garbage collection.
@@ -230,17 +256,26 @@ pub enum Expr {
     HT,
     // TODO: Give Array initial capacity
     Array,
-    Push(Atom, Atom),
-    /// TODO(luna): we need to detect out-of-bounds and turn into a hashmap
-    ArraySet(Atom, Atom, Atom),
-    HTSet(Atom, Atom, Atom),
-    Call(Id, Vec<Id>),
-    PrimCall(RTSFunction, Vec<Atom>),
+    Push(Atom, Atom, Span),
+    /// TODO(luna, Span): we need to detect out-of-bounds and turn into a hashmap
+    ArraySet(Atom, Atom, Atom, Span),
+    HTSet(Atom, Atom, Atom, Span),
+    /// right now, never constructed from jankyscript, only in tests
+    Call(Id, Vec<Id>, Span),
+    ClosureCall(Id, Vec<Id>, Span),
+    PrimCall(RTSFunction, Vec<Atom>, Span),
     ObjectEmpty,
-    /// ObjectSet(obj, field_name, value, typ) is obj.field_name: typ = value;
-    ObjectSet(Atom, Atom, Atom),
-    NewRef(Atom), // newRef(something)
-    Atom(Atom),
+    /// ObjectSet(obj, field_name, value, typ, Span) is obj.field_name: typ = value;
+    ObjectSet(Atom, Atom, Atom, Span),
+    NewRef(Atom, Type, Span), // newRef(something, Span)
+    Atom(Atom, Span),
+    /// create a new environment with the given atoms and their types,
+    /// in linear order. then create a closure with that environment and
+    /// the index of the function named .0
+    ///
+    /// this has to be atom, not id, because what if we need to store {x:
+    /// env.x} in a nested closure
+    Closure(Id, Vec<(Atom, Type)>, Span),
 }
 
 #[derive(Debug, PartialEq)]
@@ -274,22 +309,22 @@ pub enum Stmt {
     Empty,
     /// Concrete syntax: `var <id> = <named>;`
     /// The type-checker will fill in the type of the variable
-    Var(VarStmt),
-    Expression(Expr),
-    // TODO(arjun): An Assign could probably be an Atom
-    Assign(Id, Expr),
-    Store(Id, Expr), // *ref = expr
-    If(Atom, Box<Stmt>, Box<Stmt>),
-    Loop(Box<Stmt>),
-    Label(Label, Box<Stmt>),
-    Break(Label),
+    Var(VarStmt, Span),
+    Expression(Expr, Span),
+    // TODO(arjun, Span): An Assign could probably be an Atom
+    Assign(Id, Expr, Span),
+    Store(Id, Expr, Span), // *ref = expr
+    If(Atom, Box<Stmt>, Box<Stmt>, Span),
+    Loop(Box<Stmt>, Span),
+    Label(Label, Box<Stmt>, Span),
+    Break(Label, Span),
     // Break value as return?
-    Return(Atom),
-    Block(Vec<Stmt>),
+    Return(Atom, Span),
+    Block(Vec<Stmt>, Span),
     Trap,
     /// these don't exist in NotWasm, only GotoWasm. if you try to [translate]
     /// a goto, it will panic
-    Goto(Label),
+    Goto(Label, Span),
 }
 
 #[derive(Debug, PartialEq)]
@@ -357,7 +392,9 @@ impl std::fmt::Display for Type {
                 Bool => "bool",
                 DynObject => "DynObject",
                 Fn(..) => "fn",
+                Closure(..) => "closure",
                 Any => "any",
+                Env => "env",
             }
         )
     }

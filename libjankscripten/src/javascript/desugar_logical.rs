@@ -15,38 +15,40 @@ impl Visitor for DesugarLogical<'_> {
     fn exit_expr(&mut self, expr: &mut Expr, loc: &Loc) {
         let ctx = loc.enclosing_block().expect("expected block context");
         match expr {
-            Expr::Binary(BinOp::LogicalOp(op), left, right) => {
+            Expr::Binary(BinOp::LogicalOp(op), left, right, s) => {
                 let left_name = self.0.fresh("left");
                 let (cons, alt, op_name) = match op {
-                    LogicalOp::And => (right.take(), id_(left_name.clone()), "and"),
-                    LogicalOp::Or => (id_(left_name.clone()), right.take(), "or"),
+                    LogicalOp::And => (right.take(), id_(left_name.clone(), *s), "and"),
+                    LogicalOp::Or => (id_(left_name.clone(), *s), right.take(), "or"),
                 };
                 let result = self.0.fresh(op_name);
                 let if_stmt = if_(
-                    id_(left_name.clone()),
-                    expr_(assign_(result.clone(), cons)),
-                    expr_(assign_(result.clone(), alt)),
+                    id_(left_name.clone(), *s),
+                    expr_(assign_(result.clone(), cons, *s), *s),
+                    expr_(assign_(result.clone(), alt, *s), *s),
+                    *s,
                 );
-                ctx.insert(ctx.index, vardecl1_(result.clone(), UNDEFINED_));
-                ctx.insert(ctx.index, vardecl1_(left_name, left.take()));
+                ctx.insert(ctx.index, vardecl1_(result.clone(), UNDEFINED_, *s));
+                ctx.insert(ctx.index, vardecl1_(left_name, left.take(), *s));
                 ctx.insert(ctx.index, if_stmt);
-                *expr = id_(result);
+                *expr = id_(result, *s);
             }
-            Expr::If(cond, cons, alt) => {
+            Expr::If(cond, cons, alt, s) => {
                 let result = self.0.fresh("if_expr");
-                ctx.insert(ctx.index, vardecl1_(result.clone(), UNDEFINED_));
+                ctx.insert(ctx.index, vardecl1_(result.clone(), UNDEFINED_, *s));
                 let if_stmt = if_(
                     cond.take(),
-                    expr_(assign_(result.clone(), cons.take())),
-                    expr_(assign_(result.clone(), alt.take())),
+                    expr_(assign_(result.clone(), cons.take(), *s), *s),
+                    expr_(assign_(result.clone(), alt.take(), *s), *s),
+                    *s,
                 );
                 ctx.insert(ctx.index, if_stmt);
-                *expr = id_(result);
+                *expr = id_(result, *s);
             }
-            Expr::Seq(es) => {
+            Expr::Seq(es, s) => {
                 let last = es.pop().expect("sequence with no exprs");
                 for e in es {
-                    ctx.insert(ctx.index, expr_(e.take()));
+                    ctx.insert(ctx.index, expr_(e.take(), *s));
                 }
                 *expr = last;
             }

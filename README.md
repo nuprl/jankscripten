@@ -6,9 +6,17 @@ Prerequisites
 
 2. [Node](https://nodejs.org/en/) (for running tests and benchmarks)
 
+   We require Node 11 or higher.
+
 3. `rustup target add wasm32-unknown-unknown` (Rust's WebAssembly backend)
 
 4. `cargo install wasm-bindgen-cli` (allows Rust unit tests to run in WebAssembly)
+
+## Auxiliary Dependencies
+
+We depend on Rust packages that link with libssl. Those packages fail to build
+unless you have the  libssl headers installed. On Ubuntu, run
+`sudo apt-get install libssl-dev` to install them.
 
 Building
 ========

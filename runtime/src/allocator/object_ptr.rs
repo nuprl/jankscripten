@@ -3,7 +3,6 @@ use super::heap_values::*;
 use super::{Heap, ALIGNMENT};
 use crate::heap_types::StringPtr;
 use crate::{AnyEnum, AnyValue};
-use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 /// A managed pointer to a `ObjectDataPtr`. this level of indirection is
@@ -13,9 +12,8 @@ use std::ops::{Deref, DerefMut};
 /// Tag(1) | pointer to ObjectDataPtr(1)
 #[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(transparent)]
-pub struct ObjectPtr<'a> {
+pub struct ObjectPtr {
     ptr: *mut Tag,
-    _phantom: PhantomData<&'a ()>,
 }
 
 /// A managed pointer to an Object, specified by a Class
@@ -24,12 +22,11 @@ pub struct ObjectPtr<'a> {
 /// Tag(4/8) | field(12/16) | field(12/16) | ...
 #[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(transparent)]
-pub struct ObjectDataPtr<'a> {
+pub struct ObjectDataPtr {
     ptr: *mut Tag,
-    _phantom: PhantomData<&'a ()>,
 }
 
-impl<'a> HeapPtr for ObjectDataPtr<'a> {
+impl HeapPtr for ObjectDataPtr {
     fn get_ptr(&self) -> *mut Tag {
         return self.ptr;
     }
@@ -38,35 +35,22 @@ impl<'a> HeapPtr for ObjectDataPtr<'a> {
         heap.object_data_size(heap.get_class_size(self.class_tag()))
     }
 
-    fn get_gc_ptrs(&self, heap: &Heap) -> Vec<*mut Tag> {
-        let mut rv = vec![];
-        for member in self.as_array(heap) {
-            if let Some(any) = member {
-                rv.append(&mut any.get_gc_ptrs(heap));
-            }
-        }
-        rv
-    }
-    fn get_gc_f64s(&mut self, heap: &Heap) -> Vec<*mut *const f64> {
-        let mut rv = vec![];
-        for member in self.as_array(heap) {
-            if let Some(any) = member {
-                rv.append(&mut any.get_gc_f64s(heap));
-            }
-        }
-        rv
+    fn get_gc_ptrs(&self, heap: &Heap) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
+        // TODO(luna): we should remove the option anyway
+        AnyEnum::iter_to_ptrs(
+            self.as_array(heap)
+                .iter()
+                .map(|x| x.as_ref().unwrap_or(&AnyEnum::Undefined)),
+        )
     }
 }
 
-impl<'a> ObjectDataPtr<'a> {
+impl ObjectDataPtr {
     /// This function is unsafe, because (1) we do not check that the class_tag
     /// is valid, and (2) we assume that `ptr` is valid.
     pub unsafe fn new(ptr: *mut Tag) -> Self {
         assert_eq!((*ptr).type_tag, TypeTag::DynObject);
-        ObjectDataPtr {
-            ptr,
-            _phantom: PhantomData,
-        }
+        ObjectDataPtr { ptr }
     }
 
     pub fn class_tag(&self) -> u16 {
@@ -75,14 +59,14 @@ impl<'a> ObjectDataPtr<'a> {
         tag.class_tag
     }
 
-    pub fn read_at(&self, heap: &'a Heap, index: usize) -> Option<AnyEnum<'a>> {
+    pub fn read_at(&self, heap: &Heap, index: usize) -> Option<AnyEnum> {
         debug_assert!(index < heap.get_class_size(self.class_tag()));
         debug_assert!(unsafe { *self.ptr }.type_tag == TypeTag::DynObject);
         let values = unsafe { self.ptr.add(DATA_OFFSET) as *mut Option<AnyEnum> };
         unsafe { *values.add(index) }
     }
 
-    pub fn write_at(&self, heap: &'a Heap, index: usize, value: AnyValue) {
+    pub fn write_at(&self, heap: &Heap, index: usize, value: AnyValue) {
         debug_assert!(index < heap.get_class_size(self.class_tag()));
         let values = unsafe { self.ptr.add(DATA_OFFSET) as *mut Option<AnyEnum> };
         let ptr = unsafe { values.add(index) };
@@ -94,7 +78,7 @@ impl<'a> ObjectDataPtr<'a> {
     /// if name is found, write to it. if not, transition, clone, write, and
     /// return new pointer. this should be called by ObjectPtr only
     #[must_use]
-    fn insert(self, heap: &'a Heap, name: StringPtr, value: AnyValue, cache: &mut isize) -> Self {
+    fn insert(self, heap: &Heap, name: StringPtr, value: AnyValue, cache: &mut isize) -> Self {
         let class_tag = self.class_tag();
         let mut classes = heap.classes.borrow_mut();
         let class = classes.get_class(class_tag);
@@ -125,7 +109,7 @@ impl<'a> ObjectDataPtr<'a> {
     /// Reads a property from an object, searching up the prototype chain if
     /// necessary. Returns `undefined` if the property doesn't exist anywhere
     /// on the prototype chain.
-    pub fn get(&self, heap: &'a Heap, name: StringPtr, cache: &mut isize) -> AnyEnum<'a> {
+    pub fn get(&self, heap: &Heap, name: StringPtr, cache: &mut isize) -> AnyEnum {
         // Reading a property from an object is a complicated process because
         // of the prototype chain.
         //
@@ -189,12 +173,9 @@ impl<'a> ObjectDataPtr<'a> {
     }
 }
 
-impl<'a> ObjectPtr<'a> {
+impl ObjectPtr {
     pub const unsafe fn new(ptr: *mut Tag) -> Self {
-        Self {
-            ptr,
-            _phantom: PhantomData,
-        }
+        Self { ptr }
     }
     /// if name is found, write to it. if not, transition, clone, write, and
     /// update pointer
@@ -203,7 +184,7 @@ impl<'a> ObjectPtr<'a> {
     /// (ObjectPtr -> ArrayPtr -> [u8; n])
     pub fn insert(
         &mut self,
-        heap: &'a Heap,
+        heap: &Heap,
         name: StringPtr,
         value: AnyValue,
         cache: &mut isize,
@@ -214,26 +195,26 @@ impl<'a> ObjectPtr<'a> {
         value
     }
 }
-impl<'a> Deref for ObjectPtr<'a> {
-    type Target = ObjectDataPtr<'a>;
+impl Deref for ObjectPtr {
+    type Target = ObjectDataPtr;
     fn deref(&self) -> &Self::Target {
         unsafe { &*(self.ptr.add(DATA_OFFSET) as *const ObjectDataPtr) }
     }
 }
-impl<'a> DerefMut for ObjectPtr<'a> {
+impl DerefMut for ObjectPtr {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { &mut *(self.ptr.add(DATA_OFFSET) as *mut ObjectDataPtr) }
     }
 }
-impl<'a> HeapPtr for ObjectPtr<'a> {
+impl HeapPtr for ObjectPtr {
     fn get_ptr(&self) -> *mut Tag {
         self.ptr
     }
     fn get_data_size(&self, _heap: &Heap) -> usize {
         ALIGNMENT
     }
-    fn get_gc_ptrs(&self, _heap: &Heap) -> Vec<*mut Tag> {
-        vec![(**self).get_ptr()]
+    fn get_gc_ptrs(&self, _heap: &Heap) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
+        (vec![(**self).get_ptr() as *const _ as *mut _], vec![])
     }
 }
 
@@ -248,7 +229,7 @@ mod test {
         let heap = Heap::new((ALIGNMENT * 7) as isize);
         let obj_ptr = heap.alloc_object(0).unwrap();
         let ptrs = obj_ptr.get_gc_ptrs(&heap);
-        assert_eq!(ptrs.len(), 1);
-        assert_eq!(unsafe { *ptrs[0] }.type_tag, TypeTag::DynObject);
+        assert_eq!(ptrs.0.len(), 1);
+        assert_eq!(unsafe { *(ptrs.0[0]) }.type_tag, TypeTag::DynObject);
     }
 }

@@ -165,72 +165,72 @@ where
         // recurse
         match stmt {
             // 0
-            Empty | Break(_) | Continue(_) => (),
-            Label(.., a) => {
+            Empty | Break(_, _) | Continue(_, _) => (),
+            Label(.., a, _) => {
                 let loc = Loc::Node(Context::Stmt, loc);
                 self.walk_stmt(a, &loc);
             }
-            Func(.., a) => {
+            Func(.., a, _) => {
                 let loc = Loc::Node(Context::FunctionBody, loc);
                 self.walk_stmt(a, &loc);
             }
             // 2xStmt
-            Finally(a, b) | Catch(a, .., b) => {
+            Finally(a, b, _) | Catch(a, .., b, _) => {
                 let loc = Loc::Node(Context::Stmt, loc);
                 self.walk_stmt(a, &loc);
                 self.walk_stmt(b, &loc);
             }
             // 1x[Stmt]
-            Block(ss) => {
+            Block(ss, _) => {
                 let mut block_cxt = BlockContext::new(0, ss.len());
-                for (index, s) in ss.iter_mut().enumerate() {
+                for (index, st) in ss.iter_mut().enumerate() {
                     block_cxt.index = index;
                     let loc = Loc::Node(Context::Block(&block_cxt), loc);
-                    self.walk_stmt(s, &loc);
+                    self.walk_stmt(st, &loc);
                 }
                 block_cxt.apply_patches(ss);
             }
             // 1x{ .., Stmt }
-            VarDecl(vds) => {
+            VarDecl(vds, _) => {
                 for super::VarDecl { name: _, named } in vds {
                     let loc = Loc::Node(Context::VarDeclRhs, loc);
                     self.walk_expr(named, &loc);
                 }
             }
             // 1xExpr
-            Throw(a) | Return(a) | Expr(a) => {
+            Throw(a, _) | Return(a, _) | Expr(a, _) => {
                 let loc = Loc::Node(Context::Stmt, loc);
                 self.walk_expr(a, &loc);
             }
             // 1xExpr, 1xStmt
-            DoWhile(s, e) | ForIn(.., e, s) | While(e, s) => {
+            DoWhile(st, e, _) | ForIn(.., e, st, _) | While(e, st, _) => {
                 let loc = Loc::Node(Context::Loop, loc);
                 self.walk_expr(e, &loc);
-                self.walk_stmt(s, &loc);
+                self.walk_stmt(st, &loc);
             }
             // 1xExpr, 2xStmt
-            If(e, sa, sb) => {
+            If(e, sa, sb, _) => {
                 let loc = Loc::Node(Context::Stmt, loc);
                 self.walk_expr(e, &loc);
                 self.walk_stmt(sa, &loc);
                 self.walk_stmt(sb, &loc);
             }
             // 1xExpr, 1xStmt, 1x[(Expr,Stmt)]
-            Switch(e, es_ss, s) => {
+            Switch(e, es_ss, st, _) => {
                 let loc = Loc::Node(Context::Switch, &loc);
                 self.walk_expr(e, &loc);
-                es_ss.iter_mut().for_each(|(e, s)| {
+                es_ss.iter_mut().for_each(|(e, st)| {
                     self.walk_expr(e, &loc);
-                    self.walk_stmt(s, &loc);
+                    self.walk_stmt(st, &loc);
                 });
-                self.walk_stmt(s, &loc);
+                self.walk_stmt(st, &loc);
             }
             // 2xExpr, 1xStmt
-            For(_, ea, eb, s) => {
+            For(_, ea, eb, st, _) => {
                 let loc = Loc::Node(Context::Loop, &loc);
                 self.walk_expr(ea, &loc);
                 self.walk_expr(eb, &loc);
-                self.walk_stmt(s, &loc);
+                self.walk_stmt(st, &loc);
             }
         }
         self.visitor.exit_stmt(stmt, &loc);
@@ -241,44 +241,44 @@ where
         self.visitor.enter_expr(expr, loc);
         match expr {
             // 0
-            Lit(_) | This | Id(_) => (),
+            Lit(_, _) | This | Id(_, _) => (),
             // 1xLValue
-            UnaryAssign(.., lv) => {
+            UnaryAssign(.., lv, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_lval(lv, &loc);
             }
-            Func(.., s) => {
+            Func(.., st, _) => {
                 let loc = Loc::Node(Context::FunctionBody, loc);
-                self.walk_stmt(s, &loc);
+                self.walk_stmt(st, &loc);
             }
             // 1x[Expr]
-            Array(es) | Seq(es) => {
+            Array(es, _) | Seq(es, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 for e in es {
                     self.walk_expr(e, &loc);
                 }
             }
             // 1x[(_, Expr)]
-            Object(ks_es) => {
+            Object(ks_es, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 for (_, e) in ks_es {
                     self.walk_expr(e, &loc);
                 }
             }
             // 1xExpr
-            Dot(e, ..) | Unary(.., e) => {
+            Dot(e, .., _) | Unary(.., e, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_expr(e, &loc);
             }
             // 1xExpr, 1xLValue
-            Assign(op, lv, e) => {
+            Assign(op, lv, e, _) => {
                 let lv_loc = Loc::Node(Context::LValue, loc);
                 self.walk_lval(lv, &lv_loc);
                 let rv_loc = Loc::Node(Context::AssignRhs(*op), loc);
                 self.walk_expr(e, &rv_loc);
             }
             // 1xExpr, 1x[Expr]
-            New(e, es) | Call(e, es) => {
+            New(e, es, _) | Call(e, es, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_expr(e, &loc);
                 for e in es {
@@ -286,13 +286,13 @@ where
                 }
             }
             // 2xExpr
-            Bracket(ea, eb) | Binary(.., ea, eb) => {
+            Bracket(ea, eb, _) | Binary(.., ea, eb, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_expr(ea, &loc);
                 self.walk_expr(eb, &loc);
             }
             // 3xExpr
-            If(ea, eb, ec) => {
+            If(ea, eb, ec, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_expr(ea, &loc);
                 self.walk_expr(eb, &loc);
@@ -336,7 +336,7 @@ impl Stmt {
     ///         match stmt {
     ///             Stmt::Empty => {
     ///                 let old = stmt.take();
-    ///                 *stmt = Stmt::Block(vec![]);
+    ///                 *stmt = old;
     ///             }
     ///             _ => (),
     ///         }
@@ -367,6 +367,6 @@ impl Expr {
     /// Replace this statement with `undefined` and return its old
     /// value.
     pub fn take(&mut self) -> Self {
-        std::mem::replace(self, Expr::Lit(Lit::Undefined))
+        std::mem::replace(self, Expr::Lit(Lit::Undefined, DUMMY_SP))
     }
 }
