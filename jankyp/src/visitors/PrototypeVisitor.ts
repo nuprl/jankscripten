@@ -8,7 +8,8 @@ import * as parser from '@babel/parser';
  * Jankscripten's eventual goal is to implement prototypes using a method
  * similar to vtables. However, we want to avoid *deoptimizing* these vtables
  * at runtime, which we would have to do in order to support full prototypes
- * like V8.
+ * like V8. We also detect bad behavior around function objects, since we 
+ * implement their prototypes in a janky way.
  * 
  * Since we want to avoid deoptimization, this visitor detects 2 forms of bad
  * behavior that would cause deoptimization:
@@ -26,6 +27,8 @@ import * as parser from '@babel/parser';
  *    to their properties. Here's an example of this type of bad behavior:
  * 
  *        let r = new Rectangle(2, 2); Rectangle.prototype.extraMethod = ...;
+ * 
+ * 3. *Dynamic object classing.*
  * 
  * 
  * Here are the different syntax forms we instrument to observe the relevant
@@ -67,6 +70,8 @@ export const PrototypeVisitor: JankyPVisitor = {
                 // Deals with cases (4) and (5).
                 // Monkey patch Object.setPrototypeOf to record this bad behavior.
                 // Also monkey patch Object.create to track prototype objects.
+                // Also tracks the prototypes of the fundamental built-in JS
+                // classes.
 
                 let monkeyPatch = `
                 let $jankyp_old_Object_setPrototypeOf = Object.setPrototypeOf;
@@ -74,11 +79,18 @@ export const PrototypeVisitor: JankyPVisitor = {
                 Object.setPrototypeOf = function(obj, proto) {
                     (${qJankyp.name}).recordPrototypeChange();
                     return $jankyp_old_Object_setPrototypeOf(obj, proto);
-                }
+                };
                 Object.create = function(proto, propertiesObject) {
                     (${qJankyp.name}).trackPrototype("", proto);
                     return $jankyp_old_Object_create(proto, propertiesObject);
-                }
+                };
+
+                // Track prototypes of fundamental, built-in JS classes.
+                (${qJankyp.name}).trackPrototype(Object.prototype);
+                (${qJankyp.name}).trackPrototype(Function.prototype);
+                (${qJankyp.name}).trackPrototype(Boolean.prototype);
+                (${qJankyp.name}).trackPrototype(Symbol.prototype);
+                (${qJankyp.name}).trackPrototype(String.prototype);
                 `;
 
                 let monkeyPatchStmts = parser.parse(monkeyPatch).program.body;
@@ -87,8 +99,6 @@ export const PrototypeVisitor: JankyPVisitor = {
             }
         },
         AssignmentExpression: {
-            // obj.__proto__ = ???;
-            // obj[field] = ???; => obj[check(field)] = ???;
             exit(path) {
                 // to make typescript happy. i don't think it's possible for
                 // loc to be null.
@@ -96,10 +106,7 @@ export const PrototypeVisitor: JankyPVisitor = {
                     return;
                 }
 
-                // o.p = v;
-                // 1. o[checkField(p)] = v;
-                // 2. (checkForProtoModification(o))[checkField(p)] = v;
-                // 3. (fieldWrite(o, p, v))
+                // o.p = v; ~~> (checkPropWrite(o, p, v))
                 
                 if (t.isMemberExpression(path.node.left)) {
                     let [object, property] = decomposeMemberExpression(path.node.left);

@@ -345,8 +345,8 @@ parser! {
             .and(id(lang))
             .skip(lang.reserved_op(":"))
             .and(type_(lang))
-            .skip(lang.reserved_op("="))
-            .and(atom(lang))
+            .skip(optional(lang.reserved_op("=")))
+            .and(optional(atom(lang)))
             .skip(lang.reserved_op(";"))
             .map(|(((const_or_var, name), ty), atom)| (
                 name,

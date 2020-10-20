@@ -229,7 +229,9 @@ impl Program {
             func.body.walk(v);
         }
         for global in self.globals.values_mut() {
-            global.atom.walk(v);
+            if let Some(atom) = &mut global.atom {
+                atom.walk(v);
+            }
         }
     }
 }

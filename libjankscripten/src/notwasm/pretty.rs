@@ -410,7 +410,10 @@ impl Pretty for Global {
             self.ty.pretty(pp),
             pp.text(","),
             pp.space(),
-            self.atom.pretty(pp),
+            self.atom
+                .as_ref()
+                .map(|a| a.pretty(pp))
+                .unwrap_or(pp.text("none")),
         ])
         .angles()
     }

@@ -458,7 +458,7 @@ fn globals() {
         Global {
             is_mut: false,
             ty: Type::I32,
-            atom: i32_(5, D_S),
+            atom: Some(i32_(5, D_S)),
         },
     );
     expect_notwasm(5, program);
