@@ -51,8 +51,8 @@ pub enum TypeCheckingError {
     ExpectedRef(String, Type),
     #[error("unexpected return type {0}")]
     UnexpectedReturn(Type),
-    #[error("arity mismatch")]
-    ArityMismatch(Id, usize), // difference in arity
+    #[error("arity mismatch: expected {0} args but got {1}")]
+    ArityMismatch(Id, usize, usize), // expected, actual
     #[error("Undefined branch")]
     UndefinedBranch(Env),
     #[error("identifier is multiply defined")]
@@ -147,7 +147,8 @@ fn type_check_function(mut env: Env, id: &Id, f: &mut Function) -> TypeCheckingR
     if f.fn_type.args.len() != f.params.len() {
         return Err(TypeCheckingError::ArityMismatch(
             id.clone(),
-            f.params.len() - f.fn_type.args.len(),
+            f.fn_type.args.len(),
+            f.params.len()
         ));
     }
 
@@ -369,11 +370,17 @@ fn type_check_call(
     implicit_arg: bool,
 ) -> TypeCheckingResult<Type> {
     // arity check
+
+    // lengths should be i32 here. They're compared when constructing
+    // the error message, and usizes will panic if they underflow.
+
     let actuals_len = actuals.len() + if implicit_arg { 1 } else { 0 };
-    if actuals_len != fn_ty.args.len() {
+    let expected_len = fn_ty.args.len();
+    if actuals_len != expected_len {
         return Err(TypeCheckingError::ArityMismatch(
             id_f.clone(),
-            actuals_len - fn_ty.args.len(),
+            expected_len,
+            actuals_len
         ));
     }
 
