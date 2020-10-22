@@ -36,7 +36,7 @@ pub fn get_global_object() -> BindMap {
     insert(m, "global", DynObject);
     insert(m, "window", Any);
     // Properties
-    insert(m, "console", Any);
+    insert(m, "console", DynObject);
     insert(m, "directories", Any);
     // i happen to know this is used by dart though it shouldn't be
     insert(m, "navigator", Any);
