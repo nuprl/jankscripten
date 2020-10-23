@@ -13,37 +13,22 @@ type Env = HashMap<Id, Type>;
 #[derive(Debug)]
 pub enum TypeCheckingError {
     // Expected expression to have the first type, but it had the second
-    //#[error("{0} expected type {1}, but received {2}")]
     TypeMismatch(String, Type, Type, Span),
-
     // Expected expression to be indexable (either DynObject or Arrray),
     // but it had the given type
-    //#[error("{0} expected indexable type, but received {1}")]
-    ExpectedIndexable(String, Type),
-
+    ExpectedIndexable(String, Type, Span),
     // Expected an indexer (e.g. the `x` in arr[x]), but it had the given type
-    //#[error("{0} expected idexer, but received {1}")]
-    ExpectedIndexer(String, Type),
-
+    ExpectedIndexer(String, Type, Span),
     // Expected an expression to have a function type
-    //#[error("{0} expected an expression to have a function type, but received {1}")]
-    ExpectedFunction(String, Type),
-
+    ExpectedFunction(String, Type, Span),
     // Tried to tag a value of the first type, but it had the second
-    //#[error("tried to tag a value of type {0}, but received {1}")]
-    TagTypeMismatch(Type, Type),
-
+    TagTypeMismatch(Type, Type, Span),
     // Expected a ground type
-    //#[error("{0} expected a ground type but got {1}")]
-    ExpectedGround(String, Type),
-
+    ExpectedGround(String, Type, Span),
     // A return statement was used outside of a function
-    //#[error("unexpected return of type {0}")]
-    UnexpectedReturn(Type),
-
+    UnexpectedReturn(Type, Span),
     // A variable was referenced that does not exist
-    //#[error("a variable named {0} was referenced that doesn't exist")]
-    NoSuchVariable(Id),
+    NoSuchVariable(Id, Span),
 }
 
 impl Report for TypeCheckingError {
@@ -57,7 +42,46 @@ impl Report for TypeCheckingError {
                 c,
                 sm.span_to_string(*s)
             ),
-            _ => todo!(),
+            ExpectedIndexable(a, b, s) => format!(
+                "{} expected indexable type, but received {} at {}",
+                a,
+                b,
+                sm.span_to_string(*s)
+            ),
+            ExpectedIndexer(a, b, s) => format!(
+                "{} expected idexer, but received {} at {}",
+                a,
+                b,
+                sm.span_to_string(*s)
+            ),
+            ExpectedFunction(a, b, s) => format!(
+                "{} expected an expression to have a function type, but received {} at {}",
+                a,
+                b,
+                sm.span_to_string(*s)
+            ),
+            TagTypeMismatch(a, b, s) => format!(
+                "tried to tag a value of type {}, but received {} at {}",
+                a,
+                b,
+                sm.span_to_string(*s)
+            ),
+            ExpectedGround(a, b, s) => format!(
+                "{} expected a ground type but got {} at {}",
+                a,
+                b,
+                sm.span_to_string(*s)
+            ),
+            UnexpectedReturn(a, s) => format!(
+                "unexpected return of type {} at {}",
+                a,
+                sm.span_to_string(*s)
+            ),
+            NoSuchVariable(a, s) => format!(
+                "a variable named {} was referenced that doesn't exist at {}",
+                a,
+                sm.span_to_string(*s)
+            ),
         }
     }
 }
@@ -97,7 +121,11 @@ fn ensure_indexable(msg: &str, got: Type, s: Span) -> TypeCheckingResult<Type> {
         }
     }
 
-    Err(TypeCheckingError::ExpectedIndexable(String::from(msg), got))
+    Err(TypeCheckingError::ExpectedIndexable(
+        String::from(msg),
+        got,
+        s,
+    ))
 }
 
 // ensure the given type is an indexer (e.g. the `x` in arr[x])
@@ -115,29 +143,37 @@ fn ensure_indexer(msg: &str, got: Type, s: Span) -> TypeCheckingResult<Type> {
         }
     }
 
-    Err(TypeCheckingError::ExpectedIndexable(String::from(msg), got))
+    Err(TypeCheckingError::ExpectedIndexable(
+        String::from(msg),
+        got,
+        s,
+    ))
 }
 
-fn ensure_function(msg: &str, got: Type) -> TypeCheckingResult<(Vec<Type>, Box<Type>)> {
+fn ensure_function(msg: &str, got: Type, s: Span) -> TypeCheckingResult<(Vec<Type>, Box<Type>)> {
     match got {
         Type::Function(args_types, return_type) => Ok((args_types, return_type)),
-        _ => Err(TypeCheckingError::ExpectedFunction(String::from(msg), got)),
+        _ => Err(TypeCheckingError::ExpectedFunction(
+            String::from(msg),
+            got,
+            s,
+        )),
     }
 }
 
-fn ensure_ground(msg: &str, got: Type) -> TypeCheckingResult<Type> {
+fn ensure_ground(msg: &str, got: Type, s: Span) -> TypeCheckingResult<Type> {
     if got.is_ground() {
         Ok(got)
     } else {
-        Err(TypeCheckingError::ExpectedGround(String::from(msg), got))
+        Err(TypeCheckingError::ExpectedGround(String::from(msg), got, s))
     }
 }
 
-fn lookup(env: &Env, id: &Id) -> TypeCheckingResult<Type> {
+fn lookup(env: &Env, id: &Id, s: Span) -> TypeCheckingResult<Type> {
     if let Some(ty) = env.get(id) {
         Ok(ty.clone())
     } else {
-        Err(TypeCheckingError::NoSuchVariable(id.clone()))
+        Err(TypeCheckingError::NoSuchVariable(id.clone(), s))
     }
 }
 
@@ -236,7 +272,7 @@ fn type_check_stmt(stmt: &Stmt, env: Env, ret_ty: &Option<Type>) -> TypeChecking
             let e_type = type_check_expr(e, env.clone())?;
 
             match ret_ty {
-                None => Err(TypeCheckingError::UnexpectedReturn(e_type)),
+                None => Err(TypeCheckingError::UnexpectedReturn(e_type, *s)),
                 Some(ty) => {
                     ensure("return", ty.clone(), e_type, *s)?;
                     Ok(env)
@@ -265,7 +301,7 @@ fn type_check_fun_call(
     // ensure that `fun_type` is a function type.
     // get its expected argument types.
     let (expected_arg_types, return_type) =
-        ensure_function("expected function for function call", fun_type)?;
+        ensure_function("expected function for function call", fun_type, s)?;
 
     // derive types for the actual arguments.
     let actual_arg_types: Vec<TypeCheckingResult<Type>> = actual_args
@@ -315,7 +351,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             match &**lval {
                 LValue::Id(id, ty) => {
                     // what type is id?
-                    let id_ty = lookup(&env, &id)?;
+                    let id_ty = lookup(&env, &id, *s)?;
                     ensure("rvalue assignment", ty.clone(), rval_ty.clone(), *s)?;
                     ensure("lvalue assignment", ty.clone(), id_ty, *s)?;
                     Ok(rval_ty)
@@ -373,7 +409,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             Ok(to)
         }
         Expr::Lit(l, _) => Ok(type_check_lit(&l)),
-        Expr::Id(id, ty, s) => ensure("id get", ty.clone(), lookup(&env, &id)?, *s),
+        Expr::Id(id, ty, s) => ensure("id get", ty.clone(), lookup(&env, &id, *s)?, *s),
         Expr::Object(props, _) => {
             // type check each property
             for (_key, val) in props {
