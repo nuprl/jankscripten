@@ -121,6 +121,7 @@ fn binop_overload(op: &BinOp, lhs_ty: &Type, rhs_ty: &Type) -> TypeOverload {
         (BinOp::GreaterThan, _, _) => prim(BinaryOp::F64GT, Float, Float, Bool),
         (BinOp::GreaterThanEqual, Int, Int) => prim(BinaryOp::I32Ge, Int, Int, Bool),
         (BinOp::GreaterThanEqual, _, _) => prim(BinaryOp::F64Ge, Float, Float, Bool),
+        (BinOp::And, _, _) => prim(BinaryOp::I32And, Int, Int, Int),
         (BinOp::Times, Int, Int) => prim_same(BinaryOp::I32Mul, Int),
         (BinOp::Times, _, _) if anyish => rts(RTSFunction::Times, Any),
         (BinOp::Times, _, _) => prim_same(BinaryOp::F64Mul, Float),
@@ -488,7 +489,7 @@ impl InsertCoercions {
                             vec![self.coerce(coerced_e, e_ty, Type::Any, s)],
                             s,
                         ),
-                        Type::Any,
+                        Type::String,
                     )),
                     (UnaryOp::Void, _) => Ok((
                         Janky::Expr::PrimCall(

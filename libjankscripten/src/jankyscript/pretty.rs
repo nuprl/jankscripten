@@ -177,7 +177,7 @@ impl Pretty for Expr {
                 .parens(),
             ]),
             Expr::PrimCall(rts, args, _) => pp.concat(vec![
-                pp.text(rts.name()),
+                pp.as_string(rts),
                 pp.intersperse(
                     args.iter().map(|e| e.pretty(pp)),
                     pp.text(",").append(pp.line()),

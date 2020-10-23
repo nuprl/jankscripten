@@ -1,2 +1,4 @@
 #!/bin/sh
-../bin/jankscripten compile "$1" -o /tmp/run.wasm && ../bin/run-node /tmp/run.wasm
+where=`realpath "$1"`
+cd `dirname $0`
+./jankscripten compile "$where" -o /tmp/run.wasm && ./run-node /tmp/run.wasm
