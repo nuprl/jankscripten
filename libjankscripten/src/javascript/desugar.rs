@@ -17,6 +17,7 @@ pub fn desugar(stmt: &mut Stmt, ng: &mut NameGen) {
     desugar_vardecls::desugar_vardecls(stmt);
     //dep: desugar_updates needs desugar_function_applications to work properly
     desugar_updates::desugar_updates(stmt, ng);
+    desugar_bracket_str::desugar_bracket_str(stmt);
     lift_vars::lift_vars(stmt);
 }
 
@@ -529,6 +530,16 @@ mod test {
             var obj = { x: 5, get_this_x: get_this_x };
             var five = obj.get_this_x();
             five;",
+        );
+    }
+
+    #[test]
+    fn test_desugar_bracket_str() {
+        okay(
+            r#"
+            var o = {"field": 5};
+            o["field"] = 8;
+            o["field"];"#,
         );
     }
 }
