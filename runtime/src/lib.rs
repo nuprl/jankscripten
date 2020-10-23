@@ -46,6 +46,8 @@ pub mod ops;
 #[cfg(all(target_arch = "wasm32"))]
 pub mod r#ref; // Rust raw identifier syntax
 #[cfg(all(target_arch = "wasm32"))]
+pub mod std_lib;
+#[cfg(all(target_arch = "wasm32"))]
 pub mod string;
 
 #[cfg(all(target_arch = "wasm32"))]

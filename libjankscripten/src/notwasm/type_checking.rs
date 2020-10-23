@@ -57,7 +57,7 @@ impl crate::shared::Report for TypeCheckingError {
                 format!("undefined variable {} at {}", a, sm.span_to_string(*s))
             }
             TypeMismatch(a, b, c, s) => format!(
-                "{} expected type {} but received {} at {}",
+                "{} expected type {:?} but received {:?} at {}",
                 a,
                 b,
                 c,

@@ -36,7 +36,7 @@ pub fn get_global_object() -> BindMap {
     insert(m, "global", DynObject);
     insert(m, "window", Any);
     // Properties
-    insert(m, "console", Any);
+    insert(m, "console", DynObject);
     insert(m, "directories", Any);
     // i happen to know this is used by dart though it shouldn't be
     insert(m, "navigator", Any);
@@ -106,7 +106,8 @@ pub fn get_global_object() -> BindMap {
     insert(m, "isFinite", Any);
     insert(m, "isNaN", Any);
     insert(m, "parseFloat", Any);
-    insert(m, "parseInt", Any);
+    // i think this specifies before closure conversion but after this-conversion
+    insert(m, "parseInt", Function(vec![Any, Any], Box::new(Any)));
     // constants
     insert(m, "undefined", Any);
     insert(m, "null", Any);

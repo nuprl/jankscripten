@@ -97,7 +97,11 @@ pub fn get_rt_bindings() -> BindMap {
     // -> Env
     insert(m, "closure_env", vec![a_clos.clone()], I32);
     insert(m, "closure_func", vec![a_clos.clone()], a_fn.clone());
-
+    // here's some standard library stuff!!
+    // most of these take Env, Any which is _env, _this (usually ignored)
+    insert(m, "parse_int", vec![Env, Any, Any], Any);
+    // returns 5 for now because void messiness remains
+    insert(m, "console_log", vec![Env, Any, Any], Any);
     // Step 2: automatically insert runtime functions from RTSFunction.
     for rts in RTSFunction::iter() {
         if let RTSFunction::Todo(_) = rts {

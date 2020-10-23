@@ -2,6 +2,9 @@
 // BEEN WRITTEN TO.
 var Object: DynObject;
 var global: DynObject;
+var console: DynObject;
+// (_, _this, what) -> i32 or f64(NaN)
+var parseInt: clos(env, any, any) -> any;
 
 // Cached Object properties to be used in jnks_new_object.
 // ASSUMPTION: Object.prototype is never modified by user code.
@@ -19,6 +22,7 @@ function jnks_init() {
 
     // load the Object.create runtime function
     var objectCreateF = rt(object_create);
+    // comma is obligatory to indicate an empty environment
     var objectCreate = clos(objectCreateF, );
 
     // create the actual object for Object
@@ -36,6 +40,14 @@ function jnks_init() {
     // Cache Object properties for jnks_new_object
     jnks_objectCreate = objectCreate;
     jnks_objectPrototype = objectPrototype;
+
+    var parseIntF = rt(parse_int);
+    parseInt = clos(parseIntF, );
+
+    console = {};
+    var consoleLogF = rt(console_log);
+    var consoleLog = clos(consoleLogF, );
+    console.log = any(consoleLog);
 
     // Now that the default Object class has been set up, create the global 
     // object.
