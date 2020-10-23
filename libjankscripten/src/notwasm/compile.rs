@@ -1,8 +1,8 @@
 use super::syntax::Program;
 use super::*;
-use parity_wasm::elements::Error;
+use crate::shared::Report;
 
-pub fn compile<G>(mut program: Program, inspect: G) -> Result<Vec<u8>, Error>
+pub fn compile<G>(mut program: Program, inspect: G) -> Result<Vec<u8>, Box<dyn Report>>
 where
     G: FnOnce(&Program) -> (),
 {
@@ -10,8 +10,8 @@ where
     //elim_gotos(&mut program);
     let notwasm_rt = parse(include_str!("runtime.notwasm"));
     program.merge_in(notwasm_rt);
-    type_checking::type_check(&mut program).expect("type-checking failed");
+    type_checking::type_check(&mut program)?;
     intern(&mut program);
     inspect(&program);
-    translate(program)
+    Ok(translate(program)?)
 }

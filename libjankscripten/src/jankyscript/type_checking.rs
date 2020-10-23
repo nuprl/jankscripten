@@ -4,6 +4,7 @@
 
 use super::syntax::*;
 use crate::shared::std_lib::get_global_object;
+use crate::shared::Report;
 use im_rc::HashMap;
 use swc_common::SourceMap;
 
@@ -45,8 +46,8 @@ pub enum TypeCheckingError {
     NoSuchVariable(Id),
 }
 
-impl TypeCheckingError {
-    fn report(&self, sm: SourceMap) -> String {
+impl Report for TypeCheckingError {
+    fn report(&self, sm: &SourceMap) -> String {
         use TypeCheckingError::*;
         match self {
             TypeMismatch(a, b, c, s) => format!(
@@ -57,20 +58,6 @@ impl TypeCheckingError {
                 sm.span_to_string(*s)
             ),
             _ => todo!(),
-        }
-    }
-}
-
-pub trait UnwrapReport<T> {
-    fn unwrap_report(self, sm: SourceMap) -> T;
-}
-impl<T> UnwrapReport<T> for TypeCheckingResult<T> {
-    fn unwrap_report(self, sm: SourceMap) -> T {
-        match self {
-            Ok(o) => o,
-            Err(e) => {
-                panic!("type-checking error: {}", e.report(sm));
-            }
         }
     }
 }

@@ -380,7 +380,8 @@ parser! {
             (f, Function {
                 body,
                 fn_type: FnType { args, result: ret_ty.and_then(|t| Some(Box::new(t))) },
-                params
+                params,
+                span: DUMMY_SP,
             })
         })
     }

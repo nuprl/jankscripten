@@ -503,9 +503,14 @@ fn compile_stmt<'a>(state: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
             s,
         )),
         S::Break(x, s) => Rope::singleton(Stmt::Break(Label::Named(x.to_pretty(80)), s)),
-        S::Catch(_, _, _, _) => todo!("NotWasm needs to support exceptions"),
+        // TODO(luna): notwasm needs to support exceptions
+        // (this just executes the statement with no continuation; in jankyp
+        // we discovered that in most benchmarks, even if they use try/catch, no
+        // error is thrown)
+        S::Catch(try_stmt, _, _, _) => compile_stmt(state, *try_stmt),
         S::Finally(_, _, _) => todo!("NotWasm needs to support exceptions"),
-        S::Throw(_, _) => todo!("NotWasm needs to support exceptions"),
+        // TODO(luna): notwasm needs to support exceptions
+        S::Throw(_, _) => Rope::new(),
         S::Return(e, s) => {
             compile_expr(state, *e, C::a(|_s, a| Rope::singleton(Stmt::Return(a, s))))
         }
@@ -531,6 +536,7 @@ fn compile_function<'a>(state: &'a mut S, f: J::Func, s: Span) -> Function {
             args: param_tys.into_iter().map(|t| compile_ty(t)).collect(),
             result: Some(Box::new(compile_ty(f.result_typ))),
         },
+        span: s,
     }
 }
 
@@ -551,6 +557,7 @@ pub fn from_jankyscript(janky_program: J::Stmt) -> Program {
                 args: Vec::new(),
                 result: None,
             },
+            span: DUMMY_SP,
         },
     );
     Program {

@@ -10,4 +10,3 @@ mod type_checking;
 mod walk;
 
 pub use compile::compile;
-pub use type_checking::UnwrapReport;

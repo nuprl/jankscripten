@@ -129,6 +129,7 @@ pub fn func_i32_(body: Stmt, _s: Span) -> Function {
             result: Some(Box::new(Type::I32)),
         },
         params: Vec::new(),
+        span: DUMMY_SP,
     }
 }
 pub fn id_<S: Into<String>>(a: S) -> Id {
