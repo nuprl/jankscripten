@@ -468,7 +468,12 @@ impl InsertCoercions {
                         Janky::Expr::PrimCall(
                             RTSFunction::Minus,
                             vec![
-                                Janky::Expr::Lit(Janky::Lit::Num(Janky::Num::Int(0)), s),
+                                self.coerce(
+                                    Janky::Expr::Lit(Janky::Lit::Num(Janky::Num::Int(0)), s),
+                                    Type::Int,
+                                    Type::Any,
+                                    s,
+                                ),
                                 self.coerce(coerced_e, e_ty, Type::Any, s),
                             ],
                             s,
@@ -581,10 +586,10 @@ impl InsertCoercions {
     }
 
     fn coerce(&self, e: Janky::Expr, t1: Type, t2: Type, s: Span) -> Janky::Expr {
-        Janky_::coercion_(self.coercion(t1, t2), e, s)
+        Janky_::coercion_(self.coercion(t1, t2, s), e, s)
     }
 
-    fn coercion(&self, t1: Type, t2: Type) -> Coercion {
+    fn coercion(&self, t1: Type, t2: Type, s: Span) -> Coercion {
         if t1 == t2 {
             Coercion::Id(t1)
         } else {
@@ -594,15 +599,15 @@ impl InsertCoercions {
                 (Type::Any, Type::Function(args, ret)) => {
                     let gf = Type::ground_function(args.len());
                     Coercion::seq(
-                        self.coercion(Type::Any, gf.clone()),
-                        self.coercion(gf, Type::Function(args, ret)),
+                        self.coercion(Type::Any, gf.clone(), s),
+                        self.coercion(gf, Type::Function(args, ret), s),
                     )
                 }
                 (Type::Any, Type::Function(args, ret)) => {
                     let gf = Type::ground_function(args.len());
                     Coercion::seq(
-                        self.coercion(Type::Function(args, ret), gf.clone()),
-                        self.coercion(gf, Type::Any),
+                        self.coercion(Type::Function(args, ret), gf.clone(), s),
+                        self.coercion(gf, Type::Any, s),
                     )
                 }
                 (Type::Function(args1, ret1), Type::Function(args2, ret2)) => {
@@ -614,16 +619,19 @@ impl InsertCoercions {
                         args1
                             .into_iter()
                             .zip(args2.into_iter())
-                            .map(|(arg1, arg2)| self.coercion(arg2, arg1))
+                            .map(|(arg1, arg2)| self.coercion(arg2, arg1, s))
                             .collect(),
-                        self.coercion(*ret1, *ret2),
+                        self.coercion(*ret1, *ret2, s),
                     )
                 }
                 (Type::Int, Type::Float) => Coercion::IntToFloat,
                 (Type::Float, Type::Int) => Coercion::FloatToInt,
                 (t1, t2) => {
-                    eprintln!("doing coerce({:?}, {:?}) through Any", t1, t2);
-                    Coercion::seq(self.coercion(t1, Type::Any), self.coercion(Type::Any, t2))
+                    eprintln!("doing coerce({:?}, {:?}) through Any ({:?})", t1, t2, s);
+                    Coercion::seq(
+                        self.coercion(t1, Type::Any, s),
+                        self.coercion(Type::Any, t2, s),
+                    )
                 }
             }
         }

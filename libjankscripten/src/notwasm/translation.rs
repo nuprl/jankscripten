@@ -568,7 +568,7 @@ impl<'a> Translate<'a> {
                 }
                 self.rt_call(rts_func.name());
             }
-            N::Expr::Call(f, args, _) => {
+            N::Expr::Call(f, args, s) => {
                 for arg in args {
                     self.get_id(arg);
                 }
@@ -590,13 +590,13 @@ impl<'a> Translate<'a> {
                         let ty_index = self
                             .type_indexes
                             .get(&(params_tys, ret_ty))
-                            .expect("function type was not indexed");
+                            .unwrap_or_else(|| panic!("function type was not indexed {:?}", s));
                         self.out.push(CallIndirect(*ty_index, 0));
                     }
                     _ => panic!("expected Func ID ({})", f),
                 };
             }
-            N::Expr::ClosureCall(f, args, _) => {
+            N::Expr::ClosureCall(f, args, s) => {
                 match self.id_env.get(f).cloned() {
                     Some(IdIndex::Fun(_)) => panic!("closures are always given a name"),
                     Some(IdIndex::Local(i, t)) => {
@@ -611,7 +611,7 @@ impl<'a> Translate<'a> {
                         let ty_index = self
                             .type_indexes
                             .get(&(params_tys, ret_ty))
-                            .expect("function type was not indexed");
+                            .unwrap_or_else(|| panic!("function type was not indexed {:?}", s));
                         for arg in args {
                             self.get_id(arg);
                         }
@@ -631,7 +631,7 @@ impl<'a> Translate<'a> {
                         let ty_index = self
                             .type_indexes
                             .get(&(params_tys, ret_ty))
-                            .expect("function type was not indexed");
+                            .unwrap_or_else(|| panic!("function type was not indexed {:?}", s));
                         for arg in args {
                             self.get_id(arg);
                         }

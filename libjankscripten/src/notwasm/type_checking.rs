@@ -220,23 +220,25 @@ fn type_check_function(mut env: Env, id: &Id, f: &mut Function) -> TypeCheckingR
 fn type_check_stmt(env: Env, s: &mut Stmt, ret_ty: &Option<Type>) -> TypeCheckingResult<Env> {
     match s {
         Stmt::Empty => Ok(env),
-        Stmt::Var(var_stmt, s) => {
+        Stmt::Var(var_stmt, _) => {
             let ty = type_check_expr(&env, &mut var_stmt.named)?;
             var_stmt.set_ty(ty.clone());
             let id = &var_stmt.id;
 
             // ??? MMG what do we want here? i assume we don't actually want to allow strong update...
             if let Id::Named(name) = id {
-                if name.starts_with("_") {
+                if name == "_" {
                     return Ok(env);
                 }
             }
 
-            if lookup(&env, id, *s).is_ok() {
-                Err(TypeCheckingError::MultiplyDefined(id.clone(), *s))
-            } else {
-                Ok(env.update(id.clone(), ty.clone()))
-            }
+            // TODO(luna): what do we really want to do here? really we should
+            // have desugared multiple vars to assignments long ago probably
+            //if lookup(&env, id, *s).is_ok() {
+            //    Err(TypeCheckingError::MultiplyDefined(id.clone(), *s))
+            //} else {
+            Ok(env.update(id.clone(), ty.clone()))
+            //}
         }
         Stmt::Expression(e, _) => {
             let _ = type_check_expr(&env, e)?;
