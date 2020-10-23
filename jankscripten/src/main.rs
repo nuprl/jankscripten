@@ -120,8 +120,8 @@ fn read_javascript(raw_path: &String) -> String {
 
 fn parse_javascript(input: &String, input_path: &String) -> libjankscripten::javascript::Stmt {
     match libjankscripten::javascript::parse(&input) {
-        Ok(stmt) => stmt,
-        Err(err) => {
+        (Ok(stmt), _) => stmt,
+        (Err(err), _) => {
             eprintln!("{}:\n{}", input_path, err);
             process::exit(1);
         }

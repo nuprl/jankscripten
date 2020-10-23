@@ -8,6 +8,8 @@ mod rope;
 mod rts_function;
 pub mod shared;
 
+use jankyscript::UnwrapReport;
+
 #[macro_use]
 extern crate combine;
 
@@ -20,12 +22,13 @@ where
     F: FnOnce(&jankyscript::syntax::Stmt) -> (),
     G: FnOnce(&notwasm::syntax::Program) -> (),
 {
-    let mut js_ast = javascript::parse(js_code)?;
+    let (maybe_js_ast, source_map) = javascript::parse(js_code);
+    let mut js_ast = maybe_js_ast?;
     let mut ng = shared::NameGen::default();
     javascript::desugar(&mut js_ast, &mut ng);
     let jankier_ast = jankierscript::from_javascript(js_ast);
     let mut janky_ast = jankierscript::insert_coercions(jankier_ast)?;
-    jankyscript::compile(&mut janky_ast, inspect_janky)?;
+    jankyscript::compile(&mut janky_ast, inspect_janky).unwrap_report(source_map);
     let notwasm_ast = notwasm::from_jankyscript(janky_ast);
     let wasm_bin = notwasm::compile(notwasm_ast, inspect_notwasm)?;
     Ok(wasm_bin)
