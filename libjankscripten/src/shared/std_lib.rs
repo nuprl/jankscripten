@@ -74,7 +74,7 @@ pub fn get_global_object() -> BindMap {
     insert(m, "Int32Array", Any);
     insert(m, "Int8Array", Any);
     insert(m, "JSON", Any);
-    insert(m, "Math", Any);
+    insert(m, "Math", DynObject);
     insert(m, "NaN", Any);
     insert(m, "Number", Any);
     insert(m, "Object", DynObject);
