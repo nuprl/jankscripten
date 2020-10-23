@@ -108,6 +108,7 @@ mod test {
                 result: Some(Box::new(Type::I32)),
             },
             params: vec![],
+            span: DUMMY_SP,
         };
         let mut expected = program1_(indexed_func);
         expected.data = b"\0\x01\0\0\x06\0\0\0012301\0\0\0\x01\0\0\x03\0\0\0012\0".to_vec();
