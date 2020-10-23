@@ -4,9 +4,10 @@ var Object: DynObject;
 var Math: DynObject;
 var global: DynObject;
 var console: DynObject;
+var undefined: any;
 // (_, _this, what) -> i32 or f64(NaN)
 var parseInt: clos(env, any, any) -> any;
-var undefined: any;
+var Error: clos(env, any, str) -> DynObject;
 
 // Cached Object properties to be used in jnks_new_object.
 // ASSUMPTION: Object.prototype is never modified by user code.
@@ -55,6 +56,8 @@ function jnks_init() {
     var parseIntF = rt(parse_int);
     parseInt = clos(parseIntF, );
 
+    Error = clos(error_raw, );
+
     var getUndefined = rt(get_undefined);
     undefined = getUndefined();
 
@@ -70,4 +73,15 @@ function jnks_new_object(): DynObject {
     var objectCreate = jnks_objectCreate;
     var newObject = objectCreate!(jnks_objectPrototype);
     return newObject as DynObject;
+}
+
+function error_raw(_: env, _this: any, message: str): DynObject {
+    // `Error("err")` has same functionality as `new Error("err")`
+    // so Error i guess doesn't use `this`
+    var e_proto = {};
+    e_proto.name = any("Error");
+    e_proto.message = any(message);
+    var e_proto_any = any(e_proto);
+    var e = jnks_objectCreate!(e_proto_any);
+    return e as DynObject;
 }

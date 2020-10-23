@@ -3,22 +3,22 @@ use super::*;
 pub fn desugar(stmt: &mut Stmt, ng: &mut NameGen) {
     stmt.walk(&mut super::desugar_function_stmts::DesugarFunctionStmts {});
     desugar_switch::desugar_switch(stmt, ng);
-    // rdep: do..while uses ||
-    // dep: desugar_loops needs to come after desugar_switch
+    // dep: desugar_switch
     desugar_loops::desugar_loops(stmt, ng);
-    // dep: desugar_logical needs loop conds to be simple
-    desugar_logical::desugar_logical(stmt, ng);
-    // rdep: desugar_function_applications loses data about whether
-    // object/array accesses are immediately applied
+    // dep: desugar_loops
+    desugar_vardecls::desugar_vardecls(stmt);
+    // dep: desugar_vardecls
+    // we want this to go sooner rather than later to reduce anys
+    lift_vars::lift_vars(stmt);
     desugar_this::desugar_this(stmt, ng);
     // accesses are immediately applied
+    // dep: desugar_this
     desugar_function_applications::desugar_function_applications(stmt, ng);
-    //dep: desugar_vardecls needs desugar_loops to be simple
-    desugar_vardecls::desugar_vardecls(stmt);
-    //dep: desugar_updates needs desugar_function_applications to work properly
+    // dep: desugar_loops
+    desugar_logical::desugar_logical(stmt, ng);
+    // dep: desugar_function_applications
     desugar_updates::desugar_updates(stmt, ng);
     desugar_bracket_str::desugar_bracket_str(stmt);
-    lift_vars::lift_vars(stmt);
 }
 
 #[cfg(test)]

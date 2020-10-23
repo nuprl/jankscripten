@@ -9,6 +9,9 @@ pub fn get_global_object() -> BindMap {
     let mut map = BindMap::with_capacity(64);
     let m = &mut map;
 
+    // don't forget that most function types here should include this (Any as
+    // first argument) but not env (will be converted by from_jankyscript)
+
     // i don't know where this would be documented but i know we need it
     insert(m, "arguments", Array);
     // TODO(luna): this is even more stopgap: this is dead code that refers
@@ -61,7 +64,7 @@ pub fn get_global_object() -> BindMap {
     // maybe elm?
     insert(m, "DataView", Any);
     insert(m, "Date", Any);
-    insert(m, "Error", Any);
+    insert(m, "Error", Function(vec![Any, Any], Box::new(Any)));
     // ocaml
     insert(m, "EvalError", Any);
     insert(m, "Float32Array", Any);

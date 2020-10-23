@@ -596,6 +596,7 @@ impl InsertCoercions {
             match (t1, t2) {
                 (Type::Any, t2) if t2.is_ground() => Coercion::Untag(t2),
                 (t1, Type::Any) if t1.is_ground() => Coercion::Tag(t1),
+                (t1, Type::Any) => panic!("non-ground {:?} to any {:?}", t1, s),
                 (Type::Any, Type::Function(args, ret)) => {
                     let gf = Type::ground_function(args.len());
                     Coercion::seq(
