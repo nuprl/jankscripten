@@ -18,6 +18,7 @@ const ANY_SIZE: u32 = 8;
 /// also bytes
 const TAG_SIZE: u32 = 4;
 const LENGTH_SIZE: u32 = 4;
+const FN_OBJ_SIZE: u32 = 4;
 
 type FuncTypeMap = HashMap<(Vec<ValueType>, Option<ValueType>), u32>;
 
@@ -636,6 +637,7 @@ impl<'a> Translate<'a> {
                     self.out.push(I32Const(0));
                 } else {
                     self.out.push(I32Const(env.len() as i32));
+                    self.notwasm_rt_call("jnks_new_object");
                     self.rt_call("env_alloc");
                     // init all the
                     for (i, (a, ty)) in env.iter_mut().enumerate() {
@@ -752,7 +754,7 @@ impl<'a> Translate<'a> {
                     ValueType::F32 => panic!("invalid type"),
                     ValueType::F64 => panic!("invalid in-any type"),
                 };
-                let offset = TAG_SIZE + LENGTH_SIZE + *index * ANY_SIZE + ty_offset;
+                let offset = TAG_SIZE + LENGTH_SIZE + FN_OBJ_SIZE + *index * ANY_SIZE + ty_offset;
                 // make sure you don't accidentally put ty_offset here
                 self.load(ty, offset);
             }

@@ -156,7 +156,7 @@ impl HeapPtr for HeapRefView {
 }
 
 impl AnyPtr {
-    pub unsafe fn new(ptr: *mut Tag) -> Self {
+    pub fn new(ptr: *mut Tag) -> Self {
         AnyPtr { ptr }
     }
 

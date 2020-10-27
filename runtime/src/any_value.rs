@@ -1,7 +1,7 @@
 //! An enum that can store any type known to the runtime
 
 pub use crate::allocator::{heap_types::EnvPtr, AnyPtr, HeapRefView};
-use crate::closure::{Closure, ClosureVal};
+use crate::closure::{closure_env, Closure, ClosureVal};
 use crate::i64_val::*;
 use crate::wasm32::heap;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
@@ -148,9 +148,28 @@ pub extern "C" fn any_from_fn<'a>(val: u32) -> AnyValue {
     AnyEnum::Closure(Closure(unsafe { EnvPtr::null() }, val as u16)).into()
 }
 
+#[no_mangle]
+pub extern "C" fn any_to_ptr<'a>(val: AnyValue) -> AnyPtr {
+    match *val {
+        AnyEnum::Ptr(ptr) => ptr.into(),
+        AnyEnum::Closure(clos) => {
+            *closure_env(clos.into()).fn_obj()
+        }
+        unknown_val => {
+            log!("cannot unwrap {:?} as Ptr", unknown_val);
+            panic!("");
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn any_from_ptr<'a>(val: AnyPtr) -> AnyValue {
+    AnyEnum::Ptr(val).into()
+}
+
 decl_proj_fns!(any_from_i32, any_to_i32, I32, i32);
 decl_proj_fns!(any_from_bool, any_to_bool, Bool, bool);
-decl_proj_fns!(any_from_ptr, any_to_ptr, Ptr, AnyPtr);
+// decl_proj_fns!(any_from_ptr, any_to_ptr, Ptr, AnyPtr);
 
 #[no_mangle]
 pub extern "C" fn get_undefined() -> AnyValue {

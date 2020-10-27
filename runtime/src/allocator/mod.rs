@@ -273,22 +273,24 @@ impl Heap {
     /// # Safety
     ///
     /// [alloc_env_or_gc]
-    unsafe fn alloc_env(&self, length: u32) -> Option<EnvPtr> {
+    unsafe fn alloc_env(&self, length: u32, fn_obj: ObjectPtr) -> Option<EnvPtr> {
         // + 4 for the length (not the tag, which isn't included)
-        let size = std::mem::size_of::<AnyEnum>() * length as usize + 4;
+        let size =
+            std::mem::size_of::<AnyEnum>() * length as usize + 4 + std::mem::size_of::<ObjectPtr>();
         let tag_ptr = self.alloc_slice(Tag::with_type(TypeTag::Env), size as isize)?;
-        Some(EnvPtr::init(tag_ptr, length))
+        Some(EnvPtr::init(tag_ptr, length, fn_obj))
     }
     /// SAFETY:
     ///
     /// this is unsafe for the same reason as EnvPtr::new(); it makes GC do
     /// UB unless/until you fill in the environment with values
-    pub unsafe fn alloc_env_or_gc(&self, length: u32) -> EnvPtr {
-        match self.alloc_env(length) {
+    pub unsafe fn alloc_env_or_gc(&self, length: u32, fn_obj: ObjectPtr) -> EnvPtr {
+        match self.alloc_env(length, fn_obj) {
             Some(ptr) => ptr,
             None => {
                 self.gc();
-                self.alloc_env(length).expect("out of memory even after gc")
+                self.alloc_env(length, fn_obj)
+                    .expect("out of memory even after gc")
             }
         }
     }

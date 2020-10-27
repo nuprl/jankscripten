@@ -1,9 +1,9 @@
-use crate::heap_types::EnvPtr;
+use crate::heap_types::{EnvPtr, ObjectPtr};
 use crate::{heap, AnyValue};
 
 #[no_mangle]
-pub unsafe extern "C" fn env_alloc(length: u32) -> EnvPtr {
-    heap().alloc_env_or_gc(length)
+pub unsafe extern "C" fn env_alloc(length: u32, fn_obj: ObjectPtr) -> EnvPtr {
+    heap().alloc_env_or_gc(length, fn_obj)
 }
 
 /// this has! to return the EnvPtr because otherwise we'd need an intermediate

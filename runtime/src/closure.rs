@@ -79,6 +79,7 @@ mod test {
     use super::*;
     use crate::env::*;
     use crate::AnyEnum;
+    use crate::object::object_empty;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     #[wasm_bindgen_test]
@@ -99,7 +100,8 @@ mod test {
     fn as_seen_on_notwasm() {
         let env = unsafe {
             // Expr::Closure
-            let env = env_alloc(3);
+            let fn_obj = object_empty();
+            let env = env_alloc(3, fn_obj);
             env_init_at(env, 0, AnyEnum::I32(5).into());
             env_init_at(env, 1, AnyEnum::I32(6).into());
             env_init_at(env, 2, AnyEnum::I32(7).into())

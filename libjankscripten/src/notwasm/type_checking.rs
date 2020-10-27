@@ -148,7 +148,7 @@ fn type_check_function(mut env: Env, id: &Id, f: &mut Function) -> TypeCheckingR
         return Err(TypeCheckingError::ArityMismatch(
             id.clone(),
             f.fn_type.args.len(),
-            f.params.len()
+            f.params.len(),
         ));
     }
 
@@ -380,7 +380,7 @@ fn type_check_call(
         return Err(TypeCheckingError::ArityMismatch(
             id_f.clone(),
             expected_len,
-            actuals_len
+            actuals_len,
         ));
     }
 
