@@ -40,6 +40,8 @@ pub mod env;
 #[cfg(all(target_arch = "wasm32"))]
 pub mod ht;
 #[cfg(all(target_arch = "wasm32"))]
+pub mod math;
+#[cfg(all(target_arch = "wasm32"))]
 pub mod object;
 #[cfg(all(target_arch = "wasm32"))]
 pub mod ops;

@@ -49,13 +49,17 @@ pub fn translate_parity(mut program: N::Program) -> Module {
     // but it should still be enumerated in the importing, so we give it a fake
     // env name
     let rt_globals = vec![("__JNKS_STRINGS", "JNKS_STRINGS", N::Type::I32)];
-    for (_, rt_name, ty) in &rt_globals {
+    for (_, rt_name, _) in &rt_globals {
         module = module
             .import()
             .path("runtime", rt_name)
             // runtime globals are never mutable because they're a mutable
             // pointer to the value which may or may not be mutable
-            .with_external(External::Global(GlobalType::new(ty.as_wasm(), false)))
+            //
+            // you'd think the type here should be the ty from the global, but
+            // no, again they're all pointers so they're all I32. the actual
+            // type according to notwasm is used later in IdIndex::RTGlobal
+            .with_external(External::Global(GlobalType::new(ValueType::I32, false)))
             .build();
     }
     let mut index = 0;

@@ -7,7 +7,14 @@ var console: DynObject;
 var undefined: any;
 // (_, _this, what) -> i32 or f64(NaN)
 var parseInt: clos(env, any, any) -> any;
-var Error: clos(env, any, str) -> DynObject;
+// temporary Error ground to see other compile-time errors (unrelated to this
+// being called Error)
+var Error: clos(env, any, any) -> any;
+// REAL one:
+// var Error: clos(env, any, str) -> DynObject;
+
+// source: firefox console -> Math.PI
+const __JNKS_PI: f64 = 3.141592653589793f;
 
 // Cached Object properties to be used in jnks_new_object.
 // ASSUMPTION: Object.prototype is never modified by user code.
@@ -45,6 +52,22 @@ function jnks_init() {
     jnks_objectPrototype = objectPrototype;
 
     Math = {};
+    var mathSqrtF = rt(math_sqrt);
+    var mathSqrt = clos(mathSqrtF, );
+    Math.sqrt = any(mathSqrt);
+    var mathSinF = rt(math_sin);
+    var mathSin = clos(mathSinF, );
+    Math.sin = any(mathSin);
+    var mathAbsF = rt(math_abs);
+    var mathAbs = clos(mathAbsF, );
+    Math.abs = any(mathAbs);
+    var mathMinF = rt(math_min);
+    var mathMin = clos(mathMinF, );
+    Math.min = any(mathMin);
+    var mathMaxF = rt(math_max);
+    var mathMax = clos(mathMaxF, );
+    Math.max = any(mathMax);
+    Math.PI = any(__JNKS_PI);
 
     console = {};
     var consoleLogF = rt(console_log);
@@ -56,7 +79,7 @@ function jnks_init() {
     var parseIntF = rt(parse_int);
     parseInt = clos(parseIntF, );
 
-    Error = clos(error_raw, );
+    Error = clos(error_ground, );
 
     var getUndefined = rt(get_undefined);
     undefined = getUndefined();
@@ -84,4 +107,14 @@ function error_raw(_: env, _this: any, message: str): DynObject {
     var e_proto_any = any(e_proto);
     var e = jnks_objectCreate!(e_proto_any);
     return e as DynObject;
+}
+// there's no reason Error has to be ground. it's top-level, not stored
+// in an object, so it's never boxed into any. however, coercion_insertion
+// wants to convert it to an object because i'm still waiting to add Mark's
+// function-objects, so it needs to be any'd to create a bad coercion so i
+// can see other compile-time errors
+function error_ground(dummyEnv: env, this: any, message: any): any {
+    var messageStr = message as str;
+    var result = error_raw(dummyEnv, this, messageStr);
+    return any(result);
 }
