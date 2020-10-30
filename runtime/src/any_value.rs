@@ -4,6 +4,7 @@ pub use crate::allocator::{heap_types::EnvPtr, AnyPtr, HeapRefView};
 use crate::closure::{closure_env, Closure, ClosureVal};
 use crate::i64_val::*;
 use crate::wasm32::heap;
+use crate::HeapPtr;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 
 /// this is the actual Any type, however it should never be returned or
@@ -153,7 +154,7 @@ pub extern "C" fn any_to_ptr<'a>(val: AnyValue) -> AnyPtr {
     match *val {
         AnyEnum::Ptr(ptr) => ptr.into(),
         AnyEnum::Closure(clos) => {
-            *closure_env(clos.into()).fn_obj()
+            closure_env(clos.into()).fn_obj().as_any_ptr()
         }
         unknown_val => {
             log!("cannot unwrap {:?} as Ptr", unknown_val);

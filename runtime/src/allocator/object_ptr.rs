@@ -10,6 +10,8 @@ use std::ops::{Deref, DerefMut};
 ///
 /// This looks like this:
 /// Tag(1) | pointer to ObjectDataPtr(1)
+/// 
+/// ObjectPtr 4 bytes long just like all other ptrs
 #[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(transparent)]
 pub struct ObjectPtr {
@@ -221,6 +223,7 @@ impl HeapPtr for ObjectPtr {
 #[cfg(test)]
 mod test {
     use wasm_bindgen_test::wasm_bindgen_test;
+    use super::*;
     #[wasm_bindgen_test]
     #[test]
     fn object_ptr_get_ptrs() {
@@ -231,5 +234,10 @@ mod test {
         let ptrs = obj_ptr.get_gc_ptrs(&heap);
         assert_eq!(ptrs.0.len(), 1);
         assert_eq!(unsafe { *(ptrs.0[0]) }.type_tag, TypeTag::DynObject);
+    }
+
+    #[wasm_bindgen_test]
+    fn object_ptr_size() {
+        assert_eq!(std::mem::size_of::<ObjectPtr>(), 4);
     }
 }

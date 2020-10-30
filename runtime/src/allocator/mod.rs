@@ -276,7 +276,9 @@ impl Heap {
     unsafe fn alloc_env(&self, length: u32, fn_obj: ObjectPtr) -> Option<EnvPtr> {
         // + 4 for the length (not the tag, which isn't included)
         let size =
-            std::mem::size_of::<AnyEnum>() * length as usize + 4 + std::mem::size_of::<ObjectPtr>();
+            std::mem::size_of::<AnyEnum>() * length as usize // EnvItems
+            + 4  // Len
+            + std::mem::size_of::<ObjectPtr>(); // Fn obj pointer
         let tag_ptr = self.alloc_slice(Tag::with_type(TypeTag::Env), size as isize)?;
         Some(EnvPtr::init(tag_ptr, length, fn_obj))
     }

@@ -107,6 +107,7 @@ mod test {
             env_init_at(env, 2, AnyEnum::I32(7).into())
         };
         let clos = closure_new(env, 0);
+
         // Expr::ClosureCall
         let back_out = closure_env(clos);
         assert_eq!(env, back_out);
