@@ -18,7 +18,7 @@ const ANY_SIZE: u32 = 8;
 /// also bytes
 const TAG_SIZE: u32 = 4;
 const LENGTH_SIZE: u32 = 4;
-const FN_OBJ_SIZE: u32 = 8;
+const FN_OBJ_SIZE: u32 = 4;
 
 type FuncTypeMap = HashMap<(Vec<ValueType>, Option<ValueType>), u32>;
 
@@ -631,22 +631,18 @@ impl<'a> Translate<'a> {
                 }
             }
             N::Expr::Closure(id, env, _) => {
-                // first, construct the environment
-                if env.len() == 0 {
-                    // nullptr; will never be read
-                    self.out.push(I32Const(0));
-                } else {
-                    self.out.push(I32Const(env.len() as i32));
-                    self.notwasm_rt_call("jnks_new_object");
-                    self.rt_call("env_alloc");
-                    // init all the
-                    for (i, (a, ty)) in env.iter_mut().enumerate() {
-                        self.out.push(I32Const(i as i32));
-                        self.translate_atom(a);
-                        self.to_any(ty);
-                        // this returns the env so we don't need locals magic
-                        self.rt_call("env_init_at");
-                    }
+                // one day, we may be able to restore a 0-size environment
+                // optimization here involving nullptr
+                self.out.push(I32Const(env.len() as i32));
+                self.notwasm_rt_call("jnks_new_object");
+                self.rt_call("env_alloc");
+                // init all the
+                for (i, (a, ty)) in env.iter_mut().enumerate() {
+                    self.out.push(I32Const(i as i32));
+                    self.translate_atom(a);
+                    self.to_any(ty);
+                    // this returns the env so we don't need locals magic
+                    self.rt_call("env_init_at");
                 }
                 // env is left on the stack. now the function is the second
                 // argument
