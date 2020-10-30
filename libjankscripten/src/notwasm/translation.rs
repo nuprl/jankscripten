@@ -18,7 +18,7 @@ const ANY_SIZE: u32 = 8;
 /// also bytes
 const TAG_SIZE: u32 = 4;
 const LENGTH_SIZE: u32 = 4;
-const FN_OBJ_SIZE: u32 = 8;
+const FN_OBJ_SIZE: u32 = 4;
 
 type FuncTypeMap = HashMap<(Vec<ValueType>, Option<ValueType>), u32>;
 

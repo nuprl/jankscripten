@@ -22,6 +22,10 @@ use crate::{AnyEnum, AnyPtr};
 /// Tag | u32 | Object | [EnvItem]
 ///        ^      ^^
 ///       len   fn_obj
+///
+/// WARNING: breaking tradition with other pointer objects, this object does
+/// not handle 64-bit and 32-bit architectures differently. the tag is always
+/// treated as if it is 4 bytes long
 #[derive(Clone, Copy, PartialEq)]
 #[repr(transparent)]
 pub struct EnvPtr {
@@ -76,7 +80,7 @@ impl EnvPtr {
 
     pub fn fn_obj(&self) -> ObjectPtr {
         // figure out why that * is there
-        unsafe { std::mem::transmute(self.ptr.add(FN_OBJ_OFFSET)) }
+        unsafe { std::mem::transmute(*self.ptr.add(FN_OBJ_OFFSET)) }
         // unsafe { ObjectPtr::new(*(self.ptr.add(FN_OBJ_OFFSET) as *mut *mut Tag)) }
         // unsafe {&mut *(self.ptr.add(FN_OBJ_OFFSET) as ObjectPtr)}
     }
@@ -162,13 +166,17 @@ mod test {
             env_init_at(env, 2, AnyEnum::I32(7).into())
         };
 
+        let mut got_fn_obj: ObjectPtr = env.fn_obj();
+        assert_eq!(fn_obj, got_fn_obj);
+        got_fn_obj.insert(heap(), "x".into(), AnyEnum::I32(10).into(), &mut -1);
+        assert_eq!(
+            got_fn_obj.get(heap(), "x".into(), &mut -1),
+            AnyEnum::I32(10)
+        );
+
         let env_items = unsafe { env.slice() };
         assert_eq!(env_items[0], AnyEnum::I32(5));
         assert_eq!(env_items[1], AnyEnum::I32(6));
         assert_eq!(env_items[2], AnyEnum::I32(7));
-
-        let got_fn_obj: ObjectPtr = env.fn_obj();
-        assert_eq!(fn_obj, got_fn_obj);
-
     }
 }
