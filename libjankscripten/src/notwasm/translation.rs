@@ -634,7 +634,7 @@ impl<'a> Translate<'a> {
                 // one day, we may be able to restore a 0-size environment
                 // optimization here involving nullptr
                 self.out.push(I32Const(env.len() as i32));
-                self.notwasm_rt_call("jnks_new_object");
+                self.notwasm_rt_call("jnks_new_fn_obj");
                 self.rt_call("env_alloc");
                 // init all the
                 for (i, (a, ty)) in env.iter_mut().enumerate() {

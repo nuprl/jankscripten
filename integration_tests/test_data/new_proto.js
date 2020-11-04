@@ -10,7 +10,6 @@ function Person(name, age) {
     this.age = age;
 }
 
-Person.prototype = {};
 Person.prototype.introduceSelf = function() {
     log_any("Hello, I'm")
     log_any(this.name);

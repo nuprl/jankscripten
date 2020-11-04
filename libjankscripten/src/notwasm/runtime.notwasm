@@ -64,19 +64,33 @@ function jnks_init() {
 // Runtime function to create a regular empty object like `{}` or
 // `new Object()`.
 function jnks_new_object(): DynObject {
-    // Create new object that inherits from Object.prototype.
-    // a new object is created to store in the closure of... you guessed it,
+    var objectCreate = jnks_objectCreate;
+    var newObject = objectCreate!(jnks_objectPrototype);
+    return newObject as DynObject;
+}
+
+// Create an empty object to be used as a function object.
+// The only current difference between this function and jnks_new_object
+// is that a `prototype` field is automatically initialized here.
+function jnks_new_fn_obj(): DynObject {
+    // Create new object that inherits from Object.prototype,
+    // AND has a `prototype` field automatically initialized.
+
+    // a new fn object is created to store in the closure of... you guessed it,
     // objectCreate. so we need to give a fake object for that closure
     // only. this hopefully won't be necessary after we optimize non-object
-    // functions
+    // functions.
+
     if (jnks_objectCreateExists == 1) {
-        var objectCreate = jnks_objectCreate;
-        var newObject = objectCreate!(jnks_objectPrototype);
-        return newObject as DynObject;
+        var newObject = jnks_new_object();
+        var newObjectProto = jnks_new_object();
+        newObject.prototype = any(newObjectProto);
+        return newObject;
     } else {}
     // not written as an if-else because wasm typechecking strictness
     // this thing may or may not even be null. it doesn't really matter
     return jnks_null_dynobject;
+
 }
 
 function jnks_console_log(arg: any) {
