@@ -27,7 +27,7 @@ impl Visitor for ThisParameter<'_> {
             },
             Expr::New(f, args, s) => {
                 // Desugar `new` into:
-                //     new MyFunc(, s) => var $func = MyFunc; var $obj = Object.create($func.prototype), $func.call($obj, args...), $obj
+                //     new MyFunc(args...) => var $func = MyFunc; var $obj = Object.create($func.prototype), $func.call($obj, args...), $obj
 
                 // syntax block surrounding this new expression
                 let cxt = loc.enclosing_block().unwrap();
