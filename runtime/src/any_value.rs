@@ -91,6 +91,7 @@ impl Debug for HeapRefView {
 impl AsI64 for AnyEnum {}
 pub type AnyValue = I64Val<AnyEnum>;
 
+// This macro automatically generates simple projection functions.
 macro_rules! decl_proj_fns {
     ($from_name:ident, $to_name:ident, $any_name:ident, $ty:ty) => {
         #[no_mangle]
@@ -108,6 +109,11 @@ macro_rules! decl_proj_fns {
         }
     };
 }
+
+// Automatically generate these simple projection functions.
+// The rest will be specified manually.
+decl_proj_fns!(any_from_i32, any_to_i32, I32, i32);
+decl_proj_fns!(any_from_bool, any_to_bool, Bool, bool);
 
 #[no_mangle]
 pub extern "C" fn any_to_f64(any: AnyValue) -> f64 {
@@ -165,10 +171,6 @@ pub extern "C" fn any_to_ptr<'a>(val: AnyValue) -> AnyPtr {
 pub extern "C" fn any_from_ptr<'a>(val: AnyPtr) -> AnyValue {
     AnyEnum::Ptr(val).into()
 }
-
-decl_proj_fns!(any_from_i32, any_to_i32, I32, i32);
-decl_proj_fns!(any_from_bool, any_to_bool, Bool, bool);
-// decl_proj_fns!(any_from_ptr, any_to_ptr, Ptr, AnyPtr);
 
 #[no_mangle]
 pub extern "C" fn get_undefined() -> AnyValue {
