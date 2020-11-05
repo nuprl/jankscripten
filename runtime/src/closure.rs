@@ -78,8 +78,8 @@ pub extern "C" fn any_closure_arity(closure: AnyClosureVal) -> u32 {
 mod test {
     use super::*;
     use crate::env::*;
-    use crate::AnyEnum;
     use crate::object::object_empty;
+    use crate::AnyEnum;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     #[wasm_bindgen_test]

@@ -153,9 +153,7 @@ pub extern "C" fn any_from_fn<'a>(val: u32) -> AnyValue {
 pub extern "C" fn any_to_ptr<'a>(val: AnyValue) -> AnyPtr {
     match *val {
         AnyEnum::Ptr(ptr) => ptr.into(),
-        AnyEnum::Closure(clos) => {
-            closure_env(clos.into()).fn_obj().as_any_ptr()
-        }
+        AnyEnum::Closure(clos) => closure_env(clos.into()).fn_obj().as_any_ptr(),
         unknown_val => {
             log!("cannot unwrap {:?} as Ptr", unknown_val);
             panic!("");
