@@ -85,7 +85,7 @@ pub fn get_rt_bindings() -> BindMap {
     insert(m, "any_to_f64", vec![Any], F64);
     insert(m, "f64_to_any", vec![F64], Any);
     // length -> Env
-    insert(m, "env_alloc", vec![I32], I32);
+    insert(m, "env_alloc", vec![I32, DynObject], I32);
     // TODO(luna): this could be a single wasm instruction too
     // (env: Env, index, item) -> Env
     insert(m, "env_init_at", vec![I32, I32, Any], I32);

@@ -156,6 +156,11 @@ impl HeapPtr for HeapRefView {
 }
 
 impl AnyPtr {
+    /// # Safety
+    ///
+    /// since HeapPtr methods are safe, all AnyPtrs that are constructed must be
+    /// valid. therefore AnyPtr::new() must follow the data model specified by the Tag
+    /// given which can't easily be enforced by type
     pub unsafe fn new(ptr: *mut Tag) -> Self {
         AnyPtr { ptr }
     }
