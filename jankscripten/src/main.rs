@@ -67,7 +67,10 @@ fn expect_extension(p: &Path) -> &str {
 fn compile_notwasm(input: &str, output: &Path) {
     use libjankscripten::notwasm;
     let parsed = notwasm::parse(input);
-    let wasm = notwasm::compile(parsed, |_| ()).expect("compile error");
+    let wasm = match notwasm::compile(parsed, |_| ()) {
+        Ok(o) => o,
+        Err(_) => todo!("(luna) how to print error without source locations?"),
+    };
     fs::write(output, wasm).expect("writing file");
 }
 
@@ -120,8 +123,8 @@ fn read_javascript(raw_path: &String) -> String {
 
 fn parse_javascript(input: &String, input_path: &String) -> libjankscripten::javascript::Stmt {
     match libjankscripten::javascript::parse(&input) {
-        Ok(stmt) => stmt,
-        Err(err) => {
+        (Ok(stmt), _) => stmt,
+        (Err(err), _) => {
             eprintln!("{}:\n{}", input_path, err);
             process::exit(1);
         }

@@ -86,7 +86,10 @@ where
     T: Debug + FromStr + PartialEq,
     <T as FromStr>::Err: Debug,
 {
-    let wasm = compile(program, |notwasm| eprintln!("{}", notwasm)).expect("could not compile");
+    let wasm = match compile(program, |notwasm| eprintln!("{}", notwasm)) {
+        Ok(o) => o,
+        Err(_) => panic!("could not compile"),
+    };
     expect_wasm(expected, wasm)
 }
 
