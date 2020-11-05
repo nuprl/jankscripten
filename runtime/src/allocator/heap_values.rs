@@ -89,7 +89,7 @@ pub trait HeapPtr {
     }
     /// easily cast any heap pointer to an any pointer (provided)
     fn as_any_ptr(&self) -> AnyPtr {
-        AnyPtr::new(self.get_ptr())
+        unsafe { AnyPtr::new(self.get_ptr()) }
     }
 }
 
@@ -156,7 +156,12 @@ impl HeapPtr for HeapRefView {
 }
 
 impl AnyPtr {
-    pub fn new(ptr: *mut Tag) -> Self {
+    /// # Safety
+    ///
+    /// since HeapPtr methods are safe, all AnyPtrs that are constructed must be
+    /// valid. therefore AnyPtr::new() must follow the data model specified by the Tag
+    /// given which can't easily be enforced by type
+    pub unsafe fn new(ptr: *mut Tag) -> Self {
         AnyPtr { ptr }
     }
 
@@ -316,7 +321,7 @@ impl<T: PartialEq> Eq for TypePtr<T> {}
 impl<T: HasTag> From<TypePtr<T>> for AnyPtr {
     fn from(ptr: TypePtr<T>) -> Self {
         // safety: TypePtr is valid, so an AnyPtr will be valid
-        AnyPtr::new(ptr.get_ptr())
+        unsafe { AnyPtr::new(ptr.get_ptr()) }
     }
 }
 

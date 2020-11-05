@@ -431,9 +431,6 @@ fn type_check_call(
 ) -> TypeCheckingResult<Type> {
     // arity check
 
-    // lengths should be i32 here. They're compared when constructing
-    // the error message, and usizes will panic if they underflow.
-
     let actuals_len = actuals.len() + if implicit_arg { 1 } else { 0 };
     let expected_len = fn_ty.args.len();
     if actuals_len != expected_len {
