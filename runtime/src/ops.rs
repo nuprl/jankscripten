@@ -3,13 +3,28 @@
 use crate::any_value::{AnyValue as Any, *};
 use crate::coercions::*;
 use crate::string::StringPtr;
+use crate::heap;
+// use crate::heap_types::*;
 
 #[no_mangle]
 pub extern "C" fn janky_plus(a: Any, b: Any) -> Any {
     if let Some(res) = i32s_or_as_f64s_any(a, b, |a, b| a + b, |a, b| a + b) {
         res
-    } else if let (AnyEnum::Ptr(_a), AnyEnum::Ptr(_b)) = (*a, *b) {
-        todo!("strings +")
+    } else if let (AnyEnum::Ptr(a), AnyEnum::Ptr(b)) = (*a, *b) {
+        if let (HeapRefView::String(a), HeapRefView::String(b)) = (a.view(), b.view()) {
+            let a: &str = &a;
+            let b: &str = &b;
+
+            // combine them
+            let combined = format!("{}{}", a, b);
+
+            // allocate this into a string
+            let combined = heap().alloc_str_or_gc(&combined);
+
+            unsafe {AnyEnum::Ptr(std::mem::transmute(combined)).into()}
+        } else {
+            todo!("implementation for `+` missing for ptr types");
+        }
     } else {
         // TODO(luna): these panics in this file should be exceptions, when we support those
         panic!("unsupported for +: {:?}, {:?}", a, b)
