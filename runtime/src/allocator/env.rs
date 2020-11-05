@@ -136,7 +136,12 @@ impl HeapPtr for EnvPtr {
 
 impl std::fmt::Debug for EnvPtr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", unsafe { self.slice().iter() })
+        write!(
+            f,
+            "{{ env: {:?}, obj: {:?} }}",
+            unsafe { self.slice().iter().collect::<Vec<_>>() },
+            self.fn_obj()
+        )
     }
 }
 

@@ -88,6 +88,7 @@ function jnks_init() {
     var consoleLogF = rt(console_log);
     var consoleLog = clos(consoleLogF, );
     console.log = any(consoleLog);
+    console.info = any(consoleLog);
 
     // === free-floating stuff in the global namespace ===
 

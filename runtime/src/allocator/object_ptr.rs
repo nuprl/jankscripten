@@ -12,7 +12,7 @@ use std::ops::{Deref, DerefMut};
 /// Tag(1) | pointer to ObjectDataPtr(1)
 ///
 /// ObjectPtr 4 bytes long just like all other ptrs
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy)]
 #[repr(transparent)]
 pub struct ObjectPtr {
     ptr: *mut Tag,
@@ -217,6 +217,23 @@ impl HeapPtr for ObjectPtr {
     }
     fn get_gc_ptrs(&self, _heap: &Heap) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
         (vec![(**self).get_ptr() as *const _ as *mut _], vec![])
+    }
+}
+impl std::fmt::Debug for ObjectPtr {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let class_tag = self.class_tag();
+        let heap = crate::heap();
+        let classes = heap.classes.borrow();
+        let class = classes.get_class(class_tag);
+        let values = self.as_array(heap);
+        write!(f, "{{")?;
+        for (key, _value) in class.keys().iter().zip(values) {
+            // please note that we use X for value. this should be {} when
+            // implemented (toString). it cannot be {:?} because that
+            // introduces possibility of infinite recursion
+            write!(f, "{}: X, ", key)?;
+        }
+        write!(f, "}}")
     }
 }
 
