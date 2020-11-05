@@ -78,10 +78,9 @@ impl EnvPtr {
     }
 
     pub fn fn_obj(&self) -> ObjectPtr {
-        // figure out why that * is there
-        unsafe { std::mem::transmute(*self.ptr.add(FN_OBJ_OFFSET)) }
-        // unsafe { ObjectPtr::new(*(self.ptr.add(FN_OBJ_OFFSET) as *mut *mut Tag)) }
-        // unsafe {&mut *(self.ptr.add(FN_OBJ_OFFSET) as ObjectPtr)}
+        // SAFETY: the fn obj was added in new, as long as it hasn't been
+        // overwritten by UB, it's still there
+        unsafe { *(self.ptr.add(FN_OBJ_OFFSET) as *const ObjectPtr) }
     }
 
     /// initialize the index field of the pointer. this must be called on
