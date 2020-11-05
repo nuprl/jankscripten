@@ -212,18 +212,16 @@ fn closure_fn_obj() {
 
             // Calls function
             var res = F!();
-            return res; // 18
 
-            // var objAlias = Fany as DynObject;
-            // res = res + objAlias.prop as i32;
-            // return res; // 18 (from acceptEnv) + 42 (from obj.prop) = 60
-            // // This should verify that closures work with both
-            // // captured variables and function object properties.
+            var objAlias = Fany as DynObject;
+            res = res + objAlias.prop as i32;
+            return res; // 18 (from acceptEnv) + 42 (from obj.prop) = 60
+            // This should verify that closures work with both
+            // captured variables and function object properties.
         }
     "#,
     );
-    expect_notwasm(18, program);
-    // expect_notwasm(60, program);
+    expect_notwasm(60, program);
 }
 
 #[test]
