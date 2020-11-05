@@ -73,6 +73,9 @@ impl Display for HeapRefView {
     }
 }
 impl Debug for HeapRefView {
+    // please observe carefully that heap refs that are not values / should
+    // never be printed begin with a ! but are still printed because this
+    // is for *debugging*
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         use HeapRefView::*;
         match *self {
@@ -80,9 +83,11 @@ impl Debug for HeapRefView {
             HT(_) => write!(f, "HT({})", self),
             Array(_) => write!(f, "Array({})", self),
             Any(_) => write!(f, "Any({})", self),
-            Class(_) => panic!("shouldn't have object data as value"),
+            Class(_) => write!(f, "!ObjData"),
             ObjectPtrPtr(o) => write!(f, "DynObject({:?})", o),
-            NonPtr32(_) | MutF64(_) | Ptr(_) => panic!("ref inside any"),
+            NonPtr32(v) => write!(f, "!Ref({})", *v),
+            MutF64(v) => write!(f, "!F64({})", *v),
+            Ptr(p) => write!(f, "!Ref({:?})", p),
             Env(e) => write!(f, "Env({:?})", e),
         }
     }

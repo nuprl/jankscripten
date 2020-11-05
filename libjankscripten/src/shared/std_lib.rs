@@ -12,6 +12,11 @@ pub fn get_global_object() -> BindMap {
     // don't forget that most function types here should include this (Any as
     // first argument) but not env (will be converted by from_jankyscript)
 
+    // THIS ISN'T IN JAVASCRIPT. special functions that are provided only by
+    // jankscripten are provided under the __JNKS object. TODO(luna): i want to
+    // move log_any here
+    insert(m, "__JNKS", DynObject);
+
     // i don't know where this would be documented but i know we need it
     insert(m, "arguments", Array);
     // TODO(luna): this is even more stopgap: this is dead code that refers

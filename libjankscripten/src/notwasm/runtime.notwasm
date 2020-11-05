@@ -4,6 +4,7 @@ var Object: DynObject;
 var Math: DynObject;
 var global: DynObject;
 var console: DynObject;
+var __JNKS: DynObject;
 var undefined: any;
 // (_, _this, what) -> i32 or f64(NaN)
 var parseInt: clos(env, any, any) -> any;
@@ -83,6 +84,12 @@ function jnks_init() {
     var mathMax = clos(mathMaxF, );
     Math.max = any(mathMax);
     Math.PI = any(__JNKS_PI);
+
+    // __JNKS
+    __JNKS = {};
+    var heapDumpF = rt(heap_dump);
+    var heapDump = clos(heapDumpF, );
+    __JNKS.heap_dump = any(heapDump);
 
     console = {};
     var consoleLogF = rt(console_log);
