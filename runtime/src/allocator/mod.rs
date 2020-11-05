@@ -393,7 +393,7 @@ impl Heap {
                 }
                 tag.marked = true;
 
-                let any_ptr = unsafe { AnyPtr::new(root) };
+                let any_ptr = AnyPtr::new(root);
                 let (mut tags, f64s) = any_ptr.get_gc_ptrs(self);
                 new_roots.append(&mut tags);
                 for ptr in f64s {

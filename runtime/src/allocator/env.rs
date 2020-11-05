@@ -1,6 +1,5 @@
-use super::constants::DATA_OFFSET;
 use super::{Heap, HeapPtr, ObjectPtr, Tag};
-use crate::{AnyEnum, AnyPtr};
+use crate::AnyEnum;
 
 /// this is a heap-allocated environment stored in a closure
 ///
@@ -148,8 +147,8 @@ mod test {
     use super::*;
     use crate::env::*;
     use crate::AnyEnum;
+    use crate::heap;
     use crate::object::object_empty;
-    use crate::closure::*;
     use crate::init;
     use wasm_bindgen_test::wasm_bindgen_test;
 
