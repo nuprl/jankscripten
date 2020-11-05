@@ -2,10 +2,16 @@
 // BEEN WRITTEN TO.
 var Object: DynObject;
 var global: DynObject;
+var console: DynObject;
+// abusing lazy globals to create a null DynObject for jnks_new_object
+var jnks_null_dynobject: DynObject;
 
 // Cached Object properties to be used in jnks_new_object.
 // ASSUMPTION: Object.prototype is never modified by user code.
 var jnks_objectCreate: clos(env, any) -> any;
+// this is needed for an awful check in jnks_new_object, explained there
+// the type is bool, but notwasm sucks and can't compare bools, so here we are
+var jnks_objectCreateExists: i32 = 0;
 var jnks_objectPrototype: any;
 
 // Initialize JankScripten runtime.
@@ -20,33 +26,79 @@ function jnks_init() {
     // load the Object.create runtime function
     var objectCreateF = rt(object_create);
     var objectCreate = clos(objectCreateF, );
+    jnks_objectCreate = objectCreate;
+    jnks_objectCreateExists = 1;
 
     // create the actual object for Object
     var nullVar = null;
     var objectClass = objectCreate!(nullVar);
     Object = objectClass as DynObject;
 
-    // set a completely empty prototype
-    var objectPrototype = objectCreate!(nullVar);
-    Object.prototype = objectPrototype;
+    // set a completely empty prototype.
+    // it's called objectPrototypeAny because its type is any.
+    var objectPrototypeAny = objectCreate!(nullVar);
+    Object.prototype = objectPrototypeAny;
 
     // assign static methods to Object
     Object.create = any(objectCreate);
 
     // Cache Object properties for jnks_new_object
-    jnks_objectCreate = objectCreate;
-    jnks_objectPrototype = objectPrototype;
+    jnks_objectPrototype = objectPrototypeAny;
 
-    // Now that the default Object class has been set up, create the global 
-    // object.
+    // assign methods to Object.prototype.
+    // first, unwrap objectPrototypeAny into a DynObject
+    var objectPrototype = objectPrototypeAny as DynObject;
+    var objectToStringF = jnks_Object_prototype_toString;
+    var objectToString = clos(objectToStringF, );
+    objectPrototype.toString = any(objectToString);
+
+    // Now that the default Object class has been set up, set up other
+    // global objects.
     global = {};
+    console = {};
+    var console_logF = jnks_console_log;
+    var console_log = clos(console_logF, );
+    console.log = any(console_log);
 }
 
 // Runtime function to create a regular empty object like `{}` or
 // `new Object()`.
 function jnks_new_object(): DynObject {
-    // Create new object that inherits from Object.prototype.
     var objectCreate = jnks_objectCreate;
     var newObject = objectCreate!(jnks_objectPrototype);
     return newObject as DynObject;
+}
+
+// Create an empty object to be used as a function object.
+// The only current difference between this function and jnks_new_object
+// is that a `prototype` field is automatically initialized here.
+function jnks_new_fn_obj(): DynObject {
+    // Create new object that inherits from Object.prototype,
+    // AND has a `prototype` field automatically initialized.
+
+    // a new fn object is created to store in the closure of... you guessed it,
+    // objectCreate. so we need to give a fake object for that closure
+    // only. this hopefully won't be necessary after we optimize non-object
+    // functions.
+
+    if (jnks_objectCreateExists == 1) {
+        var newObject = jnks_new_object();
+        var newObjectProto = jnks_new_object();
+        newObject.prototype = any(newObjectProto);
+        return newObject;
+    } else {}
+    // not written as an if-else because wasm typechecking strictness
+    // this thing may or may not even be null. it doesn't really matter
+    return jnks_null_dynobject;
+
+}
+
+function jnks_console_log(arg: any) {
+    var nullVal = null;
+    var log_anyF = rt(log_any);
+    log_anyF(nullVal, arg);
+}
+
+function jnks_Object_prototype_toString(this: any): str {
+    return "[object Object]";
 }

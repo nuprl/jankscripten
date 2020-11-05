@@ -428,8 +428,10 @@ fn type_check_call(
     s: Span,
 ) -> TypeCheckingResult<Type> {
     // arity check
+
     let actuals_len = actuals.len() + if implicit_arg { 1 } else { 0 };
-    if actuals_len != fn_ty.args.len() {
+    let expected_len = fn_ty.args.len();
+    if actuals_len != expected_len {
         return Err(TypeCheckingError::ArityMismatch(
             id_f.clone(),
             actuals_len,
