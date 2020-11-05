@@ -1,0 +1,7 @@
+// This test is failing right now because coercion insertion doesn't
+// know the type of `console.log`. The type of `console` is specified
+// in `shared/std_lib.rs`, but I don't think it's possible to specify
+// the type of the actual `log` function. Until we can tell jankscripten
+// the actual type, this code won't compile.
+// -- Mark
+console.log("Hello world!");

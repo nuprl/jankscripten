@@ -195,6 +195,39 @@ fn closures() {
 }
 
 #[test]
+fn closure_fn_obj() {
+    let program = parse(
+        r#"
+        function acceptEnv(_: env) : i32 {
+            return env.0: i32 + env.1: i32 + env.2: i32;
+        }
+        function main() : i32 {
+            // as a hack, this is the "local 0" as if it was the first param
+            var x = 5;
+            var y = 6;
+            var z = 7;
+            var F = clos(acceptEnv, x: i32, y: i32, z: i32);
+
+            // Set property on fn obj
+            var Fany = any(F);
+            var obj = Fany as DynObject;
+            obj.prop = any(42);
+
+            // Calls function
+            var res = F!();
+
+            var objAlias = Fany as DynObject;
+            res = res + objAlias.prop as i32;
+            return res; // 18 (from acceptEnv) + 42 (from obj.prop) = 60
+            // This should verify that closures work with both
+            // captured variables and function object properties.
+        }
+    "#,
+    );
+    expect_notwasm(60, program);
+}
+
+#[test]
 fn break_block() {
     let s = DUMMY_SP;
     let body = Stmt::Block(

@@ -1,5 +1,4 @@
-use super::constants::DATA_OFFSET;
-use super::{Heap, HeapPtr, Tag};
+use super::{Heap, HeapPtr, ObjectPtr, Tag};
 use crate::AnyEnum;
 
 /// this is a heap-allocated environment stored in a closure
@@ -19,12 +18,22 @@ use crate::AnyEnum;
 ///    retrievals down. i feel fairly confident we can do hella math in
 ///    the compiler and turn EnvGet into (local.get 0, typ.load STATIC_OFFSET)
 ///
-/// Tag | u32 | [EnvItem]
+/// Tag | u32 | Object | [EnvItem]
+///        ^      ^^
+///       len   fn_obj
+///
+/// WARNING: breaking tradition with other pointer objects, this object does
+/// not handle 64-bit and 32-bit architectures differently. the tag is always
+/// treated as if it is 4 bytes long
 #[derive(Clone, Copy, PartialEq)]
 #[repr(transparent)]
 pub struct EnvPtr {
     ptr: *mut Tag,
 }
+
+const LEN_OFFSET: usize = 1;
+const FN_OBJ_OFFSET: usize = 2;
+const ENV_ITEM_OFFSET: usize = 3;
 
 impl EnvPtr {
     /// # Safety
@@ -56,15 +65,25 @@ impl EnvPtr {
     /// # other considerations
     ///
     /// if you need a zero-length environment, you should use nullptr
-    pub unsafe fn init(ptr: *mut Tag, length: u32) -> Self {
-        (ptr.add(DATA_OFFSET) as *mut u32).write(length);
+    pub unsafe fn init(ptr: *mut Tag, length: u32, fn_obj: ObjectPtr) -> Self {
+        (ptr.add(LEN_OFFSET) as *mut u32).write(length);
+        (ptr.add(FN_OBJ_OFFSET) as *mut ObjectPtr).write(fn_obj);
         Self { ptr }
     }
+
     pub fn len(&self) -> usize {
         // SAFETY: the length was added in new, as long as it hasn't been
         // overwritten by UB, it's still there
-        unsafe { *(self.ptr.add(DATA_OFFSET) as *const u32) as usize }
+        unsafe { *(self.ptr.add(LEN_OFFSET) as *const u32) as usize }
     }
+
+    pub fn fn_obj(&self) -> ObjectPtr {
+        // figure out why that * is there
+        unsafe { std::mem::transmute(*self.ptr.add(FN_OBJ_OFFSET)) }
+        // unsafe { ObjectPtr::new(*(self.ptr.add(FN_OBJ_OFFSET) as *mut *mut Tag)) }
+        // unsafe {&mut *(self.ptr.add(FN_OBJ_OFFSET) as ObjectPtr)}
+    }
+
     /// initialize the index field of the pointer. this must be called on
     /// every index from 0 to length - 1 before garbage collection is sound
     ///
@@ -76,6 +95,7 @@ impl EnvPtr {
         // we want to initialize for the first time using ptr.write
         self.slice_ptr().add(index).write(item);
     }
+
     /// # Safety
     ///
     /// must have called [init_at] for every item in length
@@ -87,7 +107,7 @@ impl EnvPtr {
         // SAFETY: as long as new was called correctly, this is a valid
         // pointer with possibly garbage data. it MAY point one byte past
         // the heap if length is zero, but that is actually defined behavior
-        unsafe { self.ptr.add(DATA_OFFSET + 1) as *mut EnvItem }
+        unsafe { self.ptr.add(ENV_ITEM_OFFSET) as *mut EnvItem }
     }
 }
 impl HeapPtr for EnvPtr {
@@ -95,15 +115,22 @@ impl HeapPtr for EnvPtr {
         self.ptr
     }
     fn get_data_size(&self, _heap: &Heap) -> usize {
-        std::mem::size_of::<EnvItem>() * self.len() + 4
+        std::mem::size_of::<EnvItem>() * self.len() + 4 + std::mem::size_of::<ObjectPtr>()
     }
     /// # Safety
     ///
     /// **THIS IS UNSAFE**!!! it can't be tagged unsafe because it's a trait,
     /// but, until [init_at] has been called for every item, it is unsound
     fn get_gc_ptrs(&self, _: &Heap) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
+        // 1. Collect pointers for closed over values
         // SAFETY: this actually isn't safe!!!
-        AnyEnum::iter_to_ptrs(unsafe { self.slice().iter() })
+        let (mut tags, f64s) = AnyEnum::iter_to_ptrs(unsafe { self.slice().iter() });
+
+        // 2. Collect pointer for this closure's function object
+        tags.push(self.fn_obj().get_ptr());
+
+        // 3. return the ptrs
+        (tags, f64s)
     }
 }
 
@@ -114,3 +141,41 @@ impl std::fmt::Debug for EnvPtr {
 }
 
 type EnvItem = AnyEnum;
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::env::*;
+    use crate::heap;
+    use crate::init;
+    use crate::object::object_empty;
+    use crate::AnyEnum;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    fn env_fn_obj() {
+        init();
+
+        let fn_obj = object_empty();
+        let env = unsafe {
+            // Expr::Closure
+            let env = env_alloc(3, fn_obj);
+            env_init_at(env, 0, AnyEnum::I32(5).into());
+            env_init_at(env, 1, AnyEnum::I32(6).into());
+            env_init_at(env, 2, AnyEnum::I32(7).into())
+        };
+
+        let mut got_fn_obj: ObjectPtr = env.fn_obj();
+        assert_eq!(fn_obj, got_fn_obj);
+        got_fn_obj.insert(heap(), "x".into(), AnyEnum::I32(10).into(), &mut -1);
+        assert_eq!(
+            got_fn_obj.get(heap(), "x".into(), &mut -1),
+            AnyEnum::I32(10)
+        );
+
+        let env_items = unsafe { env.slice() };
+        assert_eq!(env_items[0], AnyEnum::I32(5));
+        assert_eq!(env_items[1], AnyEnum::I32(6));
+        assert_eq!(env_items[2], AnyEnum::I32(7));
+    }
+}

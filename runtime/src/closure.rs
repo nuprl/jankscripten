@@ -78,6 +78,7 @@ pub extern "C" fn any_closure_arity(closure: AnyClosureVal) -> u32 {
 mod test {
     use super::*;
     use crate::env::*;
+    use crate::object::object_empty;
     use crate::AnyEnum;
     use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -99,15 +100,49 @@ mod test {
     fn as_seen_on_notwasm() {
         let env = unsafe {
             // Expr::Closure
-            let env = env_alloc(3);
+            let fn_obj = object_empty();
+            let env = env_alloc(3, fn_obj);
             env_init_at(env, 0, AnyEnum::I32(5).into());
             env_init_at(env, 1, AnyEnum::I32(6).into());
             env_init_at(env, 2, AnyEnum::I32(7).into())
         };
         let clos = closure_new(env, 0);
+
         // Expr::ClosureCall
         let back_out = closure_env(clos);
         assert_eq!(env, back_out);
+        // this could be finished with an EnvGet, but i found the bug already
+    }
+    #[wasm_bindgen_test]
+    fn closure_to_object() {
+        use crate::any_value::*;
+        crate::init();
+        let env = unsafe {
+            // Expr::Closure
+            let fn_obj = object_empty();
+            let env = env_alloc(3, fn_obj);
+            env_init_at(env, 0, AnyEnum::I32(5).into());
+            env_init_at(env, 1, AnyEnum::I32(6).into());
+            env_init_at(env, 2, AnyEnum::I32(7).into())
+        };
+        let clos = closure_new(env, 0); // dummy 0
+        let mut as_obj: crate::heap_types::ObjectPtr =
+            unsafe { std::mem::transmute(any_to_ptr(any_from_closure(clos))) };
+        as_obj.insert(crate::heap(), "x".into(), AnyEnum::I32(11).into(), &mut -1);
+        assert_eq!(
+            as_obj.get(crate::heap(), "x".into(), &mut -1),
+            AnyEnum::I32(11)
+        );
+
+        // Expr::ClosureCall
+        let back_out = closure_env(clos);
+        assert_eq!(env, back_out);
+        let as_obj: crate::heap_types::ObjectPtr =
+            unsafe { std::mem::transmute(any_to_ptr(any_from_closure(clos))) };
+        assert_eq!(
+            as_obj.get(crate::heap(), "x".into(), &mut -1),
+            AnyEnum::I32(11)
+        );
         // this could be finished with an EnvGet, but i found the bug already
     }
 }
