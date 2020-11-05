@@ -2,8 +2,8 @@
 
 use crate::any_value::{AnyValue as Any, *};
 use crate::coercions::*;
-use crate::string::StringPtr;
 use crate::heap;
+use crate::string::StringPtr;
 // use crate::heap_types::*;
 
 #[no_mangle]
@@ -21,7 +21,7 @@ pub extern "C" fn janky_plus(a: Any, b: Any) -> Any {
             // allocate this into a string
             let combined = heap().alloc_str_or_gc(&combined);
 
-            unsafe {AnyEnum::Ptr(std::mem::transmute(combined)).into()}
+            unsafe { AnyEnum::Ptr(std::mem::transmute(combined)).into() }
         } else {
             todo!("implementation for `+` missing for ptr types");
         }
