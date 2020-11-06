@@ -372,11 +372,32 @@ impl Heap {
             .flatten()
             .map(|refptr| *refptr)
             .collect::<Vec<*mut Tag>>();
-        self.mark_phase(roots);
+        self.mark_phase(roots, |_| ());
         self.sweep_phase();
     }
 
-    fn mark_phase(&self, roots: Vec<*mut Tag>) {
+    /// # Safety
+    ///
+    /// if push_shadow_frame / pop_shadow_frame / set_in_current_shadow_frame_slot were
+    /// used correctly (tagged unsafe), this is safe
+    pub fn heap_dump(&self) {
+        let roots = self
+            .shadow_stack
+            .borrow()
+            .iter()
+            .flatten()
+            .flatten()
+            .map(|refptr| *refptr)
+            .collect::<Vec<*mut Tag>>();
+        log!("===== BEGIN JANKYSCRIPT HEAP DUMP =====");
+        self.mark_phase(roots, |any| {
+            log!("{:x?}    {:?}", any.get_ptr(), any.view())
+        });
+        log!("=====   END JANKYSCRIPT HEAP DUMP =====");
+        self.sweep_phase();
+    }
+
+    fn mark_phase(&self, roots: Vec<*mut Tag>, dump: impl Fn(AnyPtr)) {
         let mut current_roots = roots;
         let mut new_roots = Vec::<*mut Tag>::new();
 
@@ -393,6 +414,8 @@ impl Heap {
                 tag.marked = true;
 
                 let any_ptr = unsafe { AnyPtr::new(root) };
+                dump(any_ptr);
+
                 let (mut tags, f64s) = any_ptr.get_gc_ptrs(self);
                 new_roots.append(&mut tags);
                 for ptr in f64s {

@@ -122,6 +122,7 @@ fn binop_overload(op: &BinOp, lhs_ty: &Type, rhs_ty: &Type) -> TypeOverload {
         (BinOp::GreaterThan, _, _) => prim(BinaryOp::F64GT, Float, Float, Bool),
         (BinOp::GreaterThanEqual, Int, Int) => prim(BinaryOp::I32Ge, Int, Int, Bool),
         (BinOp::GreaterThanEqual, _, _) => prim(BinaryOp::F64Ge, Float, Float, Bool),
+        (BinOp::And, _, _) => prim(BinaryOp::I32And, Int, Int, Int),
         (BinOp::Times, Int, Int) => prim_same(BinaryOp::I32Mul, Int),
         (BinOp::Times, _, _) if anyish => rts(RTSFunction::Times, Any),
         (BinOp::Times, _, _) => prim_same(BinaryOp::F64Mul, Float),
@@ -468,7 +469,12 @@ impl InsertCoercions {
                         Janky::Expr::PrimCall(
                             RTSFunction::Minus,
                             vec![
-                                Janky::Expr::Lit(Janky::Lit::Num(Janky::Num::Int(0)), s),
+                                self.coerce(
+                                    Janky::Expr::Lit(Janky::Lit::Num(Janky::Num::Int(0)), s),
+                                    Type::Int,
+                                    Type::Any,
+                                    s,
+                                ),
                                 self.coerce(coerced_e, e_ty, Type::Any, s),
                             ],
                             s,
@@ -489,7 +495,7 @@ impl InsertCoercions {
                             vec![self.coerce(coerced_e, e_ty, Type::Any, s)],
                             s,
                         ),
-                        Type::Any,
+                        Type::String,
                     )),
                     (UnaryOp::Void, _) => Ok((
                         Janky::Expr::PrimCall(
@@ -581,28 +587,29 @@ impl InsertCoercions {
     }
 
     fn coerce(&self, e: Janky::Expr, t1: Type, t2: Type, s: Span) -> Janky::Expr {
-        Janky_::coercion_(self.coercion(t1, t2), e, s)
+        Janky_::coercion_(self.coercion(t1, t2, s), e, s)
     }
 
-    fn coercion(&self, t1: Type, t2: Type) -> Coercion {
+    fn coercion(&self, t1: Type, t2: Type, s: Span) -> Coercion {
         if t1 == t2 {
             Coercion::Id(t1)
         } else {
             match (t1, t2) {
                 (Type::Any, t2) if t2.is_ground() => Coercion::Untag(t2),
                 (t1, Type::Any) if t1.is_ground() => Coercion::Tag(t1),
+                (t1, Type::Any) => panic!("non-ground {:?} to any {:?}", t1, s),
                 (Type::Any, Type::Function(args, ret)) => {
                     let gf = Type::ground_function(args.len());
                     Coercion::seq(
-                        self.coercion(Type::Any, gf.clone()),
-                        self.coercion(gf, Type::Function(args, ret)),
+                        self.coercion(Type::Any, gf.clone(), s),
+                        self.coercion(gf, Type::Function(args, ret), s),
                     )
                 }
                 (Type::Any, Type::Function(args, ret)) => {
                     let gf = Type::ground_function(args.len());
                     Coercion::seq(
-                        self.coercion(Type::Function(args, ret), gf.clone()),
-                        self.coercion(gf, Type::Any),
+                        self.coercion(Type::Function(args, ret), gf.clone(), s),
+                        self.coercion(gf, Type::Any, s),
                     )
                 }
                 (Type::Function(args1, ret1), Type::Function(args2, ret2)) => {
@@ -614,16 +621,19 @@ impl InsertCoercions {
                         args1
                             .into_iter()
                             .zip(args2.into_iter())
-                            .map(|(arg1, arg2)| self.coercion(arg2, arg1))
+                            .map(|(arg1, arg2)| self.coercion(arg2, arg1, s))
                             .collect(),
-                        self.coercion(*ret1, *ret2),
+                        self.coercion(*ret1, *ret2, s),
                     )
                 }
                 (Type::Int, Type::Float) => Coercion::IntToFloat,
                 (Type::Float, Type::Int) => Coercion::FloatToInt,
                 (t1, t2) => {
-                    eprintln!("doing coerce({:?}, {:?}) through Any", t1, t2);
-                    Coercion::seq(self.coercion(t1, Type::Any), self.coercion(Type::Any, t2))
+                    eprintln!("doing coerce({:?}, {:?}) through Any ({:?})", t1, t2, s);
+                    Coercion::seq(
+                        self.coercion(t1, Type::Any, s),
+                        self.coercion(Type::Any, t2, s),
+                    )
                 }
             }
         }

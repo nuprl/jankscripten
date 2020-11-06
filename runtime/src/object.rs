@@ -25,7 +25,7 @@ pub extern "C" fn object_get(object: ObjectPtr, field: StringPtr, cache: &mut is
     object.get(heap(), field, cache).into()
 }
 
-/// global.Object.create
+/// Object.create
 /// TODO(luna): presumably there should be some way to type this correctly
 /// as returning a DynObject even though it's ultimately stored in a DynObject
 /// and thus is coerced into an Any::Fun

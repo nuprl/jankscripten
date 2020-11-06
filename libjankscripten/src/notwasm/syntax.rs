@@ -345,6 +345,7 @@ pub struct Function {
     pub body: Stmt,
     pub fn_type: FnType,
     pub params: Vec<Id>,
+    pub span: Span,
 }
 
 #[derive(Debug, PartialEq)]

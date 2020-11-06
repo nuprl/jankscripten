@@ -22,6 +22,11 @@ const FN_OBJ_SIZE: u32 = 4;
 
 type FuncTypeMap = HashMap<(Vec<ValueType>, Option<ValueType>), u32>;
 
+impl crate::shared::Report for Error {
+    fn report(&self, _sm: &swc_common::SourceMap) -> String {
+        format!("{}", self)
+    }
+}
 pub fn translate(program: N::Program) -> Result<Vec<u8>, Error> {
     serialize(translate_parity(program))
 }
@@ -45,13 +50,17 @@ pub fn translate_parity(mut program: N::Program) -> Module {
     // but it should still be enumerated in the importing, so we give it a fake
     // env name
     let rt_globals = vec![("__JNKS_STRINGS", "JNKS_STRINGS", N::Type::I32)];
-    for (_, rt_name, ty) in &rt_globals {
+    for (_, rt_name, _) in &rt_globals {
         module = module
             .import()
             .path("runtime", rt_name)
             // runtime globals are never mutable because they're a mutable
             // pointer to the value which may or may not be mutable
-            .with_external(External::Global(GlobalType::new(ty.as_wasm(), false)))
+            //
+            // you'd think the type here should be the ty from the global, but
+            // no, again they're all pointers so they're all I32. the actual
+            // type according to notwasm is used later in IdIndex::RTGlobal
+            .with_external(External::Global(GlobalType::new(ValueType::I32, false)))
             .build();
     }
     let mut index = 0;
@@ -59,8 +68,8 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         global_env.insert(N::Id::Named(name.into()), IdIndex::RTGlobal(index, ty));
         index += 1;
     }
-    for name in program.globals.keys().cloned() {
-        global_env.insert(name, IdIndex::Global(index));
+    for (name, global) in &program.globals {
+        global_env.insert(name.clone(), IdIndex::Global(index, global.ty.clone()));
         index += 1;
     }
 
@@ -299,7 +308,7 @@ enum TranslateLabel {
 #[derive(Clone, PartialEq, Debug)]
 enum IdIndex {
     Local(u32, N::Type),
-    Global(u32),
+    Global(u32, N::Type),
     /// runtime globals are handled differently because rust exports statics
     /// as the memory address of the actual value
     RTGlobal(u32, N::Type),
@@ -412,7 +421,7 @@ impl<'a> Translate<'a> {
                             self.set_in_current_shadow_frame_slot(&ty);
                         }
                     }
-                    IdIndex::Global(n) => {
+                    IdIndex::Global(n, _) => {
                         self.translate_expr(expr);
                         self.out.push(SetGlobal(n));
                     }
@@ -564,7 +573,7 @@ impl<'a> Translate<'a> {
                 }
                 self.rt_call(rts_func.name());
             }
-            N::Expr::Call(f, args, _) => {
+            N::Expr::Call(f, args, s) => {
                 for arg in args {
                     self.get_id(arg);
                 }
@@ -586,13 +595,13 @@ impl<'a> Translate<'a> {
                         let ty_index = self
                             .type_indexes
                             .get(&(params_tys, ret_ty))
-                            .expect("function type was not indexed");
+                            .unwrap_or_else(|| panic!("function type was not indexed {:?}", s));
                         self.out.push(CallIndirect(*ty_index, 0));
                     }
                     _ => panic!("expected Func ID ({})", f),
                 };
             }
-            N::Expr::ClosureCall(f, args, _) => {
+            N::Expr::ClosureCall(f, args, s) => {
                 match self.id_env.get(f).cloned() {
                     Some(IdIndex::Fun(_)) => panic!("closures are always given a name"),
                     Some(IdIndex::Local(i, t)) => {
@@ -607,7 +616,7 @@ impl<'a> Translate<'a> {
                         let ty_index = self
                             .type_indexes
                             .get(&(params_tys, ret_ty))
-                            .expect("function type was not indexed");
+                            .unwrap_or_else(|| panic!("function type was not indexed {:?}", s));
                         for arg in args {
                             self.get_id(arg);
                         }
@@ -615,7 +624,27 @@ impl<'a> Translate<'a> {
                         self.rt_call("closure_func");
                         self.out.push(CallIndirect(*ty_index, 0));
                     }
-                    _ => panic!("expected Func ID ({})", f),
+                    Some(IdIndex::Global(i, t)) => {
+                        self.out.push(GetGlobal(i));
+                        self.rt_call("closure_env");
+                        let (params_tys, ret_ty) = match t {
+                            N::Type::Closure(fn_ty) => {
+                                (types_as_wasm(&fn_ty.args), option_as_wasm(&fn_ty.result))
+                            }
+                            _ => panic!("identifier {:?} is not function-typed", f),
+                        };
+                        let ty_index = self
+                            .type_indexes
+                            .get(&(params_tys, ret_ty))
+                            .unwrap_or_else(|| panic!("function type was not indexed {:?}", s));
+                        for arg in args {
+                            self.get_id(arg);
+                        }
+                        self.out.push(GetGlobal(i));
+                        self.rt_call("closure_func");
+                        self.out.push(CallIndirect(*ty_index, 0));
+                    }
+                    got => panic!("expected Func ID ({}), but got {:?}", f, got),
                 };
             }
             N::Expr::NewRef(a, ty, _) => {
@@ -811,7 +840,7 @@ impl<'a> Translate<'a> {
                 self.out.push(GetLocal(*n));
                 Some(ty.clone())
             }
-            IdIndex::Global(n) => {
+            IdIndex::Global(n, _) => {
                 self.out.push(GetGlobal(*n));
                 None
             }

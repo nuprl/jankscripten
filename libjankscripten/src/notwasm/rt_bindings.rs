@@ -97,7 +97,19 @@ pub fn get_rt_bindings() -> BindMap {
     // -> Env
     insert(m, "closure_env", vec![a_clos.clone()], I32);
     insert(m, "closure_func", vec![a_clos.clone()], a_fn.clone());
-
+    // here's some standard library stuff!!
+    // most of these take Env, Any which is _env, _this (usually ignored)
+    insert_ground(m, "parse_int", 1);
+    // returns 5 for now because void messiness remains
+    insert_ground(m, "console_log", 1);
+    // math
+    insert_ground(m, "math_sqrt", 1);
+    insert_ground(m, "math_sin", 1);
+    insert_ground(m, "math_abs", 1);
+    insert_ground(m, "math_min", 2);
+    insert_ground(m, "math_max", 2);
+    // __JNKS
+    insert_ground(m, "heap_dump", 0);
     // Step 2: automatically insert runtime functions from RTSFunction.
     for rts in RTSFunction::iter() {
         if let RTSFunction::Todo(_) = rts {
@@ -130,4 +142,14 @@ fn insert_mono<'a, X, I>(
 
 fn insert<I: Into<Option<Type>>>(map: &mut BindMap, name: &str, params_tys: Vec<Type>, ret_ty: I) {
     map.insert(name.into(), fn_ty_(params_tys, ret_ty.into()));
+}
+fn insert_ground(map: &mut BindMap, name: &str, real_params: usize) {
+    map.insert(name.into(), ground_ty(real_params));
+}
+fn ground_ty(real_params: usize) -> Type {
+    // env: env, this: any, [any x real_params] -> any
+    let all_params = std::iter::once(Env)
+        .chain(std::iter::repeat(Any).take(real_params + 1))
+        .collect();
+    fn_ty_(all_params, Any)
 }

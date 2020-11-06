@@ -36,7 +36,7 @@ impl From<swc_ecma_parser::error::Error> for ParseError {
 }
 
 /// Parse a full JavaScript program from source code into our JavaScript AST.
-pub fn parse(js_code: &str) -> ParseResult<S::Stmt> {
+pub fn parse(js_code: &str) -> (ParseResult<S::Stmt>, SourceMap) {
     // The SourceMap keeps track of all the source files given to the parser.
     // All spans given to us by the parser library are actually indices
     // into this source map.
@@ -62,10 +62,13 @@ pub fn parse(js_code: &str) -> ParseResult<S::Stmt> {
     let mut parser = Parser::new_from(lexer);
 
     // Parse our script into the library's AST
-    let script = parser.parse_script()?;
+    let script = match parser.parse_script() {
+        Ok(s) => s,
+        Err(e) => return (Err(ParseError::SWC(e)), source_map),
+    };
 
     // Parse the library's AST into our AST
-    parse_script(script, &source_map)
+    (parse_script(script, &source_map), source_map)
 }
 
 macro_rules! unsupported {

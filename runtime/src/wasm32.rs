@@ -19,6 +19,7 @@ use crate::allocator::*;
 use crate::any_value::AnyEnum;
 use crate::any_value::AnyValue;
 use crate::closure::ClosureVal;
+use crate::heap_types::EnvPtr;
 
 static mut HEAP: Option<Heap> = None;
 
@@ -57,6 +58,12 @@ pub fn set_any_in_current_shadow_frame_slot(any: AnyValue, slot: usize) {
 pub fn set_closure_in_current_shadow_frame_slot(closure: ClosureVal, slot: usize) {
     let env = closure.0;
     heap().set_in_current_shadow_frame_slot(slot, env.get_ptr());
+}
+
+#[no_mangle]
+pub fn heap_dump(_: EnvPtr, _this: AnyValue) -> AnyValue {
+    heap().heap_dump();
+    AnyEnum::Undefined.into()
 }
 
 /// returns Any::I32(42) because jankyscript requires return values

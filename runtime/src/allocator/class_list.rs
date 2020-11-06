@@ -80,6 +80,9 @@ impl Class {
                 })
         }
     }
+    pub fn keys(&self) -> Vec<StringPtr> {
+        self.offsets.iter().map(|(s, _)| *s).collect()
+    }
     fn lookup_transition(&self, name: StringPtr) -> Option<u16> {
         self.transitions
             .iter()

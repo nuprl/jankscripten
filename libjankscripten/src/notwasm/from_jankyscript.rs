@@ -215,7 +215,7 @@ fn compile_exprs<'a>(
 
 pub fn compile_ty(janky_typ: J::Type) -> Type {
     // why the seemingly double behavior?
-    // we turn Fn into Closure only when it'state in the program, not in
+    // we turn Fn into Closure only when it's in the program, not in
     // RTSFunctions
     match janky_typ.notwasm_typ() {
         Type::Fn(mut fn_ty) => {
@@ -503,9 +503,14 @@ fn compile_stmt<'a>(state: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
             s,
         )),
         S::Break(x, s) => Rope::singleton(Stmt::Break(Label::Named(x.to_pretty(80)), s)),
-        S::Catch(_, _, _, _) => todo!("NotWasm needs to support exceptions"),
+        // TODO(luna): notwasm needs to support exceptions
+        // (this just executes the statement with no continuation; in jankyp
+        // we discovered that in most benchmarks, even if they use try/catch, no
+        // error is thrown)
+        S::Catch(try_stmt, _, _, _) => compile_stmt(state, *try_stmt),
         S::Finally(_, _, _) => todo!("NotWasm needs to support exceptions"),
-        S::Throw(_, _) => todo!("NotWasm needs to support exceptions"),
+        // TODO(luna): notwasm needs to support exceptions
+        S::Throw(_, _) => Rope::new(),
         S::Return(e, s) => {
             compile_expr(state, *e, C::a(|_s, a| Rope::singleton(Stmt::Return(a, s))))
         }
@@ -520,17 +525,24 @@ fn rope_to_block(rope: Rope<Stmt>, s: Span) -> Stmt {
 }
 
 fn compile_function<'a>(state: &'a mut S, f: J::Func, s: Span) -> Function {
-    let (param_names, param_tys): (Vec<_>, Vec<_>) =
-        std::iter::once((Id::Generated("_", 341), J::Type::Int))
-            .chain(f.args_with_typs.into_iter())
-            .unzip();
+    let (mut param_names, jnks_tys): (Vec<_>, Vec<_>) = f.args_with_typs.into_iter().unzip();
+    // add the env to the function type as well. this only matters when
+    // not sent through an any so immediate application weirdness so probably
+    // related to this. again, this could be much cleaner if we figured out a
+    // way to iterate over all types in jankyscript and change them with
+    // closure conversion
+    param_names.insert(0, Id::Generated("_", 341));
+    let param_tys = std::iter::once(Type::Env)
+        .chain(jnks_tys.into_iter().map(|t| compile_ty(t)))
+        .collect();
     Function {
         body: Stmt::Block(compile_stmt(state, *f.body).into_iter().collect(), s),
         params: param_names,
         fn_type: FnType {
-            args: param_tys.into_iter().map(|t| compile_ty(t)).collect(),
+            args: param_tys,
             result: Some(Box::new(compile_ty(f.result_typ))),
         },
+        span: s,
     }
 }
 
@@ -551,6 +563,7 @@ pub fn from_jankyscript(janky_program: J::Stmt) -> Program {
                 args: Vec::new(),
                 result: None,
             },
+            span: DUMMY_SP,
         },
     );
     Program {
