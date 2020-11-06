@@ -1,4 +1,17 @@
 #!/bin/sh
-where=`realpath "$1"`
-cd `dirname $0`
+
+# USAGE: ./run-js <js file>
+# Compiles the specified JS file to WASM using jankscripten, then runs
+# the resulting WASM code.
+
+# turn any path into a fully-qualified absolute path (e.g. beginning with '/')
+canonicalize() {
+	  echo "$(cd $(dirname $1); pwd -P)/$(basename $1)"
+}
+
+# fully resolve the path of the JS file we're compiling
+where=$(canonicalize "$1")
+cd $(dirname $0)
+
+# compile it
 ./jankscripten compile "$where" -o /tmp/run.wasm && ./run-node /tmp/run.wasm
