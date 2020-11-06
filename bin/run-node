@@ -1,2 +1,6 @@
 #!/usr/bin/env node
+
+// Usage: ./run.js <jankscripten-compiled WASM file>
+// Executes the given WASM code using the jankscripten runtime.
+
 require('./run.js')
