@@ -10,8 +10,8 @@ where
     //elim_gotos(&mut program);
     let notwasm_rt = parse(include_str!("runtime.notwasm"));
     program.merge_in(notwasm_rt);
+    inspect(&program);
     type_checking::type_check(&mut program)?;
     intern(&mut program);
-    inspect(&program);
     Ok(translate(program)?)
 }

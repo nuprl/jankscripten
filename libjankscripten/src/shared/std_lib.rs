@@ -9,6 +9,14 @@ pub fn get_global_object() -> BindMap {
     let mut map = BindMap::with_capacity(64);
     let m = &mut map;
 
+    // don't forget that most function types here should include this (Any as
+    // first argument) but not env (will be converted by from_jankyscript)
+
+    // THIS ISN'T IN JAVASCRIPT. special functions that are provided only by
+    // jankscripten are provided under the __JNKS object. TODO(luna): i want to
+    // move log_any here
+    insert(m, "__JNKS", DynObject);
+
     // i don't know where this would be documented but i know we need it
     insert(m, "arguments", Array);
     // TODO(luna): this is even more stopgap: this is dead code that refers
@@ -61,7 +69,7 @@ pub fn get_global_object() -> BindMap {
     // maybe elm?
     insert(m, "DataView", Any);
     insert(m, "Date", Any);
-    insert(m, "Error", Any);
+    insert(m, "Error", Function(vec![Any, Any], Box::new(Any)));
     // ocaml
     insert(m, "EvalError", Any);
     insert(m, "Float32Array", Any);
@@ -74,7 +82,7 @@ pub fn get_global_object() -> BindMap {
     insert(m, "Int32Array", Any);
     insert(m, "Int8Array", Any);
     insert(m, "JSON", Any);
-    insert(m, "Math", Any);
+    insert(m, "Math", DynObject);
     insert(m, "NaN", Any);
     insert(m, "Number", Any);
     insert(m, "Object", DynObject);
@@ -106,7 +114,8 @@ pub fn get_global_object() -> BindMap {
     insert(m, "isFinite", Any);
     insert(m, "isNaN", Any);
     insert(m, "parseFloat", Any);
-    insert(m, "parseInt", Any);
+    // i think this specifies before closure conversion but after this-conversion
+    insert(m, "parseInt", Function(vec![Any, Any], Box::new(Any)));
     // constants
     insert(m, "undefined", Any);
     insert(m, "null", Any);

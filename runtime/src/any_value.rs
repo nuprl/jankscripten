@@ -39,7 +39,7 @@ impl Debug for AnyEnum {
             F64(ptr) => write!(f, "F64({})", unsafe { ptr.read() }),
             Bool(b) => write!(f, "Bool({})", b),
             Ptr(ptr) => write!(f, "{:?}", ptr.view()),
-            Closure(n) => write!(f, "Fn({})", n),
+            Closure(n) => write!(f, "Closure({})", n),
             Undefined => write!(f, "undefined"),
             Null => write!(f, "null"),
         }
@@ -73,6 +73,9 @@ impl Display for HeapRefView {
     }
 }
 impl Debug for HeapRefView {
+    // please observe carefully that heap refs that are not values / should
+    // never be printed begin with a ! but are still printed because this
+    // is for *debugging*
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         use HeapRefView::*;
         match *self {
@@ -80,9 +83,11 @@ impl Debug for HeapRefView {
             HT(_) => write!(f, "HT({})", self),
             Array(_) => write!(f, "Array({})", self),
             Any(_) => write!(f, "Any({})", self),
-            Class(_) => panic!("shouldn't have object data as value"),
-            ObjectPtrPtr(_) => write!(f, "DynObject({})", self),
-            NonPtr32(_) | MutF64(_) | Ptr(_) => panic!("ref inside any"),
+            Class(_) => write!(f, "!ObjData"),
+            ObjectPtrPtr(o) => write!(f, "DynObject({:?})", o),
+            NonPtr32(v) => write!(f, "!Ref({})", *v),
+            MutF64(v) => write!(f, "!F64({})", *v),
+            Ptr(p) => write!(f, "!Ref({:?})", p),
             Env(e) => write!(f, "Env({:?})", e),
         }
     }
@@ -113,7 +118,6 @@ macro_rules! decl_proj_fns {
 // Automatically generate these simple projection functions.
 // The rest will be specified manually.
 decl_proj_fns!(any_from_i32, any_to_i32, I32, i32);
-decl_proj_fns!(any_from_bool, any_to_bool, Bool, bool);
 
 #[no_mangle]
 pub extern "C" fn any_to_f64(any: AnyValue) -> f64 {
@@ -170,6 +174,32 @@ pub extern "C" fn any_to_ptr<'a>(val: AnyValue) -> AnyPtr {
 #[no_mangle]
 pub extern "C" fn any_from_ptr<'a>(val: AnyPtr) -> AnyValue {
     AnyEnum::Ptr(val).into()
+}
+
+#[no_mangle]
+pub extern "C" fn any_to_bool<'a>(val: AnyValue) -> bool {
+    match *val {
+        AnyEnum::I32(i) => i != 0,
+        AnyEnum::F64(p) => {
+            let f = unsafe { *p };
+            !f.is_nan() && f != 0.0
+        }
+        AnyEnum::Bool(b) => b,
+        AnyEnum::Ptr(ptr) => match ptr.view() {
+            HeapRefView::NonPtr32(_) => panic!("ref is not a value"),
+            HeapRefView::String(s) => &*s != "",
+            HeapRefView::Array(_) => true,
+            HeapRefView::ObjectPtrPtr(_) => true,
+            _ => log_panic!("TODO: any_to_bool {:?}", val),
+        },
+        AnyEnum::Closure(_) => true,
+        AnyEnum::Undefined => false,
+        AnyEnum::Null => false,
+    }
+}
+#[no_mangle]
+pub extern "C" fn any_from_bool<'a>(val: bool) -> AnyValue {
+    AnyEnum::Bool(val).into()
 }
 
 #[no_mangle]

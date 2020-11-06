@@ -1,8 +1,22 @@
 // Lazily-initialized global variables. DO NOT READ FROM THESE UNTIL THEY HAVE
 // BEEN WRITTEN TO.
 var Object: DynObject;
+var Math: DynObject;
 var global: DynObject;
 var console: DynObject;
+var __JNKS: DynObject;
+var undefined: any;
+// (_, _this, what) -> i32 or f64(NaN)
+var parseInt: clos(env, any, any) -> any;
+// temporary Error ground to see other compile-time errors (unrelated to this
+// being called Error)
+var Error: clos(env, any, any) -> any;
+// REAL one:
+// var Error: clos(env, any, str) -> DynObject;
+
+// source: firefox console -> Math.PI
+const __JNKS_PI: f64 = 3.141592653589793f;
+
 // abusing lazy globals to create a null DynObject for jnks_new_object
 var jnks_null_dynobject: DynObject;
 
@@ -25,6 +39,7 @@ function jnks_init() {
 
     // load the Object.create runtime function
     var objectCreateF = rt(object_create);
+    // comma is obligatory to indicate an empty environment
     var objectCreate = clos(objectCreateF, );
     jnks_objectCreate = objectCreate;
     jnks_objectCreateExists = 1;
@@ -52,13 +67,49 @@ function jnks_init() {
     var objectToString = clos(objectToStringF, );
     objectPrototype.toString = any(objectToString);
 
-    // Now that the default Object class has been set up, set up other
-    // global objects.
-    global = {};
+    Math = {};
+    var mathSqrtF = rt(math_sqrt);
+    var mathSqrt = clos(mathSqrtF, );
+    Math.sqrt = any(mathSqrt);
+    var mathSinF = rt(math_sin);
+    var mathSin = clos(mathSinF, );
+    Math.sin = any(mathSin);
+    var mathAbsF = rt(math_abs);
+    var mathAbs = clos(mathAbsF, );
+    Math.abs = any(mathAbs);
+    var mathMinF = rt(math_min);
+    var mathMin = clos(mathMinF, );
+    Math.min = any(mathMin);
+    var mathMaxF = rt(math_max);
+    var mathMax = clos(mathMaxF, );
+    Math.max = any(mathMax);
+    Math.PI = any(__JNKS_PI);
+
+    // __JNKS
+    __JNKS = {};
+    var heapDumpF = rt(heap_dump);
+    var heapDump = clos(heapDumpF, );
+    __JNKS.heap_dump = any(heapDump);
+
     console = {};
-    var console_logF = jnks_console_log;
-    var console_log = clos(console_logF, );
-    console.log = any(console_log);
+    var consoleLogF = rt(console_log);
+    var consoleLog = clos(consoleLogF, );
+    console.log = any(consoleLog);
+    console.info = any(consoleLog);
+
+    // === free-floating stuff in the global namespace ===
+
+    var parseIntF = rt(parse_int);
+    parseInt = clos(parseIntF, );
+
+    Error = clos(error_ground, );
+
+    var getUndefined = rt(get_undefined);
+    undefined = getUndefined();
+
+    // Now that the default Object class has been set up, create the global 
+    // object.
+    global = {};
 }
 
 // Runtime function to create a regular empty object like `{}` or
@@ -67,6 +118,27 @@ function jnks_new_object(): DynObject {
     var objectCreate = jnks_objectCreate;
     var newObject = objectCreate!(jnks_objectPrototype);
     return newObject as DynObject;
+}
+
+function error_raw(_: env, _this: any, message: str): DynObject {
+    // `Error("err")` has same functionality as `new Error("err")`
+    // so Error i guess doesn't use `this`
+    var e_proto = {};
+    e_proto.name = any("Error");
+    e_proto.message = any(message);
+    var e_proto_any = any(e_proto);
+    var e = jnks_objectCreate!(e_proto_any);
+    return e as DynObject;
+}
+// there's no reason Error has to be ground. it's top-level, not stored
+// in an object, so it's never boxed into any. however, coercion_insertion
+// wants to convert it to an object because i'm still waiting to add Mark's
+// function-objects, so it needs to be any'd to create a bad coercion so i
+// can see other compile-time errors
+function error_ground(dummyEnv: env, this: any, message: any): any {
+    var messageStr = message as str;
+    var result = error_raw(dummyEnv, this, messageStr);
+    return any(result);
 }
 
 // Create an empty object to be used as a function object.
@@ -91,12 +163,6 @@ function jnks_new_fn_obj(): DynObject {
     // this thing may or may not even be null. it doesn't really matter
     return jnks_null_dynobject;
 
-}
-
-function jnks_console_log(arg: any) {
-    var nullVal = null;
-    var log_anyF = rt(log_any);
-    log_anyF(nullVal, arg);
 }
 
 function jnks_Object_prototype_toString(this: any): str {

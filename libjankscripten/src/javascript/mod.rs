@@ -3,6 +3,7 @@
 
 pub mod constructors;
 mod desugar;
+mod desugar_bracket_str;
 mod desugar_function_applications;
 mod desugar_function_stmts;
 mod desugar_logical;
