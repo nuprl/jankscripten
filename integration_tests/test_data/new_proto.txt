@@ -1,4 +1,3 @@
-String(Hello, I'm)
-String(Jane)
+String(Hello, I'm Jane.)
 String(My age is)
 I32(32)
