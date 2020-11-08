@@ -171,9 +171,14 @@ mod test {
 
         let mut got_fn_obj: ObjectPtr = env.fn_obj();
         assert_eq!(fn_obj, got_fn_obj);
-        got_fn_obj.insert(heap(), "x".into(), AnyEnum::I32(10).into(), &mut -1);
+        got_fn_obj.insert(
+            heap(),
+            heap().alloc_str_or_gc("x"),
+            AnyEnum::I32(10).into(),
+            &mut -1,
+        );
         assert_eq!(
-            got_fn_obj.get(heap(), "x".into(), &mut -1),
+            got_fn_obj.get(heap(), heap().alloc_str_or_gc("x"), &mut -1),
             AnyEnum::I32(10)
         );
 

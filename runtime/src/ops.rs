@@ -68,9 +68,12 @@ pub extern "C" fn janky_not_equal(a: Any, b: Any) -> bool {
 }
 /// TODO(luna): one could intern these values in our own interning style
 /// to avoid needing to allocate for this
+///
+/// the best imaginable way would be to make most of alloc_str_or_gc a `const
+/// fn` and then do const NAME: [u8; _] = intern_str("hello");
 #[no_mangle]
 pub extern "C" fn janky_typeof(a: Any) -> StringPtr {
-    typeof_as_str(a).into()
+    heap().alloc_str_or_gc(typeof_as_str(a))
 }
 #[no_mangle]
 pub extern "C" fn janky_delete(_a: Any, _b: Any) -> bool {

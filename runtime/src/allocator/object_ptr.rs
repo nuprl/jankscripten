@@ -146,7 +146,7 @@ impl ObjectDataPtr {
         }
 
         // Test Case 2: `obj` has a field named "__proto__".
-        let maybe_proto_offset = class.lookup("__proto__".into(), &mut -1);
+        let maybe_proto_offset = class.lookup(ObjectPtr::__PROTO__STR, &mut -1);
         if let Some(proto_offset) = maybe_proto_offset {
             // Get the prototype object
             let proto_val = self.read_at(heap, proto_offset).unwrap();
@@ -184,6 +184,10 @@ impl ObjectDataPtr {
 }
 
 impl ObjectPtr {
+    pub const __PROTO__STR: StringPtr = unsafe {
+        StringPtr::new(b"\x01\x00\x00\x00\x09\x00\x00\x00__proto__" as *const _ as *mut Tag)
+    };
+
     pub const unsafe fn new(ptr: *mut Tag) -> Self {
         Self { ptr }
     }
