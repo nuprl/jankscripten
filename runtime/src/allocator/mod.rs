@@ -49,6 +49,9 @@ struct Block {
     size: isize,
 }
 
+/// TODO(luna): this could be a VecDeque<Block> and avoid looping/recursion. ie:
+/// - checking after with pop_back
+/// - inserting before with pop_front
 #[derive(Clone, Debug)]
 enum FreeList {
     Nil,
@@ -64,69 +67,36 @@ impl FreeList {
     pub fn insert(mut self, start: *mut u8, size: isize) -> FreeList {
         // this has to be iterative because no tail call optimization in wasm
         // (this might be an issue for jankscripten as well tbh)
+        //
+        // nota bene: we ALWAYS add blocks to the END of the free list, so if
+        // the new block occurs before an old block, something is very wrong
+        //
+        // ie we have two base cases:
+        // - new block occurs at the VERY end of block (expand block)
+        // - new block occurs after block (assert rest == Nil)
+        // and one recursion case:
+        // - new block occurs before this block (ignore and proceed with rest)
         let mut to = &mut self;
         loop {
             match to {
                 FreeList::Nil => {
+                    // this is the case where we weren't contiguous, and we
+                    // want to add to the end. unless something has gone horribly
+                    // wrong, and we don't even know it
                     *to = FreeList::new(start, size);
                     break;
                 }
                 FreeList::Block(block, _) => {
-                    let new_block_end = unsafe { start.add(size as usize) };
                     let old_block_end = unsafe { block.start.offset(block.size) };
-                    if new_block_end < block.start {
-                        // +-----------+------------+-------+
-                        // | new block | used space | block |
-                        // +-----------+------------+-------+
-                        log!("    b");
-                        let new_block = Block { start, size };
-                        let real_to = std::mem::replace(to, FreeList::Nil);
-                        *to = FreeList::Block(new_block, Box::new(real_to));
-                        break;
-                    } else if new_block_end == block.start {
-                        // +-----------+-------+
-                        // | new block | block |
-                        // +-----------+-------+
-                        log!("g");
-                        block.start = start;
-                        block.size = block.size + size;
-                        break;
-                    // note that this used to be new_block_end, which never
-                    // happens. probably a typo
-                    } else if start == old_block_end {
+                    if start == old_block_end {
+                        // this is the best case because we don't even have to
+                        // add a new list item
                         // +-------+-----------+
                         // | block | new block |
                         // +-------+-----------+
-                        log!("  t");
                         block.size += size;
-                        // if this is the case, we might be able to combine
-                        // parts of our free list. this prevents annoying call
-                        // stack problems that can't even be avoided by iterating
-                        // because it happens in Clone::clone()
-                        if let FreeList::Block(block, rest) = to {
-                            if let FreeList::Block(after_block, after_rest) = rest.as_mut() {
-                                if new_block_end >= after_block.start {
-                                    // +-------+-----------+-------------+
-                                    // | block | new block | after block |
-                                    // +-------+-----------+-------------+
-                                    log!("GREATTT~~~~!!!!");
-                                    block.size += after_block.size;
-                                    *rest.as_mut() = std::mem::replace(after_rest, FreeList::Nil);
-                                } else {
-                                    //log!("{:x?} vs {:x?}", new_block_end, after_block.start);
-                                    //log!("{:x?}", self);
-                                }
-                            }
-                        } else {
-                            log_panic!("unreachable");
-                        }
                         break;
-                    } else if start == block.start && size == block.size {
-                        // This can happen, because this is the world's worst
-                        // mark and sweep collector.
-                        log!("doing the weird free list thing");
-                        break;
-                    } else {
+                    } else if old_block_end < start {
                         // +-------+-----------------------------+-----------+
                         // | block | mix of used and free blocks | new block |
                         // +-------+-----------------------------+-----------+
@@ -136,6 +106,8 @@ impl FreeList {
                         } else {
                             log_panic!("unreachable");
                         }
+                    } else {
+                        log_panic!("insert to not-the-end. new block occurs before a known block");
                     }
                 }
             }
@@ -193,7 +165,6 @@ impl Heap {
         let tag_size = layout::layout_aligned::<Tag>(ALIGNMENT).size() as isize;
         let classes = RefCell::new(ClassList::new());
         let shadow_stack = RefCell::new(vec![]);
-        log!("{:x?}", unsafe { buffer.offset(size) });
         return Heap {
             buffer,
             f64_allocator,
@@ -496,21 +467,31 @@ impl Heap {
         let mut count = 0;
         while ptr < heap_max {
             match free_list_after {
-                FreeList::Block(block, ref mut rest) => {
+                FreeList::Block(block, rest) => {
                     let block_end = unsafe { block.start.offset(block.size) };
                     if ptr < block.start {
-                        // ptr is definitely currently allocated
+                        // since we delete blocks ptr is greater than, ptr
+                        // must not have been in a free block, so it is currently
+                        // allocated. continue as normal to see if it is marked
                     } else if ptr >= block.start && ptr < block_end {
                         // ptr is already free. skip to the end of the block
                         ptr = block_end;
+                        // add the old free block to the new free list, at the
+                        // end. this will unfortunately require looping/recursion
+                        // despite knowing it should go at the tail because i
+                        // haven't bothered to figure out how to get a reference
+                        // to the tail
                         free_list_before = free_list_before.insert(block.start, block.size);
+                        // remove this block from the old free list to avoid
+                        // need for recursion
                         let rest2 = std::mem::replace(rest.as_mut(), FreeList::Nil);
                         *free_list_after = rest2;
+                        // check if we're at heap_max again
                         continue;
                     } else {
-                        // ptr is past the end of this block, which means
-                        // nothing was free inside this free block. that
-                        // shouldn't happen
+                        // ptr is past the end of this block, which means we
+                        // never hit the previous condition as part of this free
+                        // block and skipped over it. that's messed up
                         log_panic!("nothing free was free");
                     }
                 }
