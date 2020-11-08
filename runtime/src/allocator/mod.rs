@@ -43,12 +43,13 @@ pub struct Heap {
     shadow_stack: RefCell<Vec<Vec<Option<*mut Tag>>>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct Block {
     start: *mut u8,
     size: isize,
 }
 
+#[derive(Clone, Debug)]
 enum FreeList {
     Nil,
     Block(Block, Box<FreeList>),
@@ -61,45 +62,85 @@ impl FreeList {
     }
 
     pub fn insert(mut self, start: *mut u8, size: isize) -> FreeList {
-        match &mut self {
-            FreeList::Nil => {
-                return FreeList::new(start, size);
-            }
-            FreeList::Block(block, rest) => {
-                let new_block_end = unsafe { start.add(size as usize) };
-                if new_block_end < block.start {
-                    // +-----------+------------+-------+
-                    // | new block | used space | block |
-                    // +-----------+------------+-------+
-                    let new_block = Block { start, size };
-                    return FreeList::Block(new_block, Box::new(self));
-                } else if new_block_end == block.start {
-                    // +-----------+-------+
-                    // | new block | block |
-                    // +-----------+-------+
-                    block.start = start;
-                    block.size = block.size + size;
-                    return self;
-                } else if start == unsafe { start.add(size as usize) } {
-                    // +-------+-----------+
-                    // | block | new block |
-                    // +-------+-----------+
-                    block.size = block.size + size;
-                    return self;
-                } else if start == block.start && size == block.size {
-                    // This can happen, because this is the world's worst
-                    // mark and sweep collector.
-                    return self;
-                } else {
-                    // +-------+-----------------------------+-----------+
-                    // | block | mix of used and free blocks | new block |
-                    // +-------+-----------------------------+-----------+
-                    let rest2 = std::mem::replace(rest.as_mut(), FreeList::Nil);
-                    *rest.as_mut() = rest2.insert(start, size);
-                    return self;
+        // this has to be iterative because no tail call optimization in wasm
+        // (this might be an issue for jankscripten as well tbh)
+        let mut to = &mut self;
+        loop {
+            match to {
+                FreeList::Nil => {
+                    *to = FreeList::new(start, size);
+                    break;
+                }
+                FreeList::Block(block, _) => {
+                    let new_block_end = unsafe { start.add(size as usize) };
+                    let old_block_end = unsafe { block.start.offset(block.size) };
+                    if new_block_end < block.start {
+                        // +-----------+------------+-------+
+                        // | new block | used space | block |
+                        // +-----------+------------+-------+
+                        log!("    b");
+                        let new_block = Block { start, size };
+                        let real_to = std::mem::replace(to, FreeList::Nil);
+                        *to = FreeList::Block(new_block, Box::new(real_to));
+                        break;
+                    } else if new_block_end == block.start {
+                        // +-----------+-------+
+                        // | new block | block |
+                        // +-----------+-------+
+                        log!("g");
+                        block.start = start;
+                        block.size = block.size + size;
+                        break;
+                    // note that this used to be new_block_end, which never
+                    // happens. probably a typo
+                    } else if start == old_block_end {
+                        // +-------+-----------+
+                        // | block | new block |
+                        // +-------+-----------+
+                        log!("  t");
+                        block.size += size;
+                        // if this is the case, we might be able to combine
+                        // parts of our free list. this prevents annoying call
+                        // stack problems that can't even be avoided by iterating
+                        // because it happens in Clone::clone()
+                        if let FreeList::Block(block, rest) = to {
+                            if let FreeList::Block(after_block, after_rest) = rest.as_mut() {
+                                if new_block_end >= after_block.start {
+                                    // +-------+-----------+-------------+
+                                    // | block | new block | after block |
+                                    // +-------+-----------+-------------+
+                                    log!("GREATTT~~~~!!!!");
+                                    block.size += after_block.size;
+                                    *rest.as_mut() = std::mem::replace(after_rest, FreeList::Nil);
+                                } else {
+                                    //log!("{:x?} vs {:x?}", new_block_end, after_block.start);
+                                    //log!("{:x?}", self);
+                                }
+                            }
+                        } else {
+                            log_panic!("unreachable");
+                        }
+                        break;
+                    } else if start == block.start && size == block.size {
+                        // This can happen, because this is the world's worst
+                        // mark and sweep collector.
+                        log!("doing the weird free list thing");
+                        break;
+                    } else {
+                        // +-------+-----------------------------+-----------+
+                        // | block | mix of used and free blocks | new block |
+                        // +-------+-----------------------------+-----------+
+                        // borrow checker annoyingness
+                        if let FreeList::Block(_, rest) = to {
+                            to = rest;
+                        } else {
+                            log_panic!("unreachable");
+                        }
+                    }
                 }
             }
         }
+        self
     }
 
     /**
@@ -107,27 +148,37 @@ impl FreeList {
      * free size.
      */
     pub fn find_free_size(&mut self, size: isize) -> Option<*mut u8> {
-        // TODO(arjun): Make iterative for performance.
-        match self {
-            FreeList::Block(block, next) => {
-                if size == block.size {
-                    let addr = block.start;
-                    let next = std::mem::replace(next.as_mut(), FreeList::Nil);
-                    *self = next;
-                    return Some(addr);
-                } else if size < block.size {
-                    block.size = block.size - size;
-                    let addr = block.start;
-                    block.start = unsafe { block.start.add(size as usize) };
-                    return Some(addr);
-                } else
-                /* size > block.size */
-                {
-                    return Self::find_free_size(next.as_mut(), size);
+        let mut to = self;
+        loop {
+            match to {
+                FreeList::Block(block, _) => {
+                    if size == block.size {
+                        let addr = block.start;
+                        if let FreeList::Block(_, next) = to {
+                            let next = std::mem::replace(next.as_mut(), FreeList::Nil);
+                            *to = next;
+                            break Some(addr);
+                        } else {
+                            log_panic!("unreachable");
+                        }
+                    } else if size < block.size {
+                        block.size = block.size - size;
+                        let addr = block.start;
+                        block.start = unsafe { block.start.add(size as usize) };
+                        break Some(addr);
+                    } else
+                    /* size > block.size */
+                    {
+                        if let FreeList::Block(_, next) = to {
+                            to = next.as_mut();
+                        } else {
+                            log_panic!("unreachable");
+                        }
+                    }
                 }
-            }
-            FreeList::Nil => {
-                return None;
+                FreeList::Nil => {
+                    break None;
+                }
             }
         }
     }
@@ -142,6 +193,7 @@ impl Heap {
         let tag_size = layout::layout_aligned::<Tag>(ALIGNMENT).size() as isize;
         let classes = RefCell::new(ClassList::new());
         let shadow_stack = RefCell::new(vec![]);
+        log!("{:x?}", unsafe { buffer.offset(size) });
         return Heap {
             buffer,
             f64_allocator,
@@ -385,17 +437,22 @@ impl Heap {
         self.mark_phase(roots, |any| {
             log!("{:x?}    {:?}", any.get_ptr(), any.view())
         });
-        log!("=====   END JANKYSCRIPT HEAP DUMP =====");
+        log!("=====    BEGIN HEAP DUMP SWEEP    =====");
         self.sweep_phase();
+        log!("=====  END JANKYSCRIPT HEAP DUMP  =====");
     }
 
     fn mark_phase(&self, roots: Vec<*mut Tag>, dump: impl Fn(AnyPtr)) {
+        log!("=====    BEGIN JANKYPSCRIPT GC    =====");
         let mut current_roots = roots;
         let mut new_roots = Vec::<*mut Tag>::new();
 
         let mut f64_allocator = self.f64_allocator.borrow_mut();
         f64_allocator.semispace_swap();
 
+        // this is just for debugging, but i'm going to leave it in because i
+        // don't foresee not needing it any time soon
+        let mut count = 0;
         while current_roots.is_empty() == false {
             for root in current_roots.drain(0..) {
                 let tag = unsafe { &mut *root };
@@ -404,6 +461,7 @@ impl Heap {
                     continue;
                 }
                 tag.marked = true;
+                count += 1;
 
                 let any_ptr = unsafe { AnyPtr::new(root) };
                 dump(any_ptr);
@@ -416,31 +474,69 @@ impl Heap {
             }
             std::mem::swap(&mut current_roots, &mut new_roots);
         }
+        log!("===== MARKED {} OBJECTS =====", count);
     }
 
     fn sweep_phase(&self) {
         use std::borrow::BorrowMut;
         let mut free_list = self.free_list.borrow_mut();
 
-        let borrowed_free_list: &mut FreeList = free_list.borrow_mut();
-        let mut free_list_ptr = std::mem::replace(borrowed_free_list, FreeList::Nil);
+        // we construct a little zipper (i think) that has the free list we've
+        // already considered in before and the rest of the free list in after. as
+        // we loop, we add new and old free blocks to before, removing old ones
+        // from after, until after is Nil and before is our new free list
+        let mut free_list_before = FreeList::Nil;
+        // technically free_list_before is always being added exactly to its
+        // semi-tail. if i could figure out how to wrangle the borrow checker into
+        // letting me keep a reference to it, insert wouldn't even have to loop
+        let free_list_after: &mut FreeList = free_list.borrow_mut();
 
         let mut ptr: *mut u8 = self.buffer;
         let heap_max = unsafe { self.buffer.offset(self.size) };
+        let mut count = 0;
         while ptr < heap_max {
+            match free_list_after {
+                FreeList::Block(block, ref mut rest) => {
+                    let block_end = unsafe { block.start.offset(block.size) };
+                    if ptr < block.start {
+                        // ptr is definitely currently allocated
+                    } else if ptr >= block.start && ptr < block_end {
+                        // ptr is already free. skip to the end of the block
+                        ptr = block_end;
+                        free_list_before = free_list_before.insert(block.start, block.size);
+                        let rest2 = std::mem::replace(rest.as_mut(), FreeList::Nil);
+                        *free_list_after = rest2;
+                        continue;
+                    } else {
+                        // ptr is past the end of this block, which means
+                        // nothing was free inside this free block. that
+                        // shouldn't happen
+                        log_panic!("nothing free was free");
+                    }
+                }
+                // ptr is definitely currently allocated
+                FreeList::Nil => (),
+            }
             let any_ptr = unsafe { AnyPtr::new(std::mem::transmute(ptr)) };
             let tag_ref = unsafe { &mut *any_ptr.get_ptr() };
             let size = self.tag_size as usize + any_ptr.get_data_size(self);
             if tag_ref.marked {
                 tag_ref.marked = false;
             } else {
-                free_list_ptr = free_list_ptr.insert(ptr, size as isize);
+                if tag_ref.type_tag != TypeTag::DynObject {
+                    log!("free {:x?}: {:?} (size: {})", ptr, any_ptr.view(), size);
+                }
+                free_list_before = free_list_before.insert(ptr, size as isize);
                 // drop any rust memory that may exist
                 any_ptr.final_drop();
+                count += 1;
             }
             ptr = unsafe { ptr.add(size) };
         }
-        *borrowed_free_list = free_list_ptr;
+        // everything is before us now
+        *free_list = free_list_before;
+        log!("=====      FREED {} OBJECTS     =====", count);
+        log!("=====      END JANKYSCRIPT GC     =====");
     }
 
     #[cfg(test)]
