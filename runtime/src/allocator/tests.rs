@@ -25,7 +25,7 @@ fn gc_enter_exit() {
         32,
         "first value was not written to the heap correctly"
     );
-    heap.set_in_current_shadow_frame_slot(0, x.get_ptr());
+    heap.set_in_current_shadow_frame_slot(0, Some(x.get_ptr()));
     // not added as a root
     let y = heap.alloc(64).expect("second allocation failed");
     assert_eq!(
@@ -63,7 +63,7 @@ fn alloc_or_gc_gcs() {
         32,
         "first value was not written to the heap correctly"
     );
-    heap.set_in_current_shadow_frame_slot(0, x.get_ptr());
+    heap.set_in_current_shadow_frame_slot(0, Some(x.get_ptr()));
     // not added as a root
     let y = heap.alloc(64).expect("second allocation failed");
     assert_eq!(
@@ -110,7 +110,7 @@ fn array_members_marked() {
     // Vec: ALIGNMENT * 4 (tag, ptr, len, cap)
     let mut arr: TypePtr<Vec<AnyValue>> = heap.alloc_or_gc(Vec::new());
     // arr is
-    heap.set_in_current_shadow_frame_slot(0, arr.get_ptr());
+    heap.set_in_current_shadow_frame_slot(0, Some(arr.get_ptr()));
     // but put x into the array
     arr.push(AnyEnum::Ptr(x.into()).into());
     assert!(
@@ -140,12 +140,12 @@ fn object_members_marked() {
     );
     // ALIGNMENT (tag) + 4 (size) + 1
     let x_str = heap.alloc_str("x").unwrap();
-    heap.set_in_current_shadow_frame_slot(0, x_str.get_ptr());
+    heap.set_in_current_shadow_frame_slot(0, Some(x_str.get_ptr()));
     let one_type = heap.classes.borrow_mut().transition(0, x_str);
     // Object: ALIGNMENT * 5 = ALIGNMENT * 2 (tag, ptr) + ALIGNMENT * 3 (tag, any (size: ALIGNMENT * 2))
     let mut obj = heap.alloc_object(one_type).expect("couldn't alloc obj");
     // obj is root
-    heap.set_in_current_shadow_frame_slot(1, obj.get_ptr());
+    heap.set_in_current_shadow_frame_slot(1, Some(obj.get_ptr()));
     // but put x into the obj
     let mut cache = -1;
     obj.insert(&heap, x_str, AnyEnum::Ptr(x.into()).into(), &mut cache);
@@ -168,7 +168,7 @@ fn gc_f64s() {
     heap.push_shadow_frame(1);
     let x = heap.f64_to_any(5.);
     let mut arr: TypePtr<Vec<AnyValue>> = heap.alloc(Vec::new()).unwrap();
-    heap.set_in_current_shadow_frame_slot(0, arr.get_ptr());
+    heap.set_in_current_shadow_frame_slot(0, Some(arr.get_ptr()));
     arr.push(x);
     let x_copy = arr[0];
     heap.gc();
