@@ -401,11 +401,22 @@ impl<'a> Translate<'a> {
                             self.set_in_current_shadow_frame_slot(&ty);
                         }
                     }
-                    IdIndex::Global(n, _) => {
+                    IdIndex::Global(n, ty) => {
                         self.translate_expr(expr);
+                        // no tee for globals
                         self.out.push(SetGlobal(n));
+                        if ty.is_gc_root() {
+                            self.out.push(GetGlobal(n));
+                            self.out.push(I32Const((n).try_into().unwrap()));
+                            self.out
+                                .push(get_set_in_globals_frame(&self.rt_indexes, &ty));
+                        }
                     }
                     IdIndex::RTGlobal(n, ty) => {
+                        // no need to update roots for RTGlobal because they
+                        // reside in memory in the first place... since RTGlobals
+                        // aren't really even real (yet at least), it's not worth
+                        // reasoning through this
                         self.out.push(GetGlobal(n));
                         self.translate_expr(expr);
                         self.store(ty, 0);
@@ -868,26 +879,19 @@ fn insert_generated_main(
     // rust init function
     insts.push(Call(*rt_indexes.get("init").expect("no enter")));
     // globals are roots! put them in the first shadow frame
-    let num_slots = globals.len();
+    let num_slots = rt_globals_len + globals.len();
     insts.push(I32Const(num_slots.try_into().unwrap()));
     // this function doesn't really have locals. this is for the globals
     insts.push(Call(
         *rt_indexes.get("gc_enter_fn").expect("no gc_enter_fn"),
     ));
+    // these two for loops, i realize now, don't do anything in practice since
+    // all the globals happen to be lazy
     for (index, global) in globals.values().enumerate() {
-        if global.ty.is_gc_root() {
-            let func = match global.ty {
-                N::Type::Closure(..) => "set_closure_in_globals_frame",
-                N::Type::Any => "set_any_in_globals_frame",
-                _ => "set_in_globals_frame",
-            };
+        if global.ty.is_gc_root() && global.atom.is_some() {
             insts.push(GetGlobal((rt_globals_len + index) as u32));
-            insts.push(I32Const(index as i32));
-            if let Some(i) = rt_indexes.get(func) {
-                insts.push(Call(*i));
-            } else {
-                panic!("cannot find rt {}", func);
-            }
+            insts.push(I32Const((rt_globals_len + index) as i32));
+            insts.push(get_set_in_globals_frame(rt_indexes, &global.ty));
         }
     }
     if let Some(IdIndex::Fun(func)) = global_env.get(&N::Id::Named("jnks_init".to_string())) {
@@ -957,5 +961,21 @@ fn shadow_frame_fn(ty: &N::Type) -> &'static str {
         N::Type::Any => "set_any_in_current_shadow_frame_slot",
         N::Type::Closure(..) => "set_closure_in_current_shadow_frame_slot",
         _ => "set_in_current_shadow_frame_slot",
+    }
+}
+
+/// this gets the instruction to call a set_in_globals_frame for a given
+/// type. does not add it anywhere
+#[must_use]
+fn get_set_in_globals_frame(rt_indexes: &HashMap<String, u32>, ty: &N::Type) -> Instruction {
+    let func = match ty {
+        N::Type::Closure(..) => "set_closure_in_globals_frame",
+        N::Type::Any => "set_any_in_globals_frame",
+        _ => "set_in_globals_frame",
+    };
+    if let Some(i) = rt_indexes.get(func) {
+        Call(*i)
+    } else {
+        panic!("cannot find rt {}", func);
     }
 }

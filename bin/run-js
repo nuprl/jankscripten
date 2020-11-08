@@ -14,4 +14,4 @@ where=$(canonicalize "$1")
 cd $(dirname $0)
 
 # compile it
-./jankscripten compile "$where" -o /tmp/run.wasm && ./run-node /tmp/run.wasm
+./jankscripten compile "$where" -o /tmp/run.wasm && ./run-node /tmp/run.wasm "$2"
