@@ -46,18 +46,42 @@ pub unsafe extern "C" fn gc_exit_fn() {
 
 #[no_mangle]
 pub fn set_in_current_shadow_frame_slot(ptr: *mut Tag, slot: usize) {
-    heap().set_in_current_shadow_frame_slot(slot, ptr);
+    heap().set_in_current_shadow_frame_slot(slot, Some(ptr));
 }
 
+// TODO(luna): if a local/global stores an Any::F64, it will be LOST and
+// memory nastiness will ensue. a significant refactor of either how we
+// deal with float pointers or how we deal with shadow frames would be
+// necessary to rectify that. ie either we have to identify float pointers
+// by their location in memory instead of where they were marked, or we
+// need to have a separate shadow stack for float pointers
 #[no_mangle]
 pub fn set_any_in_current_shadow_frame_slot(any: AnyValue, slot: usize) {
-    heap().set_any_in_current_shadow_frame_slot(slot, any);
+    let mut out = Vec::new();
+    any.insert_ptr(&mut out, &mut Vec::new());
+    heap().set_in_current_shadow_frame_slot(slot, out.pop());
 }
 
 #[no_mangle]
 pub fn set_closure_in_current_shadow_frame_slot(closure: ClosureVal, slot: usize) {
     let env = closure.0;
-    heap().set_in_current_shadow_frame_slot(slot, env.get_ptr());
+    heap().set_in_current_shadow_frame_slot(slot, Some(env.get_ptr()));
+}
+
+#[no_mangle]
+pub fn set_in_globals_frame(ptr: *mut Tag, slot: usize) {
+    heap().set_in_shadow_frame_slot(0, slot, Some(ptr));
+}
+#[no_mangle]
+pub fn set_any_in_globals_frame(any: AnyValue, slot: usize) {
+    let mut out = Vec::new();
+    any.insert_ptr(&mut out, &mut Vec::new());
+    heap().set_in_shadow_frame_slot(0, slot, out.pop());
+}
+#[no_mangle]
+pub fn set_closure_in_globals_frame(closure: ClosureVal, slot: usize) {
+    let env = closure.0;
+    heap().set_in_shadow_frame_slot(0, slot, Some(env.get_ptr()));
 }
 
 #[no_mangle]

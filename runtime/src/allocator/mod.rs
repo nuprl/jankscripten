@@ -141,7 +141,7 @@ impl Heap {
         let free_list = RefCell::new(FreeList::new(buffer, size));
         let tag_size = layout::layout_aligned::<Tag>(ALIGNMENT).size() as isize;
         let classes = RefCell::new(ClassList::new());
-        let shadow_stack = RefCell::new(vec![vec![]]);
+        let shadow_stack = RefCell::new(vec![]);
         return Heap {
             buffer,
             f64_allocator,
@@ -342,21 +342,13 @@ impl Heap {
         shadow_stack.pop();
     }
 
-    pub fn set_in_current_shadow_frame_slot(&self, slot: usize, ptr: *mut Tag) {
+    pub fn set_in_shadow_frame_slot(&self, frame: usize, slot: usize, ptr: Option<*mut Tag>) {
         let mut shadow_stack = self.shadow_stack.borrow_mut();
-        shadow_stack.last_mut().unwrap()[slot] = Some(ptr);
+        shadow_stack[frame][slot] = ptr;
     }
-
-    pub fn set_any_in_current_shadow_frame_slot(&self, slot: usize, any: AnyValue) {
-        match *any {
-            AnyEnum::Ptr(ptr) => {
-                self.set_in_current_shadow_frame_slot(slot, ptr.get_ptr());
-            }
-            _ => {
-                let mut shadow_stack = self.shadow_stack.borrow_mut();
-                shadow_stack.last_mut().unwrap()[slot] = None;
-            }
-        }
+    pub fn set_in_current_shadow_frame_slot(&self, slot: usize, ptr: Option<*mut Tag>) {
+        let mut shadow_stack = self.shadow_stack.borrow_mut();
+        shadow_stack.last_mut().unwrap()[slot] = ptr;
     }
 
     /// # Safety

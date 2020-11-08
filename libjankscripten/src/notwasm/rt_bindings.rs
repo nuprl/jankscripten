@@ -79,7 +79,17 @@ pub fn get_rt_bindings() -> BindMap {
     insert(
         m,
         "set_closure_in_current_shadow_frame_slot",
-        vec![clos_ty_(vec![], None), I32],
+        vec![a_clos.clone(), I32],
+        None,
+    );
+    // The type below is not accurate. The first argument is
+    // a *mut Tag, but we don't have a type for that.
+    insert(m, "set_in_globals_frame", vec![I32, I32], None);
+    insert(m, "set_any_in_globals_frame", vec![Any, I32], None);
+    insert(
+        m,
+        "set_closure_in_globals_frame",
+        vec![a_clos.clone(), I32],
         None,
     );
     insert(m, "any_to_f64", vec![Any], F64);

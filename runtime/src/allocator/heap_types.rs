@@ -68,6 +68,10 @@ impl AnyEnum {
     pub fn insert_ptr(&self, tags: &mut Vec<*mut Tag>, f64s: &mut Vec<*mut *const f64>) {
         match self {
             Self::Ptr(ptr) => tags.push(ptr.get_ptr()),
+            Self::Closure(clos) => {
+                let env = clos.0;
+                tags.push(env.get_ptr());
+            }
             Self::F64(ptr) => f64s.push(ptr as *const *const f64 as *mut _),
             _ => (),
         }
