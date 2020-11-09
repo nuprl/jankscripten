@@ -69,6 +69,9 @@ fn even_abstract_eq(a: AnyEnum, b: AnyEnum) -> Option<bool> {
     Some(match (a, b) {
         // 2
         (AnyEnum::Null, AnyEnum::Undefined) => true,
+        // 10, kinda
+        (AnyEnum::Null, _) => false,
+        (AnyEnum::Undefined, _) => false,
         // rules 4 and 8
         (a, AnyEnum::Ptr(p)) => match p.view() {
             // 4
@@ -79,9 +82,9 @@ fn even_abstract_eq(a: AnyEnum, b: AnyEnum) -> Option<bool> {
                 _ => return None,
             },
             // 8
-            HeapRefView::NonPtr32(_) => panic!("ref is not a value"),
+            HeapRefView::NonPtr32(_) => log_panic!("ref is not a value"),
             // 8
-            _ => todo!("javascript spec ToPrimitive / DefaultValue"),
+            got => log_panic!("javascript spec ToPrimitive / DefaultValue {:?}", got),
         },
         // 6
         (AnyEnum::Bool(to_num), _) => abstract_eq(AnyEnum::I32(to_num as i32), b),
