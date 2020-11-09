@@ -89,6 +89,9 @@ function jnks_init() {
     var heapDumpF = rt(heap_dump);
     var heapDump = clos(heapDumpF, );
     __JNKS.heap_dump = any(heapDump);
+    var run_gc_f = rt(run_gc);
+    var run_gc = clos(run_gc_f, );
+    __JNKS.run_gc = any(run_gc);
 
     console = {};
     var consoleLogF = rt(console_log);

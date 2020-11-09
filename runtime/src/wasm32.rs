@@ -90,6 +90,12 @@ pub fn heap_dump(_: EnvPtr, _this: AnyValue) -> AnyValue {
     AnyEnum::Undefined.into()
 }
 
+#[no_mangle]
+pub fn run_gc(_: EnvPtr, _this: AnyValue) -> AnyValue {
+    heap().gc();
+    AnyEnum::Undefined.into()
+}
+
 /// returns Any::I32(42) because jankyscript requires return values
 #[no_mangle]
 pub fn log_any(_this: AnyValue, any: AnyValue) -> AnyValue {

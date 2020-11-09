@@ -120,6 +120,7 @@ pub fn get_rt_bindings() -> BindMap {
     insert_ground(m, "math_max", 2);
     // __JNKS
     insert_ground(m, "heap_dump", 0);
+    insert_ground(m, "run_gc", 0);
     // Step 2: automatically insert runtime functions from RTSFunction.
     for rts in RTSFunction::iter() {
         if let RTSFunction::Todo(_) = rts {
