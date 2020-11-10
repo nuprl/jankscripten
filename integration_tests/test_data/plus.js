@@ -16,3 +16,14 @@ log_any("value " + undefined); // value undefined
 log_any(undefined + " value"); // undefined value
 log_any("value " + null); // value null
 log_any(null + " value"); // null value
+
+log_any(1 + {}); // 1[object Object]
+log_any({} + 1); // [object Object]1
+log_any({} + {}); // [object Object][object Object]
+
+var obj = {
+    toString: function() {
+        return "hello world!";
+    }
+}
+log_any("Message: " + obj); // Message: hello world!
