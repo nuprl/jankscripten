@@ -6,7 +6,7 @@ use crate::heap;
 use crate::string::StringPtr;
 // use crate::heap_types::*;
 
-/// The JavaScript `+` operator. This isn't implemented to spec: 
+/// The JavaScript `+` operator. This isn't implemented to spec:
 /// https://www.ecma-international.org/ecma-262/5.1/#sec-11.6.1
 /// because it doesn't first try to coerce its arguments to primitives.
 /// It instead uses a simple trick to emulate most of the behavior in the spec:
@@ -17,11 +17,9 @@ use crate::string::StringPtr;
 #[no_mangle]
 pub extern "C" fn janky_plus(a: Any, b: Any) -> Any {
     // First check: are either `a` or `b` pointers? If so, they'll be coerced
-    // to strings and we'll perform string concatenation. 
+    // to strings and we'll perform string concatenation.
     match (*a, *b) {
-        (AnyEnum::Ptr(_), AnyEnum::Ptr(_))
-        | (_, AnyEnum::Ptr(_))
-        | (AnyEnum::Ptr(_), _) => {
+        (AnyEnum::Ptr(_), AnyEnum::Ptr(_)) | (_, AnyEnum::Ptr(_)) | (AnyEnum::Ptr(_), _) => {
             // coerce arguments to strings
             let a_string = any_to_string(a);
             let b_string = any_to_string(b);

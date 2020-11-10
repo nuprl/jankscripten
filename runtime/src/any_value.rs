@@ -218,7 +218,9 @@ pub fn any_to_string(val: AnyValue) -> String {
             HeapRefView::NonPtr32(_) => panic!("ref is not a value"),
             HeapRefView::String(s) => (*s).to_string(),
             HeapRefView::Array(_) => log_panic!("TODO: any_to_string not implemented for arrays"),
-            HeapRefView::ObjectPtrPtr(_) => log_panic!("TODO: any_to_string not implemented for ObjectPtrPtr"),
+            HeapRefView::ObjectPtrPtr(_) => {
+                log_panic!("TODO: any_to_string not implemented for ObjectPtrPtr")
+            }
             _ => log_panic!("TODO: any_to_string {:?}", val),
         },
         AnyEnum::Closure(_) => log_panic!("TODO: any_to_string not implemented for closure"),
