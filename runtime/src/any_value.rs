@@ -202,6 +202,31 @@ pub extern "C" fn any_from_bool<'a>(val: bool) -> AnyValue {
     AnyEnum::Bool(val).into()
 }
 
+/// Converts the given value to a Rust string. This should implement the
+/// internal `ToString` operation described in the ECMAScript standard:
+/// https://www.ecma-international.org/ecma-262/5.1/#sec-9.8
+#[no_mangle]
+pub fn any_to_string(val: AnyValue) -> String {
+    match *val {
+        AnyEnum::I32(i) => format!("{}", i),
+        AnyEnum::F64(p) => {
+            let f = unsafe { *p };
+            format!("{}", f)
+        }
+        AnyEnum::Bool(b) => format!("{}", b),
+        AnyEnum::Ptr(ptr) => match ptr.view() {
+            HeapRefView::NonPtr32(_) => panic!("ref is not a value"),
+            HeapRefView::String(s) => (*s).to_string(),
+            HeapRefView::Array(_) => log_panic!("TODO: any_to_string not implemented for arrays"),
+            HeapRefView::ObjectPtrPtr(_) => log_panic!("TODO: any_to_string not implemented for ObjectPtrPtr"),
+            _ => log_panic!("TODO: any_to_string {:?}", val),
+        },
+        AnyEnum::Closure(_) => log_panic!("TODO: any_to_string not implemented for closure"),
+        AnyEnum::Undefined => "undefined".to_string(),
+        AnyEnum::Null => "null".to_string(),
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn get_undefined() -> AnyValue {
     AnyEnum::Undefined.into()
