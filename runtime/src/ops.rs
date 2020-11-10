@@ -6,28 +6,42 @@ use crate::heap;
 use crate::string::StringPtr;
 // use crate::heap_types::*;
 
+/// The JavaScript `+` operator. This isn't implemented to spec: 
+/// https://www.ecma-international.org/ecma-262/5.1/#sec-11.6.1
+/// because it doesn't first try to coerce its arguments to primitives.
+/// It instead uses a simple trick to emulate most of the behavior in the spec:
+/// if either of the arguments are NotWasm ptrs, both will be coerced into
+/// strings, and string concatenation will happen instead. If both of the
+/// arguments are NOT pointers, then they're both primitives and
+/// the user is expecting mathematical plus.
 #[no_mangle]
 pub extern "C" fn janky_plus(a: Any, b: Any) -> Any {
-    if let Some(res) = i32s_or_as_f64s_any(a, b, |a, b| a + b, |a, b| a + b) {
-        res
-    } else if let (AnyEnum::Ptr(a), AnyEnum::Ptr(b)) = (*a, *b) {
-        if let (HeapRefView::String(a), HeapRefView::String(b)) = (a.view(), b.view()) {
-            let a: &str = &a;
-            let b: &str = &b;
+    // First check: are either `a` or `b` pointers? If so, they'll be coerced
+    // to strings and we'll perform string concatenation. 
+    match (*a, *b) {
+        (AnyEnum::Ptr(_), AnyEnum::Ptr(_))
+        | (_, AnyEnum::Ptr(_))
+        | (AnyEnum::Ptr(_), _) => {
+            // coerce arguments to strings
+            let a_string = any_to_string(a);
+            let b_string = any_to_string(b);
 
             // combine them
-            let combined = format!("{}{}", a, b);
+            let combined = format!("{}{}", a_string, b_string);
 
             // allocate this into a string
             let combined = heap().alloc_str_or_gc(&combined);
-
             unsafe { AnyEnum::Ptr(std::mem::transmute(combined)).into() }
-        } else {
-            todo!("implementation for `+` missing for ptr types");
         }
-    } else {
-        // TODO(luna): these panics in this file should be exceptions, when we support those
-        panic!("unsupported for +: {:?}, {:?}", a, b)
+        // We have two primitive values. Try to perform numeric addition on them.
+        (_, _) => {
+            if let Some(res) = i32s_or_as_f64s_any(a, b, |a, b| a + b, |a, b| a + b) {
+                res
+            } else {
+                // TODO(luna): these panics in this file should be exceptions, when we support those
+                log_panic!("unsupported for +: {:?}, {:?}", a, b)
+            }
+        }
     }
 }
 #[no_mangle]
