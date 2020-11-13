@@ -409,7 +409,7 @@ impl Heap {
     }
 
     fn mark_phase(&self, roots: Vec<*mut Tag>, dump: impl Fn(AnyPtr)) {
-        log!("=====    BEGIN JANKYPSCRIPT GC    =====");
+        error!("=====    BEGIN JANKYPSCRIPT GC    =====");
         let mut current_roots = roots;
         let mut new_roots = Vec::<*mut Tag>::new();
 
@@ -440,7 +440,7 @@ impl Heap {
             }
             mem::swap(&mut current_roots, &mut new_roots);
         }
-        log!("===== MARKED {} OBJECTS =====", count);
+        error!("===== MARKED {} OBJECTS =====", count);
     }
 
     fn sweep_phase(&self) {
@@ -527,8 +527,8 @@ impl Heap {
         }
         // everything is before us now
         *free_list = free_list_before;
-        log!("=====      FREED {} OBJECTS     =====", count);
-        log!("=====      END JANKYSCRIPT GC     =====");
+        error!("=====      FREED {} OBJECTS     =====", count);
+        error!("=====      END JANKYSCRIPT GC     =====");
     }
 
     #[cfg(test)]

@@ -61,7 +61,7 @@ impl RTSFunction {
     ///
     /// JavaScript's `delete` operator makes no sense. Behold:
     ///
-    /// ```ignore
+    /// ```javascript-console
     /// > let o = { x: 3 };
     /// undefined
     /// > delete o.x

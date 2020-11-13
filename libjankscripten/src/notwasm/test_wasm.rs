@@ -540,23 +540,3 @@ fn float_in_any() {
     intern(&mut program);
     expect_notwasm(1, program);
 }
-
-/// TODO(luna): i think this test might pass when it should fail
-#[test]
-fn gc_float_in_any() {
-    let program = parse(
-        r#"
-        function main(): i32 {
-            var i = 0;
-            var o = {};
-            o.x = any(0.0f);
-            while (i < 2000) {
-                o.x = any((o.x as f64) +. 0.1f);
-                i = i + 1;
-            }
-            return 5;
-        }
-        "#,
-    );
-    expect_notwasm(5, program);
-}
