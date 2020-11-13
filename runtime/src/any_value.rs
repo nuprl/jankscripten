@@ -2,6 +2,7 @@
 
 pub use crate::allocator::{heap_types::EnvPtr, AnyPtr, HeapRefView};
 use crate::closure::{closure_env, Closure, ClosureVal};
+use crate::string::StringPtr;
 use crate::i64_val::*;
 use crate::wasm32::heap;
 use crate::HeapPtr;
@@ -206,28 +207,30 @@ pub extern "C" fn any_from_bool<'a>(val: bool) -> AnyValue {
 /// internal `ToString` operation described in the ECMAScript standard:
 /// https://www.ecma-international.org/ecma-262/5.1/#sec-9.8
 #[no_mangle]
-pub fn any_to_string(val: AnyValue) -> String {
+pub fn any_to_string(val: AnyValue) -> StringPtr {
     match *val {
-        AnyEnum::I32(i) => format!("{}", i),
+        AnyEnum::I32(i) => format!("{}", i).as_str().into(),// .into(),
         AnyEnum::F64(p) => {
             let f = unsafe { *p };
-            format!("{}", f)
+            format!("{}", f).as_str().into()
         }
-        AnyEnum::Bool(b) => format!("{}", b),
+        AnyEnum::Bool(b) => format!("{}", b).as_str().into(),
         AnyEnum::Ptr(ptr) => match ptr.view() {
             HeapRefView::NonPtr32(_) => panic!("ref is not a value"),
-            HeapRefView::String(s) => (*s).to_string(),
+            HeapRefView::String(s) => s,
             HeapRefView::Array(_) => log_panic!("TODO: any_to_string not implemented for arrays"),
             HeapRefView::ObjectPtrPtr(obj_ptr) => {
-                if let AnyEnum::Closure(to_string) = obj_ptr.get(heap(), "toString".into(), -1) {
-                    
+                if let AnyEnum::Closure(to_string) = obj_ptr.get(heap(), "toString".into(), &mut (-1)) {
+                    log_panic!("any_to_string obj ptr not yet implemented")
+                } else {
+                    log_panic!("any_to_string obj ptr does not have toString")
                 }
             }
             _ => log_panic!("TODO: any_to_string {:?}", val),
         },
         AnyEnum::Closure(_) => log_panic!("TODO: any_to_string not implemented for closure"),
-        AnyEnum::Undefined => "undefined".to_string(),
-        AnyEnum::Null => "null".to_string(),
+        AnyEnum::Undefined => "undefined".into(),
+        AnyEnum::Null => "null".into(),
     }
 }
 
