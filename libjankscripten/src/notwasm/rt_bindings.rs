@@ -125,6 +125,7 @@ pub fn get_rt_bindings() -> BindMap {
 
     // Step 2: automatically insert Rust runtime functions from RTSFunction.
     insert_ground(m, "run_gc", 0);
+    insert_ground(m, "mem_info", 0);
     // Step 2: automatically insert runtime functions from RTSFunction.
     for rts in RTSFunction::iter() {
         if let RTSFunction::Todo(_) = rts {

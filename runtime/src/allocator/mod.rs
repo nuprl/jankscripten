@@ -149,6 +149,31 @@ impl FreeList {
             }
         }
     }
+
+    /// Returns map from sizes to counts of everything in the free list
+    fn histogram(&self) -> std::collections::BTreeMap<isize, usize> {
+        let mut map = std::collections::BTreeMap::new();
+        let mut to: &FreeList = self;
+        loop {
+            match to {
+                FreeList::Block(more) => {
+                    let block = &more.0;
+                    *map.entry(block.size).or_insert(0) += 1;
+                    // reborrow because borrow checker. if you try to
+                    // refactor this to be clean, the borrow checker error
+                    // will be on the wrong line. it will make no sense. you
+                    // will read tutorials about linked lists in rust. they
+                    // will not help.
+                    to = match to {
+                        FreeList::Block(more) => &more.1,
+                        FreeList::Nil => log_panic!("unreachable"),
+                    }
+                }
+                FreeList::Nil => break,
+            }
+        }
+        map
+    }
 }
 
 impl Heap {
@@ -529,6 +554,65 @@ impl Heap {
         *free_list = free_list_before;
         error!("=====      FREED {} OBJECTS     =====", count);
         error!("=====      END JANKYSCRIPT GC     =====");
+    }
+
+    /// that's right, a rust string, since it's just gonna get logged
+    fn mem_diagram(&self) -> String {
+        use std::borrow::Borrow;
+        const WIDTH: isize = 120;
+        let per_char = self.size / WIDTH;
+        let free_list = self.free_list.borrow();
+        let mut on: &FreeList = free_list.borrow();
+        let mut out = String::new();
+        let heap_max = unsafe { self.buffer.offset(self.size) };
+        // pointer for loop:
+        // for (ptr=self.buffer; ptr<heap_max; ptr+=per_char) ...
+        let mut ptr = self.buffer;
+        while ptr < heap_max {
+            //for ptr in (self.buffer..heap_max).step_by(per_char) {
+            match on {
+                FreeList::Block(more) => {
+                    let (block, _) = more.as_ref();
+                    let block_end = unsafe { block.start.offset(block.size) };
+                    let char_end = unsafe { ptr.offset(per_char - 1) };
+                    if ptr < block.start {
+                        // since we move past blocks ptr is greater than, ptr
+                        // must not have been in a free block, so it's either
+                        // mixed or allocated
+                        if char_end < block.start {
+                            out.push('#');
+                        } else {
+                            out.push('-');
+                        }
+                    } else if ptr >= block.start && ptr < block_end {
+                        // ptr starts free. so free or mixed
+                        if char_end < block_end || char_end >= heap_max {
+                            out.push(' ');
+                        } else {
+                            out.push('-');
+                        }
+                    } else {
+                        // ptr is past the end of this block, which means we
+                        // need to advance to the next block
+                        on = &more.1;
+                        continue;
+                    }
+                }
+                FreeList::Nil => {
+                    // ptr on to infinity is definitely currently allocated
+                    out.push('#');
+                }
+            }
+            ptr = unsafe { ptr.offset(per_char) };
+        }
+        out
+    }
+
+    /// for debugging. print info about free vs allocated memory
+    pub fn mem_info(&self) {
+        let hist = self.free_list.borrow().histogram();
+        error!("FREE LIST HIST\n{:#?}\nEND", hist);
+        error!("MEM DIAGRAM:\n|{}|", self.mem_diagram());
     }
 
     #[cfg(test)]
