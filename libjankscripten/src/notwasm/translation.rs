@@ -571,7 +571,21 @@ impl<'a> Translate<'a> {
                 for arg in args {
                     self.translate_atom(arg);
                 }
-                self.rt_call(rts_func.name());
+
+                let name = rts_func.name();
+
+                // Runtime functions can either be implemented in the
+                // Rust runtime or the NotWasm runtime.
+
+                // We first check if the NotWasm runtime has a function
+                // with this name. If it does, we'll use it.
+                if let Some(_) = self.get_notwasm_rt_fn(name) {
+                    self.notwasm_rt_call(name);
+                } else {
+                    // We couldn't find this function in the NotWasm rt.
+                    // Try to find it in the Rust rt.
+                    self.rt_call(rts_func.name());
+                }
             }
             N::Expr::Call(f, args, s) => {
                 for arg in args {
@@ -810,9 +824,20 @@ impl<'a> Translate<'a> {
             panic!("cannot find rt {}", name);
         }
     }
-    fn notwasm_rt_call(&mut self, name: &str) {
+
+    // Search for a function in the NotWasm runtime. Return the
+    // function index if its found.
+    fn get_notwasm_rt_fn(&mut self, name: &str) -> Option<u32> {
         if let Some(IdIndex::Fun(func)) = self.id_env.get(&N::Id::Named(name.to_string())) {
-            self.out.push(Call(*func + self.rt_indexes.len() as u32))
+            Some(*func + self.rt_indexes.len() as u32)
+        } else {
+            None
+        }
+    }
+
+    fn notwasm_rt_call(&mut self, name: &str) {
+        if let Some(index) = self.get_notwasm_rt_fn(name) {
+            self.out.push(Call(index))
         } else {
             panic!("cannot find notwasm runtime function {}", name);
         }

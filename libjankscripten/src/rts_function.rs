@@ -31,8 +31,10 @@ pub enum RTSFunction {
 }
 
 impl RTSFunction {
-    /// The name of a function in the runtime system. This is the name that the runtime  exports,
-    /// using `[no_mangle]`.
+    /// The name of a function in the runtime system. This function can be
+    /// implemented in either the Rust runtime or the NotWasm runtime.
+    /// If it's implemented in Rust, make sure to prefix the function
+    /// implementation with `[no_mangle]`.
     pub fn name(&self) -> &'static str {
         use RTSFunction::*;
         match self {
