@@ -20,7 +20,7 @@ pub type ClosureVal = I64Val<Closure>;
 /// internal `ToString` operation described in the ECMAScript spec:
 /// https://www.ecma-international.org/ecma-262/5.1/#sec-9.8
 impl std::fmt::Display for Closure {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
         // one could compile the source function into the wasm strings table
         // to call it back, but we probably never print functions
         
