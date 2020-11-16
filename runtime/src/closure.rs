@@ -16,11 +16,19 @@ pub struct Closure(pub EnvPtr, pub u16);
 impl AsI64 for Closure {}
 pub type ClosureVal = I64Val<Closure>;
 
+/// Note: The `Display` trait on NotWasm structs should implement the
+/// internal `ToString` operation described in the ECMAScript spec:
+/// https://www.ecma-international.org/ecma-262/5.1/#sec-9.8
 impl std::fmt::Display for Closure {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         // one could compile the source function into the wasm strings table
         // to call it back, but we probably never print functions
-        write!(f, "{:?}", self)
+        
+        // Note from Mark: please avoid implementing this at all costs.
+        // This is one of the jankiest features of JavaScript, and none
+        // of our benchmarks should rely on this behavior.
+
+        log_panic!("Display not implemented for Closures")
     }
 }
 

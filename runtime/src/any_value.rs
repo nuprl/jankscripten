@@ -46,6 +46,10 @@ impl Debug for AnyEnum {
         }
     }
 }
+
+/// Note: The `Display` trait on NotWasm structs should implement the
+/// internal `ToString` operation described in the ECMAScript spec:
+/// https://www.ecma-international.org/ecma-262/5.1/#sec-9.8
 impl Display for AnyEnum {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         use AnyEnum::*;
@@ -53,23 +57,28 @@ impl Display for AnyEnum {
             I32(n) => write!(f, "{}", n),
             F64(ptr) => write!(f, "{}", unsafe { ptr.read() }),
             Bool(b) => write!(f, "{}", b),
+            Closure(closure) => write!(f, "{}", closure),
             Ptr(p) => write!(f, "{}", p.view()),
-            Closure(_) | Undefined | Null => write!(f, "{:?}", self),
+            Undefined => write!(f, "undefined"),
+            Null => write!(f, "null"),
         }
     }
 }
+
+/// Note: The `Display` trait on NotWasm structs should implement the
+/// internal `ToString` operation described in the ECMAScript spec:
+/// https://www.ecma-international.org/ecma-262/5.1/#sec-9.8
 impl Display for HeapRefView {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         use HeapRefView::*;
         match *self {
             String(s) => write!(f, "{}", &*s),
-            HT(ht) => write!(f, "{:?}", *ht),
-            Array(a) => write!(f, "{:?}", *a),
             Any(a) => write!(f, "{}", **a),
-            Class(_) => panic!("shouldn't have object data as value"),
-            ObjectPtrPtr(_o) => todo!("TODO(luna): toString"),
-            NonPtr32(_) | MutF64(_) | Ptr(_) => panic!("ref inside any"),
-            Env(_) => panic!("not a value"),
+            Class(_) => log_panic!("shouldn't have object data as value"),
+            ObjectPtrPtr(_o) => log_panic!("TODO(luna): toString"),
+            NonPtr32(_) | MutF64(_) | Ptr(_) => log_panic!("ref inside any"),
+            Env(_) => log_panic!("not a value"),
+            HT(_) | Array(_) => log_panic!("Display trait not implemented")
         }
     }
 }
@@ -206,38 +215,19 @@ pub extern "C" fn any_from_bool<'a>(val: bool) -> AnyValue {
 /// Converts the given value to a Rust string. This should implement the
 /// internal `ToString` operation described in the ECMAScript standard:
 /// https://www.ecma-international.org/ecma-262/5.1/#sec-9.8
+/// 
+/// `any_to_string` reuses the `fmt::Display` trait on NotWasm structs,
+/// which should be implemented according to the above JS spec.
 #[no_mangle]
 pub fn any_to_string(val: AnyValue) -> StringPtr {
-    match *val {
-        AnyEnum::I32(i) => format!("{}", i).as_str().into(),// .into(),
-        AnyEnum::F64(p) => {
-            let f = unsafe { *p };
-            format!("{}", f).as_str().into()
-        }
-        AnyEnum::Bool(b) => format!("{}", b).as_str().into(),
-        AnyEnum::Ptr(ptr) => match ptr.view() {
-            HeapRefView::NonPtr32(_) => panic!("ref is not a value"),
-            HeapRefView::String(s) => s,
-            HeapRefView::Array(_) => log_panic!("TODO: any_to_string not implemented for arrays"),
-            HeapRefView::ObjectPtrPtr(obj_ptr) => {
-                if let AnyEnum::Closure(to_string) = obj_ptr.get(heap(), "toString".into(), &mut (-1)) {
-                    log_panic!("any_to_string obj ptr not yet implemented")
-                } else {
-                    log_panic!("any_to_string obj ptr does not have toString")
-                }
-            }
-            _ => log_panic!("TODO: any_to_string {:?}", val),
-        },
-        AnyEnum::Closure(_) => log_panic!("TODO: any_to_string not implemented for closure"),
-        AnyEnum::Undefined => "undefined".into(),
-        AnyEnum::Null => "null".into(),
-    }
+    val.to_string().as_str().into()
 }
 
 #[no_mangle]
 pub extern "C" fn get_undefined() -> AnyValue {
     AnyEnum::Undefined.into()
 }
+
 #[no_mangle]
 pub extern "C" fn get_null() -> AnyValue {
     AnyEnum::Null.into()
