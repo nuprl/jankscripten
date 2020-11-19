@@ -15,7 +15,7 @@ use crate::string::StringPtr;
 /// arguments are NOT pointers, then they're both primitives and
 /// the user is expecting mathematical plus.
 #[no_mangle]
-pub extern "C" fn janky_plus(a: Any, b: Any) -> Any {
+pub extern "C" fn janky_primitive_plus(a: Any, b: Any) -> Any {
     // First check: are either `a` or `b` pointers? If so, they'll be coerced
     // to strings and we'll perform string concatenation.
     match (*a, *b) {
@@ -42,6 +42,7 @@ pub extern "C" fn janky_plus(a: Any, b: Any) -> Any {
         }
     }
 }
+
 #[no_mangle]
 pub extern "C" fn janky_minus(a: Any, b: Any) -> Any {
     i32s_or_as_f64s_any(a, b, |a, b| a - b, |a, b| a - b).expect("unsupported for -")
@@ -102,8 +103,8 @@ fn typeof_as_str(a: Any) -> &'static str {
             HeapRefView::HT(_) | HeapRefView::Array(_) | HeapRefView::ObjectPtrPtr(_) => "object",
             HeapRefView::Any(what) => typeof_as_str(*what),
             HeapRefView::Class(_) => panic!("shouldn't be able to typeof non-value object data"),
+            HeapRefView::MutF64(_) => "number",
             HeapRefView::NonPtr32(_)
-            | HeapRefView::MutF64(_)
             | HeapRefView::Ptr(_)
             | HeapRefView::Env(_) => panic!("not a value"),
         },

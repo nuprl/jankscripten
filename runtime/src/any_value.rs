@@ -233,6 +233,17 @@ pub extern "C" fn get_null() -> AnyValue {
     AnyEnum::Null.into()
 }
 
+#[no_mangle]
+pub extern "C" fn any_is_object(val: AnyValue) -> bool {
+    match *val {
+        AnyEnum::Ptr(ptr) => match ptr.view() {
+            HeapRefView::ObjectPtrPtr(_) => true,
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

@@ -28,6 +28,10 @@ var jnks_objectCreate: clos(env, any) -> any;
 var jnks_objectCreateExists: i32 = 0;
 var jnks_objectPrototype: any;
 
+// Other cached runtime functions
+var jnks_any_is_object: (any) -> bool;
+var jnks_primitive_plus: (any, any) -> any;
+
 // Initialize JankScripten runtime.
 function jnks_init() {
     // Create the Object class. This means creating a (really) empty object,
@@ -90,6 +94,14 @@ function jnks_init() {
     var heapDumpF = rt(heap_dump);
     var heapDump = clos(heapDumpF, );
     __JNKS.heap_dump = any(heapDump);
+
+    // Other cached runtime functions
+    var primitive_plusF = rt(janky_primitive_plus);
+    // var primitive_plus = clos(primitive_plusF, );
+    jnks_primitive_plus = primitive_plusF;
+    var any_is_objectF = rt(any_is_object);
+    // var any_is_object = clos(any_is_objectF, );
+    jnks_any_is_object = any_is_objectF;
 
     console = {};
     var consoleLogF = rt(console_log);
@@ -165,6 +177,41 @@ function jnks_new_fn_obj(): DynObject {
 
 }
 
-function jnks_Object_prototype_toString(this: any): str {
-    return "[object Object]";
+function jnks_Object_prototype_toString(_: env, this: any): any { // TODO: get rid of env parameter
+    return any("[object Object]"); // TODO: get rid of the any, it prevents
+    // compilation with a useless error message
+}
+
+function to_primitive(val: any): any {
+    // load cached function into a local variable because notwasm doesn't
+    // support directly calling functions stored in global variables.
+    var is_object = jnks_any_is_object;
+    var is_val_obj = is_object(val);
+    if (is_val_obj) {
+        var val_obj = val as DynObject;
+        var val_obj_toString = val_obj.toString as clos(env, any) -> any; // TODO: change this back to clos(env, any) -> any
+        var val_res = val_obj_toString!(val);
+        return val_res;
+    } else { } // TODO: can't put `return val;` in here. WHY NOT??????
+    return val;
+}
+
+/// The JavaScript `+` operator. This isn't implemented to spec:
+/// https://www.ecma-international.org/ecma-262/5.1/#sec-11.6.1
+/// because it doesn't first try to coerce its arguments to primitives.
+/// It instead uses a simple trick to emulate most of the behavior in the spec:
+/// if either of the arguments are NotWasm ptrs, both will be coerced into
+/// strings, and string concatenation will happen instead. If both of the
+/// arguments are NOT pointers, then they're both primitives and
+/// the user is expecting mathematical plus.
+function jnks_plus(left: any, right: any): any {
+    // load cached function into a local variable because notwasm doesn't
+    // support directly calling functions stored in global variables.
+    var plus = jnks_primitive_plus;
+    // Convert non-primitive values to primitives
+    left = to_primitive(left);
+    right = to_primitive(right);
+
+    var result = plus(left, right);
+    return result;
 }

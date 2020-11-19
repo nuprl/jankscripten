@@ -10,6 +10,7 @@ use parity_wasm::serialize;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use Instruction::*;
+use super::super::rts_function::*;
 
 const JNKS_STRINGS_IDX: u32 = 0;
 /// in bytes. i don't forsee this changing as we did a lot of work getting
@@ -576,15 +577,13 @@ impl<'a> Translate<'a> {
 
                 // Runtime functions can either be implemented in the
                 // Rust runtime or the NotWasm runtime.
-
-                // We first check if the NotWasm runtime has a function
-                // with this name. If it does, we'll use it.
-                if let Some(_) = self.get_notwasm_rt_fn(name) {
-                    self.notwasm_rt_call(name);
-                } else {
-                    // We couldn't find this function in the NotWasm rt.
-                    // Try to find it in the Rust rt.
-                    self.rt_call(rts_func.name());
+                match name {
+                    RTSFunctionImpl::Rust(name) => {
+                        self.rt_call(name);
+                    }
+                    RTSFunctionImpl::NotWasm(name) => {
+                        self.notwasm_rt_call(name);
+                    }
                 }
             }
             N::Expr::Call(f, args, s) => {
@@ -612,6 +611,7 @@ impl<'a> Translate<'a> {
                             .unwrap_or_else(|| panic!("function type was not indexed {:?}", s));
                         self.out.push(CallIndirect(*ty_index, 0));
                     }
+                    Some(index) => panic!("can't translate Func ID for function ({}): ({:?})", f, index),
                     _ => panic!("expected Func ID ({})", f),
                 };
             }
