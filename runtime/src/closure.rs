@@ -23,7 +23,7 @@ impl std::fmt::Display for Closure {
     fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
         // one could compile the source function into the wasm strings table
         // to call it back, but we probably never print functions
-        
+
         // Note from Mark: please avoid implementing this at all costs.
         // This is one of the jankiest features of JavaScript, and none
         // of our benchmarks should rely on this behavior.

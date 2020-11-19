@@ -1,7 +1,7 @@
 //! create managed strings and manipulate them
 
-use crate::heap;
 pub use super::heap_types::StringPtr;
+use crate::heap;
 
 #[no_mangle]
 pub extern "C" fn string_len(string: StringPtr) -> i32 {

@@ -2,6 +2,7 @@
 //!
 //! preconditions: [super::compile]
 
+use super::super::rts_function::*;
 use super::rt_bindings::get_rt_bindings;
 use super::syntax as N;
 use parity_wasm::builder::*;
@@ -10,7 +11,6 @@ use parity_wasm::serialize;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use Instruction::*;
-use super::super::rts_function::*;
 
 const JNKS_STRINGS_IDX: u32 = 0;
 /// in bytes. i don't forsee this changing as we did a lot of work getting
@@ -611,7 +611,10 @@ impl<'a> Translate<'a> {
                             .unwrap_or_else(|| panic!("function type was not indexed {:?}", s));
                         self.out.push(CallIndirect(*ty_index, 0));
                     }
-                    Some(index) => panic!("can't translate Func ID for function ({}): ({:?})", f, index),
+                    Some(index) => panic!(
+                        "can't translate Func ID for function ({}): ({:?})",
+                        f, index
+                    ),
                     _ => panic!("expected Func ID ({})", f),
                 };
             }

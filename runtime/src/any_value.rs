@@ -2,8 +2,8 @@
 
 pub use crate::allocator::{heap_types::EnvPtr, AnyPtr, HeapRefView};
 use crate::closure::{closure_env, Closure, ClosureVal};
-use crate::string::StringPtr;
 use crate::i64_val::*;
+use crate::string::StringPtr;
 use crate::wasm32::heap;
 use crate::HeapPtr;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
@@ -78,7 +78,7 @@ impl Display for HeapRefView {
             ObjectPtrPtr(_o) => log_panic!("TODO(luna): toString"),
             NonPtr32(_) | MutF64(_) | Ptr(_) => log_panic!("ref inside any"),
             Env(_) => log_panic!("not a value"),
-            HT(_) | Array(_) => log_panic!("Display trait not implemented")
+            HT(_) | Array(_) => log_panic!("Display trait not implemented"),
         }
     }
 }
@@ -215,7 +215,7 @@ pub extern "C" fn any_from_bool<'a>(val: bool) -> AnyValue {
 /// Converts the given value to a Rust string. This should implement the
 /// internal `ToString` operation described in the ECMAScript standard:
 /// https://www.ecma-international.org/ecma-262/5.1/#sec-9.8
-/// 
+///
 /// `any_to_string` reuses the `fmt::Display` trait on NotWasm structs,
 /// which should be implemented according to the above JS spec.
 #[no_mangle]

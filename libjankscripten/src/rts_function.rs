@@ -35,7 +35,7 @@ pub enum RTSFunctionImpl {
     /// A runtime function implemented in Rust.
     Rust(&'static str),
     /// A runtime function implemented in NotWasm.
-    NotWasm(&'static str)
+    NotWasm(&'static str),
 }
 
 impl RTSFunction {

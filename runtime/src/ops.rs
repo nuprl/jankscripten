@@ -9,7 +9,7 @@ use crate::string::StringPtr;
 /// A helper function for the JavaScript `+` operator. This is called
 /// by `jnks_plus` in the NotWasm runtime, which is the full implementation
 /// of `+`.
-/// 
+///
 /// This function performs `+` ASSUMING its arguments are primitives
 /// (i.e. not objects). This rules down its cases into string concatenation
 /// and math.
@@ -103,9 +103,9 @@ fn typeof_as_str(a: Any) -> &'static str {
             HeapRefView::Any(what) => typeof_as_str(*what),
             HeapRefView::Class(_) => panic!("shouldn't be able to typeof non-value object data"),
             HeapRefView::MutF64(_) => "number",
-            HeapRefView::NonPtr32(_)
-            | HeapRefView::Ptr(_)
-            | HeapRefView::Env(_) => panic!("not a value"),
+            HeapRefView::NonPtr32(_) | HeapRefView::Ptr(_) | HeapRefView::Env(_) => {
+                panic!("not a value")
+            }
         },
         AnyEnum::Closure(_) => "function",
         AnyEnum::Undefined => "undefined",
