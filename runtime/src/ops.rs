@@ -6,14 +6,13 @@ use crate::heap;
 use crate::string::StringPtr;
 // use crate::heap_types::*;
 
-/// The JavaScript `+` operator. This isn't implemented to spec:
-/// https://www.ecma-international.org/ecma-262/5.1/#sec-11.6.1
-/// because it doesn't first try to coerce its arguments to primitives.
-/// It instead uses a simple trick to emulate most of the behavior in the spec:
-/// if either of the arguments are NotWasm ptrs, both will be coerced into
-/// strings, and string concatenation will happen instead. If both of the
-/// arguments are NOT pointers, then they're both primitives and
-/// the user is expecting mathematical plus.
+/// A helper function for the JavaScript `+` operator. This is called
+/// by `jnks_plus` in the NotWasm runtime, which is the full implementation
+/// of `+`.
+/// 
+/// This function performs `+` ASSUMING its arguments are primitives
+/// (i.e. not objects). This rules down its cases into string concatenation
+/// and math.
 #[no_mangle]
 pub extern "C" fn janky_primitive_plus(a: Any, b: Any) -> Any {
     // First check: are either `a` or `b` pointers? If so, they'll be coerced
