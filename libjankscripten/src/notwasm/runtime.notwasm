@@ -142,6 +142,7 @@ function error_raw(_: env, _this: any, message: str): DynObject {
     var e = jnks_objectCreate!(e_proto_any);
     return e as DynObject;
 }
+
 // there's no reason Error has to be ground. it's top-level, not stored
 // in an object, so it's never boxed into any. however, coercion_insertion
 // wants to convert it to an object because i'm still waiting to add Mark's
@@ -177,11 +178,19 @@ function jnks_new_fn_obj(): DynObject {
 
 }
 
-function jnks_Object_prototype_toString(_: env, this: any): any { // TODO: get rid of env parameter
-    return any("[object Object]"); // TODO: get rid of the any, it prevents
-    // compilation with a useless error message
+// The default implementation of `Object.prototype.toString`.
+// All objects that don't specifically override `toString` will
+// have this implementation.
+function jnks_Object_prototype_toString(_: env, this: any): any {
+    return any("[object Object]");
 }
 
+// Converts the given value into a primitive value.
+// This really just amounts to calling `toString` if the value
+// is an object.
+// This isn't implemented to spec but should have the same behavior
+// unless you're doing some funky stuff with objects:
+// https://www.ecma-international.org/ecma-262/5.1/#sec-9.1
 function to_primitive(val: any): any {
     // load cached function into a local variable because notwasm doesn't
     // support directly calling functions stored in global variables.
@@ -189,10 +198,10 @@ function to_primitive(val: any): any {
     var is_val_obj = is_object(val);
     if (is_val_obj) {
         var val_obj = val as DynObject;
-        var val_obj_toString = val_obj.toString as clos(env, any) -> any; // TODO: change this back to clos(env, any) -> any
+        var val_obj_toString = val_obj.toString as clos(env, any) -> any;
         var val_res = val_obj_toString!(val);
         return val_res;
-    } else { } // TODO: can't put `return val;` in here. WHY NOT??????
+    } else { }
     return val;
 }
 

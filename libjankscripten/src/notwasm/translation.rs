@@ -820,6 +820,7 @@ impl<'a> Translate<'a> {
         }
     }
 
+    /// Generate instructions to call a *Rust* runtime function.
     fn rt_call(&mut self, name: &str) {
         if let Some(i) = self.rt_indexes.get(name) {
             self.out.push(Call(*i));
@@ -828,8 +829,8 @@ impl<'a> Translate<'a> {
         }
     }
 
-    // Search for a function in the NotWasm runtime. Return the
-    // function index if its found.
+    /// Search for a function in the NotWasm runtime. Return the
+    /// function index if its found.
     fn get_notwasm_rt_fn(&mut self, name: &str) -> Option<u32> {
         if let Some(IdIndex::Fun(func)) = self.id_env.get(&N::Id::Named(name.to_string())) {
             Some(*func + self.rt_indexes.len() as u32)
@@ -838,6 +839,7 @@ impl<'a> Translate<'a> {
         }
     }
 
+    /// Generate instructions to call a *NotWasm* runtime function.
     fn notwasm_rt_call(&mut self, name: &str) {
         if let Some(index) = self.get_notwasm_rt_fn(name) {
             self.out.push(Call(index))

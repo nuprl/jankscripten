@@ -8,6 +8,7 @@ pub extern "C" fn string_len(string: StringPtr) -> i32 {
     string.len() as i32
 }
 
+/// Append the given strings
 #[no_mangle]
 pub extern "C" fn string_append(a: StringPtr, b: StringPtr) -> StringPtr {
     // combine them

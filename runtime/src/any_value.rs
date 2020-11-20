@@ -233,6 +233,7 @@ pub extern "C" fn get_null() -> AnyValue {
     AnyEnum::Null.into()
 }
 
+/// Is the given any value an object?
 #[no_mangle]
 pub extern "C" fn any_is_object(val: AnyValue) -> bool {
     match *val {
