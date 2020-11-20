@@ -1,6 +1,6 @@
 /// Principal pattern for desugaring a switch statement is to turn this:
 ///
-/// ```ignore
+/// ```javascript
 /// switch (e) {
 ///   case lit: s;
 ///   ...
@@ -10,7 +10,7 @@
 ///
 /// into:
 ///
-/// ```ignore
+/// ```javascript
 /// sw: {
 ///   let tmp = e;
 ///   let fallthrough = false;

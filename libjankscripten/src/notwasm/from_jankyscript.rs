@@ -11,14 +11,14 @@
 //!
 //! This is our source language:
 //!
-//! ```ignore
+//! ```bnf
 //! expr ::= c | x | lambda x . expr | expr1(expr2) | expr1 + expr2 | let x = expr1 in expr2
 //!
 //! ```
 //!
 //! This is our target language, which closely corresponds to A Normal Form:
 //!
-//! ```ignore
+//! ```bnf
 //! a ::= c | x | lambda x . e
 //! b ::= a | a1 + a2 | a1(a2)
 //! e ::= let x = b in e | a
@@ -32,7 +32,7 @@
 //! The following function translates from the source to target. (Use `id` as the initial value for
 //! `k`):
 //!
-//! ```ignore
+//! ```haskellish
 //! anf : expr -> (a -> e) -> e
 //! anf c k = k c
 //! and x k = k x
@@ -46,7 +46,7 @@
 //!
 //! Unfortunately, the previous function introduces a lot of useless names. For example:
 //!
-//! ```ignore
+//! ```haskellish
 //!   anf (let x = 1 + 2 in x) id
 //! = anf (1 + 2) (\y -> let x = y in anf x id)
 //! = anf (1 + 2) (\y -> let x = y in x)
@@ -59,7 +59,7 @@
 //! We can address this by introducing two kinds of contexts: 1) the (a -> e) context receives an
 //! a-value as shown above, and 2) a (b -> e) context that receives a b-expression.
 //!
-//! ```ignore
+//! ```haskellish
 //! data Context = AContext (a -> e) | BContext (b -> e)
 //!
 //! anf : expr -> Context -> expr
@@ -75,7 +75,7 @@
 //! Instead of case-splitting on kind of context when we need to use it, we can define two helper
 //! functions:
 //!
-//! ```ignore
+//! ```haskellish
 //! recv_b : Context -> b -> e
 //! recv_b (BContext k) b = k b
 //! recv_b (AContext k) b = let x = b in k x -- x is fresh
@@ -570,56 +570,5 @@ pub fn from_jankyscript(janky_program: J::Stmt) -> Program {
         functions: state.functions,
         globals: HashMap::new(),
         data: Vec::new(),
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::super::test_wasm::expect_notwasm;
-    use super::from_jankyscript;
-    use crate::jankyscript::constructors::*;
-    use crate::jankyscript::syntax::*;
-    use crate::rts_function::RTSFunction;
-    #[test]
-    fn unary() {
-        let s = DUMMY_SP;
-        let program = Stmt::Block(
-            vec![
-                var_(
-                    "a".into(),
-                    Type::Float,
-                    Expr::Lit(Lit::Num(Num::Float(25.)), s),
-                    s,
-                ),
-                var_(
-                    "b".into(),
-                    Type::Float,
-                    unary_(
-                        crate::notwasm::syntax::UnaryOp::Sqrt,
-                        Expr::Id("a".into(), Type::Float, s),
-                        s,
-                    ),
-                    s,
-                ),
-                expr_(
-                    Expr::PrimCall(
-                        RTSFunction::LogAny,
-                        vec![
-                            // mandatory `this` argument
-                            Expr::Lit(Lit::Undefined, s),
-                            coercion_(
-                                Coercion::Tag(Type::Float),
-                                Expr::Id("b".into(), Type::Float, s),
-                                s,
-                            ),
-                        ],
-                        s,
-                    ),
-                    s,
-                ),
-            ],
-            s,
-        );
-        expect_notwasm("F64(5)".to_string(), from_jankyscript(program));
     }
 }

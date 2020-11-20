@@ -14,9 +14,6 @@ var Error: clos(env, any, any) -> any;
 // REAL one:
 // var Error: clos(env, any, str) -> DynObject;
 
-// source: firefox console -> Math.PI
-const __JNKS_PI: f64 = 3.141592653589793f;
-
 // abusing lazy globals to create a null DynObject for jnks_new_object
 var jnks_null_dynobject: DynObject;
 
@@ -30,6 +27,7 @@ var jnks_objectPrototype: any;
 
 // Initialize JankScripten runtime.
 function jnks_init() {
+
     // Create the Object class. This means creating a (really) empty object,
     // giving it a prototype, and assigning its static methods, such as
     // Object.create.
@@ -83,13 +81,17 @@ function jnks_init() {
     var mathMaxF = rt(math_max);
     var mathMax = clos(mathMaxF, );
     Math.max = any(mathMax);
-    Math.PI = any(__JNKS_PI);
+    // source: firefox console -> Math.PI
+    Math.PI = any(3.141592653589793f);
 
     // __JNKS
     __JNKS = {};
     var heapDumpF = rt(heap_dump);
     var heapDump = clos(heapDumpF, );
     __JNKS.heap_dump = any(heapDump);
+    var run_gc_f = rt(run_gc);
+    var run_gc = clos(run_gc_f, );
+    __JNKS.run_gc = any(run_gc);
 
     console = {};
     var consoleLogF = rt(console_log);
@@ -110,6 +112,7 @@ function jnks_init() {
     // Now that the default Object class has been set up, create the global 
     // object.
     global = {};
+
 }
 
 // Runtime function to create a regular empty object like `{}` or

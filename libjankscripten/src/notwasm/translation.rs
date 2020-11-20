@@ -64,6 +64,8 @@ pub fn translate_parity(mut program: N::Program) -> Module {
             .build();
     }
     let mut index = 0;
+    // borrow checker
+    let rt_globals_len = rt_globals.len();
     for (name, _, ty) in rt_globals {
         global_env.insert(N::Id::Named(name.into()), IdIndex::RTGlobal(index, ty));
         index += 1;
@@ -157,45 +159,41 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         module = partial_global.build();
     }
     // fsr we need an identity table to call indirect
-    let mut table_build = module
-        .table()
-        .with_min(rt_indexes.len() as u32 + program.functions.len() as u32);
-    let mut main_index = None;
-    for (index, name) in rt_indexes
-        .keys()
-        .map(|h| N::Id::Named(h.clone()))
-        .chain(program.functions.keys().cloned())
-        .enumerate()
-    {
+    let num_functions = rt_indexes.len() + program.functions.keys().len();
+    let mut table_build = module.table().with_min(num_functions as u32);
+    for index in 0..num_functions {
         let index = index as u32;
-        // find main
-        if name == N::Id::Named("main".to_string()) {
-            main_index = Some(index)
-        }
         table_build = table_build.with_element(index, vec![index]);
     }
     let mut module = table_build.build();
-    for (name, func) in program.functions.iter_mut() {
+    for func in program.functions.values_mut() {
         module.push_function(translate_func(
             func,
             &global_env,
             &rt_indexes,
             &type_indexes,
-            name,
             &mut program.data,
         ));
     }
+    insert_generated_main(
+        &program.globals,
+        &global_env,
+        &rt_indexes,
+        rt_globals_len,
+        &mut module,
+    );
+    let main_index = num_functions as u32;
     let module = module
         .data()
         .offset(GetGlobal(JNKS_STRINGS_IDX))
         .value(program.data)
         .build();
-    // export main
+    // jnks_init calls main
     let module = module
         .export()
         .field("main")
         .internal()
-        .func(main_index.expect("no main"))
+        .func(main_index)
         .build();
     module.build()
 }
@@ -205,7 +203,6 @@ fn translate_func(
     id_env: &IdEnv,
     rt_indexes: &HashMap<String, u32>,
     type_indexes: &FuncTypeMap,
-    name: &N::Id,
     data: &mut Vec<u8>,
 ) -> FunctionDefinition {
     let mut translator = Translate::new(rt_indexes, type_indexes, id_env, data);
@@ -224,19 +221,6 @@ fn translate_func(
     // generate the actual code
     translator.translate_rec(&mut env, &mut func.body);
     let mut insts = vec![];
-    // before the code, if this is main we have to call init()
-    if name == &N::Id::Named("main".to_string()) {
-        if let (Some(IdIndex::Fun(jnks_init)), Some(init)) = (
-            // this is jnks_init, the notwasm runtime function
-            id_env.get(&N::Id::Named("jnks_init".to_string())),
-            // this is init, the rust runtime function
-            rt_indexes.get("init"),
-        ) {
-            insts = vec![Call(*init), Call(*jnks_init + rt_indexes.len() as u32)];
-        } else {
-            panic!("where's jnks_init?");
-        }
-    }
 
     // Eager shadow stack: The runtime system needs to create a shadow stack
     // frame that has enough slots for the local variables.
@@ -337,11 +321,7 @@ impl<'a> Translate<'a> {
     /// system. There are multiple kinds of roots that might contain pointers,
     /// thus we dispatch on the type of the GC root.
     fn set_in_current_shadow_frame_slot(&mut self, ty: &N::Type) {
-        match ty {
-            N::Type::Any => self.rt_call("set_any_in_current_shadow_frame_slot"),
-            N::Type::Closure(..) => self.rt_call("set_closure_in_current_shadow_frame_slot"),
-            _ => self.rt_call("set_in_current_shadow_frame_slot"),
-        }
+        self.rt_call(shadow_frame_fn(ty))
     }
 
     // We are not using a visitor, since we have to perform an operation on every
@@ -421,11 +401,22 @@ impl<'a> Translate<'a> {
                             self.set_in_current_shadow_frame_slot(&ty);
                         }
                     }
-                    IdIndex::Global(n, _) => {
+                    IdIndex::Global(n, ty) => {
                         self.translate_expr(expr);
+                        // no tee for globals
                         self.out.push(SetGlobal(n));
+                        if ty.is_gc_root() {
+                            self.out.push(GetGlobal(n));
+                            self.out.push(I32Const((n).try_into().unwrap()));
+                            self.out
+                                .push(get_set_in_globals_frame(&self.rt_indexes, &ty));
+                        }
                     }
                     IdIndex::RTGlobal(n, ty) => {
+                        // no need to update roots for RTGlobal because they
+                        // reside in memory in the first place... since RTGlobals
+                        // aren't really even real (yet at least), it's not worth
+                        // reasoning through this
                         self.out.push(GetGlobal(n));
                         self.translate_expr(expr);
                         self.store(ty, 0);
@@ -875,6 +866,71 @@ impl<'a> Translate<'a> {
     }
 }
 
+fn insert_generated_main(
+    globals: &HashMap<N::Id, N::Global>,
+    global_env: &IdEnv,
+    rt_indexes: &HashMap<String, u32>,
+    rt_globals_len: usize,
+    module: &mut ModuleBuilder,
+) {
+    // the true entry point is generated code to avoid GC instrumentation
+    // messiness
+    let mut insts = Vec::new();
+    // rust init function
+    insts.push(Call(*rt_indexes.get("init").expect("no enter")));
+    // globals are roots! put them in the first shadow frame
+    let num_slots = rt_globals_len + globals.len();
+    insts.push(I32Const(num_slots.try_into().unwrap()));
+    // this function doesn't really have locals. this is for the globals
+    insts.push(Call(
+        *rt_indexes.get("gc_enter_fn").expect("no gc_enter_fn"),
+    ));
+    // these two for loops, i realize now, don't do anything in practice since
+    // all the globals happen to be lazy
+    for (index, global) in globals.values().enumerate() {
+        if global.ty.is_gc_root() && global.atom.is_some() {
+            insts.push(GetGlobal((rt_globals_len + index) as u32));
+            insts.push(I32Const((rt_globals_len + index) as i32));
+            insts.push(get_set_in_globals_frame(rt_indexes, &global.ty));
+        }
+    }
+    if let Some(IdIndex::Fun(func)) = global_env.get(&N::Id::Named("jnks_init".to_string())) {
+        insts.push(Call(*func + rt_indexes.len() as u32))
+    } else {
+        panic!("cannot find notwasm runtime function jnks_init");
+    }
+    // this has to be in generated_main because no void. it'd be cleaner in
+    // jnks_init, but in generated at least the locals of jnks_init aren't GC
+    // roots i guess (tail call)
+    if let Some(IdIndex::Fun(func)) = global_env.get(&N::Id::Named("main".to_string())) {
+        insts.push(Call(*func + rt_indexes.len() as u32));
+    } else {
+        panic!("cannot find notwasm main");
+    }
+    insts.push(Call(*rt_indexes.get("gc_exit_fn").expect("no gc_exit_fn")));
+    insts.push(End);
+    // this is just the worst hack due to lack of void type. i still
+    // don't want to add it because it doesn't exist in from-jankyscript
+    // notwasm, but it makes all my tests that return have an extra thing
+    // on the stack. but since it's only the tests, i should be able to
+    // identify tests and drop only then. it's awful. i know
+    #[cfg(test)]
+    let return_type = Some(N::Type::I32.as_wasm());
+    #[cfg(not(test))]
+    let return_type = None;
+    module.push_function(
+        function()
+            .signature()
+            .with_params(vec![])
+            .with_return_type(return_type)
+            .build()
+            .body()
+            .with_instructions(Instructions::new(insts))
+            .build()
+            .build(),
+    );
+}
+
 impl N::Type {
     pub fn as_wasm(&self) -> ValueType {
         use N::Type::*;
@@ -895,5 +951,31 @@ impl N::Type {
             Ref(..) => ValueType::I32,
             Env => ValueType::I32,
         }
+    }
+}
+
+/// Like Translate::set_in_current_shadow_frame_slot, but give the name instead
+/// of adding the call to the instructions
+fn shadow_frame_fn(ty: &N::Type) -> &'static str {
+    match ty {
+        N::Type::Any => "set_any_in_current_shadow_frame_slot",
+        N::Type::Closure(..) => "set_closure_in_current_shadow_frame_slot",
+        _ => "set_in_current_shadow_frame_slot",
+    }
+}
+
+/// this gets the instruction to call a set_in_globals_frame for a given
+/// type. does not add it anywhere
+#[must_use]
+fn get_set_in_globals_frame(rt_indexes: &HashMap<String, u32>, ty: &N::Type) -> Instruction {
+    let func = match ty {
+        N::Type::Closure(..) => "set_closure_in_globals_frame",
+        N::Type::Any => "set_any_in_globals_frame",
+        _ => "set_in_globals_frame",
+    };
+    if let Some(i) = rt_indexes.get(func) {
+        Call(*i)
+    } else {
+        panic!("cannot find rt {}", func);
     }
 }

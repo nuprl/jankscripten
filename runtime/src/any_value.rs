@@ -65,10 +65,10 @@ impl Display for HeapRefView {
             HT(ht) => write!(f, "{:?}", *ht),
             Array(a) => write!(f, "{:?}", *a),
             Any(a) => write!(f, "{}", **a),
-            Class(_) => panic!("shouldn't have object data as value"),
-            ObjectPtrPtr(_o) => todo!("TODO(luna): toString"),
-            NonPtr32(_) | MutF64(_) | Ptr(_) => panic!("ref inside any"),
-            Env(_) => panic!("not a value"),
+            Class(_) => log_panic!("shouldn't have object data as value"),
+            ObjectPtrPtr(_o) => log_panic!("TODO(luna): toString"),
+            NonPtr32(_) | MutF64(_) | Ptr(_) => log_panic!("ref inside any"),
+            Env(_) => log_panic!("not a value"),
         }
     }
 }

@@ -1,4 +1,22 @@
+//! weird jankyscript / javascript coercions on sets of notwasm types, objects,
+//! and more
+//!
+//! the purpose of this file has become a bit confused. ideally, i'd like a structure like this:
+//!
+//! - coercions.rs: all the *basic* coercions of jankyscript from each notwasm
+//!   type to each notwasm type. this is currently mixed in with any_value.rs
+//! - jnks_coercions.rs(?): more complex coercions on, ie, tuples of coercions,
+//!   other javascript coercions like abstract equality and such (ie what's in
+//!   here!)
+//! - any_value.rs: just code for what any values are and printing them. even
+//!   though this breaks tradition of "constructor for a type goes in <type>.rs"; i
+//!   think we can all agree that constructing an any is very different. alternatively,
+//!   constructors *into* any value, which are simple, could be included, but the
+//!   coercions out that we have in there right now could move here
+
 use crate::any_value::{AnyValue as Any, *};
+use crate::heap;
+use crate::heap_types::*;
 
 pub fn i32s_or_as_f64s<T, F, I>(a: Any, b: Any, floats: F, ints: I) -> Option<T>
 where
@@ -26,6 +44,37 @@ pub fn i32s_or_as_f64s_any(
         |a, b| f64_to_any(floats(a, b)),
         |a, b| any_from_i32(ints(a, b)),
     )
+}
+
+#[no_mangle]
+pub extern "C" fn any_to_string(a: Any) -> StringPtr {
+    match *a {
+        AnyEnum::Bool(b) => {
+            // TODO(luna): when we get our fancy rust-runtime-interning system,
+            // use that here
+            if b {
+                heap().alloc_str_or_gc("true")
+            } else {
+                heap().alloc_str_or_gc("false")
+            }
+        }
+        AnyEnum::I32(a) => heap().alloc_str_or_gc(&format!("{}", a)),
+        AnyEnum::F64(f) => heap().alloc_str_or_gc(&format!("{}", unsafe { *f })),
+        AnyEnum::Ptr(ptr) => match ptr.view() {
+            HeapRefView::String(a) => a,
+            _ => log_panic!("TODO: coercion {:?} to string", a),
+        },
+        _ => log_panic!("bad coercion {:?} to string", a),
+    }
+}
+
+pub fn is_string(a: AnyEnum) -> Option<StringPtr> {
+    if let AnyEnum::Ptr(p) = a {
+        if let HeapRefView::String(s) = p.view() {
+            return Some(s);
+        }
+    }
+    None
 }
 
 /// adapted from https://ecma-international.org/ecma-262/5.1/#sec-11.9.3
@@ -69,6 +118,9 @@ fn even_abstract_eq(a: AnyEnum, b: AnyEnum) -> Option<bool> {
     Some(match (a, b) {
         // 2
         (AnyEnum::Null, AnyEnum::Undefined) => true,
+        // 10, kinda
+        (AnyEnum::Null, _) => return None,
+        (AnyEnum::Undefined, _) => return None,
         // rules 4 and 8
         (a, AnyEnum::Ptr(p)) => match p.view() {
             // 4
@@ -79,9 +131,9 @@ fn even_abstract_eq(a: AnyEnum, b: AnyEnum) -> Option<bool> {
                 _ => return None,
             },
             // 8
-            HeapRefView::NonPtr32(_) => panic!("ref is not a value"),
+            HeapRefView::NonPtr32(_) => log_panic!("ref is not a value"),
             // 8
-            _ => todo!("javascript spec ToPrimitive / DefaultValue"),
+            got => log_panic!("javascript spec ToPrimitive / DefaultValue {:?}", got),
         },
         // 6
         (AnyEnum::Bool(to_num), _) => abstract_eq(AnyEnum::I32(to_num as i32), b),

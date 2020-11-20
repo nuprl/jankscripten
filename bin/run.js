@@ -21,17 +21,26 @@ const runtimePath = path.normalize(path.join(path.dirname(process.argv[1]),
 // keep a WebAssembly memory reference for `readString`
 let memory;
 
+function c_string(startOffset) {
+    let view = new Uint8Array(memory.buffer, startOffset);
+    let len = 0;
+    // This will infinite loop if the string is not null-terminated.
+    while (view[len] !== 0) {
+        len += 1;
+    }
+    view = new Uint8Array(memory.buffer, startOffset, len);
+    return view;
+}
+
 const imports = {
     env: {
         jankscripten_log: function(startOffset) {
-            let view = new Uint8Array(memory.buffer, startOffset);
-            let len = 0;
-            // This will infinite loop if the string is not null-terminated.
-            while (view[len] !== 0) {
-                len += 1;
-            }
-            view = new Uint8Array(memory.buffer, startOffset, len);
+            let view = c_string(startOffset);
             console.log((new TextDecoder()).decode(view));
+        },
+        jankscripten_error: function(startOffset) {
+            let view = c_string(startOffset);
+            console.error((new TextDecoder()).decode(view));
         }
     },
 };

@@ -39,7 +39,13 @@ pub extern "C" fn object_create(_env: EnvPtr, maybe_prototype_chain: AnyValue) -
                 HeapRefView::ObjectPtrPtr(_o) => {
                     // Create new object that inherits from the given prototype
                     let mut new_object = object_empty();
-                    new_object.insert(heap(), "__proto__".into(), maybe_prototype_chain, &mut -1);
+                    // TODO(luna): we could avoid allocating this by interning it in the first place
+                    new_object.insert(
+                        heap(),
+                        ObjectPtr::__PROTO__STR,
+                        maybe_prototype_chain,
+                        &mut -1,
+                    );
                     new_object
                 }
                 _ => panic!("not an object or null"),

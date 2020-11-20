@@ -3,31 +3,24 @@
 use crate::any_value::{AnyValue as Any, *};
 use crate::coercions::*;
 use crate::heap;
-use crate::string::StringPtr;
+use crate::string::*;
+use crate::HeapPtr;
 // use crate::heap_types::*;
 
 #[no_mangle]
 pub extern "C" fn janky_plus(a: Any, b: Any) -> Any {
     if let Some(res) = i32s_or_as_f64s_any(a, b, |a, b| a + b, |a, b| a + b) {
         res
-    } else if let (AnyEnum::Ptr(a), AnyEnum::Ptr(b)) = (*a, *b) {
-        if let (HeapRefView::String(a), HeapRefView::String(b)) = (a.view(), b.view()) {
-            let a: &str = &a;
-            let b: &str = &b;
-
-            // combine them
-            let combined = format!("{}{}", a, b);
-
-            // allocate this into a string
-            let combined = heap().alloc_str_or_gc(&combined);
-
-            unsafe { AnyEnum::Ptr(std::mem::transmute(combined)).into() }
+    } else if let Some(a) = is_string(*a) {
+        if let Some(b) = is_string(*b) {
+            AnyEnum::Ptr(string_append(a, b).as_any_ptr()).into()
         } else {
-            todo!("implementation for `+` missing for ptr types");
+            // coerce b to string and then append
+            AnyEnum::Ptr(string_append(a, any_to_string(b)).as_any_ptr()).into()
         }
     } else {
         // TODO(luna): these panics in this file should be exceptions, when we support those
-        panic!("unsupported for +: {:?}, {:?}", a, b)
+        log_panic!("unsupported for +: {:?}, {:?}", a, b)
     }
 }
 #[no_mangle]
@@ -68,9 +61,12 @@ pub extern "C" fn janky_not_equal(a: Any, b: Any) -> bool {
 }
 /// TODO(luna): one could intern these values in our own interning style
 /// to avoid needing to allocate for this
+///
+/// the best imaginable way would be to make most of alloc_str_or_gc a `const
+/// fn` and then do const NAME: [u8; _] = intern_str("hello");
 #[no_mangle]
 pub extern "C" fn janky_typeof(a: Any) -> StringPtr {
-    typeof_as_str(a).into()
+    heap().alloc_str_or_gc(typeof_as_str(a))
 }
 #[no_mangle]
 pub extern "C" fn janky_delete(_a: Any, _b: Any) -> bool {

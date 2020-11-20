@@ -30,8 +30,8 @@ mod test {
     #[wasm_bindgen_test]
     fn string_keys() {
         init();
-        let k1 = "key_1".into();
-        let k2 = "key_2".into();
+        let k1 = crate::heap().alloc_str_or_gc("key_1");
+        let k2 = crate::heap().alloc_str_or_gc("key_2");
         let ht = ht_new();
         ht_set(ht, k1, AnyEnum::I32(3).into());
         ht_set(ht, k2, AnyEnum::I32(2).into());

@@ -16,6 +16,13 @@ macro_rules! log {
 }
 
 #[allow(unused)]
+macro_rules! error {
+    ($($t:tt)*) => (
+        crate::util::error(&format!($($t)*))
+    )
+}
+
+#[allow(unused)]
 macro_rules! log_panic {
     ($($t:tt)*) => (
         {
