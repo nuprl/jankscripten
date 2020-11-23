@@ -122,7 +122,7 @@ pub fn get_rt_bindings() -> BindMap {
     insert_ground(m, "heap_dump", 0);
     insert(m, "janky_primitive_plus", vec![Any, Any], Any);
     insert(m, "any_is_object", vec![Any], Bool);
-    
+
     // Step 2: automatically insert Rust runtime functions from RTSFunction.
     insert_ground(m, "run_gc", 0);
     // Step 2: automatically insert runtime functions from RTSFunction.
