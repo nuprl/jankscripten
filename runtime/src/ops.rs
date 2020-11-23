@@ -7,22 +7,42 @@ use crate::string::*;
 use crate::HeapPtr;
 // use crate::heap_types::*;
 
+/// A helper function for the JavaScript `+` operator. This is called
+/// by `jnks_plus` in the NotWasm runtime, which is the full implementation
+/// of `+`.
+///
+/// This function performs `+` ASSUMING its arguments are primitives
+/// (i.e. not objects). This rules down its cases into string concatenation
+/// and math.
 #[no_mangle]
-pub extern "C" fn janky_plus(a: Any, b: Any) -> Any {
-    if let Some(res) = i32s_or_as_f64s_any(a, b, |a, b| a + b, |a, b| a + b) {
-        res
-    } else if let Some(a) = is_string(*a) {
-        if let Some(b) = is_string(*b) {
-            AnyEnum::Ptr(string_append(a, b).as_any_ptr()).into()
-        } else {
-            // coerce b to string and then append
-            AnyEnum::Ptr(string_append(a, any_to_string(b)).as_any_ptr()).into()
+pub extern "C" fn janky_primitive_plus(a: Any, b: Any) -> Any {
+    // First check: are either `a` or `b` pointers? If so, they'll be coerced
+    // to strings and we'll perform string concatenation.
+    match (*a, *b) {
+        (AnyEnum::Ptr(_), AnyEnum::Ptr(_)) | (_, AnyEnum::Ptr(_)) | (AnyEnum::Ptr(_), _) => {
+            // coerce arguments to strings
+            let a_string = any_to_string(a);
+            let b_string = any_to_string(b);
+
+            // combine them
+            let combined = format!("{}{}", a_string, b_string);
+
+            // allocate this into a string
+            let combined = heap().alloc_str_or_gc(&combined);
+            unsafe { AnyEnum::Ptr(std::mem::transmute(combined)).into() }
         }
-    } else {
-        // TODO(luna): these panics in this file should be exceptions, when we support those
-        log_panic!("unsupported for +: {:?}, {:?}", a, b)
+        // We have two primitive values. Try to perform numeric addition on them.
+        (_, _) => {
+            if let Some(res) = i32s_or_as_f64s_any(a, b, |a, b| a + b, |a, b| a + b) {
+                res
+            } else {
+                // TODO(luna): these panics in this file should be exceptions, when we support those
+                log_panic!("unsupported for +: {:?}, {:?}", a, b)
+            }
+        }
     }
 }
+
 #[no_mangle]
 pub extern "C" fn janky_minus(a: Any, b: Any) -> Any {
     i32s_or_as_f64s_any(a, b, |a, b| a - b, |a, b| a - b).expect("unsupported for -")
@@ -86,10 +106,10 @@ fn typeof_as_str(a: Any) -> &'static str {
             HeapRefView::HT(_) | HeapRefView::Array(_) | HeapRefView::ObjectPtrPtr(_) => "object",
             HeapRefView::Any(what) => typeof_as_str(*what),
             HeapRefView::Class(_) => panic!("shouldn't be able to typeof non-value object data"),
-            HeapRefView::NonPtr32(_)
-            | HeapRefView::MutF64(_)
-            | HeapRefView::Ptr(_)
-            | HeapRefView::Env(_) => panic!("not a value"),
+            HeapRefView::MutF64(_) => "number",
+            HeapRefView::NonPtr32(_) | HeapRefView::Ptr(_) | HeapRefView::Env(_) => {
+                panic!("not a value")
+            }
         },
         AnyEnum::Closure(_) => "function",
         AnyEnum::Undefined => "undefined",

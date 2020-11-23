@@ -30,27 +30,38 @@ pub enum RTSFunction {
     NotEqual,
 }
 
+// The name of a runtime function implementation.
+pub enum RTSFunctionImpl {
+    /// A runtime function implemented in Rust.
+    Rust(&'static str),
+    /// A runtime function implemented in NotWasm.
+    NotWasm(&'static str),
+}
+
 impl RTSFunction {
-    /// The name of a function in the runtime system. This is the name that the runtime  exports,
-    /// using `[no_mangle]`.
-    pub fn name(&self) -> &'static str {
+    /// The name of a function in the runtime system. This function can be
+    /// implemented in either the Rust runtime or the NotWasm runtime.
+    /// If it's implemented in Rust, make sure to prefix the function
+    /// implementation with `[no_mangle]`.
+    pub fn name(&self) -> RTSFunctionImpl {
         use RTSFunction::*;
+        use RTSFunctionImpl::*;
         match self {
             Todo(name) => todo!("unimplemented operator: {}", name),
-            LogAny => "log_any",
-            Typeof => "janky_typeof",
-            Delete => "janky_delete",
-            Void => "janky_void",
-            Plus => "janky_plus",
-            Minus => "janky_minus",
-            Times => "janky_times",
-            Over => "janky_over",
-            Mod => "janky_mod",
-            ModF64 => "janky_mod_f64",
-            StrictEqual => "janky_strict_equal",
-            Equal => "janky_equal",
-            StrictNotEqual => "janky_strict_not_equal",
-            NotEqual => "janky_not_equal",
+            LogAny => Rust("log_any"),
+            Typeof => Rust("janky_typeof"),
+            Delete => Rust("janky_delete"),
+            Void => Rust("janky_void"),
+            Plus => NotWasm("jnks_plus"), // Implemented in NotWasm RT
+            Minus => Rust("janky_minus"),
+            Times => Rust("janky_times"),
+            Over => Rust("janky_over"),
+            Mod => Rust("janky_mod"),
+            ModF64 => Rust("janky_mod_f64"),
+            StrictEqual => Rust("janky_strict_equal"),
+            Equal => Rust("janky_equal"),
+            StrictNotEqual => Rust("janky_strict_not_equal"),
+            NotEqual => Rust("janky_not_equal"),
         }
     }
 

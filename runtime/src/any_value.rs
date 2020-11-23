@@ -3,6 +3,7 @@
 pub use crate::allocator::{heap_types::EnvPtr, AnyPtr, HeapRefView};
 use crate::closure::{closure_env, Closure, ClosureVal};
 use crate::i64_val::*;
+use crate::string::StringPtr;
 use crate::wasm32::heap;
 use crate::HeapPtr;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
@@ -45,30 +46,41 @@ impl Debug for AnyEnum {
         }
     }
 }
+
+/// Note: The `Display` trait on NotWasm structs should implement the
+/// internal `ToString` operation described in the ECMAScript spec:
+/// https://www.ecma-international.org/ecma-262/5.1/#sec-9.8
 impl Display for AnyEnum {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         use AnyEnum::*;
         match self {
             I32(n) => write!(f, "{}", n),
             F64(ptr) => write!(f, "{}", unsafe { ptr.read() }),
+            // TODO(luna): when we get our fancy rust-runtime-interning system,
+            // use that here
             Bool(b) => write!(f, "{}", b),
+            Closure(closure) => write!(f, "{}", closure),
             Ptr(p) => write!(f, "{}", p.view()),
-            Closure(_) | Undefined | Null => write!(f, "{:?}", self),
+            Undefined => write!(f, "undefined"),
+            Null => write!(f, "null"),
         }
     }
 }
+
+/// Note: The `Display` trait on NotWasm structs should implement the
+/// internal `ToString` operation described in the ECMAScript spec:
+/// https://www.ecma-international.org/ecma-262/5.1/#sec-9.8
 impl Display for HeapRefView {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         use HeapRefView::*;
         match *self {
             String(s) => write!(f, "{}", &*s),
-            HT(ht) => write!(f, "{:?}", *ht),
-            Array(a) => write!(f, "{:?}", *a),
             Any(a) => write!(f, "{}", **a),
             Class(_) => log_panic!("shouldn't have object data as value"),
             ObjectPtrPtr(_o) => log_panic!("TODO(luna): toString"),
             NonPtr32(_) | MutF64(_) | Ptr(_) => log_panic!("ref inside any"),
             Env(_) => log_panic!("not a value"),
+            HT(_) | Array(_) => log_panic!("Display trait not implemented"),
         }
     }
 }
@@ -202,13 +214,38 @@ pub extern "C" fn any_from_bool<'a>(val: bool) -> AnyValue {
     AnyEnum::Bool(val).into()
 }
 
+/// Converts the given value to a Rust string. This should implement the
+/// internal `ToString` operation described in the ECMAScript standard:
+/// https://www.ecma-international.org/ecma-262/5.1/#sec-9.8
+///
+/// `any_to_string` reuses the `fmt::Display` trait on NotWasm structs,
+/// which should be implemented according to the above JS spec.
+#[no_mangle]
+pub fn any_to_string(val: AnyValue) -> StringPtr {
+    let string = val.to_string();
+    heap().alloc_str_or_gc(string.as_str())
+}
+
 #[no_mangle]
 pub extern "C" fn get_undefined() -> AnyValue {
     AnyEnum::Undefined.into()
 }
+
 #[no_mangle]
 pub extern "C" fn get_null() -> AnyValue {
     AnyEnum::Null.into()
+}
+
+/// Is the given any value an object?
+#[no_mangle]
+pub extern "C" fn any_is_object(val: AnyValue) -> bool {
+    match *val {
+        AnyEnum::Ptr(ptr) => match ptr.view() {
+            HeapRefView::ObjectPtrPtr(_) => true,
+            _ => false,
+        },
+        _ => false,
+    }
 }
 
 #[cfg(test)]

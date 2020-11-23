@@ -46,37 +46,6 @@ pub fn i32s_or_as_f64s_any(
     )
 }
 
-#[no_mangle]
-pub extern "C" fn any_to_string(a: Any) -> StringPtr {
-    match *a {
-        AnyEnum::Bool(b) => {
-            // TODO(luna): when we get our fancy rust-runtime-interning system,
-            // use that here
-            if b {
-                heap().alloc_str_or_gc("true")
-            } else {
-                heap().alloc_str_or_gc("false")
-            }
-        }
-        AnyEnum::I32(a) => heap().alloc_str_or_gc(&format!("{}", a)),
-        AnyEnum::F64(f) => heap().alloc_str_or_gc(&format!("{}", unsafe { *f })),
-        AnyEnum::Ptr(ptr) => match ptr.view() {
-            HeapRefView::String(a) => a,
-            _ => log_panic!("TODO: coercion {:?} to string", a),
-        },
-        _ => log_panic!("bad coercion {:?} to string", a),
-    }
-}
-
-pub fn is_string(a: AnyEnum) -> Option<StringPtr> {
-    if let AnyEnum::Ptr(p) = a {
-        if let HeapRefView::String(s) = p.view() {
-            return Some(s);
-        }
-    }
-    None
-}
-
 /// adapted from https://ecma-international.org/ecma-262/5.1/#sec-11.9.3
 pub fn abstract_eq(a: AnyEnum, b: AnyEnum) -> bool {
     // 1. same type

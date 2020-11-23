@@ -8,17 +8,14 @@ pub extern "C" fn string_len(string: StringPtr) -> i32 {
     string.len() as i32
 }
 
+/// Append the given strings
+#[no_mangle]
 pub extern "C" fn string_append(a: StringPtr, b: StringPtr) -> StringPtr {
-    let a: &str = &a;
-    let b: &str = &b;
-
     // combine them
-    // TODO(luna): this technically could avoid an intermediate
-    // allocation. it's probly not a high priority
-    let combined = format!("{}{}", a, b);
+    let combined: String = format!("{}{}", &*a, &*b);
 
     // allocate this into a string
-    heap().alloc_str_or_gc(&combined)
+    heap().alloc_str_or_gc(combined.as_str())
 }
 
 #[cfg(test)]
@@ -43,5 +40,18 @@ mod test {
     fn alloc_and_read() {
         init();
         assert_eq!(&*heap().alloc_str_or_gc("lapis"), "lapis");
+    }
+    #[test]
+    #[wasm_bindgen_test]
+    fn string_append_hello_world() {
+        init();
+        let a = heap().alloc_str_or_gc("Hello");
+        let b = heap().alloc_str_or_gc(" ");
+        let c = heap().alloc_str_or_gc("world!");
+
+        let combined = string_append(a, b);
+        let combined = string_append(combined, c);
+
+        assert_eq!(&*combined, "Hello world!");
     }
 }

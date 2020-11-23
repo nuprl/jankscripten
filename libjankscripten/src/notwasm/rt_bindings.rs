@@ -1,6 +1,6 @@
 use super::constructors::*;
 use super::syntax::Type;
-use crate::rts_function::RTSFunction;
+use crate::rts_function::{RTSFunction, RTSFunctionImpl};
 use std::collections::HashMap;
 use strum::IntoEnumIterator;
 use Type::*;
@@ -120,15 +120,22 @@ pub fn get_rt_bindings() -> BindMap {
     insert_ground(m, "math_max", 2);
     // __JNKS
     insert_ground(m, "heap_dump", 0);
+    insert(m, "janky_primitive_plus", vec![Any, Any], Any);
+    insert(m, "any_is_object", vec![Any], Bool);
+
+    // Step 2: automatically insert Rust runtime functions from RTSFunction.
     insert_ground(m, "run_gc", 0);
     // Step 2: automatically insert runtime functions from RTSFunction.
     for rts in RTSFunction::iter() {
         if let RTSFunction::Todo(_) = rts {
             // can't !let
-        } else {
+        } else if let RTSFunctionImpl::Rust(name) = rts.name() {
             // Automatically generate the name and notwasm type
-            m.insert(rts.name().into(), rts.janky_typ().notwasm_typ());
+            m.insert(name.into(), rts.janky_typ().notwasm_typ());
         }
+
+        // NotWasm runtime functions do not need to be added because
+        // NotWasm already knows about them.
     }
     map
 }

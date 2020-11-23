@@ -109,7 +109,7 @@ fn binop_overload(op: &BinOp, lhs_ty: &Type, rhs_ty: &Type) -> TypeOverload {
         (BinOp::Plus, Float, Int) => prim_same(BinaryOp::F64Add, Float),
         (BinOp::Plus, Int, Float) => prim_same(BinaryOp::F64Add, Float),
         (BinOp::Plus, String, String) => rts(RTSFunction::Plus, Any),
-        (BinOp::Plus, _, _) if anyish => rts(RTSFunction::Plus, Any),
+        (BinOp::Plus, _, _) => rts(RTSFunction::Plus, Any),
         (BinOp::Minus, Int, Int) => prim_same(BinaryOp::I32Sub, Int),
         (BinOp::Minus, _, _) if anyish => rts(RTSFunction::Minus, Any),
         (BinOp::Minus, _, _) => prim_same(BinaryOp::F64Sub, Float),

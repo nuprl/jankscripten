@@ -4,6 +4,17 @@ use crate::any_value::{AnyValue as Any, *};
 use crate::coercions::i32s_or_as_f64s_any;
 use crate::heap_types::EnvPtr;
 
+/// Perform numeric plus on the given arguments. This does *not*
+/// do string concatenation or type coercion.
+#[no_mangle]
+pub extern "C" fn math_plus(a: Any, b: Any) -> Any {
+    if let Some(res) = i32s_or_as_f64s_any(a, b, |a, b| a + b, |a, b| a + b) {
+        res
+    } else {
+        log_panic!("unsupported for +: {:?}, {:?}", a, b)
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn math_sqrt(_: EnvPtr, _this: Any, a: Any) -> Any {
     f64_to_any(any_to_f64(a).sqrt())

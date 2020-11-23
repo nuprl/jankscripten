@@ -2,6 +2,7 @@
 //!
 //! preconditions: [super::compile]
 
+use super::super::rts_function::*;
 use super::rt_bindings::get_rt_bindings;
 use super::syntax as N;
 use parity_wasm::builder::*;
@@ -562,7 +563,19 @@ impl<'a> Translate<'a> {
                 for arg in args {
                     self.translate_atom(arg);
                 }
-                self.rt_call(rts_func.name());
+
+                let name = rts_func.name();
+
+                // Runtime functions can either be implemented in the
+                // Rust runtime or the NotWasm runtime.
+                match name {
+                    RTSFunctionImpl::Rust(name) => {
+                        self.rt_call(name);
+                    }
+                    RTSFunctionImpl::NotWasm(name) => {
+                        self.notwasm_rt_call(name);
+                    }
+                }
             }
             N::Expr::Call(f, args, s) => {
                 for arg in args {
@@ -589,6 +602,10 @@ impl<'a> Translate<'a> {
                             .unwrap_or_else(|| panic!("function type was not indexed {:?}", s));
                         self.out.push(CallIndirect(*ty_index, 0));
                     }
+                    Some(index) => panic!(
+                        "can't translate Func ID for function ({}): ({:?})",
+                        f, index
+                    ),
                     _ => panic!("expected Func ID ({})", f),
                 };
             }
@@ -794,6 +811,7 @@ impl<'a> Translate<'a> {
         }
     }
 
+    /// Generate instructions to call a *Rust* runtime function.
     fn rt_call(&mut self, name: &str) {
         if let Some(i) = self.rt_indexes.get(name) {
             self.out.push(Call(*i));
@@ -801,9 +819,21 @@ impl<'a> Translate<'a> {
             panic!("cannot find rt {}", name);
         }
     }
-    fn notwasm_rt_call(&mut self, name: &str) {
+
+    /// Search for a function in the NotWasm runtime. Return the
+    /// function index if its found.
+    fn get_notwasm_rt_fn(&mut self, name: &str) -> Option<u32> {
         if let Some(IdIndex::Fun(func)) = self.id_env.get(&N::Id::Named(name.to_string())) {
-            self.out.push(Call(*func + self.rt_indexes.len() as u32))
+            Some(*func + self.rt_indexes.len() as u32)
+        } else {
+            None
+        }
+    }
+
+    /// Generate instructions to call a *NotWasm* runtime function.
+    fn notwasm_rt_call(&mut self, name: &str) {
+        if let Some(index) = self.get_notwasm_rt_fn(name) {
+            self.out.push(Call(index))
         } else {
             panic!("cannot find notwasm runtime function {}", name);
         }
