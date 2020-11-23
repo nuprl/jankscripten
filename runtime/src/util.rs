@@ -1,10 +1,11 @@
+use std::ffi::CString;
+use std::os::raw::c_char;
+
 // Preserve this `allow(unused)`. We call log for debugging, and there may
 // not be any debugging output!
 #[allow(unused)]
 #[cfg(all(target_arch = "wasm32", not(test)))]
 pub fn log(s: &str) {
-    use std::ffi::CString;
-    use std::os::raw::c_char;
     extern "C" {
         // There is a global symbol log with type `(f64) -> f64` (i.e., the
         // logarithm function.

@@ -56,6 +56,8 @@ impl Display for AnyEnum {
         match self {
             I32(n) => write!(f, "{}", n),
             F64(ptr) => write!(f, "{}", unsafe { ptr.read() }),
+            // TODO(luna): when we get our fancy rust-runtime-interning system,
+            // use that here
             Bool(b) => write!(f, "{}", b),
             Closure(closure) => write!(f, "{}", closure),
             Ptr(p) => write!(f, "{}", p.view()),
