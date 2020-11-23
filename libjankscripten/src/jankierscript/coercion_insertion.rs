@@ -290,7 +290,7 @@ impl InsertCoercions {
                 if let Some(EnvItem::JsId(ty)) = env.env.get(&id) {
                     Ok((Janky::Expr::Id(id, ty.clone(), s), ty.clone()))
                 } else {
-                    todo!("Identifier: {:?}", id)
+                    panic!("unknown identifier: {:?}", id)
                 }
             }
             Expr::Bracket(container, field, s) => {

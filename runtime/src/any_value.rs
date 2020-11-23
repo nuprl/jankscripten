@@ -220,7 +220,8 @@ pub extern "C" fn any_from_bool<'a>(val: bool) -> AnyValue {
 /// which should be implemented according to the above JS spec.
 #[no_mangle]
 pub fn any_to_string(val: AnyValue) -> StringPtr {
-    val.to_string().as_str().into()
+    let string = val.to_string();
+    heap().alloc_str_or_gc(string.as_str())
 }
 
 #[no_mangle]

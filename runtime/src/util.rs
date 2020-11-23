@@ -10,7 +10,6 @@ pub fn log(s: &str) {
         // logarithm function.
         fn jankscripten_log(string: *const c_char);
     }
-
     let c_str = CString::new(s).expect("could not create C string");
     unsafe {
         jankscripten_log(c_str.as_ptr());
@@ -40,4 +39,23 @@ pub fn unwrap_log<T>(value: Option<T>, message: &'static str) -> T {
             panic!("{}", message); // the message does not appear
         }
     }
+}
+
+#[allow(unused)]
+#[cfg(all(target_arch = "wasm32", not(test)))]
+pub fn error(s: &str) {
+    use std::ffi::CString;
+    use std::os::raw::c_char;
+    extern "C" {
+        fn jankscripten_error(string: *const c_char);
+    }
+    let c_str = CString::new(s).expect("could not create C string");
+    unsafe {
+        jankscripten_error(c_str.as_ptr());
+    }
+}
+#[allow(unused)]
+#[cfg(all(target_arch = "wasm32", test))]
+pub fn error(s: &str) {
+    log(s);
 }

@@ -512,63 +512,6 @@ fn simple_prec() {
     expect_notwasm(13, program);
 }
 
-const ITER_COUNT: usize = 1000;
-const ALLOC_PROG: &'static str = "
-    // NOTE(arjun): The follow comment is no longer accurate, since Anys are
-    // no longer heap allocated. However, I'm not sure what the product is
-    // intended to be.
-    // allocates 8 Anys, and also 1, 2, ... = 28 * 96 = 2688
-    var x = {};
-    x.a = any(0.0f);
-    x.b = any(1.0f);
-    x.c = any(2.0f);
-    x.d = any(3.0f);
-    x.e = any(0);
-    x.f = any(0);
-    x.g = any(0);
-    x.h = any(0);";
-
-#[test]
-#[ignore]
-fn will_gc() {
-    let program = parse(&format!(
-        "
-        function alloc_and_drop(): i32 {{
-            {}
-            return 0;
-        }}
-        function main(): i32 {{
-            var i = 0;
-            while (i < {}) {{
-                var _ = alloc_and_drop();
-                i = i + 1;
-            }}
-            return 5;
-        }}
-        ",
-        ALLOC_PROG, ITER_COUNT,
-    ));
-    expect_notwasm(5, program);
-}
-#[test]
-#[should_panic]
-fn oom_if_no_gc() {
-    let program = parse(&format!(
-        "
-        function main(): i32 {{
-            var i: i32 = 0;
-            while (i < {}) {{
-                {}
-                i = i + 1;
-            }}
-            return 5;
-        }}
-        ",
-        ITER_COUNT, ALLOC_PROG
-    ));
-    expect_notwasm(5, program);
-}
-
 #[test]
 fn identical_interned_string_identity() {
     let mut program = parse(
@@ -596,23 +539,4 @@ fn float_in_any() {
     );
     intern(&mut program);
     expect_notwasm(1, program);
-}
-
-#[test]
-fn gc_float_in_any() {
-    let program = parse(
-        r#"
-        function main(): i32 {
-            var i = 0;
-            var o = {};
-            o.x = any(0.0f);
-            while (i < 2000) {
-                o.x = any((o.x as f64) +. 0.1f);
-                i = i + 1;
-            }
-            return 5;
-        }
-        "#,
-    );
-    expect_notwasm(5, program);
 }

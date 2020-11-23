@@ -1,3 +1,4 @@
+use super::class_list::Class;
 use super::constants::DATA_OFFSET;
 use super::heap_values::*;
 use super::{Heap, ALIGNMENT};
@@ -39,11 +40,13 @@ impl HeapPtr for ObjectDataPtr {
 
     fn get_gc_ptrs(&self, heap: &Heap) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
         // TODO(luna): we should remove the option anyway
-        AnyEnum::iter_to_ptrs(
+        let (mut tags, f64s) = AnyEnum::iter_to_ptrs(
             self.as_array(heap)
                 .iter()
                 .map(|x| x.as_ref().unwrap_or(&AnyEnum::Undefined)),
-        )
+        );
+        tags.extend(self.get_class(heap).keys().iter().map(|s| s.get_ptr()));
+        (tags, f64s)
     }
 }
 
@@ -128,9 +131,7 @@ impl ObjectDataPtr {
 
         // Test Case 1: `obj` has a field named `prop`.
         // Check `obj`'s class for `prop`
-        let class_tag = self.class_tag();
-        let classes = heap.classes.borrow();
-        let class = classes.get_class(class_tag);
+        let class = self.get_class(heap);
         // TODO(mark): currently, the field cache is assumed to be valid
         //             without checking the class of the object whose
         //             offsets were cached. we must ensure the class is
@@ -145,7 +146,7 @@ impl ObjectDataPtr {
         }
 
         // Test Case 2: `obj` has a field named "__proto__".
-        let maybe_proto_offset = class.lookup("__proto__".into(), &mut -1);
+        let maybe_proto_offset = class.lookup(ObjectPtr::__PROTO__STR, &mut -1);
         if let Some(proto_offset) = maybe_proto_offset {
             // Get the prototype object
             let proto_val = self.read_at(heap, proto_offset).unwrap();
@@ -173,9 +174,20 @@ impl ObjectDataPtr {
         let members_ptr: *mut Option<AnyEnum> = unsafe { data_ptr(self.ptr) };
         unsafe { std::slice::from_raw_parts_mut(members_ptr, num_ptrs) }
     }
+
+    fn get_class<'a>(&self, heap: &'a Heap) -> std::cell::Ref<'a, Class> {
+        let class_tag = self.class_tag();
+        std::cell::Ref::map(heap.classes.borrow(), |classes| {
+            classes.get_class(class_tag)
+        })
+    }
 }
 
 impl ObjectPtr {
+    pub const __PROTO__STR: StringPtr = unsafe {
+        StringPtr::new(b"\x01\x00\x00\x00\x09\x00\x00\x00__proto__" as *const _ as *mut Tag)
+    };
+
     pub const unsafe fn new(ptr: *mut Tag) -> Self {
         Self { ptr }
     }
@@ -221,13 +233,13 @@ impl HeapPtr for ObjectPtr {
 }
 impl std::fmt::Debug for ObjectPtr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let class_tag = self.class_tag();
-        let heap = crate::heap();
-        let classes = heap.classes.borrow();
-        let class = classes.get_class(class_tag);
-        let values = self.as_array(heap);
+        #[cfg(debug_assertions)]
+        if self.ptr == std::ptr::null_mut() {
+            return write!(f, "null object");
+        }
         write!(f, "{{")?;
-        for (key, _value) in class.keys().iter().zip(values) {
+        let class = self.get_class(crate::heap());
+        for key in class.keys().iter() {
             // please note that we use X for value. this should be {} when
             // implemented (toString). it cannot be {:?} because that
             // introduces possibility of infinite recursion

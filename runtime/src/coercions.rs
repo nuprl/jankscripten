@@ -1,4 +1,22 @@
+//! weird jankyscript / javascript coercions on sets of notwasm types, objects,
+//! and more
+//!
+//! the purpose of this file has become a bit confused. ideally, i'd like a structure like this:
+//!
+//! - coercions.rs: all the *basic* coercions of jankyscript from each notwasm
+//!   type to each notwasm type. this is currently mixed in with any_value.rs
+//! - jnks_coercions.rs(?): more complex coercions on, ie, tuples of coercions,
+//!   other javascript coercions like abstract equality and such (ie what's in
+//!   here!)
+//! - any_value.rs: just code for what any values are and printing them. even
+//!   though this breaks tradition of "constructor for a type goes in <type>.rs"; i
+//!   think we can all agree that constructing an any is very different. alternatively,
+//!   constructors *into* any value, which are simple, could be included, but the
+//!   coercions out that we have in there right now could move here
+
 use crate::any_value::{AnyValue as Any, *};
+use crate::heap;
+use crate::heap_types::*;
 
 pub fn i32s_or_as_f64s<T, F, I>(a: Any, b: Any, floats: F, ints: I) -> Option<T>
 where
@@ -69,6 +87,9 @@ fn even_abstract_eq(a: AnyEnum, b: AnyEnum) -> Option<bool> {
     Some(match (a, b) {
         // 2
         (AnyEnum::Null, AnyEnum::Undefined) => true,
+        // 10, kinda
+        (AnyEnum::Null, _) => return None,
+        (AnyEnum::Undefined, _) => return None,
         // rules 4 and 8
         (a, AnyEnum::Ptr(p)) => match p.view() {
             // 4
@@ -79,9 +100,9 @@ fn even_abstract_eq(a: AnyEnum, b: AnyEnum) -> Option<bool> {
                 _ => return None,
             },
             // 8
-            HeapRefView::NonPtr32(_) => panic!("ref is not a value"),
+            HeapRefView::NonPtr32(_) => log_panic!("ref is not a value"),
             // 8
-            _ => todo!("javascript spec ToPrimitive / DefaultValue"),
+            got => log_panic!("javascript spec ToPrimitive / DefaultValue {:?}", got),
         },
         // 6
         (AnyEnum::Bool(to_num), _) => abstract_eq(AnyEnum::I32(to_num as i32), b),
