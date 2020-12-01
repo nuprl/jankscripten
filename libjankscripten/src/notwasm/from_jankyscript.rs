@@ -206,7 +206,7 @@ fn compile_exprs<'a>(
             e,
             C::id(|_s, x| {
                 ids.push(x);
-                Rope::Nil
+                Rope::nil()
             }),
         ));
     }
@@ -332,7 +332,7 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                     e,
                     C::a(|_s, x| {
                         env_items.push((x, compile_ty(ty)));
-                        Rope::Nil
+                        Rope::nil()
                     }),
                 ));
             }
@@ -479,7 +479,7 @@ fn compile_stmt<'a>(state: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
             // We could use a C::e context. However, the C::a context will make generated code
             // easier to understand in trivial examples. A C::e context would discard useless
             // binary operations.
-            C::a(|_s, _a_notwasm| Rope::Nil),
+            C::a(|_s, _a_notwasm| Rope::nil()),
         ),
         S::If(cond, then_branch, else_branch, s) => compile_expr(
             state,
