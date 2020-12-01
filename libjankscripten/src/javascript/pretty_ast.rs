@@ -228,10 +228,8 @@ impl Id {
     pub fn to_doc(&self) -> D<()> {
         match self {
             Self::Named(name) => D::text(name),
-            Self::Generated(name, i) => D::text("$jnks_")
-                .append(D::text(*name))
-                .append(D::text("_"))
-                .append(D::as_string(i)),
+            Self::Generated(generated) => D::text(format!("{}", generated)),
+            Self::Bogus(txt) => D::text(txt.to_string()),
         }
     }
     pub fn to_pretty(&self, width: usize) -> String {

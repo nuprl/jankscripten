@@ -209,10 +209,7 @@ impl LValue {
     pub fn take(&mut self) -> Self {
         std::mem::replace(
             self,
-            LValue::Id(Id::Generated(
-                "bogus identifier inserted by LValue::take",
-                0,
-            )),
+            LValue::Id(Id::Bogus("bogus identifier inserted by LValue::take")),
         )
     }
 }

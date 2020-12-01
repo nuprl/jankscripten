@@ -531,7 +531,7 @@ fn compile_function<'a>(state: &'a mut S, f: J::Func, s: Span) -> Function {
     // related to this. again, this could be much cleaner if we figured out a
     // way to iterate over all types in jankyscript and change them with
     // closure conversion
-    param_names.insert(0, Id::Generated("_", 341));
+    param_names.insert(0, Id::Bogus("name of env argument"));
     let param_tys = std::iter::once(Type::Env)
         .chain(jnks_tys.into_iter().map(|t| compile_ty(t)))
         .collect();
