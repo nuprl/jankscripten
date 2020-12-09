@@ -1,6 +1,7 @@
 //! A toolkit for working with JavaScript, including parsing, pretty-printing,
 //! and desugaring.
 
+mod add_blocks;
 pub mod constructors;
 mod desugar;
 mod desugar_bracket_str;
