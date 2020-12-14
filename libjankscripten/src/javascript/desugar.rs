@@ -5,18 +5,22 @@ pub fn desugar(stmt: &mut Stmt, ng: &mut NameGen) {
     desugar_switch::desugar_switch(stmt, ng);
     // dep: desugar_switch
     desugar_loops::desugar_loops(stmt, ng);
-    // dep: desugar_loops
+    // anything that uses cxt.insert depends on this
+    // dep: function statements, switch, loops
+    add_blocks::add_blocks(stmt);
+    // dep: desugar_loops, add_blocks
     desugar_vardecls::desugar_vardecls(stmt);
     // dep: desugar_vardecls
     // we want this to go sooner rather than later to reduce anys
     lift_vars::lift_vars(stmt);
+    // dep: add_blocks
     desugar_this::desugar_this(stmt, ng);
     // accesses are immediately applied
-    // dep: desugar_this
+    // dep: desugar_this, add_blocks
     desugar_function_applications::desugar_function_applications(stmt, ng);
-    // dep: desugar_loops
+    // dep: desugar_loops, add_blocks
     desugar_logical::desugar_logical(stmt, ng);
-    // dep: desugar_function_applications
+    // dep: desugar_function_applications, add_blocks
     desugar_updates::desugar_updates(stmt, ng);
     desugar_bracket_str::desugar_bracket_str(stmt);
 }
