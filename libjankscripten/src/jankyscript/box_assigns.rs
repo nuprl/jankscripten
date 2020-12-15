@@ -5,6 +5,7 @@ use super::syntax::*;
 use super::walk::*;
 use crate::shared::NameGen;
 use im_rc::HashSet as ImmHashSet;
+use crate::pos::Pos;
 
 /// box relevant variables on the provided program
 ///
@@ -54,12 +55,12 @@ impl Visitor for BoxVisitor {
                         var_(
                             real_name,
                             ty.clone(),
-                            Expr::Id(name.clone(), ty.clone(), DUMMY_SP),
-                            DUMMY_SP,
+                            Expr::Id(name.clone(), ty.clone(), Default::default()),
+                            Default::default(),
                         ),
                         (*func.body).take(),
                     ],
-                    DUMMY_SP,
+                    Default::default(),
                 ));
             }
         }
@@ -69,16 +70,17 @@ impl Visitor for BoxVisitor {
     }
     fn exit_expr(&mut self, expr: &mut Expr, _: &Loc) {
         match expr {
-            &mut Expr::Id(ref id, ref mut ty, s) if self.should_box(id) => {
+            &mut Expr::Id(ref id, ref mut ty, ref s) if self.should_box(id) => {
                 let old_ty = ty.clone();
-                let new_ty = ref_ty_(old_ty.clone(), s);
+                let s = s.clone();
+                let new_ty = ref_ty_(old_ty.clone(), s.clone());
                 *ty = new_ty.clone();
                 *expr = deref_(expr.take(), old_ty, s)
             }
             Expr::Assign(lv, to, s) => {
                 match &mut **lv {
                     LValue::Id(id, ty) if self.should_box(id) => {
-                        *expr = store_(id.clone(), to.take(), ty.clone(), *s)
+                        *expr = store_(id.clone(), to.take(), ty.clone(), s.clone())
                     }
                     // []/. => boxed already!
                     _ => (),
@@ -90,7 +92,7 @@ impl Visitor for BoxVisitor {
     fn exit_stmt(&mut self, stmt: &mut Stmt, _: &Loc) {
         match stmt {
             Stmt::Var(id, ty, expr, s) if self.should_box(id) => {
-                *stmt = var_to_new_ref(id.clone(), ty, expr.take(), *s);
+                *stmt = var_to_new_ref(id.clone(), ty, expr.take(), s.clone());
             }
             _ => (),
         }
@@ -110,11 +112,11 @@ impl BoxVisitor {
 
 /// provide: the name to assign to; the type of the expr unboxed, and the
 /// expr the var is assigned to
-fn var_to_new_ref(id: Id, ty: &Type, expr: Expr, s: Span) -> Stmt {
+fn var_to_new_ref(id: Id, ty: &Type, expr: Expr, s: Pos) -> Stmt {
     var_(
         id,
         Type::Ref(Box::new(ty.clone())),
-        new_ref_(expr, ty.clone(), s),
+        new_ref_(expr, ty.clone(), s.clone()),
         s,
     )
 }

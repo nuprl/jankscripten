@@ -2,6 +2,7 @@ use super::constructors::*;
 use super::syntax::*;
 use super::walk::*;
 use super::*;
+use crate::pos::Pos;
 
 //note: will depend on function naming from desugar_function_applications in order to handle f().x += 1; cases
 // x += 1;    =>    x = x + 1;
@@ -34,7 +35,7 @@ impl Visitor for DesugarFancyUpdates<'_> {
                     lv,
                     rhs,
                     loc,
-                    *s,
+                    s.clone(),
                 )
             }
             Expr::UnaryAssign(op, lv, s) => {
@@ -54,7 +55,7 @@ impl Visitor for DesugarFancyUpdates<'_> {
                 // We can do a bit better than cases above suggest by using the  is_essentially_atom
                 // methods to avoid introducing unnecessary temporary variables.
                 let block = loc.enclosing_block().unwrap();
-                let e = self.lval_to_expr(lv, loc, *s);
+                let e = self.lval_to_expr(lv, loc, s.clone());
                 // Insert the statement 'atom = atom + 1' immediately before this expression.
                 block.insert(
                     block.index,
@@ -64,12 +65,12 @@ impl Visitor for DesugarFancyUpdates<'_> {
                             binary_(
                                 op.binop(),
                                 e.clone(),
-                                Expr::Lit(Lit::Num(Num::Int(1)), *s),
-                                *s,
+                                Expr::Lit(Lit::Num(Num::Int(1)), s.clone()),
+                                s.clone(),
                             ),
-                            *s,
+                            s.clone(),
                         ),
-                        *s,
+                        s.clone(),
                     ),
                 );
                 if op.is_prefix() {
@@ -79,8 +80,8 @@ impl Visitor for DesugarFancyUpdates<'_> {
                     *expr = binary_(
                         op.other_binop(),
                         e.clone(),
-                        Expr::Lit(Lit::Num(Num::Int(1)), *s),
-                        *s,
+                        Expr::Lit(Lit::Num(Num::Int(1)), s.clone()),
+                        s.clone(),
                     )
                 }
             }
@@ -92,27 +93,27 @@ impl Visitor for DesugarFancyUpdates<'_> {
 }
 
 impl DesugarFancyUpdates<'_> {
-    fn lval_to_expr(&mut self, lv: &mut LValue, loc: &Loc, s: Span) -> Expr {
+    fn lval_to_expr(&mut self, lv: &mut LValue, loc: &Loc, s: Pos) -> Expr {
         match lv {
-            LValue::Id(x) => id_(x.clone(), s),
+            LValue::Id(x) => id_(x.clone(), s.clone()),
             LValue::Dot(e, x) => {
                 let cxt = loc.enclosing_block().unwrap();
-                self.lift_to_id(cxt, e, s);
-                dot_(e.clone(), x.clone(), s)
+                self.lift_to_id(cxt, e, s.clone());
+                dot_(e.clone(), x.clone(), s.clone())
             }
             LValue::Bracket(e1, e2) => {
                 let cxt = loc.enclosing_block().unwrap();
-                self.lift_to_id(cxt, e1, s);
-                self.lift_to_id(cxt, e2, s);
-                bracket_(e1.clone(), e2.clone(), s)
+                self.lift_to_id(cxt, e1, s.clone());
+                self.lift_to_id(cxt, e2, s.clone());
+                bracket_(e1.clone(), e2.clone(), s.clone())
             }
         }
     }
-    fn lift_to_id(&mut self, cxt: &BlockContext, expr: &mut Expr, s: Span) {
+    fn lift_to_id(&mut self, cxt: &BlockContext, expr: &mut Expr, s: Pos) {
         if !expr.is_essentially_atom() {
             let e_name = self.ng.fresh("update_assign");
-            cxt.insert(cxt.index, vardecl1_(e_name.clone(), expr.take(), s));
-            *expr = id_(e_name, s);
+            cxt.insert(cxt.index, vardecl1_(e_name.clone(), expr.take(), s.clone()));
+            *expr = id_(e_name, s.clone());
         }
     }
     fn desugar_assign_op(
@@ -121,12 +122,12 @@ impl DesugarFancyUpdates<'_> {
         lv: &mut LValue,
         rhs: &mut Expr,
         loc: &Loc,
-        s: Span,
+        s: Pos,
     ) -> Expr {
-        let expr = self.lval_to_expr(lv, loc, s);
+        let expr = self.lval_to_expr(lv, loc, s.clone());
         assign_(
             lv.take(),
-            binary_(BinOp::BinaryOp(bin_op), expr, rhs.take(), s),
+            binary_(BinOp::BinaryOp(bin_op), expr, rhs.take(), s.clone()),
             s,
         )
     }

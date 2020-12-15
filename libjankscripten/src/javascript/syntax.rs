@@ -4,8 +4,7 @@
 //! annoying features, such as `with`.
 
 pub use crate::shared::Id;
-pub use crate::shared::Span;
-pub use swc_common::DUMMY_SP;
+use crate::pos::Pos;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum BinOp {
@@ -118,22 +117,22 @@ impl<T: Into<Id>> From<T> for LValue {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
-    Lit(Lit, Span),
-    Array(Vec<Expr>, Span),
-    Object(Vec<(Key, Expr)>, Span),
+    Lit(Lit, Pos),
+    Array(Vec<Expr>, Pos),
+    Object(Vec<(Key, Expr)>, Pos),
     This,
-    Id(Id, Span),
-    Dot(Box<Expr>, Id, Span),
-    Bracket(Box<Expr>, Box<Expr>, Span),
-    New(Box<Expr>, Vec<Expr>, Span),
-    Unary(UnaryOp, Box<Expr>, Span),
-    Binary(BinOp, Box<Expr>, Box<Expr>, Span),
-    UnaryAssign(UnaryAssignOp, Box<LValue>, Span),
-    If(Box<Expr>, Box<Expr>, Box<Expr>, Span),
-    Assign(AssignOp, Box<LValue>, Box<Expr>, Span),
-    Call(Box<Expr>, Vec<Expr>, Span),
-    Func(Option<Id>, Vec<Id>, Box<Stmt>, Span),
-    Seq(Vec<Expr>, Span),
+    Id(Id, Pos),
+    Dot(Box<Expr>, Id, Pos),
+    Bracket(Box<Expr>, Box<Expr>, Pos),
+    New(Box<Expr>, Vec<Expr>, Pos),
+    Unary(UnaryOp, Box<Expr>, Pos),
+    Binary(BinOp, Box<Expr>, Box<Expr>, Pos),
+    UnaryAssign(UnaryAssignOp, Box<LValue>, Pos),
+    If(Box<Expr>, Box<Expr>, Box<Expr>, Pos),
+    Assign(AssignOp, Box<LValue>, Box<Expr>, Pos),
+    Call(Box<Expr>, Vec<Expr>, Pos),
+    Func(Option<Id>, Vec<Id>, Box<Stmt>, Pos),
+    Seq(Vec<Expr>, Pos),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -150,32 +149,32 @@ pub enum ForInit {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Stmt {
-    Block(Vec<Stmt>, Span),
+    Block(Vec<Stmt>, Pos),
     Empty,
-    Expr(Box<Expr>, Span),
-    If(Box<Expr>, Box<Stmt>, Box<Stmt>, Span),
-    Switch(Box<Expr>, Vec<(Expr, Stmt)>, Box<Stmt>, Span),
-    While(Box<Expr>, Box<Stmt>, Span),
-    DoWhile(Box<Stmt>, Box<Expr>, Span),
-    For(ForInit, Box<Expr>, Box<Expr>, Box<Stmt>, Span),
-    /// `ForIn(true, x, .., Span)` indicates `for (var x ...`.
-    /// `ForIn(false, x, .., Span)` indicates `for (x ...`.
-    ForIn(bool, Id, Box<Expr>, Box<Stmt>, Span),
-    Label(Id, Box<Stmt>, Span),
-    Break(Option<Id>, Span),
-    Continue(Option<Id>, Span),
-    /// `Catch(body, x, catch_block, Span)` is
-    /// `try { body } catch(x, Span) { catch_block }
-    Catch(Box<Stmt>, Id, Box<Stmt>, Span),
-    // `Finally(body, finally_block, Span)`
+    Expr(Box<Expr>, Pos),
+    If(Box<Expr>, Box<Stmt>, Box<Stmt>, Pos),
+    Switch(Box<Expr>, Vec<(Expr, Stmt)>, Box<Stmt>, Pos),
+    While(Box<Expr>, Box<Stmt>, Pos),
+    DoWhile(Box<Stmt>, Box<Expr>, Pos),
+    For(ForInit, Box<Expr>, Box<Expr>, Box<Stmt>, Pos),
+    /// `ForIn(true, x, .., Pos)` indicates `for (var x ...`.
+    /// `ForIn(false, x, .., Pos)` indicates `for (x ...`.
+    ForIn(bool, Id, Box<Expr>, Box<Stmt>, Pos),
+    Label(Id, Box<Stmt>, Pos),
+    Break(Option<Id>, Pos),
+    Continue(Option<Id>, Pos),
+    /// `Catch(body, x, catch_block, Pos)` is
+    /// `try { body } catch(x, Pos) { catch_block }
+    Catch(Box<Stmt>, Id, Box<Stmt>, Pos),
+    // `Finally(body, finally_block, Pos)`
     // `try { body } finally { finally_block }`
-    Finally(Box<Stmt>, Box<Stmt>, Span),
-    Throw(Box<Expr>, Span),
+    Finally(Box<Stmt>, Box<Stmt>, Pos),
+    Throw(Box<Expr>, Pos),
     /// Could be:
     /// `var x = 10, y = 30;`
-    VarDecl(Vec<VarDecl>, Span),
-    Func(Id, Vec<Id>, Box<Stmt>, Span),
-    Return(Box<Expr>, Span),
+    VarDecl(Vec<VarDecl>, Pos),
+    Func(Id, Vec<Id>, Box<Stmt>, Pos),
+    Return(Box<Expr>, Pos),
 }
 
 impl Expr {

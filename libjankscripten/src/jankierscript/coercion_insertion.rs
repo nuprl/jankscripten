@@ -7,6 +7,7 @@ use crate::rts_function::RTSFunction;
 use crate::shared::coercions::*;
 use crate::shared::std_lib::get_global_object;
 use crate::shared::Type;
+use crate::pos::Pos;
 use im_rc::HashMap;
 use thiserror::Error;
 
@@ -173,7 +174,7 @@ impl InsertCoercions {
             Stmt::Block(stmts, s) => self.stmts(stmts, &mut env.clone(), ret_ty, s),
             Stmt::If(c, t, e, s) => {
                 // coerce the conditional expression into type Bool
-                let c = self.expr(*c, Type::Bool, env, s)?;
+                let c = self.expr(*c, Type::Bool, env, s.clone())?;
 
                 // coerce the two branches and put it all together
                 Ok(Janky_::if_(
@@ -224,11 +225,11 @@ impl InsertCoercions {
                 ))
             }
             Stmt::Throw(expr, s) => {
-                let coerced_expr = self.expr(*expr, Type::Any, &mut env.clone(), s)?;
+                let coerced_expr = self.expr(*expr, Type::Any, &mut env.clone(), s.clone())?;
                 Ok(Janky::Stmt::Throw(Box::new(coerced_expr), s))
             }
             Stmt::Return(expr, s) => {
-                let coerced_expr = self.expr(*expr, ret_ty.clone(), &mut env.clone(), s)?;
+                let coerced_expr = self.expr(*expr, ret_ty.clone(), &mut env.clone(), s.clone())?;
 
                 Ok(Janky::Stmt::Return(Box::new(coerced_expr), s))
             }
@@ -240,7 +241,7 @@ impl InsertCoercions {
         stmts: Vec<Stmt>,
         env: &mut Env,
         ret_ty: &Type,
-        s: Span,
+        s: Pos,
     ) -> CoercionResult<Janky::Stmt> {
         let mut ret = vec![];
         for stmt in stmts.into_iter() {
@@ -258,7 +259,7 @@ impl InsertCoercions {
         exprs
             .into_iter()
             .zip(expected_tys.into_iter())
-            .map(|(e, t)| self.expr(e, t, env, DUMMY_SP))
+            .map(|(e, t)| self.expr(e, t, env, Pos::UNKNOWN))
             .collect::<Result<Vec<_>, _>>()
     }
 
@@ -271,7 +272,7 @@ impl InsertCoercions {
             Expr::Array(es, s) => Ok((
                 Janky::Expr::Array(
                     es.into_iter()
-                        .map(|e| self.expr(e, Type::Any, env, s))
+                        .map(|e| self.expr(e, Type::Any, env, s.clone()))
                         .collect::<Result<_, _>>()?,
                     s,
                 ),
@@ -280,7 +281,7 @@ impl InsertCoercions {
             Expr::Object(kvs, s) => Ok((
                 Janky::Expr::Object(
                     kvs.into_iter()
-                        .map(|(k, v)| self.expr(v, Type::Any, env, s).and_then(|v| Ok((k, v))))
+                        .map(|(k, v)| self.expr(v, Type::Any, env, s.clone()).and_then(|v| Ok((k, v))))
                         .collect::<Result<_, _>>()?,
                     s,
                 ),
@@ -309,13 +310,13 @@ impl InsertCoercions {
                 // with maybe...
                 //
                 // 5. instances of classes
-                let cont = self.expr(*container, Type::Array, env, s)?;
-                let f = self.expr(*field, Type::Int, env, s)?;
+                let cont = self.expr(*container, Type::Array, env, s.clone())?;
+                let f = self.expr(*field, Type::Int, env, s.clone())?;
                 // all containers yield Any
                 Ok((Janky_::bracket_(cont, f, s), Type::Any))
             }
             Expr::Dot(container, field, s) => {
-                let cont = self.expr(*container, Type::DynObject, env, s)?;
+                let cont = self.expr(*container, Type::DynObject, env, s.clone())?;
                 // all containers yield Any
                 Ok((Janky_::dot_(cont, field, s), Type::Any))
             }
@@ -323,8 +324,8 @@ impl InsertCoercions {
                 let (e1, t1) = self.expr_and_type(*e1, env)?;
                 let (e2, t2) = self.expr_and_type(*e2, env)?;
                 let (overload, expected_t1, expected_t2, result_ty) = binop_overload(&op, &t1, &t2);
-                let coerced_e1 = self.coerce(e1, t1, expected_t1, s);
-                let coerced_e2 = self.coerce(e2, t2, expected_t2, s);
+                let coerced_e1 = self.coerce(e1, t1, expected_t1, s.clone());
+                let coerced_e2 = self.coerce(e2, t2, expected_t2, s.clone());
                 let coerced_expr = match overload {
                     Overload::Prim(op) => Janky_::binary_(op, coerced_e1, coerced_e2, s),
                     Overload::RTS(name) => {
@@ -336,19 +337,19 @@ impl InsertCoercions {
             Expr::Assign(lv, e, s) => match *lv {
                 LValue::Id(id) => {
                     // TODO(michael) if we're going to allow strong update, some change has to happen here
-                    let (_, into_ty) = self.expr_and_type(Expr::Id(id.clone(), s), env)?;
+                    let (_, into_ty) = self.expr_and_type(Expr::Id(id.clone(), s.clone()), env)?;
                     Ok((
                         Janky_::assign_(
                             Janky::LValue::Id(id, into_ty.clone()),
-                            self.expr(*e, into_ty.clone(), env, s)?,
+                            self.expr(*e, into_ty.clone(), env, s.clone())?,
                             s,
                         ),
                         into_ty,
                     ))
                 }
                 LValue::Dot(container, field) => {
-                    let cont = self.expr(container, Type::DynObject, env, s)?;
-                    let expr = self.expr(*e, Type::Any, env, s)?;
+                    let cont = self.expr(container, Type::DynObject, env, s.clone())?;
+                    let expr = self.expr(*e, Type::Any, env, s.clone())?;
                     // all containers yield Any
                     Ok((
                         Janky_::assign_(Janky::LValue::Dot(cont, field), expr, s),
@@ -358,9 +359,9 @@ impl InsertCoercions {
                 LValue::Bracket(container, field) => {
                     // TODO(luna): don't assume bracket is an array (could
                     // be dynamic field with object)
-                    let cont = self.expr(container, Type::Array, env, s)?;
-                    let f = self.expr(field, Type::Int, env, s)?;
-                    let expr = self.expr(*e, Type::Any, env, s)?;
+                    let cont = self.expr(container, Type::Array, env, s.clone())?;
+                    let f = self.expr(field, Type::Int, env, s.clone())?;
+                    let expr = self.expr(*e, Type::Any, env, s.clone())?;
                     // array assign yields the rvalue
                     Ok((
                         Janky_::assign_(Janky::LValue::Bracket(cont, f), expr, s),
@@ -405,7 +406,7 @@ impl InsertCoercions {
                         let n = args_with_typs.len();
 
                         (
-                            self.coerce(coerced_f, f_ty, Type::ground_function(n), s),
+                            self.coerce(coerced_f, f_ty, Type::ground_function(n), s.clone()),
                             vec![Type::Any; n],
                             Type::Any,
                         )
@@ -415,7 +416,7 @@ impl InsertCoercions {
                 let coerced_args = args_with_typs
                     .into_iter()
                     .zip(f_args.into_iter())
-                    .map(|((e, actual_ty), formal_ty)| self.coerce(e, actual_ty, formal_ty, s))
+                    .map(|((e, actual_ty), formal_ty)| self.coerce(e, actual_ty, formal_ty, s.clone()))
                     .collect();
 
                 Ok((
@@ -431,7 +432,7 @@ impl InsertCoercions {
                     (UnaryOp::Tilde, _) => Ok((
                         Janky::Expr::PrimCall(
                             RTSFunction::Todo("bitwise not"),
-                            vec![self.coerce(coerced_e, e_ty, Type::Int, s)],
+                            vec![self.coerce(coerced_e, e_ty, Type::Int, s.clone())],
                             s,
                         ),
                         Type::Int,
@@ -442,8 +443,8 @@ impl InsertCoercions {
                         Janky::Expr::PrimCall(
                             RTSFunction::Plus,
                             vec![
-                                Janky::Expr::Lit(Janky::Lit::Num(Janky::Num::Int(0)), s),
-                                self.coerce(coerced_e, e_ty, Type::Any, s),
+                                Janky::Expr::Lit(Janky::Lit::Num(Janky::Num::Int(0)), s.clone()),
+                                self.coerce(coerced_e, e_ty, Type::Any, s.clone()),
                             ],
                             s,
                         ),
@@ -458,7 +459,7 @@ impl InsertCoercions {
                             NotWasm::BinaryOp::I32Sub,
                             Box::new(Janky::Expr::Lit(
                                 Janky::Lit::Num(crate::javascript::Num::Int(0)),
-                                s,
+                                s.clone(),
                             )),
                             Box::new(coerced_e),
                             s,
@@ -470,12 +471,12 @@ impl InsertCoercions {
                             RTSFunction::Minus,
                             vec![
                                 self.coerce(
-                                    Janky::Expr::Lit(Janky::Lit::Num(Janky::Num::Int(0)), s),
+                                    Janky::Expr::Lit(Janky::Lit::Num(Janky::Num::Int(0)), s.clone()),
                                     Type::Int,
                                     Type::Any,
-                                    s,
+                                    s.clone(),
                                 ),
-                                self.coerce(coerced_e, e_ty, Type::Any, s),
+                                self.coerce(coerced_e, e_ty, Type::Any, s.clone()),
                             ],
                             s,
                         ),
@@ -484,7 +485,7 @@ impl InsertCoercions {
                     (UnaryOp::Not, _) => Ok((
                         Janky::Expr::Unary(
                             NotWasm::UnaryOp::Eqz,
-                            Box::new(self.coerce(coerced_e, e_ty, Type::Bool, s)),
+                            Box::new(self.coerce(coerced_e, e_ty, Type::Bool, s.clone())),
                             s,
                         ),
                         Type::Bool,
@@ -492,7 +493,7 @@ impl InsertCoercions {
                     (UnaryOp::TypeOf, _) => Ok((
                         Janky::Expr::PrimCall(
                             RTSFunction::Typeof,
-                            vec![self.coerce(coerced_e, e_ty, Type::Any, s)],
+                            vec![self.coerce(coerced_e, e_ty, Type::Any, s.clone())],
                             s,
                         ),
                         Type::String,
@@ -500,7 +501,7 @@ impl InsertCoercions {
                     (UnaryOp::Void, _) => Ok((
                         Janky::Expr::PrimCall(
                             RTSFunction::Void,
-                            vec![self.coerce(coerced_e, e_ty, Type::Any, s)],
+                            vec![self.coerce(coerced_e, e_ty, Type::Any, s.clone())],
                             s,
                         ),
                         Type::Any,
@@ -508,7 +509,7 @@ impl InsertCoercions {
                     (UnaryOp::Delete, _) => Ok((
                         Janky::Expr::PrimCall(
                             RTSFunction::Todo("delete"),
-                            vec![self.coerce(coerced_e, e_ty, Type::Any, s)],
+                            vec![self.coerce(coerced_e, e_ty, Type::Any, s.clone())],
                             s,
                         ),
                         Type::Any,
@@ -534,15 +535,15 @@ impl InsertCoercions {
                 // this is needed for giving a default return (undefined in JS)
                 let default_for_ty = match ret_ty {
                     Type::Any => self.coerce(
-                        Janky_::lit_(Janky_::num_(Janky::Num::Int(0), s), s),
+                        Janky_::lit_(Janky_::num_(Janky::Num::Int(0), s.clone()), s.clone()),
                         Type::Int,
                         Type::Any,
-                        s,
+                        s.clone(),
                     ),
                     _ => todo!(),
                 };
                 let coerced_body =
-                    Janky::Stmt::Block(vec![coerced_body, Janky_::return_(default_for_ty, s)], s);
+                    Janky::Stmt::Block(vec![coerced_body, Janky_::return_(default_for_ty, s.clone())], s.clone());
                 let fn_ty = Type::Function(arg_tys, Box::new(ret_ty.clone()));
 
                 Ok((Janky_::func(args_with_tys, ret_ty, coerced_body, s), fn_ty))
@@ -575,7 +576,7 @@ impl InsertCoercions {
         e: Expr,
         desired_type: Type,
         env: &mut Env,
-        s: Span,
+        s: Pos,
     ) -> CoercionResult<Janky::Expr> {
         // insert coercions into the expression
         let (e, e_type) = self.expr_and_type(e, env)?;
@@ -586,11 +587,11 @@ impl InsertCoercions {
         Ok(self.coerce(e, e_type, desired_type, s))
     }
 
-    fn coerce(&self, e: Janky::Expr, t1: Type, t2: Type, s: Span) -> Janky::Expr {
-        Janky_::coercion_(self.coercion(t1, t2, s), e, s)
+    fn coerce(&self, e: Janky::Expr, t1: Type, t2: Type, s: Pos) -> Janky::Expr {
+        Janky_::coercion_(self.coercion(t1, t2, s.clone()), e, s)
     }
 
-    fn coercion(&self, t1: Type, t2: Type, s: Span) -> Coercion {
+    fn coercion(&self, t1: Type, t2: Type, s: Pos) -> Coercion {
         if t1 == t2 {
             Coercion::Id(t1)
         } else {
@@ -601,14 +602,14 @@ impl InsertCoercions {
                 (Type::Any, Type::Function(args, ret)) => {
                     let gf = Type::ground_function(args.len());
                     Coercion::seq(
-                        self.coercion(Type::Any, gf.clone(), s),
+                        self.coercion(Type::Any, gf.clone(), s.clone()),
                         self.coercion(gf, Type::Function(args, ret), s),
                     )
                 }
                 (Type::Any, Type::Function(args, ret)) => {
                     let gf = Type::ground_function(args.len());
                     Coercion::seq(
-                        self.coercion(Type::Function(args, ret), gf.clone(), s),
+                        self.coercion(Type::Function(args, ret), gf.clone(), s.clone()),
                         self.coercion(gf, Type::Any, s),
                     )
                 }
@@ -621,7 +622,7 @@ impl InsertCoercions {
                         args1
                             .into_iter()
                             .zip(args2.into_iter())
-                            .map(|(arg1, arg2)| self.coercion(arg2, arg1, s))
+                            .map(|(arg1, arg2)| self.coercion(arg2, arg1, s.clone()))
                             .collect(),
                         self.coercion(*ret1, *ret2, s),
                     )
@@ -629,9 +630,9 @@ impl InsertCoercions {
                 (Type::Int, Type::Float) => Coercion::IntToFloat,
                 (Type::Float, Type::Int) => Coercion::FloatToInt,
                 (t1, t2) => {
-                    eprintln!("doing coerce({:?}, {:?}) through Any ({:?})", t1, t2, s);
+                    eprintln!("doing coerce({:?}, {:?}) through Any ({:?})", t1, t2, s.clone());
                     Coercion::seq(
-                        self.coercion(t1, Type::Any, s),
+                        self.coercion(t1, Type::Any, s.clone()),
                         self.coercion(Type::Any, t2, s),
                     )
                 }

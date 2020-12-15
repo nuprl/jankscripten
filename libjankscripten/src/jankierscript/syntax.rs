@@ -4,9 +4,8 @@
 //! produce a program in this language.
 
 pub use crate::shared::Id;
-pub use crate::shared::Span;
 pub use crate::shared::Type;
-pub use swc_common::DUMMY_SP;
+use crate::pos::Pos;
 
 #[derive(Debug)]
 pub enum LValue {
@@ -19,31 +18,31 @@ pub type BinOp = super::super::javascript::BinaryOp;
 
 #[derive(Debug)]
 pub enum Expr {
-    Lit(super::super::javascript::Lit, Span),
-    Array(Vec<Expr>, Span),
-    Object(Vec<(super::super::javascript::Key, Expr)>, Span),
-    Id(Id, Span),
-    Dot(Box<Expr>, Id, Span),
-    Bracket(Box<Expr>, Box<Expr>, Span),
-    Unary(super::super::javascript::UnaryOp, Box<Expr>, Span),
-    Binary(BinOp, Box<Expr>, Box<Expr>, Span),
-    Assign(Box<LValue>, Box<Expr>, Span),
-    Call(Box<Expr>, Vec<Expr>, Span),
-    Func(Option<Type>, Vec<(Id, Option<Type>)>, Box<Stmt>, Span),
+    Lit(super::super::javascript::Lit, Pos),
+    Array(Vec<Expr>, Pos),
+    Object(Vec<(super::super::javascript::Key, Expr)>, Pos),
+    Id(Id, Pos),
+    Dot(Box<Expr>, Id, Pos),
+    Bracket(Box<Expr>, Box<Expr>, Pos),
+    Unary(super::super::javascript::UnaryOp, Box<Expr>, Pos),
+    Binary(BinOp, Box<Expr>, Box<Expr>, Pos),
+    Assign(Box<LValue>, Box<Expr>, Pos),
+    Call(Box<Expr>, Vec<Expr>, Pos),
+    Func(Option<Type>, Vec<(Id, Option<Type>)>, Box<Stmt>, Pos),
 }
 
 #[derive(Debug)]
 pub enum Stmt {
-    Var(Id, Option<Type>, Box<Expr>, Span),
-    Block(Vec<Stmt>, Span),
-    Expr(Box<Expr>, Span),
+    Var(Id, Option<Type>, Box<Expr>, Pos),
+    Block(Vec<Stmt>, Pos),
+    Expr(Box<Expr>, Pos),
     Empty,
-    If(Box<Expr>, Box<Stmt>, Box<Stmt>, Span),
-    Loop(Box<Stmt>, Span),
-    Label(Id, Box<Stmt>, Span),
-    Break(Id, Span),
-    Catch(Box<Stmt>, Id, Box<Stmt>, Span),
-    Finally(Box<Stmt>, Box<Stmt>, Span),
-    Throw(Box<Expr>, Span),
-    Return(Box<Expr>, Span),
+    If(Box<Expr>, Box<Stmt>, Box<Stmt>, Pos),
+    Loop(Box<Stmt>, Pos),
+    Label(Id, Box<Stmt>, Pos),
+    Break(Id, Pos),
+    Catch(Box<Stmt>, Id, Box<Stmt>, Pos),
+    Finally(Box<Stmt>, Box<Stmt>, Pos),
+    Throw(Box<Expr>, Pos),
+    Return(Box<Expr>, Pos),
 }

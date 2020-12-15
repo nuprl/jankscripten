@@ -98,6 +98,7 @@ use super::constructors::*;
 use super::syntax::*;
 use crate::shared::NameGen;
 use std::collections::HashMap;
+use crate::pos::Pos;
 
 fn compile_lit(lit: J::Lit) -> Lit {
     match lit {
@@ -165,13 +166,13 @@ impl<'a> C<'a> {
                 _ => {
                     let x = state.fresh();
                     Rope::singleton(Stmt::Var(
-                        VarStmt::new(x.clone(), Expr::Atom(a, DUMMY_SP)),
-                        DUMMY_SP,
+                        VarStmt::new(x.clone(), Expr::Atom(a, Default::default())),
+                        Default::default(),
                     ))
                     .append(f(state, x))
                 }
             },
-            C::Expr(f) => f(state, Expr::Atom(a, DUMMY_SP)),
+            C::Expr(f) => f(state, Expr::Atom(a, Default::default())),
         }
     }
 
@@ -180,12 +181,12 @@ impl<'a> C<'a> {
             // The Id and Atom cases are essentially identical
             C::Id(f) => {
                 let x = state.fresh();
-                Rope::singleton(Stmt::Var(VarStmt::new(x.clone(), e), DUMMY_SP)).append(f(state, x))
+                Rope::singleton(Stmt::Var(VarStmt::new(x.clone(), e), Default::default())).append(f(state, x))
             }
             C::Atom(f) => {
                 let x = state.fresh();
-                Rope::singleton(Stmt::Var(VarStmt::new(x.clone(), e), DUMMY_SP))
-                    .append(f(state, Atom::Id(x, DUMMY_SP)))
+                Rope::singleton(Stmt::Var(VarStmt::new(x.clone(), e), Default::default()))
+                    .append(f(state, Atom::Id(x, Default::default())))
             }
             C::Expr(f) => f(state, e),
         }
@@ -226,42 +227,42 @@ pub fn compile_ty(janky_typ: J::Type) -> Type {
     }
 }
 
-fn coercion_to_expr(c: J::Coercion, a: Atom, s: Span) -> Atom {
+fn coercion_to_expr(c: J::Coercion, a: Atom, p: Pos) -> Atom {
     use J::Coercion::*;
     match c {
-        FloatToInt => Atom::FloatToInt(Box::new(a), s),
-        IntToFloat => Atom::IntToFloat(Box::new(a), s),
-        Tag(..) => to_any_(a, s),
-        Untag(ty) => from_any_(a, compile_ty(ty), s),
+        FloatToInt => Atom::FloatToInt(Box::new(a), p),
+        IntToFloat => Atom::IntToFloat(Box::new(a), p),
+        Tag(..) => to_any_(a, p),
+        Untag(ty) => from_any_(a, compile_ty(ty), p),
         Fun(..) => todo!(), // TODO(michael) needs to call something that proxies the function
         Id(..) => a,
-        Seq(c1, c2) => coercion_to_expr(*c2, coercion_to_expr(*c1, a, s), s),
+        Seq(c1, c2) => coercion_to_expr(*c2, coercion_to_expr(*c1, a, p.clone()), p),
     }
 }
 
 fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
     match expr {
-        J::Expr::Lit(lit, s) => cxt.recv_a(state, Atom::Lit(compile_lit(lit), s)),
-        J::Expr::Array(members, s) => compile_exprs(state, members, move |state, member_ids| {
+        J::Expr::Lit(lit, p) => cxt.recv_a(state, Atom::Lit(compile_lit(lit), p)),
+        J::Expr::Array(members, p) => compile_exprs(state, members, move |state, member_ids| {
             let array_name = state.fresh();
             let mut rv =
-                Rope::singleton(Stmt::Var(VarStmt::new(array_name.clone(), Expr::Array), s));
+                Rope::singleton(Stmt::Var(VarStmt::new(array_name.clone(), Expr::Array), p.clone()));
             for member_id in member_ids {
                 rv = rv.append(Rope::singleton(Stmt::Expression(
-                    Expr::Push(Atom::Id(array_name.clone(), s), Atom::Id(member_id, s), s),
-                    s,
+                    Expr::Push(Atom::Id(array_name.clone(), p.clone()), Atom::Id(member_id, p.clone()), p.clone()),
+                    p.clone(),
                 )))
             }
-            rv.append(cxt.recv_a(state, Atom::Id(array_name, s)))
+            rv.append(cxt.recv_a(state, Atom::Id(array_name, p)))
         }),
-        J::Expr::Object(keys_exprs, s) => {
+        J::Expr::Object(keys_exprs, p) => {
             let (keys, exprs): (Vec<_>, Vec<_>) = keys_exprs.into_iter().unzip();
             compile_exprs(state, exprs, move |state, ids| {
                 // TODO: semi-static classes when objects are defined like this
                 let obj_name = state.fresh();
                 let mut rv = Rope::singleton(Stmt::Var(
                     VarStmt::new(obj_name.clone(), Expr::ObjectEmpty),
-                    s,
+                    p.clone(),
                 ));
                 for (key, id) in keys.into_iter().zip(ids) {
                     let key_str = match key {
@@ -270,58 +271,58 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                     };
                     rv = rv.append(Rope::singleton(Stmt::Expression(
                         Expr::ObjectSet(
-                            Atom::Id(obj_name.clone(), s),
-                            str_(key_str, s),
-                            Atom::Id(id, s),
-                            s,
+                            Atom::Id(obj_name.clone(), p.clone()),
+                            str_(key_str, p.clone()),
+                            Atom::Id(id, p.clone()),
+                            p.clone(),
                         ),
-                        s,
+                        p.clone(),
                     )))
                 }
-                rv.append(cxt.recv_a(state, Atom::Id(obj_name, s)))
+                rv.append(cxt.recv_a(state, Atom::Id(obj_name, p)))
             })
         }
-        J::Expr::Dot(obj, field, s) => compile_expr(
+        J::Expr::Dot(obj, field, p) => compile_expr(
             state,
             *obj,
             C::a(move |state, obj| {
-                cxt.recv_a(state, object_get_(obj, str_(field.into_name(), s), s))
+                cxt.recv_a(state, object_get_(obj, str_(field.into_name(), p.clone()), p))
             }),
         ),
-        J::Expr::Unary(op, expr, s) => compile_expr(
+        J::Expr::Unary(op, expr, p) => compile_expr(
             state,
             *expr,
-            C::a(move |state, a| cxt.recv_a(state, unary_(op, a, s))),
+            C::a(move |state, a| cxt.recv_a(state, unary_(op, a, p))),
         ),
         // TODO(luna): i think JankyScript bracket supports like
         // object/hashtable fetch by name, so we have to descriminate based
         // on type or something(?)
-        J::Expr::Bracket(arr, index, s) => compile_expr(
+        J::Expr::Bracket(arr, index, p) => compile_expr(
             state,
             *arr,
             C::a(move |state, arr| {
                 compile_expr(
                     state,
                     *index,
-                    C::a(move |state, index| cxt.recv_a(state, index_(arr, index, s))),
+                    C::a(move |state, index| cxt.recv_a(state, index_(arr, index, p))),
                 )
             }),
         ),
-        J::Expr::Coercion(coercion, e, s) => compile_expr(
+        J::Expr::Coercion(coercion, e, p) => compile_expr(
             state,
             *e,
-            C::a(move |state, a| cxt.recv_a(state, coercion_to_expr(coercion, a, s))),
+            C::a(move |state, a| cxt.recv_a(state, coercion_to_expr(coercion, a, p))),
         ),
-        J::Expr::Id(x, _, s) => cxt.recv_a(state, Atom::Id(x, s)),
-        J::Expr::Func(f, s) => {
+        J::Expr::Id(x, _, p) => cxt.recv_a(state, Atom::Id(x, p)),
+        J::Expr::Func(f, p) => {
             let name = state.fresh();
-            let f = compile_function(state, f, s);
+            let f = compile_function(state, f, p.clone());
             state.new_function(name.clone(), f);
-            cxt.recv_a(state, Atom::Id(name, s))
+            cxt.recv_a(state, Atom::Id(name, p))
         }
-        J::Expr::Closure(f, env, s) => {
+        J::Expr::Closure(f, env, p) => {
             let name = state.fresh();
-            let f = compile_function(state, f, s);
+            let f = compile_function(state, f, p.clone());
             state.new_function(name.clone(), f);
             // compile the environment, adapted from compile_exprs
             let mut env_items = Vec::new();
@@ -336,9 +337,9 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                     }),
                 ));
             }
-            stmts.append(cxt.recv_e(state, Expr::Closure(name, env_items, s)))
+            stmts.append(cxt.recv_e(state, Expr::Closure(name, env_items, p)))
         }
-        J::Expr::Binary(op, e1, e2, s) => compile_expr(
+        J::Expr::Binary(op, e1, e2, p) => compile_expr(
             state,
             *e1,
             C::a(move |state, a1| {
@@ -346,12 +347,12 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                     state,
                     *e2,
                     C::a(move |state, a2| {
-                        cxt.recv_a(state, Atom::Binary(op, Box::new(a1), Box::new(a2), s))
+                        cxt.recv_a(state, Atom::Binary(op, Box::new(a1), Box::new(a2), p))
                     }),
                 )
             }),
         ),
-        J::Expr::Assign(lv, e, s) => compile_expr(
+        J::Expr::Assign(lv, e, p) => compile_expr(
             state,
             *e,
             // TODO(luna): if we change Assign to an expression, we can make
@@ -362,7 +363,7 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             // but differently. see this discussion on slack:
             // https://plasma.slack.com/archives/C013E3BK7QA/p1596656877066800
             C::a(move |state, a| match *lv {
-                J::LValue::Id(id, _) => Rope::singleton(Stmt::Assign(id, atom_(a.clone(), s), s))
+                J::LValue::Id(id, _) => Rope::singleton(Stmt::Assign(id, atom_(a.clone(), p.clone()), p))
                     .append(cxt.recv_a(state, a)),
                 J::LValue::Dot(container, field) => {
                     // TODO(luna): don't assume bracket is array
@@ -376,9 +377,9 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                                 state,
                                 Expr::ObjectSet(
                                     cont,
-                                    Atom::Lit(Lit::String(field.to_pretty(80)), s),
+                                    Atom::Lit(Lit::String(field.to_pretty(80)), p.clone()),
                                     a,
-                                    s,
+                                    p,
                                 ),
                             )
                         }),
@@ -394,7 +395,7 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                                 state,
                                 field,
                                 C::a(move |state, f| {
-                                    cxt.recv_e(state, Expr::ArraySet(cont, f, a, s))
+                                    cxt.recv_e(state, Expr::ArraySet(cont, f, a, p))
                                 }),
                             )
                         }),
@@ -402,49 +403,49 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 }
             }),
         ),
-        J::Expr::PrimCall(prim_name, args, s) => {
+        J::Expr::PrimCall(prim_name, args, p) => {
             compile_exprs(state, args, move |state, arg_ids| {
                 cxt.recv_e(
                     state,
                     Expr::PrimCall(
                         prim_name,
-                        arg_ids.into_iter().map(|x| Atom::Id(x, s)).collect(),
-                        s,
+                        arg_ids.into_iter().map(|x| Atom::Id(x, p.clone())).collect(),
+                        p,
                     ),
                 )
             })
         }
-        J::Expr::Call(fun, args, s) => compile_expr(
+        J::Expr::Call(fun, args, p) => compile_expr(
             state,
             *fun,
             C::id(move |state, fun_id| {
                 compile_exprs(state, args, move |state, arg_ids| {
-                    cxt.recv_e(state, Expr::ClosureCall(fun_id, arg_ids, s))
+                    cxt.recv_e(state, Expr::ClosureCall(fun_id, arg_ids, p))
                 })
             }),
         ),
-        J::Expr::NewRef(expr, ty, s) => compile_expr(
+        J::Expr::NewRef(expr, ty, p) => compile_expr(
             state,
             *expr,
-            C::a(move |state, of| cxt.recv_e(state, Expr::NewRef(of, compile_ty(ty), s))),
+            C::a(move |state, of| cxt.recv_e(state, Expr::NewRef(of, compile_ty(ty), p))),
         ),
-        J::Expr::Deref(expr, ty, s) => compile_expr(
+        J::Expr::Deref(expr, ty, p) => compile_expr(
             state,
             *expr,
-            C::a(move |state, of| cxt.recv_a(state, deref_(of, compile_ty(ty), s))),
+            C::a(move |state, of| cxt.recv_a(state, deref_(of, compile_ty(ty), p))),
         ),
-        J::Expr::Store(into, expr, _, s) => compile_expr(
+        J::Expr::Store(into, expr, _, p) => compile_expr(
             state,
             *into,
             C::id(move |state, into| {
                 compile_expr(
                     state,
                     *expr,
-                    C::e(move |_s, what| Rope::singleton(Stmt::Store(into, what, s))),
+                    C::e(move |_s, what| Rope::singleton(Stmt::Store(into, what, p))),
                 )
             }),
         ),
-        J::Expr::EnvGet(i, ty, s) => cxt.recv_a(state, Atom::EnvGet(i, compile_ty(ty), s)),
+        J::Expr::EnvGet(i, ty, p) => cxt.recv_a(state, Atom::EnvGet(i, compile_ty(ty), p)),
     }
 }
 
@@ -459,18 +460,18 @@ fn compile_stmt<'a>(state: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
         //
         // var tmp = f();
         // var r = tmp + 1;
-        S::Var(x, _, e, s) => compile_expr(
+        S::Var(x, _, e, p) => compile_expr(
             state,
             *e,
-            C::e(|_s, e_notwasm| Rope::singleton(Stmt::Var(VarStmt::new(x, e_notwasm), s))),
+            C::e(|_s, e_notwasm| Rope::singleton(Stmt::Var(VarStmt::new(x, e_notwasm), p))),
         ),
-        S::Block(stmts, s) => Rope::singleton(Stmt::Block(
+        S::Block(stmts, p) => Rope::singleton(Stmt::Block(
             stmts
                 .into_iter()
                 .map(|stmt| compile_stmt(state, stmt))
                 .flatten()
                 .collect(),
-            s,
+            p,
         )),
         S::Empty => Rope::singleton(Stmt::Empty),
         S::Expr(e, _) => compile_expr(
@@ -481,28 +482,28 @@ fn compile_stmt<'a>(state: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
             // binary operations.
             C::a(|_s, _a_notwasm| Rope::nil()),
         ),
-        S::If(cond, then_branch, else_branch, s) => compile_expr(
+        S::If(cond, then_branch, else_branch, p) => compile_expr(
             state,
             *cond,
             C::a(|state, a| {
                 Rope::singleton(if_(
                     a,
-                    compile_stmt_block(state, *then_branch, s),
-                    compile_stmt_block(state, *else_branch, s),
-                    s,
+                    compile_stmt_block(state, *then_branch, p.clone()),
+                    compile_stmt_block(state, *else_branch, p.clone()),
+                    p,
                 ))
             }),
         ),
-        S::Loop(body, s) => Rope::singleton(loop_(
-            Stmt::Block(compile_stmt(state, *body).into_iter().collect(), s),
-            s,
+        S::Loop(body, p) => Rope::singleton(loop_(
+            Stmt::Block(compile_stmt(state, *body).into_iter().collect(), p.clone()),
+            p,
         )),
-        S::Label(x, body, s) => Rope::singleton(label_(
+        S::Label(x, body, p) => Rope::singleton(label_(
             Label::Named(x.to_pretty(80)),
-            Stmt::Block(compile_stmt(state, *body).into_iter().collect(), s),
-            s,
+            Stmt::Block(compile_stmt(state, *body).into_iter().collect(), p.clone()),
+            p,
         )),
-        S::Break(x, s) => Rope::singleton(Stmt::Break(Label::Named(x.to_pretty(80)), s)),
+        S::Break(x, p) => Rope::singleton(Stmt::Break(Label::Named(x.to_pretty(80)), p)),
         // TODO(luna): notwasm needs to support exceptions
         // (this just executes the statement with no continuation; in jankyp
         // we discovered that in most benchmarks, even if they use try/catch, no
@@ -511,20 +512,20 @@ fn compile_stmt<'a>(state: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
         S::Finally(_, _, _) => todo!("NotWasm needs to support exceptions"),
         // TODO(luna): notwasm needs to support exceptions
         S::Throw(_, _) => Rope::new(),
-        S::Return(e, s) => {
-            compile_expr(state, *e, C::a(|_s, a| Rope::singleton(Stmt::Return(a, s))))
+        S::Return(e, p) => {
+            compile_expr(state, *e, C::a(|_s, a| Rope::singleton(Stmt::Return(a, p))))
         }
     }
 }
 
-fn compile_stmt_block(state: &mut S, stmt: J::Stmt, s: Span) -> Stmt {
-    rope_to_block(compile_stmt(state, stmt), s)
+fn compile_stmt_block(state: &mut S, stmt: J::Stmt, p: Pos) -> Stmt {
+    rope_to_block(compile_stmt(state, stmt), p)
 }
-fn rope_to_block(rope: Rope<Stmt>, s: Span) -> Stmt {
-    Stmt::Block(rope.into_iter().collect(), s)
+fn rope_to_block(rope: Rope<Stmt>, p: Pos) -> Stmt {
+    Stmt::Block(rope.into_iter().collect(), p)
 }
 
-fn compile_function<'a>(state: &'a mut S, f: J::Func, s: Span) -> Function {
+fn compile_function<'a>(state: &'a mut S, f: J::Func, p: Pos) -> Function {
     let (mut param_names, jnks_tys): (Vec<_>, Vec<_>) = f.args_with_typs.into_iter().unzip();
     // add the env to the function type as well. this only matters when
     // not sent through an any so immediate application weirdness so probably
@@ -536,13 +537,13 @@ fn compile_function<'a>(state: &'a mut S, f: J::Func, s: Span) -> Function {
         .chain(jnks_tys.into_iter().map(|t| compile_ty(t)))
         .collect();
     Function {
-        body: Stmt::Block(compile_stmt(state, *f.body).into_iter().collect(), s),
+        body: Stmt::Block(compile_stmt(state, *f.body).into_iter().collect(), p),
         params: param_names,
         fn_type: FnType {
             args: param_tys,
             result: Some(Box::new(compile_ty(f.result_typ))),
         },
-        span: s,
+        span: Default::default(),
     }
 }
 
@@ -552,7 +553,7 @@ pub fn from_jankyscript(janky_program: J::Stmt) -> Program {
         compile_stmt(&mut state, janky_program)
             .into_iter()
             .collect(),
-        DUMMY_SP,
+        Default::default(),
     );
     state.new_function(
         Id::from("main"),
@@ -563,7 +564,7 @@ pub fn from_jankyscript(janky_program: J::Stmt) -> Program {
                 args: Vec::new(),
                 result: None,
             },
-            span: DUMMY_SP,
+            span: Default::default(),
         },
     );
     Program {

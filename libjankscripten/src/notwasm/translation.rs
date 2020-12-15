@@ -24,7 +24,7 @@ const FN_OBJ_SIZE: u32 = 4;
 type FuncTypeMap = HashMap<(Vec<ValueType>, Option<ValueType>), u32>;
 
 impl crate::shared::Report for Error {
-    fn report(&self, _sm: &swc_common::SourceMap) -> String {
+    fn report(&self) -> String {
         format!("{}", self)
     }
 }

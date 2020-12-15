@@ -51,10 +51,10 @@ fn run_script(script: &str) -> String {
 /// that the results are equal
 pub fn desugar_okay(program: &str, f: fn(&mut js::Stmt, &mut js::NameGen)) {
     let original = js::parse(program.clone())
-        .0
+        
         .expect("unparsible original program");
     let mut ng = js::NameGen::default();
-    let mut desugar = js::parse(program).0.unwrap();
+    let mut desugar = js::parse(program).unwrap();
     f(&mut desugar, &mut ng);
     expect_same(&original, &desugar);
 }
@@ -65,20 +65,20 @@ mod testing_tests {
     #[should_panic]
     fn fails_on_different() {
         expect_same(
-            &js::parse("var x = 10; x").0.unwrap(),
-            &js::parse("var x = 15; x").0.unwrap(),
+            &js::parse("var x = 10; x").unwrap(),
+            &js::parse("var x = 15; x").unwrap(),
         );
     }
     #[test]
     fn succeeds_on_same() {
         expect_same(
-            &js::parse("var x = 10; x").0.unwrap(),
-            &js::parse("var x = 10; x").0.unwrap(),
+            &js::parse("var x = 10; x").unwrap(),
+            &js::parse("var x = 10; x").unwrap(),
         );
     }
 
     fn fake_desugar_fn(stmt: &mut js::Stmt, _: &mut js::NameGen) {
-        *stmt = js::parse("var x = 10; x").0.unwrap();
+        *stmt = js::parse("var x = 10; x").unwrap();
     }
     #[test]
     #[should_panic]

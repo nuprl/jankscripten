@@ -6,32 +6,30 @@ mod types;
 pub mod pretty;
 
 pub use id::{Id, NameGen};
-pub use swc_common::Span;
 pub use types::Type;
 
-use swc_common::SourceMap;
 pub trait Report {
-    fn report(&self, sm: &SourceMap) -> String;
+    fn report(&self) -> String;
 }
 pub trait UnwrapReport<T> {
-    fn unwrap_report(self, sm: &SourceMap) -> T;
+    fn unwrap_report(self) -> T;
 }
 impl<S, T: Report> UnwrapReport<S> for Result<S, T> {
-    fn unwrap_report(self, sm: &SourceMap) -> S {
+    fn unwrap_report(self) -> S {
         match self {
             Ok(o) => o,
             Err(e) => {
-                panic!("ERROR: {}", e.report(sm));
+                panic!("ERROR: {}", e.report());
             }
         }
     }
 }
 impl<S> UnwrapReport<S> for Result<S, Box<dyn Report>> {
-    fn unwrap_report(self, sm: &SourceMap) -> S {
+    fn unwrap_report(self) -> S {
         match self {
             Ok(o) => o,
             Err(e) => {
-                panic!("ERROR: {}", e.report(sm));
+                panic!("ERROR: {}", e.report());
             }
         }
     }

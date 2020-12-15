@@ -14,7 +14,7 @@ impl Visitor for BracketToDot {
         match expr {
             Expr::Bracket(container, field, s) => {
                 if let Expr::Lit(Lit::String(name), _) = &**field {
-                    *expr = dot_(container.take(), Id::Named(name.clone()), *s);
+                    *expr = dot_(container.take(), Id::Named(name.clone()), s.clone());
                 }
             }
             Expr::Assign(_, lv, ..) => {

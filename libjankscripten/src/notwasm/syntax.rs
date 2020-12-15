@@ -23,9 +23,8 @@
 
 use crate::rts_function::RTSFunction;
 pub use crate::shared::Id;
-pub use crate::shared::Span;
 use std::collections::HashMap;
-pub use swc_common::DUMMY_SP;
+use crate::pos::Pos;
 
 /// The types of NotWasm. Every value has a unique type, thus we *do not* support
 /// subtyping. The comment for each variant describes the shape of the value
@@ -228,26 +227,26 @@ impl ToAny {
 /// trigger garbage collection.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Atom {
-    Lit(Lit, Span),
-    ToAny(ToAny, Span),
-    /// `FromAny(atom, ty, Span)`
+    Lit(Lit, Pos),
+    ToAny(ToAny, Pos),
+    /// `FromAny(atom, ty, Pos)`
     ///
     /// Concrete syntax: `<atom> as <ty>`
-    FromAny(Box<Atom>, Type, Span),
-    FloatToInt(Box<Atom>, Span), // MMG made these Atoms because they shouldn't ever allocate
-    IntToFloat(Box<Atom>, Span),
-    HTGet(Box<Atom>, Box<Atom>, Span),
-    ObjectGet(Box<Atom>, Box<Atom>, Span),
-    Index(Box<Atom>, Box<Atom>, Span),
-    ArrayLen(Box<Atom>, Span),
-    Id(Id, Span),
-    GetPrimFunc(Id, Span),
-    StringLen(Box<Atom>, Span),
-    Unary(UnaryOp, Box<Atom>, Span),
-    Binary(BinaryOp, Box<Atom>, Box<Atom>, Span),
-    Deref(Box<Atom>, Type, Span),
+    FromAny(Box<Atom>, Type, Pos),
+    FloatToInt(Box<Atom>, Pos), // MMG made these Atoms because they shouldn't ever allocate
+    IntToFloat(Box<Atom>, Pos),
+    HTGet(Box<Atom>, Box<Atom>, Pos),
+    ObjectGet(Box<Atom>, Box<Atom>, Pos),
+    Index(Box<Atom>, Box<Atom>, Pos),
+    ArrayLen(Box<Atom>, Pos),
+    Id(Id, Pos),
+    GetPrimFunc(Id, Pos),
+    StringLen(Box<Atom>, Pos),
+    Unary(UnaryOp, Box<Atom>, Pos),
+    Binary(BinaryOp, Box<Atom>, Box<Atom>, Pos),
+    Deref(Box<Atom>, Type, Pos),
     /// get the given value from the environment at local 0
-    EnvGet(u32, Type, Span),
+    EnvGet(u32, Type, Pos),
 }
 
 // An `Expr` is an expression that may trigger garbage collection.
@@ -256,26 +255,26 @@ pub enum Expr {
     HT,
     // TODO: Give Array initial capacity
     Array,
-    Push(Atom, Atom, Span),
-    /// TODO(luna, Span): we need to detect out-of-bounds and turn into a hashmap
-    ArraySet(Atom, Atom, Atom, Span),
-    HTSet(Atom, Atom, Atom, Span),
+    Push(Atom, Atom, Pos),
+    /// TODO(luna, Pos): we need to detect out-of-bounds and turn into a hashmap
+    ArraySet(Atom, Atom, Atom, Pos),
+    HTSet(Atom, Atom, Atom, Pos),
     /// right now, never constructed from jankyscript, only in tests
-    Call(Id, Vec<Id>, Span),
-    ClosureCall(Id, Vec<Id>, Span),
-    PrimCall(RTSFunction, Vec<Atom>, Span),
+    Call(Id, Vec<Id>, Pos),
+    ClosureCall(Id, Vec<Id>, Pos),
+    PrimCall(RTSFunction, Vec<Atom>, Pos),
     ObjectEmpty,
-    /// ObjectSet(obj, field_name, value, typ, Span) is obj.field_name: typ = value;
-    ObjectSet(Atom, Atom, Atom, Span),
-    NewRef(Atom, Type, Span), // newRef(something, Span)
-    Atom(Atom, Span),
+    /// ObjectSet(obj, field_name, value, typ, Pos) is obj.field_name: typ = value;
+    ObjectSet(Atom, Atom, Atom, Pos),
+    NewRef(Atom, Type, Pos), // newRef(something, Pos)
+    Atom(Atom, Pos),
     /// create a new environment with the given atoms and their types,
     /// in linear order. then create a closure with that environment and
     /// the index of the function named .0
     ///
     /// this has to be atom, not id, because what if we need to store {x:
     /// env.x} in a nested closure
-    Closure(Id, Vec<(Atom, Type)>, Span),
+    Closure(Id, Vec<(Atom, Type)>, Pos),
 }
 
 #[derive(Debug, PartialEq)]
@@ -309,22 +308,22 @@ pub enum Stmt {
     Empty,
     /// Concrete syntax: `var <id> = <named>;`
     /// The type-checker will fill in the type of the variable
-    Var(VarStmt, Span),
-    Expression(Expr, Span),
-    // TODO(arjun, Span): An Assign could probably be an Atom
-    Assign(Id, Expr, Span),
-    Store(Id, Expr, Span), // *ref = expr
-    If(Atom, Box<Stmt>, Box<Stmt>, Span),
-    Loop(Box<Stmt>, Span),
-    Label(Label, Box<Stmt>, Span),
-    Break(Label, Span),
+    Var(VarStmt, Pos),
+    Expression(Expr, Pos),
+    // TODO(arjun, Pos): An Assign could probably be an Atom
+    Assign(Id, Expr, Pos),
+    Store(Id, Expr, Pos), // *ref = expr
+    If(Atom, Box<Stmt>, Box<Stmt>, Pos),
+    Loop(Box<Stmt>, Pos),
+    Label(Label, Box<Stmt>, Pos),
+    Break(Label, Pos),
     // Break value as return?
-    Return(Atom, Span),
-    Block(Vec<Stmt>, Span),
+    Return(Atom, Pos),
+    Block(Vec<Stmt>, Pos),
     Trap,
     /// these don't exist in NotWasm, only GotoWasm. if you try to [translate]
     /// a goto, it will panic
-    Goto(Label, Span),
+    Goto(Label, Pos),
 }
 
 #[derive(Debug, PartialEq)]
@@ -345,7 +344,7 @@ pub struct Function {
     pub body: Stmt,
     pub fn_type: FnType,
     pub params: Vec<Id>,
-    pub span: Span,
+    pub span: Pos,
 }
 
 #[derive(Debug, PartialEq)]
