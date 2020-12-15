@@ -367,6 +367,6 @@ impl Expr {
     /// Replace this statement with `undefined` and return its old
     /// value.
     pub fn take(&mut self) -> Self {
-        std::mem::replace(self, Expr::Lit(Lit::Undefined, DUMMY_SP))
+        std::mem::replace(self, Expr::Lit(Lit::Undefined, Default::default()))
     }
 }

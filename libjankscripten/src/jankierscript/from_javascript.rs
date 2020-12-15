@@ -1,6 +1,7 @@
 use super::super::javascript::constructors as Js_;
 use super::super::javascript::syntax as Js;
 use super::syntax::*;
+use crate::pos::Pos;
 
 fn unexpected(e: impl std::fmt::Debug) -> ! {
     panic!("JavaScript is not desugared correctly. Found {:?}", e);
@@ -23,19 +24,19 @@ fn expr(e: Js::Expr) -> Expr {
         E::Lit(lit, s) => Lit(lit, s),
         E::Array(es, s) => Array(es.into_iter().map(|e| expr(e)).collect(), s),
         E::Object(kvs, s) => Object(kvs.into_iter().map(|(k, e)| (k, expr(e))).collect(), s),
-        E::This => unexpected(&e),
+        E::This => unexpected(e),
         E::Id(id, s) => Id(id, s),
         E::Dot(e, x, s) => Dot(Box::new(expr(*e)), x, s),
         E::Bracket(e1, e2, s) => Bracket(Box::new(expr(*e1)), Box::new(expr(*e2)), s),
-        E::New(_, _, s) => unexpected(&e),
+        E::New(_, _, _) => unexpected(e),
         E::Unary(op, e, s) => Unary(op, Box::new(expr(*e)), s),
         E::Binary(BinOp::BinaryOp(op), e1, e2, s) => {
             Binary(op, Box::new(expr(*e1)), Box::new(expr(*e2)), s)
         }
-        E::Binary(BinOp::LogicalOp(_), _, _, s) => unexpected(&e),
-        E::UnaryAssign(_, _, s) => unexpected(&e),
+        E::Binary(BinOp::LogicalOp(_), _, _, _) => unexpected(e),
+        E::UnaryAssign(_, _, _) => unexpected(e),
         // Note that this is the ternary operator, not an if statement.
-        E::If(_, _, _, s) => unexpected(&e),
+        E::If(_, _, _, _) => unexpected(e),
         E::Assign(_, lval, e, s) => Assign(Box::new(lvalue(*lval)), Box::new(expr(*e)), s),
         E::Call(e, es, s) => Call(
             Box::new(expr(*e)),
@@ -48,7 +49,7 @@ fn expr(e: Js::Expr) -> Expr {
             Box::new(stmt(*body)),
             s,
         ),
-        E::Seq(_, s) => unexpected(&e),
+        E::Seq(_, _) => unexpected(e),
     }
 }
 
@@ -97,7 +98,7 @@ fn stmt(s: Js::Stmt) -> Stmt {
     }
 }
 
-fn vardecl(decl: Js::VarDecl, s: Span) -> Stmt {
+fn vardecl(decl: Js::VarDecl, s: Pos) -> Stmt {
     Stmt::Var(decl.name, None, Box::new(expr(*decl.named)), s)
 }
 

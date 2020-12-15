@@ -17,9 +17,9 @@ impl Visitor for ThisParameter<'_> {
                     // fresh the obj so we can pass it to the method
                     let cxt = loc.enclosing_block().unwrap();
                     let obj_name = self.ng.fresh("obj4this");
-                    cxt.insert(cxt.index, vardecl1_(obj_name.clone(), obj.take(), *s));
-                    *obj = Box::new(id_(obj_name.clone(), *s));
-                    args.insert(0, id_(obj_name, *s));
+                    cxt.insert(cxt.index, vardecl1_(obj_name.clone(), obj.take(), s.clone()));
+                    *obj = Box::new(id_(obj_name.clone(), s.clone()));
+                    args.insert(0, id_(obj_name, s.clone()));
                 }
                 // for the rest, we'll hand undefined. all our benchmarks
                 // play nice with "use strict";
@@ -36,41 +36,41 @@ impl Visitor for ThisParameter<'_> {
                 let func_name = self.ng.fresh("new_constructor");
 
                 // let $func = func;
-                cxt.insert(cxt.index, vardecl1_(func_name.clone(), f.take(), *s));
+                cxt.insert(cxt.index, vardecl1_(func_name.clone(), f.take(), s.clone()));
 
                 // generate a new name for the object
                 let obj_name = self.ng.fresh("new_obj");
 
                 // Object.create(f.prototype)
                 let new_obj = call_(
-                    dot_(id_("Object", *s), "create", *s),
+                    dot_(id_("Object", s.clone()), "create", s.clone()),
                     vec![Expr::Dot(
-                        Box::new(Expr::Id(func_name.clone(), *s)),
+                        Box::new(Expr::Id(func_name.clone(), s.clone())),
                         Id::Named("prototype".to_string()),
-                        *s,
+                        s.clone(),
                     )],
-                    *s,
+                    s.clone(),
                 );
 
                 // Insert into the surrounding syntax block:
                 //     let $name = Object.create(f.prototype);
-                cxt.insert(cxt.index, vardecl1_(obj_name.clone(), new_obj, *s));
+                cxt.insert(cxt.index, vardecl1_(obj_name.clone(), new_obj, s.clone()));
 
                 // args => $obj, args...
-                args.insert(0, id_(obj_name.clone(), *s));
+                args.insert(0, id_(obj_name.clone(), s.clone()));
 
                 // generate constructor call
                 let new_call = call_(
-                    Expr::Id(func_name.clone(), *s),
+                    Expr::Id(func_name.clone(), s.clone()),
                     std::mem::replace(args, vec![]),
-                    *s,
+                    s.clone(),
                 );
 
                 // insert that into the surrounding syntax block
-                cxt.insert(cxt.index, expr_(new_call, *s));
+                cxt.insert(cxt.index, expr_(new_call, s.clone()));
 
                 // make the entire `new` expression evaluate to just the new object
-                *expr = id_(obj_name, *s);
+                *expr = id_(obj_name, s.clone());
             }
             Expr::Func(_, params, _, _) => {
                 // yes for once using a named id is correct here, because
@@ -78,7 +78,7 @@ impl Visitor for ThisParameter<'_> {
                 params.insert(0, self.this_name.clone());
             }
             Expr::This => {
-                *expr = id_(self.this_name.clone(), DUMMY_SP);
+                *expr = id_(self.this_name.clone(), Default::default());
             }
             _ => (),
         }

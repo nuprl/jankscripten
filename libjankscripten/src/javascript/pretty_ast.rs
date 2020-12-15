@@ -384,10 +384,9 @@ mod test {
     /// (ie introduces the possibility that `pretty(ast) = ""` would pass,
     /// but we're beyond that
     fn parse_pretty_parse(js_code: &str) {
-        let original_ast = parse(js_code).0.expect("invalid test doesn't parse");
+        let original_ast = parse(js_code).expect("invalid test doesn't parse");
         let pretty = original_ast.to_pretty(WIDTH);
         let pretty_ast = parse(&pretty)
-            .0
             .expect(&format!("parsing pretty-printed string: {}", &pretty));
         let pretty_ast_pretty = pretty_ast.to_pretty(WIDTH);
         assert_eq!(pretty, pretty_ast_pretty);

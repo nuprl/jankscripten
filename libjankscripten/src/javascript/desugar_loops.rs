@@ -9,6 +9,7 @@ use super::constructors::*;
 use super::Stmt::*;
 use super::*;
 use std::collections::HashMap;
+use crate::pos::Pos;
 
 pub fn desugar_loops(script: &mut Stmt, ng: &mut NameGen) {
     script.walk(&mut ExplicitBreaks);
@@ -25,19 +26,19 @@ impl Visitor for ForToWhile {
     fn enter_stmt(&mut self, node: &mut Stmt, _loc: &Loc) {
         if let For(init, cond, advance, body, s) = node {
             let init = match init {
-                ForInit::Expr(e) => expr_(e.take(), *s),
-                ForInit::Decl(ds) => Stmt::VarDecl(std::mem::replace(ds, vec![]), *s),
+                ForInit::Expr(e) => expr_(e.take(), s.clone()),
+                ForInit::Decl(ds) => Stmt::VarDecl(std::mem::replace(ds, vec![]), s.clone()),
             };
             *node = Block(
                 vec![
                     init,
                     while_(
                         cond.take(),
-                        Block(vec![body.take(), expr_(advance.take(), *s)], *s),
-                        *s,
+                        Block(vec![body.take(), expr_(advance.take(), s.clone())], s.clone()),
+                        s.clone(),
                     ),
                 ],
-                *s,
+                s.clone(),
             );
         }
     }
@@ -109,7 +110,7 @@ impl Visitor for LabelLoops<'_> {
                             .expect(&format!("no close break at {:?}", loc))
                             .clone(),
                     ),
-                    *s,
+                    s.clone(),
                 )
             }
             Continue(None, s) => {
@@ -130,7 +131,7 @@ impl Visitor for LabelLoops<'_> {
                             .expect("no cont map")
                             .clone(),
                     ),
-                    *s,
+                    s.clone(),
                 );
             }
             Continue(Some(other), s) => {
@@ -151,7 +152,7 @@ impl Visitor for LabelLoops<'_> {
                             .expect("cont has no break")
                             .clone(),
                     ),
-                    *s,
+                    s.clone(),
                 )
             }
             _ => (),
@@ -168,7 +169,7 @@ impl Visitor for LabelLoops<'_> {
                 .breaks_for_conts
                 .remove(&break_name)
                 .expect("no cont for break");
-            *body = Box::new(label_(cont_name, body.take(), s));
+            *body = Box::new(label_(cont_name, body.take(), s.clone()));
             *node = label_(break_name, node.take(), s);
         }
     }
@@ -183,10 +184,10 @@ impl LabelLoops<'_> {
         self.breaks_for_conts.insert(break_name, cont_name);
     }
 }
-fn if_loop_then_body(stmt: &mut Stmt) -> Option<(&mut Box<Stmt>, Span)> {
+fn if_loop_then_body(stmt: &mut Stmt) -> Option<(&mut Box<Stmt>, Pos)> {
     if let For(.., body, s) | DoWhile(body, .., s) | ForIn(.., body, s) | While(.., body, s) = stmt
     {
-        Some((body, *s))
+        Some((body, s.clone()))
     } else {
         None
     }
@@ -202,8 +203,8 @@ impl Visitor for ExplicitBreaks {
             While(cond, body, s) | For(.., cond, _, body, s) => {
                 // if you don't add a block, inserted statements will go above
                 *body = Box::new(Block(
-                    vec![if_(cond.take(), body.take(), Break(None, *s), *s)],
-                    *s,
+                    vec![if_(cond.take(), body.take(), Break(None, s.clone()), s.clone())],
+                    s.clone(),
                 ));
                 *cond = Box::new(TRUE_);
             }
@@ -212,11 +213,11 @@ impl Visitor for ExplicitBreaks {
                 let new_body = Block(
                     vec![
                         body.take(),
-                        if_(cond.take(), Stmt::Empty, Break(None, *s), *s),
+                        if_(cond.take(), Stmt::Empty, Break(None, s.clone()), s.clone()),
                     ],
-                    *s,
+                    s.clone(),
                 );
-                *node = while_(TRUE_, new_body, *s);
+                *node = while_(TRUE_, new_body, s.clone());
             }
             // TODO(luna): for..in? no expressions are possible so im not
             // super worried rn

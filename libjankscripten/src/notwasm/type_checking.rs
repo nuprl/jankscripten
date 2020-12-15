@@ -1,7 +1,7 @@
 use super::constructors::*;
 use super::syntax::*;
+use crate::pos::Pos;
 use im_rc::HashMap;
-use swc_common::SourceMap;
 
 #[derive(Clone, Debug)]
 pub struct Env {
@@ -37,81 +37,81 @@ impl Env {
 // into just TypeCheckingError::Other.
 #[derive(Debug, Clone)]
 pub enum TypeCheckingError {
-    NoSuchVariable(Id, Span),
-    TypeMismatch(String, Type, Type, Span),
-    ExpectedFunction(Id, Type, Span),
-    ExpectedHT(String, Type, Span),
-    ExpectedArray(String, Type, Span),
-    ExpectedRef(String, Type, Span),
-    UnexpectedReturn(Type, Span),
-    ArityMismatch(Id, usize, usize, Span), // params, then args
-    MultiplyDefined(Id, Span),
-    InvalidInContext(String, Type, Span),
-    Other(String, Span),
+    NoSuchVariable(Id, Pos),
+    TypeMismatch(String, Type, Type, Pos),
+    ExpectedFunction(Id, Type, Pos),
+    ExpectedHT(String, Type, Pos),
+    ExpectedArray(String, Type, Pos),
+    ExpectedRef(String, Type, Pos),
+    UnexpectedReturn(Type, Pos),
+    ArityMismatch(Id, usize, usize, Pos), // params, then args
+    MultiplyDefined(Id, Pos),
+    InvalidInContext(String, Type, Pos),
+    Other(String, Pos),
 }
 impl crate::shared::Report for TypeCheckingError {
-    fn report(&self, sm: &SourceMap) -> String {
+    fn report(&self) -> String {
         use TypeCheckingError::*;
         match self {
             NoSuchVariable(a, s) => {
-                format!("undefined variable {} at {}", a, sm.span_to_string(*s))
+                format!("undefined variable {} at {}", a, s)
             }
             TypeMismatch(a, b, c, s) => format!(
                 "{} expected type {:?} but received {:?} at {}",
                 a,
                 b,
                 c,
-                sm.span_to_string(*s)
+                s
             ),
             ExpectedFunction(a, b, s) => format!(
                 "expected function ({}), but got {} at {}",
                 a,
                 b,
-                sm.span_to_string(*s)
+                s
             ),
             ExpectedHT(a, b, s) => format!(
                 "{} expected hash table, but got {} at {}",
                 a,
                 b,
-                sm.span_to_string(*s)
+                s
             ),
             ExpectedArray(a, b, s) => format!(
                 "{} expected array, but got {} at {}",
                 a,
                 b,
-                sm.span_to_string(*s)
+                s
             ),
             ExpectedRef(a, b, s) => format!(
                 "{} expected ref, but got {} at {}",
                 a,
                 b,
-                sm.span_to_string(*s)
+                s
             ),
             UnexpectedReturn(a, s) => {
-                format!("unexpected return type {} at {}", a, sm.span_to_string(*s))
+                format!("unexpected return type {} at {}", a, s)
             }
             ArityMismatch(a, b, c, s) => format!(
                 "arity mismatch at {}, expected {} parameters but received {} arguments at {}",
                 a,
                 b,
                 c,
-                sm.span_to_string(*s)
+                s
             ),
             MultiplyDefined(a, s) => format!(
                 "identifier {} is multiply defined at {}",
                 a,
-                sm.span_to_string(*s)
+                s
             ),
             InvalidInContext(a, b, s) => format!(
                 "In context {}, unexpected type {} at {}",
                 a,
                 b,
-                sm.span_to_string(*s)
+                s
             ),
             Other(a, s) => format!(
                 "Error type-checking NotWasm: {} at {}",
                 a,
-                sm.span_to_string(*s)
+                s
             ),
         }
     }
@@ -120,27 +120,27 @@ pub type TypeCheckingResult<T> = Result<T, TypeCheckingError>;
 
 macro_rules! error {
     ($s:expr, $($t:tt)*) => (
-        Err(TypeCheckingError::Other(format!($($t)*), $s))
+        Err(TypeCheckingError::Other(format!($($t)*), $s.clone()))
     )
 }
 
-fn invalid_in_context<T>(message: impl Into<String>, ty: &Type, s: Span) -> TypeCheckingResult<T> {
+fn invalid_in_context<T>(message: impl Into<String>, ty: &Type, s: &Pos) -> TypeCheckingResult<T> {
     return Err(TypeCheckingError::InvalidInContext(
         message.into(),
         ty.clone(),
-        s,
+        s.clone(),
     ));
 }
 
-fn lookup(env: &Env, id: &Id, s: Span) -> TypeCheckingResult<Type> {
+fn lookup(env: &Env, id: &Id, s: &Pos) -> TypeCheckingResult<Type> {
     if let Some(ty) = env.get(id) {
         Ok(ty.clone())
     } else {
-        Err(TypeCheckingError::NoSuchVariable(id.clone(), s))
+        Err(TypeCheckingError::NoSuchVariable(id.clone(), s.clone()))
     }
 }
 
-fn ensure(msg: &str, expected: Type, got: Type, s: Span) -> TypeCheckingResult<Type> {
+fn ensure(msg: &str, expected: Type, got: Type, s: &Pos) -> TypeCheckingResult<Type> {
     if expected == got {
         Ok(got)
     } else {
@@ -148,7 +148,7 @@ fn ensure(msg: &str, expected: Type, got: Type, s: Span) -> TypeCheckingResult<T
             String::from(msg),
             expected,
             got,
-            s,
+            s.clone(),
         ))
     }
 }
@@ -165,7 +165,7 @@ pub fn type_check(p: &mut Program) -> TypeCheckingResult<()> {
             .insert(id.clone(), f.fn_type.clone().to_type())
             .is_some()
         {
-            return Err(TypeCheckingError::MultiplyDefined(id.clone(), f.span));
+            return Err(TypeCheckingError::MultiplyDefined(id.clone(), Default::default()));
         }
     }
     for (id, g) in p.globals.iter_mut() {
@@ -173,12 +173,13 @@ pub fn type_check(p: &mut Program) -> TypeCheckingResult<()> {
         if let Some(atom) = &mut g.atom {
             // type check it
             let got = type_check_atom(&env, atom)?;
-            ensure("global var type", g.ty.clone(), got, DUMMY_SP)?;
+            let p = Pos::UNKNOWN;
+            ensure("global var type", g.ty.clone(), got, &p)?;
         }
 
         // Insert the global into the environment
         if env.insert(id.clone(), g.ty.clone()).is_some() {
-            return Err(TypeCheckingError::MultiplyDefined(id.clone(), DUMMY_SP));
+            return Err(TypeCheckingError::MultiplyDefined(id.clone(), Pos::UNKNOWN.clone()));
         }
     }
 
@@ -189,10 +190,10 @@ pub fn type_check(p: &mut Program) -> TypeCheckingResult<()> {
     return Ok(());
 }
 
-fn ensure_ref(msg: &str, got: Type, s: Span) -> TypeCheckingResult<Type> {
+fn ensure_ref(msg: &str, got: Type, s: &Pos) -> TypeCheckingResult<Type> {
     match got {
         Type::Ref(ty) => Ok(*ty),
-        _ => Err(TypeCheckingError::ExpectedRef(String::from(msg), got, s)),
+        _ => Err(TypeCheckingError::ExpectedRef(String::from(msg), got, s.clone())),
     }
 }
 
@@ -204,7 +205,7 @@ fn type_check_function(mut env: Env, id: &Id, f: &mut Function) -> TypeCheckingR
             id.clone(),
             f.params.len(),
             f.fn_type.args.len(),
-            f.span,
+            Default::default(), // TODO(arjun): Fix
         ));
     }
 
@@ -234,8 +235,8 @@ fn type_check_stmt(env: Env, s: &mut Stmt, ret_ty: &Option<Type>) -> TypeCheckin
 
             // TODO(luna): what do we really want to do here? really we should
             // have desugared multiple vars to assignments long ago probably
-            //if lookup(&env, id, *s).is_ok() {
-            //    Err(TypeCheckingError::MultiplyDefined(id.clone(), *s))
+            //if lookup(&env, id, s).is_ok() {
+            //    Err(TypeCheckingError::MultiplyDefined(id.clone(), s))
             //} else {
             Ok(env.update(id.clone(), ty.clone()))
             //}
@@ -246,25 +247,25 @@ fn type_check_stmt(env: Env, s: &mut Stmt, ret_ty: &Option<Type>) -> TypeCheckin
             Ok(env)
         }
         Stmt::Store(id, e, s) => {
-            let got_id = lookup(&env, id, *s)?;
+            let got_id = lookup(&env, id, s)?;
             let got_expr = type_check_expr(&env, e)?;
 
-            let type_pointed_to = ensure_ref("ref type", got_id, *s)?;
+            let type_pointed_to = ensure_ref("ref type", got_id, s)?;
 
-            ensure("ref store", type_pointed_to, got_expr, *s)?;
+            ensure("ref store", type_pointed_to, got_expr, s)?;
 
             Ok(env)
         }
         Stmt::Assign(id, e, s) => {
-            let got_id = lookup(&env, id, *s)?;
+            let got_id = lookup(&env, id, s)?;
             let got_expr = type_check_expr(&env, e)?;
-            ensure("assign", got_id, got_expr, *s)?;
+            ensure("assign", got_id, got_expr, s)?;
 
             Ok(env)
         }
         Stmt::If(a_cond, s_then, s_else, s) => {
             let got = type_check_atom(&env, a_cond)?;
-            let _ = ensure("if (conditional)", Type::Bool, got, *s)?;
+            let _ = ensure("if (conditional)", Type::Bool, got, s)?;
 
             // then/else branches are new blocks/scopes
             let _ = type_check_stmt(env.clone(), s_then, ret_ty)?;
@@ -287,9 +288,9 @@ fn type_check_stmt(env: Env, s: &mut Stmt, ret_ty: &Option<Type>) -> TypeCheckin
 
             // ??? MMG if ret_ty = None, can one return early?
             match ret_ty {
-                None => Err(TypeCheckingError::UnexpectedReturn(got, *s)),
+                None => Err(TypeCheckingError::UnexpectedReturn(got, s.clone())),
                 Some(ret_ty) => {
-                    let _ = ensure("return", ret_ty.clone(), got, *s)?;
+                    let _ = ensure("return", ret_ty.clone(), got, s)?;
 
                     Ok(env)
                 }
@@ -318,8 +319,8 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             let got_arr = type_check_atom(env, a_arr)?;
             let got_elt = type_check_atom(env, a_elt)?;
 
-            let _ = ensure("array push (array)", Type::Array, got_arr, *s)?;
-            let _ = ensure("array push (element)", Type::Any, got_elt, *s)?;
+            let _ = ensure("array push (array)", Type::Array, got_arr, s)?;
+            let _ = ensure("array push (element)", Type::Any, got_elt, s)?;
 
             Ok(Type::I32) // returns length
         }
@@ -327,9 +328,9 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             let got_arr = type_check_atom(env, a_arr)?;
             let got_idx = type_check_atom(env, a_idx)?;
             let got_val = type_check_atom(env, a_val)?;
-            let _ = ensure("array set (index)", Type::I32, got_idx, *s)?;
-            let _ = ensure("array set (array)", Type::Array, got_arr, *s);
-            let _ = ensure("array set (value)", Type::Any, got_val, *s);
+            let _ = ensure("array set (index)", Type::I32, got_idx, s)?;
+            let _ = ensure("array set (array)", Type::Array, got_arr, s);
+            let _ = ensure("array set (value)", Type::Any, got_val, s);
             Ok(Type::Any)
         }
         Expr::HTSet(a_ht, a_field, a_val, s) => {
@@ -337,9 +338,9 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             let got_field = type_check_atom(env, a_field)?;
             let got_val = type_check_atom(env, a_val)?;
 
-            ensure("ht set (ht)", Type::HT, got_ht, *s)?;
-            let _ = ensure("ht set (field)", Type::String, got_field, *s)?;
-            let _ = ensure("ht set (val)", Type::Any, got_val, *s)?;
+            ensure("ht set (ht)", Type::HT, got_ht, s)?;
+            let _ = ensure("ht set (field)", Type::String, got_field, s)?;
+            let _ = ensure("ht set (val)", Type::Any, got_val, s)?;
 
             Ok(Type::Any) // returns value set
         }
@@ -348,9 +349,9 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             let got_field = type_check_atom(env, a_field)?;
             let got_val = type_check_atom(env, a_val)?;
 
-            let _ = ensure("object set (obj)", Type::DynObject, got_obj, *s)?;
-            let _ = ensure("object set (field)", Type::String, got_field, *s)?;
-            let _ = ensure("object set (val)", Type::Any, got_val, *s)?;
+            let _ = ensure("object set (obj)", Type::DynObject, got_obj, s)?;
+            let _ = ensure("object set (field)", Type::String, got_field, s)?;
+            let _ = ensure("object set (val)", Type::Any, got_val, s)?;
 
             Ok(Type::Any) // returns value set
         }
@@ -363,7 +364,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
                         .collect::<Result<Vec<_>, _>>()?;
                     if arg_tys.len() != fn_ty.args.len() {
                         error!(
-                            *s,
+                            s,
                             "primitive {:?} expected {} arguments, but received {}",
                             prim,
                             fn_ty.args.len(),
@@ -374,7 +375,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
                         .zip(fn_ty.args.iter())
                         .any(|(t1, t2)| t1 != t2)
                     {
-                        error!(*s, "primitive {:?} applied to wrong argument type", prim)
+                        error!(s, "primitive {:?} applied to wrong argument type", prim)
                     } else {
                         // ??? MMG do we need a void/unit type?
                         Ok(match &fn_ty.result {
@@ -383,37 +384,37 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
                         })
                     }
                 }
-                _ => error!(*s, "primitive is not a function ({:?})", prim),
+                _ => error!(s, "primitive is not a function ({:?})", prim),
             }
         }
         Expr::Call(id_f, actuals, s) => {
-            let got_f = lookup(env, id_f, *s)?;
+            let got_f = lookup(env, id_f, s)?;
             if let Type::Fn(fn_ty) = got_f {
-                type_check_call(env, id_f, actuals, fn_ty, false, *s)
+                type_check_call(env, id_f, actuals, fn_ty, false, s)
             } else {
-                Err(TypeCheckingError::ExpectedFunction(id_f.clone(), got_f, *s))
+                Err(TypeCheckingError::ExpectedFunction(id_f.clone(), got_f, s.clone()))
             }
         }
         Expr::ClosureCall(id_f, actuals, s) => {
-            let got_f = lookup(env, id_f, *s)?;
+            let got_f = lookup(env, id_f, s)?;
             if let Type::Closure(fn_ty) = got_f {
-                type_check_call(env, id_f, actuals, fn_ty, true, *s)
+                type_check_call(env, id_f, actuals, fn_ty, true, s)
             } else {
-                Err(TypeCheckingError::ExpectedFunction(id_f.clone(), got_f, *s))
+                Err(TypeCheckingError::ExpectedFunction(id_f.clone(), got_f, s.clone()))
             }
         }
         Expr::NewRef(a, ty, s) => {
             let actual = type_check_atom(env, a)?;
-            ensure("new ref", ty.clone(), actual, *s)?;
+            ensure("new ref", ty.clone(), actual, s)?;
             Ok(ref_ty_(ty.clone()))
         }
         Expr::Atom(a, _) => type_check_atom(env, a),
         // this is really an existential type but for now i'm gonna try to
         // get away with pretending Type::Closure((i32) -> i32; [i32]) ==
         // Type::Closure((i32 -> i32; [])
-        Expr::Closure(id, _, s) => match lookup(env, id, *s) {
+        Expr::Closure(id, _, s) => match lookup(env, id, s) {
             Ok(Type::Fn(fn_ty)) => Ok(Type::Closure(fn_ty)),
-            Ok(got) => Err(TypeCheckingError::ExpectedFunction(id.clone(), got, *s)),
+            Ok(got) => Err(TypeCheckingError::ExpectedFunction(id.clone(), got, s.clone())),
             Err(e) => Err(e),
         },
     }
@@ -427,7 +428,7 @@ fn type_check_call(
     actuals: &[Id],
     fn_ty: FnType,
     implicit_arg: bool,
-    s: Span,
+    s: &Pos,
 ) -> TypeCheckingResult<Type> {
     // arity check
 
@@ -438,7 +439,7 @@ fn type_check_call(
             id_f.clone(),
             actuals_len,
             fn_ty.args.len(),
-            s,
+            s.clone(),
         ));
     }
 
@@ -453,7 +454,7 @@ fn type_check_call(
                     String::from("closure must accept environment"),
                     Type::Env,
                     got.clone(),
-                    s,
+                    s.clone(),
                 ))
             }
             None => unreachable!(),
@@ -475,7 +476,7 @@ fn type_check_call(
     Ok(fn_ty.result.map(|b| *b).unwrap_or(Type::Any))
 }
 
-fn assert_variant_of_any(ty: &Type, s: Span) -> TypeCheckingResult<()> {
+fn assert_variant_of_any(ty: &Type, s: &Pos) -> TypeCheckingResult<()> {
     match ty {
         // an any can be stored in an any right? but, i can see why you
         // wouldn't want to generate code that does so
@@ -498,8 +499,8 @@ fn assert_variant_of_any(ty: &Type, s: Span) -> TypeCheckingResult<()> {
         Type::HT => Ok(()),
         Type::Array => Ok(()),
         Type::DynObject => Ok(()),
-        Type::Ref(..) => invalid_in_context("ref should not be stored in Any", &ty, DUMMY_SP),
-        Type::Env => invalid_in_context("environments are not values", &ty, DUMMY_SP),
+        Type::Ref(..) => invalid_in_context("ref should not be stored in Any", &ty, s),
+        Type::Env => invalid_in_context("environments are not values", &ty, s),
     }
 }
 
@@ -508,86 +509,86 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
         Atom::Deref(a, ty, s) => ensure(
             "dereference",
             ty.clone(),
-            ensure_ref("deref atom", type_check_atom(env, a)?, *s)?,
-            *s,
+            ensure_ref("deref atom", type_check_atom(env, a)?, s)?,
+            s,
         ),
         Atom::Lit(l, _) => Ok(l.notwasm_typ()),
         Atom::ToAny(to_any, s) => {
             let ty = type_check_atom(env, &mut to_any.atom)?;
-            assert_variant_of_any(&ty, *s)?;
+            assert_variant_of_any(&ty, s)?;
             to_any.set_ty(ty);
             Ok(Type::Any)
         }
         Atom::FromAny(a, ty, s) => {
             let got = type_check_atom(env, a)?;
-            ensure("from_any", Type::Any, got, *s)?;
+            ensure("from_any", Type::Any, got, s)?;
             Ok(ty.clone())
         }
         Atom::FloatToInt(a, s) => {
             let got = type_check_atom(env, a)?;
-            ensure("float to int", Type::F64, got, *s)?;
+            ensure("float to int", Type::F64, got, s)?;
             Ok(Type::I32)
         }
         Atom::IntToFloat(a, s) => {
             let got = type_check_atom(env, a)?;
-            ensure("int to float", Type::I32, got, *s)?;
+            ensure("int to float", Type::I32, got, s)?;
             Ok(Type::F64)
         }
-        Atom::Id(id, s) => lookup(env, id, *s),
-        Atom::GetPrimFunc(id, s) => lookup(env, id, *s),
+        Atom::Id(id, s) => lookup(env, id, s),
+        Atom::GetPrimFunc(id, s) => lookup(env, id, s),
         Atom::StringLen(a, s) => {
             let ty = type_check_atom(env, a)?;
-            let _ = ensure("string len", Type::String, ty, *s)?;
+            let _ = ensure("string len", Type::String, ty, s)?;
 
             Ok(Type::I32)
         }
         Atom::ArrayLen(a, s) => {
             let got = type_check_atom(env, a)?;
-            ensure("array len", Type::Array, got, *s)?;
+            ensure("array len", Type::Array, got, s)?;
             Ok(Type::I32)
         }
         Atom::Index(a_arr, a_idx, s) => {
             let got_arr = type_check_atom(env, a_arr)?;
             let got_idx = type_check_atom(env, a_idx)?;
-            let _ = ensure("arrayi ndex (index)", Type::I32, got_idx, *s)?;
-            let _ = ensure("array index (array)", Type::Array, got_arr, *s);
+            let _ = ensure("arrayi ndex (index)", Type::I32, got_idx, s)?;
+            let _ = ensure("array index (array)", Type::Array, got_arr, s);
             Ok(Type::Any)
         }
         Atom::ObjectGet(a_obj, a_field, s) => {
             let got_obj = type_check_atom(env, a_obj)?;
             let got_field = type_check_atom(env, a_field)?;
 
-            let _ = ensure("object get field", Type::String, got_field, *s)?;
-            let _ = ensure("object field", Type::DynObject, got_obj, *s)?;
+            let _ = ensure("object get field", Type::String, got_field, s)?;
+            let _ = ensure("object field", Type::DynObject, got_obj, s)?;
             Ok(Type::Any)
         }
         Atom::HTGet(a_ht, a_field, s) => {
             let got_ht = type_check_atom(env, a_ht)?;
             let got_field = type_check_atom(env, a_field)?;
 
-            ensure("ht get", Type::HT, got_ht, *s)?;
-            let _ = ensure("ht get (field)", Type::String, got_field, *s)?;
+            ensure("ht get", Type::HT, got_ht, s)?;
+            let _ = ensure("ht get (field)", Type::String, got_field, s)?;
 
             Ok(Type::Any)
         }
         Atom::Unary(op, a, s) => {
             let (ty_in, ty_out) = op.notwasm_typ();
             let got = type_check_atom(env, a)?;
-            let _ = ensure(&format!("unary ({:?})", op), ty_in, got, *s)?;
+            let _ = ensure(&format!("unary ({:?})", op), ty_in, got, s)?;
             Ok(ty_out)
         }
         Atom::Binary(BinaryOp::PtrEq, a_l, a_r, s) => {
             let got_l = type_check_atom(env, a_l)?;
             let got_r = type_check_atom(env, a_r)?;
-            let _ = ensure("binary (===) lhs", got_l.clone(), got_r.clone(), *s)?;
+            let _ = ensure("binary (===) lhs", got_l.clone(), got_r.clone(), s)?;
             Ok(Type::Bool)
         }
         Atom::Binary(op, a_l, a_r, s) => {
             let (ty_in, ty_out) = op.notwasm_typ();
             let got_l = type_check_atom(env, a_l)?;
             let got_r = type_check_atom(env, a_r)?;
-            let _ = ensure(&format!("binary ({:?}) lhs", op), ty_in.clone(), got_l, *s)?;
-            let _ = ensure(&format!("binary ({:?}) lhs", op), ty_in, got_r, *s)?;
+            let _ = ensure(&format!("binary ({:?}) lhs", op), ty_in.clone(), got_l, s)?;
+            let _ = ensure(&format!("binary ({:?}) lhs", op), ty_in, got_r, s)?;
             Ok(ty_out)
         }
         Atom::EnvGet(_, ty, _) => Ok(ty.clone()),

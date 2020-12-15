@@ -1,6 +1,7 @@
 use super::constructors as ctor;
-use super::syntax::DUMMY_SP as D_S;
 use super::syntax::*;
+use combine::position;
+use combine::stream::state::SourcePosition;
 use combine::parser;
 use combine::parser::char::{alpha_num, letter, string};
 use combine::stream::state::State;
@@ -9,6 +10,8 @@ use combine::token;
 use combine::{attempt, choice, eof, many, optional, satisfy, sep_by, value, Parser};
 use combine_language::{Identifier, LanguageDef, LanguageEnv};
 use std::collections::HashMap;
+use std::rc::Rc;
+use crate::pos::Pos;
 
 type Lang<'a, I> = LanguageEnv<'a, I>;
 
@@ -75,7 +78,7 @@ parser! {
             .and(optional(binop_prec_mul(lang)
                 .and(product(lang))))
             .map(|(lhs, maybe_op_rhs)| match maybe_op_rhs {
-                Some((op, rhs)) => ctor::binary_(op, lhs, rhs, D_S),
+                Some((op, rhs)) => ctor::binary_(op, lhs, rhs, Default::default()),
                 None => lhs,
             })
     }
@@ -89,7 +92,7 @@ parser! {
             .and(optional(binop_prec_add(lang)
                 .and(atom(lang))))
             .map(|(lhs, maybe_op_rhs)| match maybe_op_rhs {
-                Some((op, rhs)) => ctor::binary_(op, lhs, rhs, D_S),
+                Some((op, rhs)) => ctor::binary_(op, lhs, rhs, Default::default()),
                 None => lhs,
             })
     }
@@ -100,42 +103,42 @@ parser! {
     where [I: Stream<Item = char>]
     {
         lang.reserved("sqrt").with(lang.parens(atom(lang)))
-            .map(|a| ctor::sqrt_(a, D_S))
+            .map(|a| ctor::sqrt_(a, Default::default()))
         .or(lang.reserved("strlen").with(lang.parens(atom(lang)))
-            .map(|a| ctor::len_(a, D_S)))
+            .map(|a| ctor::len_(a, Default::default())))
         .or(
             lang.reserved("any")
                 .with(lang.parens(atom(lang)))
-                .map(|a| ctor::to_any_(a, D_S)))
+                .map(|a| ctor::to_any_(a, Default::default())))
         .or(
             lang.reserved("env").skip(lang.reserved_op("."))
                 .with(lang.integer())
                 .skip(lang.reserved_op(":"))
                 .and(type_(lang))
-                .map(|(i, ty)| Atom::EnvGet(i as u32, ty, D_S)))
+                .map(|(i, ty)| Atom::EnvGet(i as u32, ty, Default::default())))
         .or(lang.reserved("rt").with(lang.parens(id(lang)))
-            .map(|id| Atom::GetPrimFunc(id, D_S)))
-        .or(lit(lang).map(|l| Atom::Lit(l, D_S)))
+            .map(|id| Atom::GetPrimFunc(id, Default::default())))
+        .or(lit(lang).map(|l| Atom::Lit(l, Default::default())))
         .or(attempt(id(lang)
             .skip(lang.reserved_op("."))
             .and(id(lang))
             .map(|(x, field)|
                 ctor::object_get_(
-                    Atom::Id(x, D_S),
-                    ctor::str_(field.into_name(), D_S),
-                D_S)
+                    Atom::Id(x, Default::default()),
+                    ctor::str_(field.into_name(), Default::default()),
+                Default::default())
             ))
         )
         .or(attempt(id(lang)
             .skip(lang.reserved_op("<<"))
             .and(id(lang))
             .map(|(x, field)| if field == ctor::id_("length") {
-                ctor::array_len_(Atom::Id(x, D_S), D_S)
+                ctor::array_len_(Atom::Id(x, Default::default()), Default::default())
             } else {
                 ctor::ht_get_(
-                    Atom::Id(x, D_S),
-                    ctor::str_(field.into_name(), D_S),
-                D_S)
+                    Atom::Id(x, Default::default()),
+                    ctor::str_(field.into_name(), Default::default()),
+                Default::default())
             }))
         )
         .or(attempt(id(lang)
@@ -143,18 +146,18 @@ parser! {
             .and(atom(lang))
             .skip(lang.reserved_op("]"))
             .map(|(array, index)| ctor::index_(
-                Atom::Id(array, D_S),
+                Atom::Id(array, Default::default()),
                 index,
-            D_S)))
+            Default::default())))
         )
-        .or(id(lang).map(|i| Atom::Id(i, D_S)))
+        .or(id(lang).map(|i| Atom::Id(i, Default::default())))
         .or(lang.parens(atom(lang)))
         .or(lang.reserved_op("*").with(atom(lang)).skip(lang.reserved_op(":"))
-            .and(type_(lang)).map(|(a, ty)| ctor::deref_(a, ty, D_S)))
+            .and(type_(lang)).map(|(a, ty)| ctor::deref_(a, ty, Default::default())))
         .and(optional(
             lang.reserved("as").with(type_(lang))))
         .map(|(atom, maybe_as_ty)| match maybe_as_ty {
-            Some(ty) => ctor::from_any_(atom, ty, D_S),
+            Some(ty) => ctor::from_any_(atom, ty, Default::default()),
             None => atom,
         })
     }
@@ -172,20 +175,20 @@ parser! {
                     .and(sep_by(
                             atom(lang).skip(lang.reserved_op(":")).and(type_(lang)),
                             lang.reserved_op(",")))))
-                .map(|(id, vars)| Expr::Closure(id, vars, D_S)))
+                .map(|(id, vars)| Expr::Closure(id, vars, Default::default())))
         .or(lang.reserved("arrayPush")
             .with(lang.parens(atom(lang).skip(lang.reserved_op(",")).and(atom(lang))))
-            .map(|(array, member)| Expr::Push(array, member, D_S)))
+            .map(|(array, member)| Expr::Push(array, member, Default::default())))
         .or(lang.reserved("sqrt").with(lang.parens(atom(lang)))
-            .map(|a| Expr::Atom(ctor::sqrt_(a, D_S), D_S)))
-        .or(lang.reserved_op("newRef").with(lang.parens(atom(lang).skip(lang.reserved_op(",")).and(type_(lang)))).map(|(val, ty)| Expr::NewRef(val, ty, D_S)))
+            .map(|a| Expr::Atom(ctor::sqrt_(a, Default::default()), Default::default())))
+        .or(lang.reserved_op("newRef").with(lang.parens(atom(lang).skip(lang.reserved_op(",")).and(type_(lang)))).map(|(val, ty)| Expr::NewRef(val, ty, Default::default())))
         .or(attempt(id(lang).skip(lang.reserved_op("!"))
             .and(lang.parens(sep_by(id(lang), lang.reserved_op(","))))
-            .map(|(f, args)| Expr::ClosureCall(f, args, D_S))))
+            .map(|(f, args)| Expr::ClosureCall(f, args, Default::default()))))
         .or(attempt(id(lang)
             .and(lang.parens(sep_by(id(lang), lang.reserved_op(","))))
-            .map(|(f, args)| Expr::Call(f, args, D_S))))
-        .or(atom(lang).map(|a| Expr::Atom(a, D_S)))
+            .map(|(f, args)| Expr::Call(f, args, Default::default()))))
+        .or(atom(lang).map(|a| Expr::Atom(a, Default::default())))
     }
 }
 
@@ -232,7 +235,7 @@ parser! {
             .skip(lang.reserved_op("="))
             .and(expr(lang))
             .skip(lang.reserved_op(";"))
-            .map(|((id, ty), named)| Stmt::Var(VarStmt { id, named, ty }, D_S));
+            .map(|((id, ty), named)| Stmt::Var(VarStmt { id, named, ty }, Default::default()));
 
         enum IdRhsInStmt {
             Expr(Expr),
@@ -243,8 +246,8 @@ parser! {
            .and((lang.reserved_op("=").with(expr(lang)).skip(lang.reserved_op(";")).map(|e| IdRhsInStmt::Expr(e)))
                 .or(lang.reserved_op(":").with(block(lang)).map(|s| IdRhsInStmt::Stmt(s))))
            .map(|(x, rhs)| match rhs {
-               IdRhsInStmt::Expr(e) => Stmt::Assign(x, e, D_S),
-               IdRhsInStmt::Stmt(s) => ctor::label_(x.into_name(), s, D_S)
+               IdRhsInStmt::Expr(e) => Stmt::Assign(x, e, Default::default()),
+               IdRhsInStmt::Stmt(s) => ctor::label_(x.into_name(), s, Default::default())
            }));
 
         let object_set = id(lang)
@@ -256,10 +259,10 @@ parser! {
             .map(|((ht, field), atom)| Stmt::Var(
                 VarStmt::new(ctor::id_("_"),
                 Expr::ObjectSet(
-                    Atom::Id(ht, D_S),
-                    ctor::str_(field.into_name(), D_S),
+                    Atom::Id(ht, Default::default()),
+                    ctor::str_(field.into_name(), Default::default()),
                     atom,
-                D_S)), D_S));
+                Default::default())), Default::default()));
 
         let ht_set = attempt(id(lang)
             .skip(lang.reserved_op("<<"))
@@ -271,44 +274,44 @@ parser! {
                 VarStmt::new(
                     ctor::id_("_"),
                     Expr::HTSet(
-                        Atom::Id(ht, D_S),
-                        ctor::str_(field.into_name(), D_S),
-                        atom, D_S)), D_S)));
+                        Atom::Id(ht, Default::default()),
+                        ctor::str_(field.into_name(), Default::default()),
+                        atom, Default::default())), Default::default())));
 
         let if_ = lang.reserved("if")
             .with(lang.parens(atom(lang)))
             .and(block(lang))
             .skip(lang.reserved("else"))
             .and(block(lang))
-            .map(|((a, s1), s2)| Stmt::If(a, Box::new(s1), Box::new(s2), D_S));
+            .map(|((a, s1), s2)| Stmt::If(a, Box::new(s1), Box::new(s2), Default::default()));
 
         let loop_ = lang.reserved("loop")
             .with(block(lang))
-            .map(|s| Stmt::Loop(Box::new(s), D_S));
+            .map(|s| Stmt::Loop(Box::new(s), Default::default()));
 
         let return_ = lang.reserved("return")
             .with(atom(lang))
             .skip(lang.reserved_op(";"))
-            .map(|a| Stmt::Return(a, D_S));
+            .map(|a| Stmt::Return(a, Default::default()));
 
         let break_ = lang.reserved("break")
             .with(id(lang))
             .skip(lang.reserved_op(";"))
-            .map(|l| Stmt::Break(Label::Named(l.into_name()), D_S));
+            .map(|l| Stmt::Break(Label::Named(l.into_name()), Default::default()));
 
         let while_ = lang.reserved("while")
             .with(lang.parens(atom(lang)))
             .and(block(lang))
-            .map(|(test,body)| ctor::while_(test, body, D_S));
+            .map(|(test,body)| ctor::while_(test, body, Default::default()));
 
         let store = lang.reserved_op("*")
             .with(id(lang))
             .skip(lang.reserved_op("="))
             .and(expr(lang))
             .skip(lang.reserved_op(";"))
-            .map(|(id, expr)| Stmt::Store(id, expr, D_S));
+            .map(|(id, expr)| Stmt::Store(id, expr, Default::default()));
 
-        let expression = expr(lang).skip(lang.reserved_op(";")).map(|e| Stmt::Expression(e, D_S));
+        let expression = expr(lang).skip(lang.reserved_op(";")).map(|e| Stmt::Expression(e, Default::default()));
 
         choice((
             var,
@@ -332,7 +335,7 @@ parser! {
     where [I: Stream<Item = char>]
     {
         lang.braces(many(stmt(lang)))
-            .map(|ss| Stmt::Block(ss, D_S))
+            .map(|ss| Stmt::Block(ss, Default::default()))
     }
 }
 
@@ -360,16 +363,17 @@ parser! {
 }
 
 parser! {
-    fn function['a, 'b, I](lang: &'b Lang<'a,I>)(I) -> (Id, Function)
-    where [I: Stream<Item = char>]
+    fn function['a, 'b, I](file: Rc<String>, lang: &'b Lang<'a,I>)(I) -> (Id, Function)
+    where [I: Stream<Item = char, Position = SourcePosition>]
     {
         lang.reserved("function")
-        .with(id(lang))
+        .with(position())
+        .and(id(lang))
         .and(lang.parens(
             sep_by(id(lang).skip(lang.reserved_op(":")).and(type_(lang)), lang.reserved_op(","))))
         .and(optional(lang.reserved_op(":").with(type_(lang))))
         .and(block(lang))
-        .map(|(((f, params_tys), ret_ty), body): (((_, Vec<(Id, Type)>), _), _)| {
+        .map(move |((((p, f), params_tys), ret_ty), body): (((_, Vec<(Id, Type)>), _), _)| {
             let mut args = Vec::new();
             let mut params = Vec::new();
             for (param, arg) in params_tys {
@@ -381,19 +385,19 @@ parser! {
                 body,
                 fn_type: FnType { args, result: ret_ty.and_then(|t| Some(Box::new(t))) },
                 params,
-                span: DUMMY_SP,
+                span: Pos::from_combine(Rc::clone(file), p),
             })
         })
     }
 }
 
 parser! {
-    fn program['a, 'b, I](lang: &'b Lang<'a,I>)(I) -> Program
-    where [I: Stream<Item = char>]
+    fn program['a, 'b, I](file: Rc<String>, lang: &'b Lang<'a,I>)(I) -> Program
+    where [I: Stream<Item = char, Position = SourcePosition>]
     {
         lang.white_space()
         .with(many::<HashMap<_, _>, _>(global(lang)))
-        .and(many::<HashMap<_, _>, _>(function(lang)))
+        .and(many::<HashMap<_, _>, _>(function(Rc::clone(file), lang)))
         .skip(eof())
         .map(|(globals, functions)| {
             let data = Vec::new();
@@ -402,7 +406,8 @@ parser! {
     }
 }
 
-pub fn parse(input: &str) -> Program {
+pub fn parse(filename: &str, input: &str) -> Program {
+    let filename = Rc::new(filename.to_string());
     // NOTE(arjun): It would be nice to extract this language definition into
     // a function. But, I have no idea what its type should be, since the
     // input type is not &str, but a "stream" (defined in the combine library).
@@ -458,7 +463,7 @@ pub fn parse(input: &str) -> Program {
         comment_line: string("//").map(|_| ()),
     });
 
-    let mut parser = program(&lang);
+    let mut parser = program(filename, &lang);
     let input_stream = State::new(input);
     let p = parser.easy_parse(input_stream).expect("parsing error");
     return p.0;

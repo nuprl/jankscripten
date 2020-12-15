@@ -1,13 +1,13 @@
 use super::compile;
 use super::intern::intern;
 use super::parser::parse;
-use super::syntax::DUMMY_SP as D_S;
 use super::syntax::*;
 use std::fmt::Debug;
 use std::io::Write;
 use std::process::{Command, Stdio};
 use std::str::FromStr;
 use std::sync::Once;
+use crate::pos::Pos;
 
 static COMPILE_RUNTIME: Once = Once::new();
 
@@ -97,7 +97,7 @@ use super::constructors::*;
 
 #[test]
 fn test_ht() {
-    let program = parse(
+    let program = parse("inline",
         r#"
         function main(): i32 {
             var x = HT{};
@@ -113,7 +113,8 @@ fn test_ht() {
 
 #[test]
 fn objects() {
-    let program = parse(
+    let program = parse("inline",
+
         r#"
         function main(): i32 {
             var obj = {};
@@ -130,7 +131,7 @@ fn objects() {
 
 #[test]
 fn array_push_index() {
-    let program = parse(
+    let program = parse("inline",
         "
         function main(): i32 {
             var x = [];
@@ -146,7 +147,7 @@ fn array_push_index() {
 
 #[test]
 fn binary_ops() {
-    let program = parse(
+    let program = parse("inline",
         r#"
         function main() : i32 {
             return 5 + 7;
@@ -158,7 +159,7 @@ fn binary_ops() {
 
 #[test]
 fn functions() {
-    let program = parse(
+    let program = parse("inline",
         r#"
         function toCall() : i32 {
             return 5;
@@ -175,7 +176,7 @@ fn functions() {
 
 #[test]
 fn closures() {
-    let program = parse(
+    let program = parse("inline",
         r#"
         function acceptEnv(_: env) : i32 {
             return env.0: i32 + env.1: i32 + env.2: i32;
@@ -196,7 +197,7 @@ fn closures() {
 
 #[test]
 fn closure_fn_obj() {
-    let program = parse(
+    let program = parse("inline",
         r#"
         function acceptEnv(_: env) : i32 {
             return env.0: i32 + env.1: i32 + env.2: i32;
@@ -229,22 +230,22 @@ fn closure_fn_obj() {
 
 #[test]
 fn break_block() {
-    let s = DUMMY_SP;
+    let s = Pos::UNKNOWN;
     let body = Stmt::Block(
         vec![
-            Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(0, s), s)), s),
+            Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(0, s.clone()), s.clone())), s.clone()),
             label_(
                 "dont_do",
                 Stmt::Block(
                     vec![
-                        Stmt::Break("dont_do".into(), s),
-                        Stmt::Assign(id_("x"), atom_(i32_(1, s), s), s),
+                        Stmt::Break("dont_do".into(), s.clone()),
+                        Stmt::Assign(id_("x"), atom_(i32_(1, s.clone()), s.clone()), s.clone()),
                     ],
-                    s,
+                    s.clone(),
                 ),
-                s,
+                s.clone(),
             ),
-            Stmt::Return(get_id_("x", s), s),
+            Stmt::Return(get_id_("x", s.clone()), s.clone()),
         ],
         s,
     );
@@ -254,7 +255,7 @@ fn break_block() {
 
 #[test]
 fn big_sum() {
-    let program = parse(
+    let program = parse("inline",
         r#"
         function main() : i32 {
             var a = 1;
@@ -276,7 +277,7 @@ fn big_sum() {
 
 #[test]
 fn trivial_direct_call() {
-    let program = parse(
+    let program = parse("inline",
         r#"
         function F(n : i32) : i32 {
             return n;
@@ -295,7 +296,7 @@ fn trivial_direct_call() {
 
 #[test]
 fn trivial_indirect_call() {
-    let program = parse(
+    let program = parse("inline",
         r#"
         function F(n : i32) : i32 {
             return n + 1;
@@ -315,7 +316,7 @@ fn trivial_indirect_call() {
 
 #[test]
 fn function_any() {
-    let program = parse(
+    let program = parse("inline",
         r#"
         function callWith5s(anyFunc: any, takesTwoArgs: bool): i32 {
             var result = 0;
@@ -355,7 +356,7 @@ fn function_any() {
 
 #[test]
 fn basic_ref() {
-    let program = parse(
+    let program = parse("inline",
         r#"
         function main() : i32 {
             var r = newRef(150, i32);
@@ -369,7 +370,7 @@ fn basic_ref() {
 
 #[test]
 fn basic_ref_mutation() {
-    let program = parse(
+    let program = parse("inline",
         r#"
         function main() : i32 {
             var r = newRef(150, i32);
@@ -385,7 +386,7 @@ fn basic_ref_mutation() {
 
 #[test]
 fn ref_doesnt_mutate_variables() {
-    let program = parse(
+    let program = parse("inline",
         r#"
         function main() : i32 {
             var x = 100;
@@ -408,65 +409,65 @@ fn ref_doesnt_mutate_variables() {
 #[test]
 #[ignore]
 fn goto_skips_stuff() {
-    let skip_to_here = func_i32_(Stmt::Return(i32_(7, D_S), D_S), D_S);
+    let skip_to_here = func_i32_(Stmt::Return(i32_(7, Default::default()), Default::default()), Default::default());
     let main_body = Stmt::Block(
         vec![
             // hopefully it stays 5
-            Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5, D_S), D_S)), D_S),
-            Stmt::Goto(Label::App(0), D_S),
+            Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5, Default::default()), Default::default())), Default::default()),
+            Stmt::Goto(Label::App(0), Default::default()),
             // this is the part we wanna skip
-            Stmt::Assign(id_("x"), atom_(i32_(2, D_S), D_S), D_S),
+            Stmt::Assign(id_("x"), atom_(i32_(2, Default::default()), Default::default()), Default::default()),
             // goto goes here
-            Stmt::Expression(Expr::Call(id_("other"), vec![], D_S), D_S),
-            Stmt::Return(get_id_("x", D_S), D_S),
+            Stmt::Expression(Expr::Call(id_("other"), vec![], Default::default()), Default::default()),
+            Stmt::Return(get_id_("x", Default::default()), Default::default()),
         ],
-        D_S,
+        Default::default(),
     );
-    let program = program2_(func_i32_(main_body, D_S), skip_to_here);
+    let program = program2_(func_i32_(main_body, Default::default()), skip_to_here);
     expect_notwasm(5, program);
 }
 #[test]
 #[ignore]
 fn goto_skips_loop() {
-    let skip_to_here = func_i32_(Stmt::Return(i32_(7, D_S), D_S), D_S);
+    let skip_to_here = func_i32_(Stmt::Return(i32_(7, Default::default()), Default::default()), Default::default());
     let main_body = Stmt::Block(
         vec![
             // hopefully it stays 5
-            Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5, D_S), D_S)), D_S),
-            Stmt::Goto(Label::App(0), D_S),
+            Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5, Default::default()), Default::default())), Default::default()),
+            Stmt::Goto(Label::App(0), Default::default()),
             // this is the part we wanna skip
-            loop_(Stmt::Empty, D_S),
+            loop_(Stmt::Empty, Default::default()),
             // goto goes here
-            Stmt::Expression(Expr::Call(id_("other"), vec![], D_S), D_S),
-            Stmt::Return(get_id_("x", D_S), D_S),
+            Stmt::Expression(Expr::Call(id_("other"), vec![], Default::default()), Default::default()),
+            Stmt::Return(get_id_("x", Default::default()), Default::default()),
         ],
-        D_S,
+        Default::default(),
     );
-    let program = program2_(func_i32_(main_body, D_S), skip_to_here);
+    let program = program2_(func_i32_(main_body, Default::default()), skip_to_here);
     expect_notwasm(5, program);
 }
 #[test]
 #[ignore]
 fn goto_enters_if() {
-    let skip_to_here = func_i32_(Stmt::Return(i32_(7, D_S), D_S), D_S);
+    let skip_to_here = func_i32_(Stmt::Return(i32_(7, Default::default()), Default::default()), Default::default());
     let main_body = Stmt::Block(
         vec![
             // hopefully it stays 5
-            Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5, D_S), D_S)), D_S),
-            Stmt::Goto(Label::App(0), D_S),
+            Stmt::Var(VarStmt::new(id_("x"), atom_(i32_(5, Default::default()), Default::default())), Default::default()),
+            Stmt::Goto(Label::App(0), Default::default()),
             if_(
                 TRUE_,
                 // this is the part we wanna skip
-                Stmt::Assign(id_("x"), atom_(i32_(2, D_S), D_S), D_S),
+                Stmt::Assign(id_("x"), atom_(i32_(2, Default::default()), Default::default()), Default::default()),
                 // goto goes here
-                Stmt::Expression(Expr::Call(id_("other"), vec![], D_S), D_S),
-                D_S,
+                Stmt::Expression(Expr::Call(id_("other"), vec![], Default::default()), Default::default()),
+                Default::default(),
             ),
-            Stmt::Return(get_id_("x", D_S), D_S),
+            Stmt::Return(get_id_("x", Default::default()), Default::default()),
         ],
-        D_S,
+        Default::default(),
     );
-    let program = program2_(func_i32_(main_body, D_S), skip_to_here);
+    let program = program2_(func_i32_(main_body, Default::default()), skip_to_here);
     expect_notwasm(5, program);
 }
 
@@ -475,12 +476,12 @@ fn strings() {
     let body = Stmt::Block(
         vec![
             Stmt::Var(
-                VarStmt::new(id_("s"), atom_(str_("wow, thanks", D_S), D_S)),
-                D_S,
+                VarStmt::new(id_("s"), atom_(str_("wow, thanks", Default::default()), Default::default())),
+                Default::default(),
             ),
-            Stmt::Return(len_(get_id_("s", D_S), D_S), D_S),
+            Stmt::Return(len_(get_id_("s", Default::default()), Default::default()), Default::default()),
         ],
-        D_S,
+        Default::default(),
     );
     let program = test_program_(body);
     expect_notwasm(11, program);
@@ -488,13 +489,13 @@ fn strings() {
 
 #[test]
 fn globals() {
-    let mut program = test_program_(Stmt::Return(get_id_("MY_GLOBAL", D_S), D_S));
+    let mut program = test_program_(Stmt::Return(get_id_("MY_GLOBAL", Default::default()), Default::default()));
     program.globals.insert(
         id_("MY_GLOBAL"),
         Global {
             is_mut: false,
             ty: Type::I32,
-            atom: Some(i32_(5, D_S)),
+            atom: Some(i32_(5, Default::default())),
         },
     );
     expect_notwasm(5, program);
@@ -502,7 +503,7 @@ fn globals() {
 
 #[test]
 fn simple_prec() {
-    let program = parse(
+    let program = parse("inline",
         "
         function main(): i32 {
             return 5 + 2 * 3 + 2;
@@ -514,7 +515,7 @@ fn simple_prec() {
 
 #[test]
 fn identical_interned_string_identity() {
-    let mut program = parse(
+    let mut program = parse("inline",
         r#"
         function main(): bool {
             var s1 = "Calvin Coolidge";
@@ -528,7 +529,7 @@ fn identical_interned_string_identity() {
 
 #[test]
 fn float_in_any() {
-    let mut program = parse(
+    let mut program = parse("inline",
         r#"
         function main(): bool {
             var x = any(32.3f);

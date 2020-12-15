@@ -35,6 +35,7 @@
 use super::syntax::*;
 use super::walk::*;
 use im_rc::HashMap;
+use crate::pos::Pos;
 
 pub fn closure_convert(program: &mut Stmt) {
     let mut v = ClosureConversion::new();
@@ -58,7 +59,7 @@ impl Visitor for ClosureConversion {
     fn exit_expr(&mut self, expr: &mut Expr, _: &Loc) {
         match expr {
             Expr::Id(id, ty, s) => {
-                if let Some(e) = self.compile_id(id, ty.clone(), *s) {
+                if let Some(e) = self.compile_id(id, ty.clone(), s.clone()) {
                     *expr = e;
                 }
             }
@@ -69,12 +70,13 @@ impl Visitor for ClosureConversion {
                 // remember which variables should be passed on from env vs
                 // from stack. im_rc hashmap iter is guaranteed to be
                 // consistent for the same data
+                let s_copy = s.clone();
                 let env = func
                     .free_vars
                     .iter()
-                    .map(|(id, ty)| match self.compile_id(id, ty.clone(), *s) {
+                    .map(|(id, ty)| match self.compile_id(id, ty.clone(), s.clone()) {
                         Some(e) => (e, ty.clone()),
-                        None => (Expr::Id(id.clone(), ty.clone(), *s), ty.clone()),
+                        None => (Expr::Id(id.clone(), ty.clone(), s.clone()), ty.clone()),
                     })
                     .collect();
                 // you might think that here is where we want to insert the environment
@@ -83,7 +85,7 @@ impl Visitor for ClosureConversion {
                 // the whole program with an environmented type in
                 // from_jankyscript. when we no longer closure-convert all functions,
                 // this may need to change
-                *expr = Expr::Closure(func.take(), env, *s);
+                *expr = Expr::Closure(func.take(), env, s_copy);
             }
             // assigns should have been boxed so they will never be assigned
             // to free
@@ -102,7 +104,7 @@ impl ClosureConversion {
         self.free_vars_stack.last().unwrap()
     }
     /// if id is free, then turn it into an EnvGet, otherwise return None
-    fn compile_id(&self, id: &Id, ty: Type, s: Span) -> Option<Expr> {
+    fn compile_id(&self, id: &Id, ty: Type, s: Pos) -> Option<Expr> {
         self.free_vars()
             .get(id)
             .and_then(|i| Some(Expr::EnvGet(*i, ty.clone(), s)))

@@ -5,34 +5,34 @@
 use super::syntax::*;
 use crate::shared::std_lib::get_global_object;
 use crate::shared::Report;
+use crate::pos::Pos;
 use im_rc::HashMap;
-use swc_common::SourceMap;
 
 type Env = HashMap<Id, Type>;
 
 #[derive(Debug)]
 pub enum TypeCheckingError {
     // Expected expression to have the first type, but it had the second
-    TypeMismatch(String, Type, Type, Span),
+    TypeMismatch(String, Type, Type, Pos),
     // Expected expression to be indexable (either DynObject or Arrray),
     // but it had the given type
-    ExpectedIndexable(String, Type, Span),
+    ExpectedIndexable(String, Type, Pos),
     // Expected an indexer (e.g. the `x` in arr[x]), but it had the given type
-    ExpectedIndexer(String, Type, Span),
+    ExpectedIndexer(String, Type, Pos),
     // Expected an expression to have a function type
-    ExpectedFunction(String, Type, Span),
+    ExpectedFunction(String, Type, Pos),
     // Tried to tag a value of the first type, but it had the second
-    TagTypeMismatch(Type, Type, Span),
+    TagTypeMismatch(Type, Type, Pos),
     // Expected a ground type
-    ExpectedGround(String, Type, Span),
+    ExpectedGround(String, Type, Pos),
     // A return statement was used outside of a function
-    UnexpectedReturn(Type, Span),
+    UnexpectedReturn(Type, Pos),
     // A variable was referenced that does not exist
-    NoSuchVariable(Id, Span),
+    NoSuchVariable(Id, Pos),
 }
 
 impl Report for TypeCheckingError {
-    fn report(&self, sm: &SourceMap) -> String {
+    fn report(&self) -> String {
         use TypeCheckingError::*;
         match self {
             TypeMismatch(a, b, c, s) => format!(
@@ -40,47 +40,47 @@ impl Report for TypeCheckingError {
                 a,
                 b,
                 c,
-                sm.span_to_string(*s)
+                s
             ),
             ExpectedIndexable(a, b, s) => format!(
                 "{} expected indexable type, but received {} at {}",
                 a,
                 b,
-                sm.span_to_string(*s)
+                s
             ),
             ExpectedIndexer(a, b, s) => format!(
                 "{} expected idexer, but received {} at {}",
                 a,
                 b,
-                sm.span_to_string(*s)
+                s
             ),
             ExpectedFunction(a, b, s) => format!(
                 "{} expected an expression to have a function type, but received {} at {}",
                 a,
                 b,
-                sm.span_to_string(*s)
+                s
             ),
             TagTypeMismatch(a, b, s) => format!(
                 "tried to tag a value of type {}, but received {} at {}",
                 a,
                 b,
-                sm.span_to_string(*s)
+                s
             ),
             ExpectedGround(a, b, s) => format!(
                 "{} expected a ground type but got {} at {}",
                 a,
                 b,
-                sm.span_to_string(*s)
+                s
             ),
             UnexpectedReturn(a, s) => format!(
                 "unexpected return of type {} at {}",
                 a,
-                sm.span_to_string(*s)
+                s
             ),
             NoSuchVariable(a, s) => format!(
                 "a variable named {} was referenced that doesn't exist at {}",
                 a,
-                sm.span_to_string(*s)
+                s
             ),
         }
     }
@@ -89,7 +89,7 @@ impl Report for TypeCheckingError {
 pub type TypeCheckingResult<T> = Result<T, TypeCheckingError>;
 
 // ensure we got a specific type
-fn ensure(msg: &str, expected: Type, got: Type, s: Span) -> TypeCheckingResult<Type> {
+fn ensure(msg: &str, expected: Type, got: Type, s: &Pos) -> TypeCheckingResult<Type> {
     if expected == got {
         Ok(got)
     } else {
@@ -97,7 +97,7 @@ fn ensure(msg: &str, expected: Type, got: Type, s: Span) -> TypeCheckingResult<T
             String::from(msg),
             expected,
             got,
-            s,
+            s.clone(),
         ))
     }
 }
@@ -107,10 +107,10 @@ fn ensure(msg: &str, expected: Type, got: Type, s: Span) -> TypeCheckingResult<T
 
 // ensure the given type is indexable; that is, able to be indexed using
 // braces.
-fn ensure_indexable(msg: &str, got: Type, s: Span) -> TypeCheckingResult<Type> {
+fn ensure_indexable(msg: &str, got: Type, s: Pos) -> TypeCheckingResult<Type> {
     let types = [Type::DynObject, Type::Array, Type::String, Type::Any];
     for expected_type in &types {
-        let result = ensure(msg, expected_type.clone(), got.clone(), s);
+        let result = ensure(msg, expected_type.clone(), got.clone(), &s);
         match result {
             Ok(_) => {
                 return result;
@@ -129,10 +129,10 @@ fn ensure_indexable(msg: &str, got: Type, s: Span) -> TypeCheckingResult<Type> {
 }
 
 // ensure the given type is an indexer (e.g. the `x` in arr[x])
-fn ensure_indexer(msg: &str, got: Type, s: Span) -> TypeCheckingResult<Type> {
+fn ensure_indexer(msg: &str, got: Type, s: Pos) -> TypeCheckingResult<Type> {
     let types = [Type::String, Type::Int, Type::Any];
     for expected_type in &types {
-        let result = ensure(msg, expected_type.clone(), got.clone(), s);
+        let result = ensure(msg, expected_type.clone(), got.clone(), &s);
         match result {
             Ok(_) => {
                 return result;
@@ -150,7 +150,7 @@ fn ensure_indexer(msg: &str, got: Type, s: Span) -> TypeCheckingResult<Type> {
     ))
 }
 
-fn ensure_function(msg: &str, got: Type, s: Span) -> TypeCheckingResult<(Vec<Type>, Box<Type>)> {
+fn ensure_function(msg: &str, got: Type, s: Pos) -> TypeCheckingResult<(Vec<Type>, Box<Type>)> {
     match got {
         Type::Function(args_types, return_type) => Ok((args_types, return_type)),
         _ => Err(TypeCheckingError::ExpectedFunction(
@@ -161,7 +161,7 @@ fn ensure_function(msg: &str, got: Type, s: Span) -> TypeCheckingResult<(Vec<Typ
     }
 }
 
-fn ensure_ground(msg: &str, got: Type, s: Span) -> TypeCheckingResult<Type> {
+fn ensure_ground(msg: &str, got: Type, s: Pos) -> TypeCheckingResult<Type> {
     if got.is_ground() {
         Ok(got)
     } else {
@@ -169,11 +169,11 @@ fn ensure_ground(msg: &str, got: Type, s: Span) -> TypeCheckingResult<Type> {
     }
 }
 
-fn lookup(env: &Env, id: &Id, s: Span) -> TypeCheckingResult<Type> {
+fn lookup(env: &Env, id: &Id, s: &Pos) -> TypeCheckingResult<Type> {
     if let Some(ty) = env.get(id) {
         Ok(ty.clone())
     } else {
-        Err(TypeCheckingError::NoSuchVariable(id.clone(), s))
+        Err(TypeCheckingError::NoSuchVariable(id.clone(), s.clone()))
     }
 }
 
@@ -246,7 +246,7 @@ fn type_check_stmt(stmt: &Stmt, env: Env, ret_ty: &Option<Type>) -> TypeChecking
                 "variable declaration matches given type",
                 t.clone(),
                 type_check_expr(e, env.clone())?,
-                *s,
+                &s,
             )?;
 
             Ok(env.update(x.clone(), t.clone()))
@@ -256,7 +256,7 @@ fn type_check_stmt(stmt: &Stmt, env: Env, ret_ty: &Option<Type>) -> TypeChecking
                 "if condition",
                 Type::Bool,
                 type_check_expr(c, env.clone())?,
-                *s,
+                &s,
             )?;
 
             type_check_stmt(&t, env.clone(), ret_ty)?;
@@ -272,9 +272,9 @@ fn type_check_stmt(stmt: &Stmt, env: Env, ret_ty: &Option<Type>) -> TypeChecking
             let e_type = type_check_expr(e, env.clone())?;
 
             match ret_ty {
-                None => Err(TypeCheckingError::UnexpectedReturn(e_type, *s)),
+                None => Err(TypeCheckingError::UnexpectedReturn(e_type, s.clone())),
                 Some(ty) => {
-                    ensure("return", ty.clone(), e_type, *s)?;
+                    ensure("return", ty.clone(), e_type, &s)?;
                     Ok(env)
                 }
             }
@@ -296,12 +296,12 @@ fn type_check_fun_call(
     fun_type: Type,
     actual_args: &Vec<Expr>,
     env: Env,
-    s: Span,
+    s: Pos,
 ) -> TypeCheckingResult<Type> {
     // ensure that `fun_type` is a function type.
     // get its expected argument types.
     let (expected_arg_types, return_type) =
-        ensure_function("expected function for function call", fun_type, s)?;
+        ensure_function("expected function for function call", fun_type, s.clone())?;
 
     // derive types for the actual arguments.
     let actual_arg_types: Vec<TypeCheckingResult<Type>> = actual_args
@@ -321,7 +321,7 @@ fn type_check_fun_call(
             "function argument must match declared type",
             expected,
             actual?,
-            s,
+            &s,
         )?;
     }
 
@@ -351,9 +351,9 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             match &**lval {
                 LValue::Id(id, ty) => {
                     // what type is id?
-                    let id_ty = lookup(&env, &id, *s)?;
-                    ensure("rvalue assignment", ty.clone(), rval_ty.clone(), *s)?;
-                    ensure("lvalue assignment", ty.clone(), id_ty, *s)?;
+                    let id_ty = lookup(&env, &id, &s)?;
+                    ensure("rvalue assignment", ty.clone(), rval_ty.clone(), &s)?;
+                    ensure("lvalue assignment", ty.clone(), id_ty, &s)?;
                     Ok(rval_ty)
                 }
                 LValue::Dot(e, _id) => {
@@ -387,7 +387,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             let fun_type = type_check_expr(fun, env.clone())?;
 
             // type check this call
-            type_check_fun_call(fun_type, args, env, *s)
+            type_check_fun_call(fun_type, args, env, s.clone())
         }
         Expr::Coercion(coercion, e, s) => {
             // type the expression. regardless of the coercion, the expression
@@ -395,21 +395,21 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             let actual_type = type_check_expr(e, env)?;
 
             // find the types the coercion is going from and to
-            let (from, to) = type_check_coercion(coercion, *s)?;
+            let (from, to) = type_check_coercion(coercion, s.clone())?;
 
             // ensure we can feed the given expr into the given coercion
             ensure(
                 "expression matches coercion source type",
                 from,
                 actual_type,
-                *s,
+                &s,
             )?;
 
             // we can, so we will have the output type of the coercion
             Ok(to)
         }
         Expr::Lit(l, _) => Ok(type_check_lit(&l)),
-        Expr::Id(id, ty, s) => ensure("id get", ty.clone(), lookup(&env, &id, *s)?, *s),
+        Expr::Id(id, ty, s) => ensure("id get", ty.clone(), lookup(&env, &id, &s)?, &s),
         Expr::Object(props, _) => {
             // type check each property
             for (_key, val) in props {
@@ -433,7 +433,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
                 "property lookup done on real object",
                 Type::DynObject,
                 obj_type,
-                *s,
+                &s,
             )?;
 
             // we don't know anything about the type we're returning.
@@ -445,11 +445,11 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
         Expr::Bracket(obj, dyn_prop, s) => {
             let obj_type = type_check_expr(obj, env.clone())?;
 
-            ensure_indexable("brackets object", obj_type, *s)?;
+            ensure_indexable("brackets object", obj_type, s.clone())?;
 
             let dyn_prop_type = type_check_expr(dyn_prop, env)?;
 
-            ensure_indexer("brackets index", dyn_prop_type, *s)?;
+            ensure_indexer("brackets index", dyn_prop_type, s.clone())?;
 
             // see Expr::Dot case for why we're returning Any
             Ok(Type::Any)
@@ -459,13 +459,13 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             let prim_type = prim.janky_typ();
 
             // type check this function call
-            type_check_fun_call(prim_type, args, env, *s)
+            type_check_fun_call(prim_type, args, env, s.clone())
         }
         Expr::Unary(op, e, s) => {
             // ensure expr has expected input type
             let (ty_in, ty_out) = op.janky_typ();
             let got = type_check_expr(e, env)?;
-            ensure("unary op", ty_in, got, *s)?;
+            ensure("unary op", ty_in, got, &s)?;
 
             // whole operation has output type
             Ok(ty_out)
@@ -475,8 +475,8 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             let (ty_in, ty_out) = op.janky_typ();
             let got_l = type_check_expr(e_l, env.clone())?;
             let got_r = type_check_expr(e_r, env.clone())?;
-            ensure("binary op lhs", ty_in.clone(), got_l, *s)?;
-            ensure("binary op rhs", ty_in, got_r, *s)?;
+            ensure("binary op lhs", ty_in.clone(), got_l, &s)?;
+            ensure("binary op rhs", ty_in, got_r, &s)?;
 
             // whole operation has output type
             Ok(ty_out)
@@ -492,7 +492,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
 
 // ensures the given coercion is well-formed, and returns its input and output
 // types.
-fn type_check_coercion(c: &Coercion, s: Span) -> TypeCheckingResult<(Type, Type)> {
+fn type_check_coercion(c: &Coercion, s: Pos) -> TypeCheckingResult<(Type, Type)> {
     match c {
         Coercion::FloatToInt => Ok((Type::Float, Type::Int)),
         Coercion::IntToFloat => Ok((Type::Int, Type::Float)),
@@ -508,7 +508,7 @@ fn type_check_coercion(c: &Coercion, s: Span) -> TypeCheckingResult<(Type, Type)
             let mut args_to = Vec::<Type>::new();
 
             for arg_coercion in args_to_type {
-                let (from, to) = type_check_coercion(arg_coercion, s)?;
+                let (from, to) = type_check_coercion(arg_coercion, s.clone())?;
                 args_from.push(from);
                 args_to.push(to);
             }
@@ -527,10 +527,10 @@ fn type_check_coercion(c: &Coercion, s: Span) -> TypeCheckingResult<(Type, Type)
         }
         Coercion::Id(to_type) => Ok((to_type.clone(), to_type.clone())),
         Coercion::Seq(t1, t2) => {
-            let (t2_from, t2_to) = type_check_coercion(t2, s)?;
-            let (t1_from, t1_to) = type_check_coercion(t1, s)?;
+            let (t2_from, t2_to) = type_check_coercion(t2, s.clone())?;
+            let (t1_from, t1_to) = type_check_coercion(t1, s.clone())?;
 
-            ensure("sequence composition", t1_to, t2_from, s)?;
+            ensure("sequence composition", t1_to, t2_from, &s)?;
 
             Ok((t1_from, t2_to))
         }

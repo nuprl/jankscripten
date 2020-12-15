@@ -14,10 +14,10 @@ impl Visitor for LiftVars {
         if let Stmt::VarDecl(decl, s) = stmt {
             let decl1 = decl.pop().expect("no decls in vardecl");
             assert_eq!(decl.pop(), None, "vardecls not desugared");
-            let new_decl = vardecl1_(decl1.name.clone(), UNDEFINED_, *s);
+            let new_decl = vardecl1_(decl1.name.clone(), UNDEFINED_, s.clone());
             loc.body_of_enclosing_function_or_program()
                 .insert(0, new_decl);
-            *stmt = expr_(assign_(decl1.name, *decl1.named, *s), *s);
+            *stmt = expr_(assign_(decl1.name, *decl1.named, s.clone()), s.clone());
         }
     }
 }

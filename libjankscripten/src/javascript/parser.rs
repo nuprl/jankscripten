@@ -3,12 +3,13 @@
 
 #![allow(unused_variables)]
 
+use std::rc::Rc;
 use super::constructors::*;
 use super::syntax as S;
 use swc_common::{FileName, SourceMap, Span};
 use swc_ecma_ast as swc;
 use swc_ecma_parser::{lexer, Parser, StringInput, Syntax};
-
+use crate::pos::Pos;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -36,11 +37,11 @@ impl From<swc_ecma_parser::error::Error> for ParseError {
 }
 
 /// Parse a full JavaScript program from source code into our JavaScript AST.
-pub fn parse(js_code: &str) -> (ParseResult<S::Stmt>, SourceMap) {
+pub fn parse(js_code: &str) -> ParseResult<S::Stmt> {
     // The SourceMap keeps track of all the source files given to the parser.
     // All spans given to us by the parser library are actually indices
     // into this source map.
-    let source_map: SourceMap = Default::default();
+    let source_map: Rc<SourceMap> = Default::default();
 
     // Register our JavaScript file with the source map
     let source_file = source_map.new_source_file(
@@ -64,11 +65,10 @@ pub fn parse(js_code: &str) -> (ParseResult<S::Stmt>, SourceMap) {
     // Parse our script into the library's AST
     let script = match parser.parse_script() {
         Ok(s) => s,
-        Err(e) => return (Err(ParseError::SWC(e)), source_map),
+        Err(e) => return Err(ParseError::SWC(e)),
     };
-
-    // Parse the library's AST into our AST
-    (parse_script(script, &source_map), source_map)
+    
+    parse_script(script, &source_map)
 }
 
 macro_rules! unsupported {
@@ -88,12 +88,12 @@ macro_rules! unsupported {
 
 /// A parsing result used for an unsupported feature of JavaScript, with a
 /// customizable message.
-fn unsupported_message<T>(msg: &str, span: Span, source_map: &SourceMap) -> Result<T, ParseError> {
+fn unsupported_message<T>(msg: &str, span: Span, source_map: &Rc<SourceMap>) -> Result<T, ParseError> {
     Err(unsupported_error(msg, span, source_map))
 }
 
 /// Construct a parse *error* with the given message and location.
-fn unsupported_error(msg: &str, span: Span, source_map: &SourceMap) -> ParseError {
+fn unsupported_error(msg: &str, span: Span, source_map: &Rc<SourceMap>) -> ParseError {
     ParseError::Unsupported(format!("{} at {}", msg, source_map.span_to_string(span)))
 }
 
@@ -103,7 +103,7 @@ fn parse_id(ident: swc::Ident) -> S::Id {
 }
 
 /// Parse an entire swc script
-fn parse_script(script: swc::Script, source_map: &SourceMap) -> ParseResult<S::Stmt> {
+fn parse_script(script: swc::Script, source_map: &Rc<SourceMap>) -> ParseResult<S::Stmt> {
     let mut stmts = parse_stmts(script.body, source_map)?;
 
     // Desugaring expects the program to have a single block statement at the
@@ -112,16 +112,16 @@ fn parse_script(script: swc::Script, source_map: &SourceMap) -> ParseResult<S::S
     // it in a block statement.
 
     if stmts.len() == 1 {
-        if let S::Stmt::Block(_, s) = stmts[0] {
+        if let S::Stmt::Block(_, s) = &stmts[0] {
             return Ok(stmts.pop().unwrap());
         }
     }
 
-    Ok(S::Stmt::Block(stmts, S::DUMMY_SP))
+    Ok(S::Stmt::Block(stmts, Default::default()))
 }
 
 /// Parse multiple swc statements.
-fn parse_stmts(stmts: Vec<swc::Stmt>, source_map: &SourceMap) -> ParseResult<Vec<S::Stmt>> {
+fn parse_stmts(stmts: Vec<swc::Stmt>, source_map: &Rc<SourceMap>) -> ParseResult<Vec<S::Stmt>> {
     stmts
         .into_iter()
         .map(|stmt| parse_stmt(stmt, source_map))
@@ -129,14 +129,14 @@ fn parse_stmts(stmts: Vec<swc::Stmt>, source_map: &SourceMap) -> ParseResult<Vec
 }
 
 /// Parse an swc statement.
-fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
+fn parse_stmt(stmt: swc::Stmt, source_map: &Rc<SourceMap>) -> ParseResult<S::Stmt> {
     use swc::Stmt::*;
     match stmt {
         Block(block_stmt) => parse_block(block_stmt, source_map),
-        Break(break_stmt) => Ok(break_(break_stmt.label.map(parse_id), break_stmt.span)),
+        Break(break_stmt) => Ok(break_(break_stmt.label.map(parse_id), Pos::from_swc(source_map, break_stmt.span))),
         Continue(continue_stmt) => Ok(continue_(
             continue_stmt.label.map(parse_id),
-            continue_stmt.span,
+            Pos::from_swc(source_map, continue_stmt.span),
         )),
         Debugger(debugger_stmt) => unsupported!(debugger_stmt.span, source_map),
         Decl(decl) => {
@@ -146,10 +146,10 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
         DoWhile(do_while_stmt) => {
             let body = parse_stmt(*do_while_stmt.body, source_map)?;
             let test = parse_expr(*do_while_stmt.test, source_map)?;
-            Ok(dowhile_(body, test, do_while_stmt.span))
+            Ok(dowhile_(body, test, Pos::from_swc(source_map, do_while_stmt.span)))
         }
         Empty(empty_stmt) => Ok(S::Stmt::Empty),
-        Expr(swc::ExprStmt { span, expr }) => Ok(expr_(parse_expr(*expr, source_map)?, span)),
+        Expr(swc::ExprStmt { span, expr }) => Ok(expr_(parse_expr(*expr, source_map)?, Pos::from_swc(source_map, span))),
         For(for_stmt) => {
             let init = match for_stmt.init {
                 None => S::ForInit::Expr(Box::new(UNDEFINED_)),
@@ -181,7 +181,7 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
                 parse_opt_expr(for_stmt.test, source_map)?,
                 parse_opt_expr(for_stmt.update, source_map)?,
                 parse_stmt(*for_stmt.body, source_map)?,
-                for_stmt.span,
+                Pos::from_swc(source_map, for_stmt.span),
             ))
         }
         ForIn(swc::ForInStmt {
@@ -259,7 +259,7 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
                 parse_id(id),
                 parse_expr(*right, source_map)?,
                 parse_stmt(*body, source_map)?,
-                span,
+                Pos::from_swc(source_map, span),
             ))
         }
         ForOf(for_of_stmt) => unsupported!(for_of_stmt.span, source_map),
@@ -273,16 +273,16 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
             // alternate
             let else_stmt = parse_opt_stmt(if_stmt.alt, source_map)?;
 
-            Ok(if_(cond_expr, then_stmt, else_stmt, if_stmt.span))
+            Ok(if_(cond_expr, then_stmt, else_stmt, Pos::from_swc(source_map, if_stmt.span)))
         }
         Labeled(labeled_stmt) => Ok(label_(
             parse_id(labeled_stmt.label),
             parse_stmt(*labeled_stmt.body, source_map)?,
-            labeled_stmt.span,
+            Pos::from_swc(source_map, labeled_stmt.span),
         )),
         Return(return_stmt) => Ok(return_(
             parse_opt_expr(return_stmt.arg, source_map)?,
-            return_stmt.span,
+            Pos::from_swc(source_map, return_stmt.span),
         )),
         Switch(swc::SwitchStmt {
             discriminant,
@@ -315,12 +315,12 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
                 parse_expr(*discriminant, source_map)?,
                 cases.collect(),
                 default_case,
-                span,
+                Pos::from_swc(source_map, span),
             ))
         }
         Throw(throw_stmt) => Ok(throw_(
             parse_expr(*throw_stmt.arg, source_map)?,
-            throw_stmt.span,
+            Pos::from_swc(source_map, throw_stmt.span),
         )),
         Try(try_stmt) => {
             // deal with each possible part of the try statement separately,
@@ -341,7 +341,7 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
                     stmt,
                     parse_id_from_pattern(pattern, span, source_map)?,
                     parse_block(body, source_map)?,
-                    span,
+                    Pos::from_swc(source_map, span),
                 ),
 
                 Some(_) => return unsupported!(try_stmt.span, source_map),
@@ -352,7 +352,7 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
                 None => stmt,
                 Some(block) => {
                     let block_span = block.span;
-                    finally_(stmt, parse_block(block, source_map)?, block_span)
+                    finally_(stmt, parse_block(block, source_map)?, Pos::from_swc(source_map, block_span))
                 }
             };
 
@@ -362,7 +362,7 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
         While(while_stmt) => {
             let test = parse_expr(*while_stmt.test, source_map)?;
             let body = parse_stmt(*while_stmt.body, source_map)?;
-            Ok(while_(test, body, while_stmt.span))
+            Ok(while_(test, body, Pos::from_swc(source_map, while_stmt.span)))
         }
         With(with_stmt) => unsupported!(with_stmt.span, source_map),
     }
@@ -372,7 +372,7 @@ fn parse_stmt(stmt: swc::Stmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
 /// because optional stmts are boxed in swc.
 fn parse_opt_stmt(
     opt_stmt: Option<Box<swc::Stmt>>,
-    source_map: &SourceMap,
+    source_map: &Rc<SourceMap>,
 ) -> ParseResult<S::Stmt> {
     match opt_stmt {
         None => Ok(S::Stmt::Empty),
@@ -381,7 +381,7 @@ fn parse_opt_stmt(
 }
 
 /// Parse an swc expression.
-fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
+fn parse_expr(expr: swc::Expr, source_map: &Rc<SourceMap>) -> ParseResult<S::Expr> {
     use swc::Expr::*;
     match expr {
         Array(swc::ArrayLit { elems, span }) => {
@@ -389,7 +389,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
                 .into_iter()
                 .map(|e| parse_opt_expr_or_spread(e, source_map))
                 .collect();
-            Ok(S::Expr::Array(elems?, span))
+            Ok(S::Expr::Array(elems?, Pos::from_swc(source_map, span)))
         }
         Arrow(arrow_expr) => unsupported!(arrow_expr.span, source_map),
         Assign(swc::AssignExpr {
@@ -401,7 +401,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             let op = parse_assign_op(op, span, source_map)?;
             let left = parse_pat_or_expr(left, span, source_map)?;
             let right = parse_expr(*right, source_map)?;
-            Ok(op_assign_(op, left, right, span))
+            Ok(op_assign_(op, left, right, Pos::from_swc(source_map, span)))
         }
         Await(await_expr) => unsupported!(await_expr.span, source_map),
         Bin(swc::BinExpr {
@@ -414,7 +414,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             let left = parse_expr(*left, source_map)?;
             let right = parse_expr(*right, source_map)?;
 
-            Ok(binary_(op, left, right, span))
+            Ok(binary_(op, left, right, Pos::from_swc(source_map, span)))
         }
         Class(class_expr) => unsupported!(class_expr.class.span, source_map),
         Call(swc::CallExpr {
@@ -428,7 +428,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
                 .map(|e| parse_expr_or_spread(e, source_map))
                 .collect();
             let callee = parse_expr_or_super(callee, source_map);
-            Ok(call_(callee?, args?, span))
+            Ok(call_(callee?, args?, Pos::from_swc(source_map, span)))
         }
         Cond(swc::CondExpr {
             test,
@@ -439,7 +439,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             let test = parse_expr(*test, source_map)?;
             let cons = parse_expr(*cons, source_map)?;
             let alt = parse_expr(*alt, source_map)?;
-            Ok(if_expr_(test, cons, alt, span))
+            Ok(if_expr_(test, cons, alt, Pos::from_swc(source_map, span)))
         }
         Fn(swc::FnExpr { ident, function }) => {
             // parse parts
@@ -451,11 +451,11 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             let (params, body) = parse_function(function, source_map)?;
 
             // put it all together
-            Ok(expr_func_(ident, params, body, span))
+            Ok(expr_func_(ident, params, body, Pos::from_swc(source_map, span)))
         }
         Ident(ident) => {
             let span = ident.span;
-            Ok(id_(parse_id(ident), span))
+            Ok(id_(parse_id(ident), Pos::from_swc(source_map, span)))
         }
         Invalid(invalid) => unsupported!(invalid.span, source_map),
         JSXElement(jsx_element) => unsupported!(jsx_element.span, source_map),
@@ -467,7 +467,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
         }
         Lit(lit) => {
             let (lit, span) = parse_lit(lit, source_map)?;
-            Ok(S::Expr::Lit(lit, span))
+            Ok(S::Expr::Lit(lit, Pos::from_swc(source_map, span)))
         }
         Member(swc::MemberExpr {
             obj,
@@ -477,10 +477,10 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
         }) => {
             let obj = parse_expr_or_super(obj, source_map)?;
             if computed {
-                Ok(bracket_(obj, parse_expr(*prop, source_map)?, span))
+                Ok(bracket_(obj, parse_expr(*prop, source_map)?, Pos::from_swc(source_map, span)))
             } else {
                 match *prop {
-                    Ident(id) => Ok(dot_(obj, parse_id(id), span)),
+                    Ident(id) => Ok(dot_(obj, parse_id(id), Pos::from_swc(source_map, span))),
                     _ => unsupported!(span, source_map),
                 }
             }
@@ -508,14 +508,14 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
                 None => Ok(Vec::new()),
             };
             let callee = parse_expr(*callee, source_map);
-            Ok(new_(callee?, args?, span))
+            Ok(new_(callee?, args?, Pos::from_swc(source_map, span)))
         }
         Object(swc::ObjectLit { props, span }) => {
             let props: ParseResult<Vec<_>> = props
                 .into_iter()
                 .map(|p| parse_prop_or_spread(p, span, source_map))
                 .collect();
-            Ok(S::Expr::Object(props?, span))
+            Ok(S::Expr::Object(props?, Pos::from_swc(source_map, span)))
         }
         OptChain(swc::OptChainExpr { span, .. }) => unsupported!(span, source_map),
         Paren(swc::ParenExpr { expr, .. }) => parse_expr(*expr, source_map),
@@ -525,7 +525,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
                 .into_iter()
                 .map(|e| parse_expr(*e, source_map))
                 .collect();
-            Ok(S::Expr::Seq(exprs?, span))
+            Ok(S::Expr::Seq(exprs?, Pos::from_swc(source_map, span)))
         }
         TaggedTpl(tagged_tpl) => unsupported!(tagged_tpl.span, source_map),
         This(swc::ThisExpr { span }) => Ok(S::Expr::This),
@@ -538,7 +538,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
         Unary(swc::UnaryExpr { op, arg, span }) => {
             let op = parse_unary_op(op, span, source_map)?;
             let arg = parse_expr(*arg, source_map)?;
-            Ok(unary_(op, arg, span))
+            Ok(unary_(op, arg, Pos::from_swc(source_map, span)))
         }
         Update(swc::UpdateExpr {
             span,
@@ -549,7 +549,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
             let op = parse_update_op(op, prefix, span, source_map)?;
             let arg = parse_lvalue_from_expr(*arg, span, source_map)?;
 
-            Ok(unaryassign_(op, arg, span))
+            Ok(unaryassign_(op, arg, Pos::from_swc(source_map, span)))
         }
         Yield(yield_expr) => unsupported!(yield_expr.span, source_map),
     }
@@ -560,7 +560,7 @@ fn parse_expr(expr: swc::Expr, source_map: &SourceMap) -> ParseResult<S::Expr> {
 /// our AST.
 fn parse_opt_expr(
     opt_expr: Option<Box<swc::Expr>>,
-    source_map: &SourceMap,
+    source_map: &Rc<SourceMap>,
 ) -> ParseResult<S::Expr> {
     match opt_expr {
         None => Ok(UNDEFINED_),
@@ -569,10 +569,10 @@ fn parse_opt_expr(
 }
 
 /// Parse an swc block statement.
-fn parse_block(block: swc::BlockStmt, source_map: &SourceMap) -> ParseResult<S::Stmt> {
+fn parse_block(block: swc::BlockStmt, source_map: &Rc<SourceMap>) -> ParseResult<S::Stmt> {
     Ok(S::Stmt::Block(
         parse_stmts(block.stmts, source_map)?,
-        block.span,
+        Pos::from_swc(source_map, block.span),
     ))
 }
 
@@ -581,7 +581,7 @@ fn parse_block(block: swc::BlockStmt, source_map: &SourceMap) -> ParseResult<S::
 fn parse_id_from_pattern(
     pattern: swc::Pat,
     span: Span,
-    source_map: &SourceMap,
+    source_map: &Rc<SourceMap>,
 ) -> ParseResult<S::Id> {
     use swc::Pat::*;
     match pattern {
@@ -595,7 +595,7 @@ fn parse_id_from_pattern(
 fn parse_lvalue_from_pattern(
     pattern: swc::Pat,
     span: Span,
-    source_map: &SourceMap,
+    source_map: &Rc<SourceMap>,
 ) -> ParseResult<S::LValue> {
     use swc::Pat::*;
     match pattern {
@@ -607,7 +607,7 @@ fn parse_lvalue_from_pattern(
 
 fn parse_var_declarator(
     var_decl: swc::VarDeclarator,
-    source_map: &SourceMap,
+    source_map: &Rc<SourceMap>,
 ) -> ParseResult<S::VarDecl> {
     Ok(S::VarDecl {
         name: parse_id_from_pattern(var_decl.name, var_decl.span, source_map)?,
@@ -617,7 +617,7 @@ fn parse_var_declarator(
 
 fn parse_switch_case(
     case: swc::SwitchCase,
-    source_map: &SourceMap,
+    source_map: &Rc<SourceMap>,
 ) -> ParseResult<(Option<S::Expr>, S::Stmt)> {
     let test = match case.test {
         None => None,
@@ -625,11 +625,11 @@ fn parse_switch_case(
     };
     Ok((
         test,
-        S::Stmt::Block(parse_stmts(case.cons, source_map)?, case.span),
+        S::Stmt::Block(parse_stmts(case.cons, source_map)?, Pos::from_swc(source_map, case.span)),
     ))
 }
 
-fn parse_expr_or_super(eos: swc::ExprOrSuper, source_map: &SourceMap) -> ParseResult<S::Expr> {
+fn parse_expr_or_super(eos: swc::ExprOrSuper, source_map: &Rc<SourceMap>) -> ParseResult<S::Expr> {
     use swc::ExprOrSuper::*;
     match eos {
         Expr(expr) => parse_expr(*expr, source_map),
@@ -637,7 +637,7 @@ fn parse_expr_or_super(eos: swc::ExprOrSuper, source_map: &SourceMap) -> ParseRe
     }
 }
 
-fn parse_expr_or_spread(eos: swc::ExprOrSpread, source_map: &SourceMap) -> ParseResult<S::Expr> {
+fn parse_expr_or_spread(eos: swc::ExprOrSpread, source_map: &Rc<SourceMap>) -> ParseResult<S::Expr> {
     match eos.spread {
         None => parse_expr(*eos.expr, source_map),
         Some(span) => unsupported!(span, source_map),
@@ -646,7 +646,7 @@ fn parse_expr_or_spread(eos: swc::ExprOrSpread, source_map: &SourceMap) -> Parse
 
 fn parse_opt_expr_or_spread(
     oeos: Option<swc::ExprOrSpread>,
-    source_map: &SourceMap,
+    source_map: &Rc<SourceMap>,
 ) -> ParseResult<S::Expr> {
     match oeos {
         Some(eos) => parse_expr_or_spread(eos, source_map),
@@ -654,11 +654,11 @@ fn parse_opt_expr_or_spread(
     }
 }
 
-fn parse_func_arg(arg: swc::Param, source_map: &SourceMap) -> ParseResult<S::Id> {
+fn parse_func_arg(arg: swc::Param, source_map: &Rc<SourceMap>) -> ParseResult<S::Id> {
     Ok(parse_id_from_pattern(arg.pat, arg.span, source_map)?)
 }
 
-fn parse_lit(lit: swc::Lit, source_map: &SourceMap) -> ParseResult<(S::Lit, Span)> {
+fn parse_lit(lit: swc::Lit, source_map: &Rc<SourceMap>) -> ParseResult<(S::Lit, Span)> {
     use swc::Lit::*;
     match lit {
         Str(swc::Str { value, span, .. }) => Ok((S::Lit::String(value.to_string()), span)),
@@ -681,7 +681,7 @@ fn parse_lit(lit: swc::Lit, source_map: &SourceMap) -> ParseResult<(S::Lit, Span
 fn parse_prop_or_spread(
     pos: swc::PropOrSpread,
     span: Span,
-    source_map: &SourceMap,
+    source_map: &Rc<SourceMap>,
 ) -> ParseResult<(S::Key, S::Expr)> {
     match pos {
         swc::PropOrSpread::Prop(prop) => parse_prop(*prop, span, source_map),
@@ -693,7 +693,7 @@ fn parse_prop_or_spread(
 fn parse_prop(
     prop: swc::Prop,
     span: Span,
-    source_map: &SourceMap,
+    source_map: &Rc<SourceMap>,
 ) -> ParseResult<(S::Key, S::Expr)> {
     use swc::Prop::*;
     match prop {
@@ -708,7 +708,7 @@ fn parse_prop(
 }
 
 /// `span` is the span of the surrounding object literal.
-fn parse_prop_name(name: swc::PropName, span: Span, source_map: &SourceMap) -> ParseResult<S::Key> {
+fn parse_prop_name(name: swc::PropName, span: Span, source_map: &Rc<SourceMap>) -> ParseResult<S::Key> {
     use swc::PropName::*;
     match name {
         Ident(swc::Ident { sym, span, .. }) => Ok(S::Key::Str(sym.to_string())),
@@ -724,7 +724,7 @@ fn parse_prop_name(name: swc::PropName, span: Span, source_map: &SourceMap) -> P
     }
 }
 
-fn parse_binary_op(op: swc::BinaryOp, span: Span, source_map: &SourceMap) -> ParseResult<S::BinOp> {
+fn parse_binary_op(op: swc::BinaryOp, span: Span, source_map: &Rc<SourceMap>) -> ParseResult<S::BinOp> {
     use swc::BinaryOp::*;
     use S::BinOp::*;
     use S::BinaryOp as B;
@@ -783,7 +783,7 @@ fn parse_binary_op(op: swc::BinaryOp, span: Span, source_map: &SourceMap) -> Par
     }
 }
 
-fn parse_unary_op(op: swc::UnaryOp, span: Span, source_map: &SourceMap) -> ParseResult<S::UnaryOp> {
+fn parse_unary_op(op: swc::UnaryOp, span: Span, source_map: &Rc<SourceMap>) -> ParseResult<S::UnaryOp> {
     use swc::UnaryOp::*;
     use S::UnaryOp as U;
     match op {
@@ -807,7 +807,7 @@ fn parse_unary_op(op: swc::UnaryOp, span: Span, source_map: &SourceMap) -> Parse
 fn parse_assign_op(
     op: swc::AssignOp,
     span: Span,
-    source_map: &SourceMap,
+    source_map: &Rc<SourceMap>,
 ) -> ParseResult<S::AssignOp> {
     use swc::AssignOp::*;
     use S::AssignOp as A;
@@ -851,7 +851,7 @@ fn parse_update_op(
     op: swc::UpdateOp,
     prefix: bool,
     span: Span,
-    source_map: &SourceMap,
+    source_map: &Rc<SourceMap>,
 ) -> ParseResult<S::UnaryAssignOp> {
     use swc::UpdateOp::*;
     use S::UnaryAssignOp as U;
@@ -873,7 +873,7 @@ fn parse_update_op(
 fn parse_lvalue_from_expr(
     expr: swc::Expr,
     span: Span,
-    source_map: &SourceMap,
+    source_map: &Rc<SourceMap>,
 ) -> ParseResult<S::LValue> {
     use swc::Expr::*;
     match expr {
@@ -921,7 +921,7 @@ fn parse_lvalue_from_expr(
 fn parse_pat_or_expr(
     poe: swc::PatOrExpr,
     span: Span,
-    source_map: &SourceMap,
+    source_map: &Rc<SourceMap>,
 ) -> ParseResult<S::LValue> {
     use swc::PatOrExpr::*;
     match poe {
@@ -930,7 +930,7 @@ fn parse_pat_or_expr(
     }
 }
 
-fn parse_decl(decl: swc::Decl, source_map: &SourceMap) -> ParseResult<S::Stmt> {
+fn parse_decl(decl: swc::Decl, source_map: &Rc<SourceMap>) -> ParseResult<S::Stmt> {
     use swc::Decl::*;
     // only var and func declarations are supported
     match decl {
@@ -944,7 +944,7 @@ fn parse_decl(decl: swc::Decl, source_map: &SourceMap) -> ParseResult<S::Stmt> {
                 .into_iter()
                 .map(|d| parse_var_declarator(d, source_map))
                 .collect();
-            Ok(S::Stmt::VarDecl(decls?, span))
+            Ok(S::Stmt::VarDecl(decls?, Pos::from_swc(source_map, span)))
         }
         Fn(swc::FnDecl {
             ident,
@@ -954,7 +954,7 @@ fn parse_decl(decl: swc::Decl, source_map: &SourceMap) -> ParseResult<S::Stmt> {
             let ident = parse_id(ident);
             let span = function.span;
             let (params, body) = parse_function(function, source_map)?;
-            Ok(S::Stmt::Func(ident, params, Box::new(body), span))
+            Ok(S::Stmt::Func(ident, params, Box::new(body), Pos::from_swc(source_map, span)))
         }
         unsupported_decl => unsupported!(span_from_decl(unsupported_decl), source_map),
     }
@@ -962,7 +962,7 @@ fn parse_decl(decl: swc::Decl, source_map: &SourceMap) -> ParseResult<S::Stmt> {
 
 fn parse_function(
     function: swc::Function,
-    source_map: &SourceMap,
+    source_map: &Rc<SourceMap>,
 ) -> ParseResult<(Vec<S::Id>, S::Stmt)> {
     let swc::Function {
         params,
