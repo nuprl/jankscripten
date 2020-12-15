@@ -71,9 +71,9 @@ impl std::fmt::Display for P {
 }
 
 impl Pos {
-    pub fn from_combine(filename: Rc<String>, sp: SourcePosition) -> Pos {
+    pub fn from_combine(filename: &Rc<String>, sp: SourcePosition) -> Pos {
         // Classic "garbage-in garbage-out" if `sp.line` or `sp.column` are negative.
-        Pos { pos: P::Combine(sp.line as usize, sp.column as usize, filename) }
+        Pos { pos: P::Combine(sp.line as usize, sp.column as usize, filename.clone()) }
     }
 
     pub fn from_swc(source_map: &Rc<SourceMap>, span: Span) -> Pos {
