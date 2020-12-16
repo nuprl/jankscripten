@@ -160,21 +160,41 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         module = partial_global.build();
     }
     // fsr we need an identity table to call indirect
-    let num_functions = rt_indexes.len() + program.functions.keys().len();
+    let num_runtime_functions = rt_indexes.len();
+    let num_functions = num_runtime_functions + program.functions.keys().len();
     let mut table_build = module.table().with_min(num_functions as u32);
     for index in 0..num_functions {
         let index = index as u32;
         table_build = table_build.with_element(index, vec![index]);
     }
     let mut module = table_build.build();
-    for func in program.functions.values_mut() {
-        module.push_function(translate_func(
+
+    // Map from function indices to original names
+    let mut function_name_subsection: FunctionNameSubsection = Default::default();
+    // For each function index, a map from local variable indices to original names.
+    let mut local_name_subsection: LocalNameSubsection = Default::default();
+
+    for (func_name, func) in program.functions.iter_mut() {
+        let (f, local_map) = translate_func(
             func,
             &global_env,
             &rt_indexes,
             &type_indexes,
             &mut program.data,
-        ));
+        );
+        let loc = module.push_function(f);
+
+        // It is surprising that we have to do this arithmetic ourselves. It looks like loc.body
+        // does not account for the indices of the imported functions, which offset the indices
+        // of all functions in this module.
+        let offset: u32 = num_runtime_functions.try_into().expect("overflow");
+        let actual_function_index = loc.body + offset;
+        function_name_subsection
+            .names_mut()
+            .insert(actual_function_index, func_name.to_string());
+        local_name_subsection
+            .local_names_mut()
+            .insert(actual_function_index, local_map);
     }
     insert_generated_main(
         &program.globals,
@@ -189,6 +209,13 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         .offset(GetGlobal(JNKS_STRINGS_IDX))
         .value(program.data)
         .build();
+
+    let module = module.with_section(Section::Name(NameSection::new(
+        None,
+        Some(function_name_subsection),
+        Some(local_name_subsection),
+    )));
+
     // jnks_init calls main
     let module = module
         .export()
@@ -205,7 +232,7 @@ fn translate_func(
     rt_indexes: &HashMap<String, u32>,
     type_indexes: &FuncTypeMap,
     data: &mut Vec<u8>,
-) -> FunctionDefinition {
+) -> (FunctionDefinition, IndexMap<String>) {
     let mut translator = Translate::new(rt_indexes, type_indexes, id_env, data);
 
     // Add indices for parameters
@@ -237,7 +264,16 @@ fn translate_func(
         .into_iter()
         .map(|t| Local::new(1, t))
         .collect();
-    function()
+
+    let local_map: IndexMap<String> = translator
+        .id_env
+        .iter()
+        .filter_map(|(id, ix)| match ix {
+            IdIndex::Local(n, _) => Some((*n, format!("{}", id))),
+            _ => None,
+        })
+        .collect();
+    let func = function()
         .signature()
         .with_params(types_as_wasm(&func.fn_type.args))
         .with_return_type(option_as_wasm(&func.fn_type.result))
@@ -246,7 +282,8 @@ fn translate_func(
         .with_instructions(Instructions::new(insts))
         .with_locals(locals)
         .build()
-        .build()
+        .build();
+    (func, local_map)
 }
 
 fn types_as_wasm(types: &[N::Type]) -> Vec<ValueType> {
