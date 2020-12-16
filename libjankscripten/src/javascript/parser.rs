@@ -37,17 +37,15 @@ impl From<swc_ecma_parser::error::Error> for ParseError {
 }
 
 /// Parse a full JavaScript program from source code into our JavaScript AST.
-pub fn parse(js_code: &str) -> ParseResult<S::Stmt> {
+pub fn parse(src_name: &str, js_code: &str) -> ParseResult<S::Stmt> {
     // The SourceMap keeps track of all the source files given to the parser.
     // All spans given to us by the parser library are actually indices
     // into this source map.
     let source_map: Rc<SourceMap> = Default::default();
 
     // Register our JavaScript file with the source map
-    let source_file = source_map.new_source_file(
-        FileName::Anon, // TODO(mark): give it the real filename
-        js_code.into(),
-    );
+    let source_file =
+        source_map.new_source_file(FileName::Custom(src_name.to_string()), js_code.into());
 
     // Create a lexer for the parser
     let lexer = lexer::Lexer::new(

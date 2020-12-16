@@ -15,6 +15,7 @@ use shared::UnwrapReport;
 extern crate combine;
 
 pub fn javascript_to_wasm<F, G>(
+    src_name: &str,
     js_code: &str,
     inspect_janky: F,
     inspect_notwasm: G,
@@ -23,7 +24,7 @@ where
     F: FnOnce(&jankyscript::syntax::Stmt) -> (),
     G: FnOnce(&notwasm::syntax::Program) -> (),
 {
-    let maybe_js_ast = javascript::parse(js_code);
+    let maybe_js_ast = javascript::parse(src_name, js_code);
     let mut js_ast = maybe_js_ast?;
     let mut ng = shared::NameGen::default();
     javascript::desugar(&mut js_ast, &mut ng);
