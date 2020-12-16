@@ -18,12 +18,23 @@ pub fn elim_gotos(program: &mut Program) {
         func.body = Stmt::Block(
             vec![
                 // var inGoto = false;
-                Stmt::Var(VarStmt::new(id_("inGoto"), atom_(FALSE_, s.clone())), s.clone()),
+                Stmt::Var(
+                    VarStmt::new(id_("inGoto"), atom_(FALSE_, s.clone())),
+                    s.clone(),
+                ),
                 // var gotoTarget = 0;
-                Stmt::Var(VarStmt::new(id_("gotoTarget"), atom_(i32_(0, s.clone()), s.clone())), s.clone()),
+                Stmt::Var(
+                    VarStmt::new(id_("gotoTarget"), atom_(i32_(0, s.clone()), s.clone())),
+                    s.clone(),
+                ),
                 func.body.take(),
                 // if (inGoto) { trap; }
-                if_(get_id_("inGoto", s.clone()), Stmt::Trap, Stmt::Empty, s.clone()),
+                if_(
+                    get_id_("inGoto", s.clone()),
+                    Stmt::Trap,
+                    Stmt::Empty,
+                    s.clone(),
+                ),
             ],
             s,
         );
@@ -43,7 +54,11 @@ impl Visitor for GotoVisitor {
                     Block(
                         vec![
                             Assign(id_("inGoto"), atom_(TRUE_, s.clone()), s.clone()),
-                            Assign(id_("gotoTarget"), atom_(i32_(*l as i32, s.clone()), s.clone()), s.clone()),
+                            Assign(
+                                id_("gotoTarget"),
+                                atom_(i32_(*l as i32, s.clone()), s.clone()),
+                                s.clone(),
+                            ),
                         ],
                         s.clone(),
                     ),
@@ -57,11 +72,18 @@ impl Visitor for GotoVisitor {
                     // improved if we wanted to hand-lower the or/ands
                     bor_(
                         not_(get_id_("inGoto", s.clone()), s.clone()),
-                        eq_(get_id_("gotoTarget", s.clone()), i32_(*n, s.clone()), s.clone()),
+                        eq_(
+                            get_id_("gotoTarget", s.clone()),
+                            i32_(*n, s.clone()),
+                            s.clone(),
+                        ),
                         s.clone(),
                     ),
                     Block(
-                        vec![Assign(id_("inGoto"), atom_(FALSE_, s.clone()), s.clone()), call.take()],
+                        vec![
+                            Assign(id_("inGoto"), atom_(FALSE_, s.clone()), s.clone()),
+                            call.take(),
+                        ],
                         s.clone(),
                     ),
                     Empty,
@@ -110,8 +132,16 @@ fn is_call(stmt: &Stmt) -> bool {
 fn bounds_check_maybe_if(body: &mut Stmt, alt_check: Atom, s: Pos) -> Atom {
     if let Some((lo, hi)) = bounds(body) {
         let if_goto = band_(
-            gte_(get_id_("gotoTarget", s.clone()), i32_(lo, s.clone()), s.clone()),
-            lte_(get_id_("gotoTarget", s.clone()), i32_(hi, s.clone()), s.clone()),
+            gte_(
+                get_id_("gotoTarget", s.clone()),
+                i32_(lo, s.clone()),
+                s.clone(),
+            ),
+            lte_(
+                get_id_("gotoTarget", s.clone()),
+                i32_(hi, s.clone()),
+                s.clone(),
+            ),
             s.clone(),
         );
         let in_goto_case = band_(get_id_("inGoto", s.clone()), if_goto, s.clone());
@@ -123,12 +153,20 @@ fn bounds_check_maybe_if(body: &mut Stmt, alt_check: Atom, s: Pos) -> Atom {
 fn bounds_check_if(body: &mut Stmt, not_goto_check: Atom, s: Pos) -> Atom {
     bounds_check_maybe_if(
         body,
-        band_(not_goto_check, not_(get_id_("inGoto", s.clone()), s.clone()), s.clone()),
+        band_(
+            not_goto_check,
+            not_(get_id_("inGoto", s.clone()), s.clone()),
+            s.clone(),
+        ),
         s,
     )
 }
 fn bounds_check(body: &mut Stmt, s: Pos) -> Atom {
-    bounds_check_maybe_if(body, not_(get_id_("inGoto", s.clone()), s.clone()), s.clone())
+    bounds_check_maybe_if(
+        body,
+        not_(get_id_("inGoto", s.clone()), s.clone()),
+        s.clone(),
+    )
 }
 
 /// since labels are ordered, we can define n belongs to L as min <= n <= max

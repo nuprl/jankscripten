@@ -50,9 +50,7 @@ fn run_script(script: &str) -> String {
 /// execute the program, then desugar it using `f` and execute it again. assert
 /// that the results are equal
 pub fn desugar_okay(program: &str, f: fn(&mut js::Stmt, &mut js::NameGen)) {
-    let original = js::parse(program.clone())
-        
-        .expect("unparsible original program");
+    let original = js::parse(program.clone()).expect("unparsible original program");
     let mut ng = js::NameGen::default();
     let mut desugar = js::parse(program).unwrap();
     f(&mut desugar, &mut ng);

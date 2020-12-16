@@ -56,63 +56,27 @@ impl crate::shared::Report for TypeCheckingError {
             NoSuchVariable(a, s) => {
                 format!("undefined variable {} at {}", a, s)
             }
-            TypeMismatch(a, b, c, s) => format!(
-                "{} expected type {:?} but received {:?} at {}",
-                a,
-                b,
-                c,
-                s
-            ),
-            ExpectedFunction(a, b, s) => format!(
-                "expected function ({}), but got {} at {}",
-                a,
-                b,
-                s
-            ),
-            ExpectedHT(a, b, s) => format!(
-                "{} expected hash table, but got {} at {}",
-                a,
-                b,
-                s
-            ),
-            ExpectedArray(a, b, s) => format!(
-                "{} expected array, but got {} at {}",
-                a,
-                b,
-                s
-            ),
-            ExpectedRef(a, b, s) => format!(
-                "{} expected ref, but got {} at {}",
-                a,
-                b,
-                s
-            ),
+            TypeMismatch(a, b, c, s) => {
+                format!("{} expected type {:?} but received {:?} at {}", a, b, c, s)
+            }
+            ExpectedFunction(a, b, s) => {
+                format!("expected function ({}), but got {} at {}", a, b, s)
+            }
+            ExpectedHT(a, b, s) => format!("{} expected hash table, but got {} at {}", a, b, s),
+            ExpectedArray(a, b, s) => format!("{} expected array, but got {} at {}", a, b, s),
+            ExpectedRef(a, b, s) => format!("{} expected ref, but got {} at {}", a, b, s),
             UnexpectedReturn(a, s) => {
                 format!("unexpected return type {} at {}", a, s)
             }
             ArityMismatch(a, b, c, s) => format!(
                 "arity mismatch at {}, expected {} parameters but received {} arguments at {}",
-                a,
-                b,
-                c,
-                s
+                a, b, c, s
             ),
-            MultiplyDefined(a, s) => format!(
-                "identifier {} is multiply defined at {}",
-                a,
-                s
-            ),
-            InvalidInContext(a, b, s) => format!(
-                "In context {}, unexpected type {} at {}",
-                a,
-                b,
-                s
-            ),
-            Other(a, s) => format!(
-                "Error type-checking NotWasm: {} at {}",
-                a,
-                s
-            ),
+            MultiplyDefined(a, s) => format!("identifier {} is multiply defined at {}", a, s),
+            InvalidInContext(a, b, s) => {
+                format!("In context {}, unexpected type {} at {}", a, b, s)
+            }
+            Other(a, s) => format!("Error type-checking NotWasm: {} at {}", a, s),
         }
     }
 }
@@ -165,7 +129,10 @@ pub fn type_check(p: &mut Program) -> TypeCheckingResult<()> {
             .insert(id.clone(), f.fn_type.clone().to_type())
             .is_some()
         {
-            return Err(TypeCheckingError::MultiplyDefined(id.clone(), Default::default()));
+            return Err(TypeCheckingError::MultiplyDefined(
+                id.clone(),
+                Default::default(),
+            ));
         }
     }
     for (id, g) in p.globals.iter_mut() {
@@ -179,7 +146,10 @@ pub fn type_check(p: &mut Program) -> TypeCheckingResult<()> {
 
         // Insert the global into the environment
         if env.insert(id.clone(), g.ty.clone()).is_some() {
-            return Err(TypeCheckingError::MultiplyDefined(id.clone(), Pos::UNKNOWN.clone()));
+            return Err(TypeCheckingError::MultiplyDefined(
+                id.clone(),
+                Pos::UNKNOWN.clone(),
+            ));
         }
     }
 
@@ -193,7 +163,11 @@ pub fn type_check(p: &mut Program) -> TypeCheckingResult<()> {
 fn ensure_ref(msg: &str, got: Type, s: &Pos) -> TypeCheckingResult<Type> {
     match got {
         Type::Ref(ty) => Ok(*ty),
-        _ => Err(TypeCheckingError::ExpectedRef(String::from(msg), got, s.clone())),
+        _ => Err(TypeCheckingError::ExpectedRef(
+            String::from(msg),
+            got,
+            s.clone(),
+        )),
     }
 }
 
@@ -392,7 +366,11 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             if let Type::Fn(fn_ty) = got_f {
                 type_check_call(env, id_f, actuals, fn_ty, false, s)
             } else {
-                Err(TypeCheckingError::ExpectedFunction(id_f.clone(), got_f, s.clone()))
+                Err(TypeCheckingError::ExpectedFunction(
+                    id_f.clone(),
+                    got_f,
+                    s.clone(),
+                ))
             }
         }
         Expr::ClosureCall(id_f, actuals, s) => {
@@ -400,7 +378,11 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             if let Type::Closure(fn_ty) = got_f {
                 type_check_call(env, id_f, actuals, fn_ty, true, s)
             } else {
-                Err(TypeCheckingError::ExpectedFunction(id_f.clone(), got_f, s.clone()))
+                Err(TypeCheckingError::ExpectedFunction(
+                    id_f.clone(),
+                    got_f,
+                    s.clone(),
+                ))
             }
         }
         Expr::NewRef(a, ty, s) => {
@@ -414,7 +396,11 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
         // Type::Closure((i32 -> i32; [])
         Expr::Closure(id, _, s) => match lookup(env, id, s) {
             Ok(Type::Fn(fn_ty)) => Ok(Type::Closure(fn_ty)),
-            Ok(got) => Err(TypeCheckingError::ExpectedFunction(id.clone(), got, s.clone())),
+            Ok(got) => Err(TypeCheckingError::ExpectedFunction(
+                id.clone(),
+                got,
+                s.clone(),
+            )),
             Err(e) => Err(e),
         },
     }

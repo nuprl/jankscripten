@@ -1,9 +1,16 @@
 use super::syntax::*;
-use std::collections::HashMap;
 use crate::pos::Pos;
+use std::collections::HashMap;
 
 pub fn while_(test: Atom, body: Stmt, s: Pos) -> Stmt {
-    label_("$loop", loop_(if_(test, body, break_("$loop", s.clone()), s.clone()), s.clone()), s)
+    label_(
+        "$loop",
+        loop_(
+            if_(test, body, break_("$loop", s.clone()), s.clone()),
+            s.clone(),
+        ),
+        s,
+    )
 }
 
 pub fn break_<L: Into<Label>>(l: L, s: Pos) -> Stmt {

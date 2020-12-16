@@ -17,7 +17,10 @@ impl Visitor for ThisParameter<'_> {
                     // fresh the obj so we can pass it to the method
                     let cxt = loc.enclosing_block().unwrap();
                     let obj_name = self.ng.fresh("obj4this");
-                    cxt.insert(cxt.index, vardecl1_(obj_name.clone(), obj.take(), s.clone()));
+                    cxt.insert(
+                        cxt.index,
+                        vardecl1_(obj_name.clone(), obj.take(), s.clone()),
+                    );
                     *obj = Box::new(id_(obj_name.clone(), s.clone()));
                     args.insert(0, id_(obj_name, s.clone()));
                 }

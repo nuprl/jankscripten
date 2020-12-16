@@ -83,7 +83,10 @@ impl Visitor for SwitchToIf<'_> {
                             s.clone(),
                         ),
                         Stmt::Block(
-                            vec![stmt, expr_(assign_(fallthrough.clone(), TRUE_, s.clone()), s.clone())],
+                            vec![
+                                stmt,
+                                expr_(assign_(fallthrough.clone(), TRUE_, s.clone()), s.clone()),
+                            ],
                             s.clone(),
                         ),
                         Stmt::Empty,

@@ -81,7 +81,7 @@ pub fn return_(a: Expr, p: Pos) -> Stmt {
 // Expressions
 pub const TRUE_: Expr = Expr::Lit(Lit::Bool(true), Pos::UNKNOWN);
 pub const FALSE_: Expr = Expr::Lit(Lit::Bool(false), Pos::UNKNOWN);
-pub const UNDEFINED_: Expr = Expr::Lit(Lit::Undefined,  Pos::UNKNOWN);
+pub const UNDEFINED_: Expr = Expr::Lit(Lit::Undefined, Pos::UNKNOWN);
 
 pub fn str_(st: impl Into<String>, s: Pos) -> Expr {
     Expr::Lit(Lit::String(st.into()), s)

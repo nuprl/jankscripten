@@ -34,8 +34,8 @@
 
 use super::syntax::*;
 use super::walk::*;
-use im_rc::HashMap;
 use crate::pos::Pos;
+use im_rc::HashMap;
 
 pub fn closure_convert(program: &mut Stmt) {
     let mut v = ClosureConversion::new();
@@ -74,10 +74,12 @@ impl Visitor for ClosureConversion {
                 let env = func
                     .free_vars
                     .iter()
-                    .map(|(id, ty)| match self.compile_id(id, ty.clone(), s.clone()) {
-                        Some(e) => (e, ty.clone()),
-                        None => (Expr::Id(id.clone(), ty.clone(), s.clone()), ty.clone()),
-                    })
+                    .map(
+                        |(id, ty)| match self.compile_id(id, ty.clone(), s.clone()) {
+                            Some(e) => (e, ty.clone()),
+                            None => (Expr::Id(id.clone(), ty.clone(), s.clone()), ty.clone()),
+                        },
+                    )
                     .collect();
                 // you might think that here is where we want to insert the environment
                 // as a parameter. but if we did that we would have to rewrite all our

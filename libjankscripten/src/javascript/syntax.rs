@@ -3,8 +3,8 @@
 //! This AST supports most of ECMAScript-262, 3rd edition, but excludes some
 //! annoying features, such as `with`.
 
-pub use crate::shared::Id;
 use crate::pos::Pos;
+pub use crate::shared::Id;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum BinOp {

@@ -21,10 +21,10 @@
 //! - A set of global variables that are initialized to …whataever Wasm
 //!   supports
 
+use crate::pos::Pos;
 use crate::rts_function::RTSFunction;
 pub use crate::shared::Id;
 use std::collections::HashMap;
-use crate::pos::Pos;
 
 /// The types of NotWasm. Every value has a unique type, thus we *do not* support
 /// subtyping. The comment for each variant describes the shape of the value

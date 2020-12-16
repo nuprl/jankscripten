@@ -79,7 +79,8 @@ mod test {
     #[test]
     #[ignore]
     fn some_strings() {
-        let mut program = parse("inline",
+        let mut program = parse(
+            "inline",
             r#"
             function main() : i32 {
                 var a = "012301";
@@ -94,12 +95,18 @@ mod test {
             body: Stmt::Block(
                 vec![
                     Stmt::Var(
-                        VarStmt::new(id_("a"), atom_(Atom::Lit(Lit::Interned(0), s.clone()), s.clone())),
+                        VarStmt::new(
+                            id_("a"),
+                            atom_(Atom::Lit(Lit::Interned(0), s.clone()), s.clone()),
+                        ),
                         s.clone(),
                     ),
                     // 4(tag) + 4(len) + 6 -> 14 ->(align) -> 16
                     Stmt::Var(
-                        VarStmt::new(id_("b"), atom_(Atom::Lit(Lit::Interned(16), s.clone()), s.clone())),
+                        VarStmt::new(
+                            id_("b"),
+                            atom_(Atom::Lit(Lit::Interned(16), s.clone()), s.clone()),
+                        ),
                         s.clone(),
                     ),
                     Stmt::Return(i32_(0, s.clone()), s.clone()),

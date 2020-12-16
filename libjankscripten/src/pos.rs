@@ -1,7 +1,7 @@
 //! Source locations for the jankscripten toolchain.
-use std::rc::Rc;
-use std::fmt;
 use combine::stream::state::SourcePosition;
+use std::fmt;
+use std::rc::Rc;
 use swc_common::{SourceMap, Span};
 
 /// A position in a source file. The type is opaque, because SWC uses a fancy representation of
@@ -9,7 +9,7 @@ use swc_common::{SourceMap, Span};
 /// rest of the toolchain to actually examine positions.
 #[derive(PartialEq, Clone)]
 pub struct Pos {
-    pos: P
+    pos: P,
 }
 
 #[derive(Clone)]
@@ -30,11 +30,12 @@ impl PartialEq for P {
             // Ignores filenames, which should be fine since jankscripten only works with a single
             // JavaScript input file at a time.
             (P::SWC(_, span1), P::SWC(_, span2)) => span1 == span2,
-            (P::Combine(line1, col1, file1), P::Combine(line2, col2, file2)) =>
-                line1 == line2 && col1 == col2 && file1 == file2,
+            (P::Combine(line1, col1, file1), P::Combine(line2, col2, file2)) => {
+                line1 == line2 && col1 == col2 && file1 == file2
+            }
             (P::Unknown, P::Unknown) => true,
-            _ => false
-       }
+            _ => false,
+        }
     }
 }
 
@@ -64,7 +65,13 @@ impl std::fmt::Display for P {
                 // `SourceMap` in the `Pos`.
                 let loc = source_map.lookup_char_pos(span.lo);
                 // Column is zero based. col_display accounts for multi-byte Unicode. 🤣
-                write!(f, "{}: line {}, column {}", loc.file.name, loc.line, loc.col_display + 1)
+                write!(
+                    f,
+                    "{}: line {}, column {}",
+                    loc.file.name,
+                    loc.line,
+                    loc.col_display + 1
+                )
             }
         }
     }
@@ -73,11 +80,15 @@ impl std::fmt::Display for P {
 impl Pos {
     pub fn from_combine(filename: &Rc<String>, sp: SourcePosition) -> Pos {
         // Classic "garbage-in garbage-out" if `sp.line` or `sp.column` are negative.
-        Pos { pos: P::Combine(sp.line as usize, sp.column as usize, filename.clone()) }
+        Pos {
+            pos: P::Combine(sp.line as usize, sp.column as usize, filename.clone()),
+        }
     }
 
     pub fn from_swc(source_map: &Rc<SourceMap>, span: Span) -> Pos {
-        Pos { pos: P::SWC(Rc::clone(source_map), span) }
+        Pos {
+            pos: P::SWC(Rc::clone(source_map), span),
+        }
     }
 
     pub const UNKNOWN: Pos = Pos { pos: P::Unknown };

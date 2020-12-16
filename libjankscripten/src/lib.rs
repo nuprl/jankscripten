@@ -4,10 +4,10 @@ pub mod jankierscript;
 pub mod jankyscript;
 pub mod javascript;
 pub mod notwasm;
+pub mod pos;
 mod rope;
 mod rts_function;
 pub mod shared;
-pub mod pos;
 
 use shared::UnwrapReport;
 

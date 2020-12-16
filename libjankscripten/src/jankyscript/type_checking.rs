@@ -3,9 +3,9 @@
 //! correctly.
 
 use super::syntax::*;
+use crate::pos::Pos;
 use crate::shared::std_lib::get_global_object;
 use crate::shared::Report;
-use crate::pos::Pos;
 use im_rc::HashMap;
 
 type Env = HashMap<Id, Type>;
@@ -35,52 +35,30 @@ impl Report for TypeCheckingError {
     fn report(&self) -> String {
         use TypeCheckingError::*;
         match self {
-            TypeMismatch(a, b, c, s) => format!(
-                "{} expected type {} but received {} at {}",
-                a,
-                b,
-                c,
-                s
-            ),
-            ExpectedIndexable(a, b, s) => format!(
-                "{} expected indexable type, but received {} at {}",
-                a,
-                b,
-                s
-            ),
-            ExpectedIndexer(a, b, s) => format!(
-                "{} expected idexer, but received {} at {}",
-                a,
-                b,
-                s
-            ),
+            TypeMismatch(a, b, c, s) => {
+                format!("{} expected type {} but received {} at {}", a, b, c, s)
+            }
+            ExpectedIndexable(a, b, s) => {
+                format!("{} expected indexable type, but received {} at {}", a, b, s)
+            }
+            ExpectedIndexer(a, b, s) => {
+                format!("{} expected idexer, but received {} at {}", a, b, s)
+            }
             ExpectedFunction(a, b, s) => format!(
                 "{} expected an expression to have a function type, but received {} at {}",
-                a,
-                b,
-                s
+                a, b, s
             ),
             TagTypeMismatch(a, b, s) => format!(
                 "tried to tag a value of type {}, but received {} at {}",
-                a,
-                b,
-                s
+                a, b, s
             ),
-            ExpectedGround(a, b, s) => format!(
-                "{} expected a ground type but got {} at {}",
-                a,
-                b,
-                s
-            ),
-            UnexpectedReturn(a, s) => format!(
-                "unexpected return of type {} at {}",
-                a,
-                s
-            ),
+            ExpectedGround(a, b, s) => {
+                format!("{} expected a ground type but got {} at {}", a, b, s)
+            }
+            UnexpectedReturn(a, s) => format!("unexpected return of type {} at {}", a, s),
             NoSuchVariable(a, s) => format!(
                 "a variable named {} was referenced that doesn't exist at {}",
-                a,
-                s
+                a, s
             ),
         }
     }

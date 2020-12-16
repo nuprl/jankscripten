@@ -1,8 +1,8 @@
 //! The JankierScript language
 
+use crate::pos::Pos;
 use crate::rts_function::RTSFunction;
 pub use crate::shared::coercions::Coercion;
-use crate::pos::Pos;
 pub use crate::shared::Type;
 use im_rc::HashMap;
 use im_rc::HashSet as ImmHashSet;

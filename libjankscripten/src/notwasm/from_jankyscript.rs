@@ -96,9 +96,9 @@ use super::super::jankyscript::syntax as J;
 use super::super::rope::Rope;
 use super::constructors::*;
 use super::syntax::*;
+use crate::pos::Pos;
 use crate::shared::NameGen;
 use std::collections::HashMap;
-use crate::pos::Pos;
 
 fn compile_lit(lit: J::Lit) -> Lit {
     match lit {
@@ -181,7 +181,8 @@ impl<'a> C<'a> {
             // The Id and Atom cases are essentially identical
             C::Id(f) => {
                 let x = state.fresh();
-                Rope::singleton(Stmt::Var(VarStmt::new(x.clone(), e), Default::default())).append(f(state, x))
+                Rope::singleton(Stmt::Var(VarStmt::new(x.clone(), e), Default::default()))
+                    .append(f(state, x))
             }
             C::Atom(f) => {
                 let x = state.fresh();
@@ -245,11 +246,17 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
         J::Expr::Lit(lit, p) => cxt.recv_a(state, Atom::Lit(compile_lit(lit), p)),
         J::Expr::Array(members, p) => compile_exprs(state, members, move |state, member_ids| {
             let array_name = state.fresh();
-            let mut rv =
-                Rope::singleton(Stmt::Var(VarStmt::new(array_name.clone(), Expr::Array), p.clone()));
+            let mut rv = Rope::singleton(Stmt::Var(
+                VarStmt::new(array_name.clone(), Expr::Array),
+                p.clone(),
+            ));
             for member_id in member_ids {
                 rv = rv.append(Rope::singleton(Stmt::Expression(
-                    Expr::Push(Atom::Id(array_name.clone(), p.clone()), Atom::Id(member_id, p.clone()), p.clone()),
+                    Expr::Push(
+                        Atom::Id(array_name.clone(), p.clone()),
+                        Atom::Id(member_id, p.clone()),
+                        p.clone(),
+                    ),
                     p.clone(),
                 )))
             }
@@ -286,7 +293,10 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             state,
             *obj,
             C::a(move |state, obj| {
-                cxt.recv_a(state, object_get_(obj, str_(field.into_name(), p.clone()), p))
+                cxt.recv_a(
+                    state,
+                    object_get_(obj, str_(field.into_name(), p.clone()), p),
+                )
             }),
         ),
         J::Expr::Unary(op, expr, p) => compile_expr(
@@ -363,8 +373,10 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             // but differently. see this discussion on slack:
             // https://plasma.slack.com/archives/C013E3BK7QA/p1596656877066800
             C::a(move |state, a| match *lv {
-                J::LValue::Id(id, _) => Rope::singleton(Stmt::Assign(id, atom_(a.clone(), p.clone()), p))
-                    .append(cxt.recv_a(state, a)),
+                J::LValue::Id(id, _) => {
+                    Rope::singleton(Stmt::Assign(id, atom_(a.clone(), p.clone()), p))
+                        .append(cxt.recv_a(state, a))
+                }
                 J::LValue::Dot(container, field) => {
                     // TODO(luna): don't assume bracket is array
                     compile_expr(
@@ -409,7 +421,10 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                     state,
                     Expr::PrimCall(
                         prim_name,
-                        arg_ids.into_iter().map(|x| Atom::Id(x, p.clone())).collect(),
+                        arg_ids
+                            .into_iter()
+                            .map(|x| Atom::Id(x, p.clone()))
+                            .collect(),
                         p,
                     ),
                 )

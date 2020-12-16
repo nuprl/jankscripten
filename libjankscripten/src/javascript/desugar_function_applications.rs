@@ -21,7 +21,10 @@ impl Visitor for NameFunctionCalls<'_> {
                     _ => {
                         let block_ctx = loc.enclosing_block().expect("Block context expected");
                         let name = self.ng.fresh("f_call");
-                        block_ctx.insert(block_ctx.index, vardecl1_(name.clone(), expr.clone(), s.clone()));
+                        block_ctx.insert(
+                            block_ctx.index,
+                            vardecl1_(name.clone(), expr.clone(), s.clone()),
+                        );
                         *expr = id_(name, s.clone());
                     }
                 }

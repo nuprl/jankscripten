@@ -1,9 +1,10 @@
 use super::constructors as ctor;
 use super::syntax::*;
-use combine::position;
-use combine::stream::state::SourcePosition;
+use crate::pos::Pos;
 use combine::parser;
 use combine::parser::char::{alpha_num, letter, string};
+use combine::position;
+use combine::stream::state::SourcePosition;
 use combine::stream::state::State;
 use combine::stream::Stream;
 use combine::token;
@@ -11,7 +12,6 @@ use combine::{attempt, choice, eof, many, optional, satisfy, sep_by, value, Pars
 use combine_language::{Identifier, LanguageDef, LanguageEnv};
 use std::collections::HashMap;
 use std::rc::Rc;
-use crate::pos::Pos;
 
 type Lang<'a, I> = LanguageEnv<'a, I>;
 
@@ -367,7 +367,7 @@ parser! {
             .skip(lang.reserved_op(";"))
             .map(|((p, id), expr)| Stmt::Store(id, expr, Pos::from_combine(file, p)));
 
-        let expression = 
+        let expression =
             position()
             .and(expr(file, lang))
             .skip(lang.reserved_op(";"))

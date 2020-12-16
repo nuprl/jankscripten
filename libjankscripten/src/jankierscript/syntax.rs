@@ -3,9 +3,9 @@
 //! The JavaScript AST goes through several stages of desugaring before we
 //! produce a program in this language.
 
+use crate::pos::Pos;
 pub use crate::shared::Id;
 pub use crate::shared::Type;
-use crate::pos::Pos;
 
 #[derive(Debug)]
 pub enum LValue {
