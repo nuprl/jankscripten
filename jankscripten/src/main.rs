@@ -86,6 +86,7 @@ fn compile(opts: Compile) {
         "js" => {
             let js_code = read_file(input_path);
             let wasm_bin = libjankscripten::javascript_to_wasm(
+                &opts.input,
                 &js_code,
                 |janky| {
                     if opts.jankyscript_dump {
@@ -121,8 +122,12 @@ fn read_javascript(raw_path: &String) -> String {
     }
 }
 
-fn parse_javascript(input: &String, input_path: &String) -> libjankscripten::javascript::Stmt {
-    match libjankscripten::javascript::parse(&input) {
+fn parse_javascript(
+    src_name: &str,
+    input: &String,
+    input_path: &String,
+) -> libjankscripten::javascript::Stmt {
+    match libjankscripten::javascript::parse(src_name, &input) {
         Ok(stmt) => stmt,
         Err(err) => {
             eprintln!("{}:\n{}", input_path, err);
@@ -142,7 +147,7 @@ fn desugar_javascript(
 fn parse(opts: Parse) {
     ///// Source Code -> JavaScript
     let src_javascript = read_javascript(&opts.input);
-    let mut parsed_javascript = parse_javascript(&src_javascript, &opts.input);
+    let mut parsed_javascript = parse_javascript(&opts.input, &src_javascript, &opts.input);
     // desugaring mutates the stmt in place
     desugar_javascript(&mut parsed_javascript);
     let desugared_javascript = parsed_javascript;
