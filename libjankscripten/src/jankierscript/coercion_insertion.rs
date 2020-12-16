@@ -3,11 +3,11 @@ use super::syntax::*;
 use crate::jankyscript::constructors as Janky_;
 use crate::jankyscript::syntax as Janky;
 use crate::notwasm::syntax as NotWasm;
+use crate::pos::Pos;
 use crate::rts_function::RTSFunction;
 use crate::shared::coercions::*;
 use crate::shared::std_lib::get_global_object;
 use crate::shared::Type;
-use crate::pos::Pos;
 use im_rc::HashMap;
 use thiserror::Error;
 
@@ -281,7 +281,10 @@ impl InsertCoercions {
             Expr::Object(kvs, s) => Ok((
                 Janky::Expr::Object(
                     kvs.into_iter()
-                        .map(|(k, v)| self.expr(v, Type::Any, env, s.clone()).and_then(|v| Ok((k, v))))
+                        .map(|(k, v)| {
+                            self.expr(v, Type::Any, env, s.clone())
+                                .and_then(|v| Ok((k, v)))
+                        })
                         .collect::<Result<_, _>>()?,
                     s,
                 ),
@@ -416,7 +419,9 @@ impl InsertCoercions {
                 let coerced_args = args_with_typs
                     .into_iter()
                     .zip(f_args.into_iter())
-                    .map(|((e, actual_ty), formal_ty)| self.coerce(e, actual_ty, formal_ty, s.clone()))
+                    .map(|((e, actual_ty), formal_ty)| {
+                        self.coerce(e, actual_ty, formal_ty, s.clone())
+                    })
                     .collect();
 
                 Ok((
@@ -471,7 +476,10 @@ impl InsertCoercions {
                             RTSFunction::Minus,
                             vec![
                                 self.coerce(
-                                    Janky::Expr::Lit(Janky::Lit::Num(Janky::Num::Int(0)), s.clone()),
+                                    Janky::Expr::Lit(
+                                        Janky::Lit::Num(Janky::Num::Int(0)),
+                                        s.clone(),
+                                    ),
                                     Type::Int,
                                     Type::Any,
                                     s.clone(),
@@ -542,8 +550,10 @@ impl InsertCoercions {
                     ),
                     _ => todo!(),
                 };
-                let coerced_body =
-                    Janky::Stmt::Block(vec![coerced_body, Janky_::return_(default_for_ty, s.clone())], s.clone());
+                let coerced_body = Janky::Stmt::Block(
+                    vec![coerced_body, Janky_::return_(default_for_ty, s.clone())],
+                    s.clone(),
+                );
                 let fn_ty = Type::Function(arg_tys, Box::new(ret_ty.clone()));
 
                 Ok((Janky_::func(args_with_tys, ret_ty, coerced_body, s), fn_ty))
@@ -630,7 +640,12 @@ impl InsertCoercions {
                 (Type::Int, Type::Float) => Coercion::IntToFloat,
                 (Type::Float, Type::Int) => Coercion::FloatToInt,
                 (t1, t2) => {
-                    eprintln!("doing coerce({:?}, {:?}) through Any ({:?})", t1, t2, s.clone());
+                    eprintln!(
+                        "doing coerce({:?}, {:?}) through Any ({:?})",
+                        t1,
+                        t2,
+                        s.clone()
+                    );
                     Coercion::seq(
                         self.coercion(t1, Type::Any, s.clone()),
                         self.coercion(Type::Any, t2, s),

@@ -3,9 +3,9 @@
 use super::constructors::*;
 use super::syntax::*;
 use super::walk::*;
+use crate::pos::Pos;
 use crate::shared::NameGen;
 use im_rc::HashSet as ImmHashSet;
-use crate::pos::Pos;
 
 /// box relevant variables on the provided program
 ///

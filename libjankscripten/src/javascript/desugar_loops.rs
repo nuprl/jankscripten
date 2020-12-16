@@ -8,8 +8,8 @@
 use super::constructors::*;
 use super::Stmt::*;
 use super::*;
-use std::collections::HashMap;
 use crate::pos::Pos;
+use std::collections::HashMap;
 
 pub fn desugar_loops(script: &mut Stmt, ng: &mut NameGen) {
     script.walk(&mut ExplicitBreaks);
@@ -34,7 +34,10 @@ impl Visitor for ForToWhile {
                     init,
                     while_(
                         cond.take(),
-                        Block(vec![body.take(), expr_(advance.take(), s.clone())], s.clone()),
+                        Block(
+                            vec![body.take(), expr_(advance.take(), s.clone())],
+                            s.clone(),
+                        ),
                         s.clone(),
                     ),
                 ],
@@ -203,7 +206,12 @@ impl Visitor for ExplicitBreaks {
             While(cond, body, s) | For(.., cond, _, body, s) => {
                 // if you don't add a block, inserted statements will go above
                 *body = Box::new(Block(
-                    vec![if_(cond.take(), body.take(), Break(None, s.clone()), s.clone())],
+                    vec![if_(
+                        cond.take(),
+                        body.take(),
+                        Break(None, s.clone()),
+                        s.clone(),
+                    )],
                     s.clone(),
                 ));
                 *cond = Box::new(TRUE_);

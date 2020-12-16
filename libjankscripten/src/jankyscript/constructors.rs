@@ -1,7 +1,7 @@
 use super::syntax::*;
+use crate::pos::Pos;
 use crate::shared::coercions::Coercion;
 use crate::shared::Type;
-use crate::pos::Pos;
 
 // Lit
 
