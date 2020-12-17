@@ -2,6 +2,7 @@ use super::compile;
 use super::intern::intern;
 use super::parser::parse;
 use super::syntax::*;
+use crate::opts::Opts;
 use crate::pos::Pos;
 use std::fmt::Debug;
 use std::io::Write;
@@ -86,7 +87,7 @@ where
     T: Debug + FromStr + PartialEq,
     <T as FromStr>::Err: Debug,
 {
-    let wasm = match compile(program, |notwasm| eprintln!("{}", notwasm)) {
+    let wasm = match compile(&Opts::new(), program, |notwasm| eprintln!("{}", notwasm)) {
         Ok(o) => o,
         Err(_) => panic!("could not compile"),
     };
