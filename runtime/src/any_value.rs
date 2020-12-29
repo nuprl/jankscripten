@@ -40,7 +40,7 @@ impl Debug for AnyEnum {
             F64(ptr) => write!(f, "F64({})", unsafe { ptr.read() }),
             Bool(b) => write!(f, "Bool({})", b),
             Ptr(ptr) => write!(f, "{:?}", ptr.view()),
-            Closure(n) => write!(f, "Closure({})", n),
+            Closure(n) => write!(f, "Closure({:?})", n),
             Undefined => write!(f, "undefined"),
             Null => write!(f, "null"),
         }
