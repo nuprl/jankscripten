@@ -29,6 +29,7 @@ pub enum TypeCheckingError {
     UnexpectedReturn(Type, Pos),
     // A variable was referenced that does not exist
     NoSuchVariable(Id, Pos),
+    ExpectedBox(Type, Pos),
 }
 
 impl Report for TypeCheckingError {
@@ -60,6 +61,7 @@ impl Report for TypeCheckingError {
                 "a variable named {} was referenced that doesn't exist at {}",
                 a, s
             ),
+            ExpectedBox(t, p) => format!("Expected a box at {}, but got {}", p, t),
         }
     }
 }
@@ -156,7 +158,7 @@ fn lookup(env: &Env, id: &Id, s: &Pos) -> TypeCheckingResult<Type> {
 }
 
 // type check an entire program.
-pub fn type_check(stmt: &mut Stmt) -> TypeCheckingResult<()> {
+pub fn type_check(stmt: &Stmt) -> TypeCheckingResult<()> {
     match type_check_stmt(
         stmt,
         get_global_object()
@@ -459,10 +461,36 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             // whole operation has output type
             Ok(ty_out)
         }
-        Expr::NewRef(..) | Expr::Deref(..) | Expr::Store(..) => {
-            todo!("optionally, typechecking could occur after boxing")
+        Expr::NewRef(boxed_e, boxed_t, p) => {
+            ensure("expression in new box", boxed_t.clone(), type_check_expr(&boxed_e, env)?, p)?;
+            Ok(Type::Ref(Box::new(boxed_t.clone())))
         }
-        Expr::EnvGet(..) | Expr::Closure(..) => {
+        Expr::Deref(e, t_annot, p) => {
+            match type_check_expr(e, env)? {
+                Type::Ref(t) => {
+                    ensure("incorrect annotation", *t.clone(), t_annot.clone(), p)?;
+                    Ok(*t.clone())
+                },
+                t_unexpected => {
+                    Err(TypeCheckingError::ExpectedBox(t_unexpected.clone(), p.clone()))
+                }
+            }
+        }
+        Expr::Store(e1, e2, t_annot, p) => {
+            match type_check_expr(e1, env.clone())? {
+                Type::Ref(t1) => {
+                    ensure("incorrect annotation", *t1.clone(), t_annot.clone(), p)?;
+                    ensure("ref cell contents", *t1.clone(), type_check_expr(e2, env)?, p)?;
+                    Ok(*t1.clone())
+                },
+                t_unexpected => {
+                    Err(TypeCheckingError::ExpectedBox(t_unexpected.clone(), p.clone()))
+                }
+            }
+
+        }
+        Expr::EnvGet(_, t, _) => Ok(t.clone()),
+        Expr::Closure(..) => {
             panic!("typechecking should occur before closure conversion")
         }
     }

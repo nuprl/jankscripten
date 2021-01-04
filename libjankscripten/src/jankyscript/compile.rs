@@ -9,13 +9,16 @@ pub fn compile<F>(janky_ast: &mut Stmt, inspect_janky: F) -> Result<(), TypeChec
 where
     F: FnOnce(&Stmt) -> (),
 {
-    inspect_janky(&janky_ast);
     type_check(janky_ast)?;
     // TODO(luna): maybe the runtime should be added in jankierscript or
     // jankyscript. this would mean we could assert free_vars == \emptyset
     free_vars(janky_ast);
     let should_box_globals = collect_assigns(janky_ast);
     box_assigns(janky_ast, should_box_globals);
+    // type-checking should succeed after every phase.
+    type_check(janky_ast)?;
     closure_convert(janky_ast);
+    // Inspect after type-checking, so that all type annotations are present.
+    inspect_janky(&janky_ast);
     Ok(())
 }
