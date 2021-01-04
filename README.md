@@ -61,5 +61,8 @@ To debug or profile a compiled WebAssembly program:
 node --inspect-brk bin/run FILENAME.wasm
 ```
 
-See the Node [Debugging Guide](https://nodejs.org/en/docs/guides/debugging-getting-started/)
-for more information.
+The Chrome debugger uses source maps correctly to show the original Rust code.
+You can use Visual Studio Code or Edge, but source maps do not appear to work
+correctly. See the Node [Debugging
+Guide](https://nodejs.org/en/docs/guides/debugging-getting-started/) for more
+information.
