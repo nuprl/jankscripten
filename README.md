@@ -14,9 +14,10 @@ Prerequisites
 
 ## Auxiliary Dependencies
 
-We depend on Rust packages that link with libssl. Those packages fail to build
-unless you have the  libssl headers installed. On Ubuntu, run
-`sudo apt-get install libssl-dev` to install them.
+We depend on Rust packages that link with *libssl* and rely on *pkg-config*.
+Those packages fail to build unless you have the libssl headers and the
+pkg-config tool installed. On Ubuntu, run `sudo apt-get install libssl-dev
+pkg-config` to install them.
 
 Building
 ========
