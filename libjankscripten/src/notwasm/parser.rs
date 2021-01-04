@@ -32,14 +32,12 @@ parser! {
     fn id['a, 'b, I](lang: &'b Lang<'a, I>)(I) -> Id
     where [I: Stream<Item = char>]
     {
-        // $IDENT is allowed in js and used in JankyScript
-        optional(token('$')).and(lang.identifier()).map(|(dollar, x)|
-            Id::Named(if dollar.is_some() {
-                format!("{}{}", '$', x)
-            } else {
-                x.to_string()
-            })
+        lang.reserved("bogus").with(
+            lang.parens(lang.reserved("env").with(value(Id::Bogus("env")))))
+        .or(
+        lang.identifier().map(|x| Id::Named(x.to_string()))
         )
+            
     }
 }
 
@@ -477,6 +475,7 @@ pub fn parse(filename: &str, input: &str) -> Program {
             rest: alpha_num().or(token('_')),
             reserved: [
                 "as",
+                "bogus",
                 "clos",
                 "env",
                 "if",
@@ -487,7 +486,7 @@ pub fn parse(filename: &str, input: &str) -> Program {
                 "loop",
                 "return",
                 "i32",
-                "string",
+                "str",
                 "bool",
                 "while",
                 "f64",
