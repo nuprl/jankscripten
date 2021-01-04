@@ -69,7 +69,7 @@ fn compile_notwasm(input_path: &str, input: &str, output: &Path) {
     let parsed = notwasm::parse(input_path, input);
     let wasm = match notwasm::compile(parsed, |_| ()) {
         Ok(o) => o,
-        Err(_) => todo!("(luna) how to print error without source locations?"),
+        Err(e) => panic!("error compiling notwasm: {}", e.report())
     };
     fs::write(output, wasm).expect("writing file");
 }

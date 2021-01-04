@@ -13,7 +13,7 @@ impl Pretty for Type {
         match self {
             Type::I32 => pp.text("i32"),
             Type::F64 => pp.text("f64"),
-            Type::String => pp.text("string"),
+            Type::String => pp.text("str"),
             Type::HT => pp.text("ht"),
             Type::Array => pp.text("array"),
             Type::Bool => pp.text("bool"),
@@ -128,8 +128,9 @@ impl Pretty for Lit {
         match self {
             Lit::Bool(b) => pp.text(if *b { "true" } else { "false" }),
             Lit::I32(n) => pp.as_string(n),
-            Lit::F64(n) => pp.as_string(n),
-            Lit::String(s) => pp.text(s),
+            Lit::F64(x) => pp.text(format!("{}f", x)),
+            // TOOD(arjun): Escape characters
+            Lit::String(s) => pp.text("\"").append(pp.text(s)).append(pp.text("\"")),
             Lit::Interned(u) => pp.concat(vec![pp.text("interned"), pp.as_string(u).parens()]),
             Lit::Undefined => pp.text("undefined"),
             Lit::Null => pp.text("null"),
@@ -144,14 +145,9 @@ impl Pretty for ToAny {
         A: std::clone::Clone,
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
-        pp.concat(vec![
-            self.atom.pretty(pp),
-            pp.text(" as any::"),
-            self.ty
-                .as_ref()
-                .map(|t| t.pretty(pp))
-                .unwrap_or(pp.text("_")),
-        ])
+        // NOTE(arjun): We do not print the type annotation, even if it exists, because the parser
+        // canot parse it.
+        pp.text("any").append(self.atom.pretty(pp).parens())
     }
 }
 
@@ -162,9 +158,7 @@ impl Pretty for Atom {
         A: std::clone::Clone,
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
-        pp.concat(vec![
-            pp.text("⚛️"),
-            (match self {
+            match self {
                 Atom::Lit(l, _) => l.pretty(pp),
                 Atom::ToAny(to_any, _) => to_any.pretty(pp),
                 Atom::FromAny(a, t, _) => pp.concat(vec![
@@ -183,11 +177,12 @@ impl Pretty for Atom {
                 Atom::HTGet(l, r, _) => {
                     pp.concat(vec![l.pretty(pp), pp.text(".htget"), r.pretty(pp).parens()])
                 }
-                Atom::ObjectGet(l, r, _) => pp.concat(vec![
-                    l.pretty(pp),
-                    pp.text(".objget"),
-                    r.pretty(pp).parens(),
-                ]),
+                Atom::ObjectGet(l, r, _) => {
+                    match &**r {
+                        Atom::Lit(Lit::String(r), _) => l.pretty(pp).append(pp.text(".")).append(pp.text(r)),
+                        _ => l.pretty(pp).append(pp.text(".")).append(r.pretty(pp))
+                    }
+                },
                 Atom::Index(l, r, _) => pp.concat(vec![l.pretty(pp), r.pretty(pp).brackets()]),
                 Atom::ArrayLen(a, _) => pp.concat(vec![a.pretty(pp), pp.text(".array_len()")]),
                 Atom::Id(id, _) => pp.as_string(id),
@@ -200,10 +195,10 @@ impl Pretty for Atom {
                     pp.concat(vec![l.pretty(pp), op.pretty(pp), r.pretty(pp)])
                 }
                 Atom::Deref(a, _, _) => pp.concat(vec![pp.text("*"), a.pretty(pp)]),
-                Atom::EnvGet(index, _, _) => pp.text("env.").append(pp.as_string(index)),
-            }),
-            pp.text("⚛️"),
-        ])
+                Atom::EnvGet(index, t, _) => pp.text("env.").append(pp.as_string(index))
+                    .append(pp.text(":"))
+                    .append(t.pretty(pp)),
+            }
     }
 }
 
@@ -259,17 +254,24 @@ impl Pretty for Expr {
                 .parens(),
             ]),
             Expr::ObjectEmpty => pp.text("{}"),
-            Expr::ObjectSet(a, b, c, _) => pp.concat(vec![
-                pp.text("obj_set"),
+            Expr::ObjectSet(a, Atom::Lit(Lit::String(s), _), c, _) =>
                 pp.concat(vec![
                     a.pretty(pp),
-                    pp.text(", "),
-                    b.pretty(pp),
-                    pp.text(", "),
+                    pp.text("."),
+                    pp.text(s),
+                    pp.text("="),
                     c.pretty(pp),
-                ])
-                .braces(),
-            ]),
+                    pp.text(";")
+                ]),
+            Expr::ObjectSet(a, b, c, _) =>
+                pp.concat(vec![
+                    a.pretty(pp),
+                    pp.text("."),
+                    b.pretty(pp),
+                    pp.text("="),
+                    c.pretty(pp),
+                    pp.text(";")
+                ]),
             Expr::NewRef(a, ty, _) => pp.concat(vec![
                 pp.text("new_ref::"),
                 ty.pretty(pp),
@@ -285,7 +287,6 @@ impl Pretty for Expr {
                                 .map(|(a, ty)| a.pretty(pp).append(": ").append(ty.pretty(pp))),
                             pp.text(", "),
                         )
-                        .brackets(),
                     )
                     .parens(),
             ),
@@ -300,15 +301,17 @@ impl Pretty for VarStmt {
         A: std::clone::Clone,
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
+        if self.id == Id::from("_") {
+            return self.named.pretty(pp);
+        }
         pp.concat(vec![
             pp.text("var"),
             pp.space(),
             pp.as_string(self.id.clone()),
-            pp.text(": "),
             self.ty
                 .as_ref()
-                .map(|t| t.pretty(pp))
-                .unwrap_or(pp.text("none")),
+                .map(|t| pp.text(":").append(t.pretty(pp)))
+                .unwrap_or(pp.space()),
             pp.space(),
             pp.text("="),
             pp.space(),
@@ -326,7 +329,7 @@ impl Pretty for Stmt {
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
         match self {
-            Stmt::Empty => pp.text("▢"),
+            Stmt::Empty => pp.space(),
             Stmt::Var(var_stmt, _) => var_stmt.pretty(pp),
             Stmt::Expression(expr, _) => expr.pretty(pp),
             Stmt::Assign(x, expr, _) => pp.concat(vec![
@@ -404,18 +407,14 @@ impl Pretty for Global {
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
         pp.concat(vec![
-            pp.text(if self.is_mut { "true" } else { "false" }),
-            pp.text(","),
-            pp.space(),
             self.ty.pretty(pp),
-            pp.text(","),
             pp.space(),
             self.atom
                 .as_ref()
-                .map(|a| a.pretty(pp))
-                .unwrap_or(pp.text("none")),
+                .map(|v| pp.text("= ").append(v.pretty(pp)))
+                .unwrap_or(pp.space()),
+            pp.text(";")
         ])
-        .angles()
     }
 }
 
@@ -427,17 +426,18 @@ impl Pretty for Function {
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
         pp.concat(vec![
-            pp.text("function"),
-            pp.space(),
             pp.intersperse(
-                self.params.iter().map(|p| pp.as_string(p)),
+                self.params.iter().zip(&self.fn_type.args).map(|(x, t)| {
+                    pp.concat(vec![ pp.as_string(x), pp.text(":"), t.pretty(pp) ])
+                }),
                 pp.text(",").append(pp.space()),
             )
             .parens(),
             pp.space(),
-            pp.text(":"),
-            pp.space(),
-            self.fn_type.pretty(pp),
+            // Print the result type, if there is one.
+            self.fn_type.result.as_ref()
+                .map(|result_ty| pp.text(":").append(pp.space()).append(result_ty.pretty(pp)))
+                .unwrap_or(pp.space()),
             pp.space(),
             self.body.pretty(pp),
         ])
@@ -452,27 +452,11 @@ impl Pretty for Program {
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
         pp.concat(vec![
-            pp.text("FUNCTIONS:"),
-            pp.hardline(),
-            pp.intersperse(
-                self.functions.iter().map(|(k, v)| {
-                    pp.concat(vec![
-                        pp.as_string(k),
-                        pp.text(":"),
-                        pp.space(),
-                        v.pretty(pp),
-                    ])
-                }),
-                pp.hardline(),
-            )
-            .nest(2),
-            pp.hardline(),
-            pp.hardline(),
-            pp.text("GLOBALS:"),
-            pp.hardline(),
             pp.intersperse(
                 self.globals.iter().map(|(k, v)| {
                     pp.concat(vec![
+                        pp.text("var"),
+                        pp.space(),
                         pp.as_string(k),
                         pp.text(":"),
                         pp.space(),
@@ -484,8 +468,20 @@ impl Pretty for Program {
             .nest(2),
             pp.hardline(),
             pp.hardline(),
-            pp.text("DATA:"),
-            hex_dump(pp, &self.data),
+            pp.intersperse(
+                self.functions.iter().map(|(fn_name, v)| {
+                    pp.concat(vec![
+                        pp.text("function"),
+                        pp.space(),
+                        pp.as_string(fn_name),
+                        pp.space(),
+                        v.pretty(pp),
+                    ])
+                }),
+                pp.hardline(),
+            )
+            .nest(2),
+            // NOTE(arjun): Not displaying data segment
         ])
     }
 }
