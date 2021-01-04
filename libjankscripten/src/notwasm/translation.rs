@@ -76,6 +76,9 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         index += 1;
     }
 
+    // Map from function indices to original names
+    let mut function_name_subsection: FunctionNameSubsection = Default::default();
+
     let rt_types = get_rt_bindings();
     let mut rt_indexes = HashMap::new();
     // build up indexes for mutual recursion first
@@ -94,6 +97,9 @@ pub fn translate_parity(mut program: N::Program) -> Module {
         } else {
             panic!("expected all elements in the runtime to have function type");
         };
+        function_name_subsection
+            .names_mut()
+            .insert(func_i as u32, name.to_string());
         rt_indexes.insert(name.clone(), func_i as u32);
         module = module
             .import()
@@ -169,8 +175,6 @@ pub fn translate_parity(mut program: N::Program) -> Module {
     }
     let mut module = table_build.build();
 
-    // Map from function indices to original names
-    let mut function_name_subsection: FunctionNameSubsection = Default::default();
     // For each function index, a map from local variable indices to original names.
     let mut local_name_subsection: LocalNameSubsection = Default::default();
 
@@ -649,8 +653,18 @@ impl<'a> Translate<'a> {
             N::Expr::ClosureCall(f, args, s) => {
                 match self.id_env.get(f).cloned() {
                     Some(IdIndex::Fun(_)) => panic!("closures are always given a name"),
-                    Some(IdIndex::Local(i, t)) => {
-                        self.out.push(GetLocal(i));
+                    Some(which @ IdIndex::Local(..)) | Some(which @ IdIndex::Global(..)) => {
+                        let t = match which {
+                            IdIndex::Local(i, ref t) => {
+                                self.out.push(GetLocal(i));
+                                t.clone()
+                            }
+                            IdIndex::Global(i, ref t) => {
+                                self.out.push(GetGlobal(i));
+                                t.clone()
+                            }
+                            _ => unreachable!(),
+                        };
                         self.rt_call("closure_env");
                         let (params_tys, ret_ty) = match t {
                             N::Type::Closure(fn_ty) => {
@@ -665,27 +679,11 @@ impl<'a> Translate<'a> {
                         for arg in args {
                             self.get_id(arg);
                         }
-                        self.out.push(GetLocal(i));
-                        self.rt_call("closure_func");
-                        self.out.push(CallIndirect(*ty_index, 0));
-                    }
-                    Some(IdIndex::Global(i, t)) => {
-                        self.out.push(GetGlobal(i));
-                        self.rt_call("closure_env");
-                        let (params_tys, ret_ty) = match t {
-                            N::Type::Closure(fn_ty) => {
-                                (types_as_wasm(&fn_ty.args), option_as_wasm(&fn_ty.result))
-                            }
-                            _ => panic!("identifier {:?} is not function-typed", f),
-                        };
-                        let ty_index = self
-                            .type_indexes
-                            .get(&(params_tys, ret_ty))
-                            .unwrap_or_else(|| panic!("function type was not indexed {:?}", s));
-                        for arg in args {
-                            self.get_id(arg);
+                        match which {
+                            IdIndex::Local(i, _) => self.out.push(GetLocal(i)),
+                            IdIndex::Global(i, _) => self.out.push(GetGlobal(i)),
+                            _ => unreachable!(),
                         }
-                        self.out.push(GetGlobal(i));
                         self.rt_call("closure_func");
                         self.out.push(CallIndirect(*ty_index, 0));
                     }
