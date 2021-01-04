@@ -3,7 +3,7 @@
 use crate::{AnyEnum, AnyValue};
 use std::alloc;
 use std::alloc::Layout;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::mem;
 mod class_list;
 mod constants;
@@ -30,11 +30,17 @@ use heap_values::*;
 #[cfg(test)]
 mod tests;
 
+/// A managed heap backed by rust allocation (it simply tracks where objects
+/// are allocated)
+///
 /// When running a program, we have a single global Heap ([crate::heap()]).
 /// However, during testing, we create several heaps.
 pub struct Heap {
     pub f64_allocator: RefCell<F64Allocator>,
     size: isize,
+    // an estimate of the memory used by the rust allocator to support this
+    // heap, based on allocation sizes, but not layout
+    used_mem: Cell<isize>,
     alloc_list: RefCell<AllocList>,
     tag_size: isize,
     pub classes: RefCell<ClassList>,
@@ -43,15 +49,16 @@ pub struct Heap {
     shadow_stack: RefCell<Vec<Vec<Option<*mut Tag>>>>,
 }
 
-/// https://rust-unofficial.github.io/too-many-lists/first-layout.html
+/// https://rust-unofficial.github.io/too-many-lists/second-option.html
 #[derive(Debug)]
 struct AllocList {
-    list: Option<Box<AllocItem>>,
+    list: Link,
 }
+type Link = Option<Box<AllocItem>>;
 #[derive(Debug)]
 struct AllocItem {
     tag: *mut Tag,
-    next: Option<Box<AllocItem>>,
+    next: Link,
 }
 
 impl AllocList {
@@ -59,7 +66,7 @@ impl AllocList {
         return AllocList { list: None };
     }
 
-    pub fn insert(&mut self, tag: *mut Tag) {
+    pub fn push(&mut self, tag: *mut Tag) {
         self.list = Some(Box::new(AllocItem {
             tag,
             next: self.list.take(),
@@ -69,13 +76,13 @@ impl AllocList {
     /// Returns map from sizes to counts of everything in the free list
     fn histogram(&self, heap: &Heap) -> std::collections::BTreeMap<usize, usize> {
         let mut map = std::collections::BTreeMap::new();
-        let mut to = self.list;
+        let mut to = &self.list;
         loop {
             match to {
                 Some(more) => {
                     let tag = unsafe { AnyPtr::new(more.tag) };
                     *map.entry(tag.get_data_size(heap)).or_insert(0) += 1;
-                    to = to.unwrap().next;
+                    to = &to.as_ref().unwrap().next;
                 }
                 None => break,
             }
@@ -84,15 +91,29 @@ impl AllocList {
     }
 }
 
-/// allocate the number of bytes, with an alignment of 4
+/// allocate the number of bytes using the rust allocator, with an alignment of
+/// 4, and return the address
 fn alloc_raw(bytes: isize) -> *mut Tag {
-    alloc::alloc(unsafe { Layout::from_size_align_unchecked(bytes as usize, 4) }) as *mut Tag
+    debug_assert!(bytes > 0);
+    // SAFETY: assertion above ensures size is not zero, and the alignment is
+    // valid in wasm (power of two)
+    unsafe { alloc::alloc(Layout::from_size_align_unchecked(bytes as usize, 4)) as *mut Tag }
 }
 
 impl Heap {
+    /// Create a new heap with the given approximate max size
+    ///
+    /// The size given is approximately how much rust memory the heap should
+    /// occupy before garbage collecting. It should be well below the amount of
+    /// rust memory actually available, for two reasons:
+    ///
+    /// 1. Garbage collection may reserve some incidental memory, and OOM
+    ///    should be avoided
+    /// 2. The occupied memory of the heap is merely an estimate, and may be
+    ///    more or less depending on how rust deals with things
     pub fn new(size: isize) -> Self {
-        let layout = Layout::from_size_align(size as usize, ALIGNMENT).unwrap();
         let f64_allocator = RefCell::new(F64Allocator::new());
+        let used_mem = Cell::new(0);
         let alloc_list = RefCell::new(AllocList::new());
         let tag_size = layout::layout_aligned::<Tag>(ALIGNMENT).size() as isize;
         let classes = RefCell::new(ClassList::new());
@@ -100,6 +121,7 @@ impl Heap {
         return Heap {
             f64_allocator,
             size,
+            used_mem,
             alloc_list,
             tag_size,
             classes,
@@ -107,8 +129,20 @@ impl Heap {
         };
     }
 
-    // NOTE(arjun): It is now clear to me that the lifetime parameter on heap values
-    // is pointless.
+    /// if there is enough space to [`alloc_raw`], **increase used_mem by that
+    /// amount, add entry to alloc_list** and return the address. otherwise,
+    /// return None
+    fn alloc_raw(&self, bytes: isize) -> Option<*mut Tag> {
+        if (self.size - self.used_mem.get()) < bytes {
+            None
+        } else {
+            self.used_mem.set(self.used_mem.get() + bytes);
+            let tag = alloc_raw(bytes);
+            self.alloc_list.borrow_mut().push(tag);
+            Some(tag)
+        }
+    }
+
     pub fn f64_to_any(&self, x: f64) -> AnyValue {
         AnyEnum::F64(self.alloc_f64_or_gc(x)).into()
     }
@@ -145,7 +179,7 @@ impl Heap {
         }
     }
     fn alloc_tag<T>(&self, tag: Tag, value: T) -> Result<TypePtr<T>, T> {
-        let opt_ptr = alloc_raw(self.tag_size + TypePtr::<T>::size());
+        let opt_ptr = self.alloc_raw(self.tag_size + TypePtr::<T>::size());
         match opt_ptr {
             None => Err(value),
             Some(ptr) => {
@@ -254,15 +288,10 @@ impl Heap {
     /// size must be exactly AnyPtr::new(&tag).get_data_size(). size must
     /// be aligned
     ///
-    /// TODO(luna): i want to provide resizable Array within the allocator
-    /// because it shouldn't be hard with everything we currently have and
-    /// it prevents OOM-before-allocator-knows-it. then we could back Object
-    /// with an Array, delete ObjectDataPtr, and get O(n) cached inserts
+    /// TODO(luna): Because we use the rust allocator, we could back Object
+    /// with a Vec, delete ObjectDataPtr, and get O(n) cached inserts
     unsafe fn alloc_slice(&self, tag: Tag, size: isize) -> Option<*mut Tag> {
-        let ptr = self
-            .free_list
-            .borrow_mut()
-            .find_free_size(self.tag_size + size)?;
+        let ptr = self.alloc_raw(self.tag_size + size)?;
         let tag_ptr = ptr as *mut Tag;
         tag_ptr.write(tag);
         Some(tag_ptr)
@@ -378,38 +407,41 @@ impl Heap {
 
     fn sweep_phase(&self) {
         let mut count = 0;
-        let to = &mut self.alloc_list.borrow_mut().list;
-        while let Some(item) = to {
-            let ptr = item.ptr;
+        let mut to = &mut self.alloc_list.borrow_mut().list;
+        while let Some(ref item) = to {
+            let ptr = item.tag;
             unsafe {
                 if (*ptr).marked {
                     (*ptr).marked = false;
-                    to = item.next;
+                    to = &mut to.as_mut().unwrap().next;
                 } else {
                     let any_ptr = AnyPtr::new(ptr);
                     let size = self.tag_size as usize + any_ptr.get_data_size(self);
                     // drop any rust memory that may exist
                     any_ptr.final_drop();
-                    alloc::dealloc(item.ptr, size);
+                    alloc::dealloc(
+                        item.tag as *mut u8,
+                        Layout::from_size_align_unchecked(size, 4),
+                    );
+                    self.used_mem.set(self.used_mem.get() - size as isize);
                     count += 1;
                     // remove from the free list
-                    *item = item.next.take();
+                    *to = to.take().unwrap().next;
                 }
             }
         }
-        error!("=====      FREED {} OBJECTS     =====", count);
+        error!(
+            "===== FREED {} OBJECTS. {}/{} USED =====",
+            count,
+            self.used_mem.get(),
+            self.size
+        );
         error!("=====      END JANKYSCRIPT GC     =====");
-    }
-
-    /// that's right, a rust string, since it's just gonna get logged
-    fn mem_diagram(&self) -> String {
-        todo!()
     }
 
     /// for debugging. print info about free vs allocated memory
     pub fn mem_info(&self) {
-        let hist = self.free_list.borrow().histogram();
+        let hist = self.alloc_list.borrow().histogram(self);
         error!("FREE LIST HIST\n{:#?}\nEND", hist);
-        error!("MEM DIAGRAM:\n|{}|", self.mem_diagram());
     }
 }
