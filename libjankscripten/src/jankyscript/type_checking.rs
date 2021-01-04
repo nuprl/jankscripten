@@ -308,21 +308,21 @@ fn type_check_fun_call(
     Ok(*return_type)
 }
 
+fn type_check_func(f: &Func, env: Env) -> TypeCheckingResult<Type> {
+    let mut function_env = env.clone();
+    function_env.extend(f.args_with_typs.clone().into_iter());
+
+    type_check_stmt(&f.body, function_env, &Some(f.result_typ.clone()))?;
+
+    Ok(Type::Function(
+        f.arg_typs().cloned().collect(),
+        Box::new(f.result_typ.clone()),
+    ))
+}
+
 fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
     match expr {
-        Expr::Func(f, _) => {
-            // type check body under assumption that args have the specified
-            // types
-            let mut function_env = env.clone();
-            function_env.extend(f.args_with_typs.clone().into_iter());
-
-            type_check_stmt(&f.body, function_env, &Some(f.result_typ.clone()))?;
-
-            Ok(Type::Function(
-                f.arg_typs().cloned().collect(),
-                Box::new(f.result_typ.clone()),
-            ))
-        }
+        Expr::Func(f, _) => type_check_func(f, env),
         Expr::Assign(lval, rval, s) => {
             // rval should be well typed
             let rval_ty = type_check_expr(&rval, env.clone())?;
@@ -490,8 +490,11 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
 
         }
         Expr::EnvGet(_, t, _) => Ok(t.clone()),
-        Expr::Closure(..) => {
-            panic!("typechecking should occur before closure conversion")
+        Expr::Closure(f, f_env, p) => {
+            for (e, t) in f_env.iter() {
+                ensure("value captured in closure", t.clone(), type_check_expr(e, env.clone())?, p)?;
+            }
+            type_check_func(f, env)
         }
     }
 }
