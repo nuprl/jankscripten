@@ -20,6 +20,7 @@ use crate::any_value::AnyEnum;
 use crate::any_value::AnyValue;
 use crate::closure::ClosureVal;
 use crate::heap_types::EnvPtr;
+use crate::static_strings;
 
 static mut HEAP: Option<Heap> = None;
 
@@ -31,6 +32,7 @@ pub static JNKS_STRINGS: [u8; 65536] = [0; 65536];
 pub extern "C" fn init() {
     unsafe {
         HEAP = Some(Heap::new(536870912));
+        static_strings::init();
     }
 }
 
