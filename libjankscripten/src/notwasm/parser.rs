@@ -37,7 +37,7 @@ parser! {
         .or(
         lang.identifier().map(|x| Id::Named(x.to_string()))
         )
-            
+
     }
 }
 

@@ -158,47 +158,45 @@ impl Pretty for Atom {
         A: std::clone::Clone,
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
-            match self {
-                Atom::Lit(l, _) => l.pretty(pp),
-                Atom::ToAny(to_any, _) => to_any.pretty(pp),
-                Atom::FromAny(a, t, _) => pp.concat(vec![
-                    a.pretty(pp),
-                    pp.space(),
-                    pp.text("as"),
-                    pp.space(),
-                    t.pretty(pp),
-                ]),
-                Atom::FloatToInt(a, _) => {
-                    pp.concat(vec![pp.text("float_to_int"), pp.space(), a.pretty(pp)])
-                }
-                Atom::IntToFloat(a, _) => {
-                    pp.concat(vec![pp.text("int_to_float"), pp.space(), a.pretty(pp)])
-                }
-                Atom::HTGet(l, r, _) => {
-                    pp.concat(vec![l.pretty(pp), pp.text(".htget"), r.pretty(pp).parens()])
-                }
-                Atom::ObjectGet(l, r, _) => {
-                    match &**r {
-                        Atom::Lit(Lit::String(r), _) => l.pretty(pp).append(pp.text(".")).append(pp.text(r)),
-                        _ => l.pretty(pp).append(pp.text(".")).append(r.pretty(pp))
-                    }
-                },
-                Atom::Index(l, r, _) => pp.concat(vec![l.pretty(pp), r.pretty(pp).brackets()]),
-                Atom::ArrayLen(a, _) => pp.concat(vec![a.pretty(pp), pp.text(".array_len()")]),
-                Atom::Id(id, _) => pp.as_string(id),
-                Atom::GetPrimFunc(id, _) => {
-                    pp.concat(vec![pp.text("rt"), pp.as_string(id).parens()])
-                }
-                Atom::StringLen(a, _) => pp.concat(vec![a.pretty(pp), pp.text(".string_len()")]),
-                Atom::Unary(op, a, _) => pp.concat(vec![op.pretty(pp), a.pretty(pp)]),
-                Atom::Binary(op, l, r, _) => {
-                    pp.concat(vec![l.pretty(pp), op.pretty(pp), r.pretty(pp)])
-                }
-                Atom::Deref(a, _, _) => pp.concat(vec![pp.text("*"), a.pretty(pp)]),
-                Atom::EnvGet(index, t, _) => pp.text("env.").append(pp.as_string(index))
-                    .append(pp.text(":"))
-                    .append(t.pretty(pp)),
+        match self {
+            Atom::Lit(l, _) => l.pretty(pp),
+            Atom::ToAny(to_any, _) => to_any.pretty(pp),
+            Atom::FromAny(a, t, _) => pp.concat(vec![
+                a.pretty(pp),
+                pp.space(),
+                pp.text("as"),
+                pp.space(),
+                t.pretty(pp),
+            ]),
+            Atom::FloatToInt(a, _) => {
+                pp.concat(vec![pp.text("float_to_int"), pp.space(), a.pretty(pp)])
             }
+            Atom::IntToFloat(a, _) => {
+                pp.concat(vec![pp.text("int_to_float"), pp.space(), a.pretty(pp)])
+            }
+            Atom::HTGet(l, r, _) => {
+                pp.concat(vec![l.pretty(pp), pp.text(".htget"), r.pretty(pp).parens()])
+            }
+            Atom::ObjectGet(l, r, _) => match &**r {
+                Atom::Lit(Lit::String(r), _) => {
+                    l.pretty(pp).append(pp.text(".")).append(pp.text(r))
+                }
+                _ => l.pretty(pp).append(pp.text(".")).append(r.pretty(pp)),
+            },
+            Atom::Index(l, r, _) => pp.concat(vec![l.pretty(pp), r.pretty(pp).brackets()]),
+            Atom::ArrayLen(a, _) => pp.concat(vec![a.pretty(pp), pp.text(".array_len()")]),
+            Atom::Id(id, _) => pp.as_string(id),
+            Atom::GetPrimFunc(id, _) => pp.concat(vec![pp.text("rt"), pp.as_string(id).parens()]),
+            Atom::StringLen(a, _) => pp.concat(vec![a.pretty(pp), pp.text(".string_len()")]),
+            Atom::Unary(op, a, _) => pp.concat(vec![op.pretty(pp), a.pretty(pp)]),
+            Atom::Binary(op, l, r, _) => pp.concat(vec![l.pretty(pp), op.pretty(pp), r.pretty(pp)]),
+            Atom::Deref(a, _, _) => pp.concat(vec![pp.text("*"), a.pretty(pp)]),
+            Atom::EnvGet(index, t, _) => pp
+                .text("env.")
+                .append(pp.as_string(index))
+                .append(pp.text(":"))
+                .append(t.pretty(pp)),
+        }
     }
 }
 
@@ -247,7 +245,7 @@ impl Pretty for Expr {
             ]),
             Expr::ClosureCall(f, args, _) => pp.concat(vec![
                 pp.as_string(f),
-                pp.text("!"),                
+                pp.text("!"),
                 pp.intersperse(
                     args.iter().map(|a| pp.as_string(a)),
                     pp.text(",").append(pp.space()),
@@ -264,24 +262,22 @@ impl Pretty for Expr {
                 .parens(),
             ]),
             Expr::ObjectEmpty => pp.text("{}"),
-            Expr::ObjectSet(a, Atom::Lit(Lit::String(s), _), c, _) =>
-                pp.concat(vec![
-                    a.pretty(pp),
-                    pp.text("."),
-                    pp.text(s),
-                    pp.text("="),
-                    c.pretty(pp),
-                    pp.text(";")
-                ]),
-            Expr::ObjectSet(a, b, c, _) =>
-                pp.concat(vec![
-                    a.pretty(pp),
-                    pp.text("."),
-                    b.pretty(pp),
-                    pp.text("="),
-                    c.pretty(pp),
-                    pp.text(";")
-                ]),
+            Expr::ObjectSet(a, Atom::Lit(Lit::String(s), _), c, _) => pp.concat(vec![
+                a.pretty(pp),
+                pp.text("."),
+                pp.text(s),
+                pp.text("="),
+                c.pretty(pp),
+                pp.text(";"),
+            ]),
+            Expr::ObjectSet(a, b, c, _) => pp.concat(vec![
+                a.pretty(pp),
+                pp.text("."),
+                b.pretty(pp),
+                pp.text("="),
+                c.pretty(pp),
+                pp.text(";"),
+            ]),
             Expr::NewRef(a, ty, _) => pp.concat(vec![
                 pp.text("new_ref::"),
                 ty.pretty(pp),
@@ -296,7 +292,7 @@ impl Pretty for Expr {
                             env.iter()
                                 .map(|(a, ty)| a.pretty(pp).append(": ").append(ty.pretty(pp))),
                             pp.text(", "),
-                        )
+                        ),
                     )
                     .parens(),
             ),
@@ -423,7 +419,7 @@ impl Pretty for Global {
                 .as_ref()
                 .map(|v| pp.text("= ").append(v.pretty(pp)))
                 .unwrap_or(pp.space()),
-            pp.text(";")
+            pp.text(";"),
         ])
     }
 }
@@ -437,15 +433,18 @@ impl Pretty for Function {
     {
         pp.concat(vec![
             pp.intersperse(
-                self.params.iter().zip(&self.fn_type.args).map(|(x, t)| {
-                    pp.concat(vec![ pp.as_string(x), pp.text(":"), t.pretty(pp) ])
-                }),
+                self.params
+                    .iter()
+                    .zip(&self.fn_type.args)
+                    .map(|(x, t)| pp.concat(vec![pp.as_string(x), pp.text(":"), t.pretty(pp)])),
                 pp.text(",").append(pp.space()),
             )
             .parens(),
             pp.space(),
             // Print the result type, if there is one.
-            self.fn_type.result.as_ref()
+            self.fn_type
+                .result
+                .as_ref()
                 .map(|result_ty| pp.text(":").append(pp.space()).append(result_ty.pretty(pp)))
                 .unwrap_or(pp.space()),
             pp.space(),
