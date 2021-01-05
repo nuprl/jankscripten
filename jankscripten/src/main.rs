@@ -17,6 +17,8 @@ struct Compile {
     /// Only for debugging.
     #[clap(long)]
     disable_gc: bool,
+    #[clap(long)]
+    no_std: bool,
 }
 
 #[derive(Clap)]
@@ -42,6 +44,7 @@ impl Compile {
         if self.disable_gc {
             compile_opts.disable_gc = true;
         }
+        compile_opts.no_std = self.no_std;
         compile_opts
     }
 }
