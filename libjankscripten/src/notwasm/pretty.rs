@@ -237,7 +237,7 @@ impl Pretty for Expr {
                 ])
                 .braces(),
             ]),
-            Expr::Call(f, args, _) | Expr::ClosureCall(f, args, _) => pp.concat(vec![
+            Expr::Call(f, args, _) => pp.concat(vec![
                 pp.as_string(f),
                 pp.intersperse(
                     args.iter().map(|a| pp.as_string(a)),
@@ -245,6 +245,16 @@ impl Pretty for Expr {
                 )
                 .parens(),
             ]),
+            Expr::ClosureCall(f, args, _) => pp.concat(vec![
+                pp.as_string(f),
+                pp.text("!"),                
+                pp.intersperse(
+                    args.iter().map(|a| pp.as_string(a)),
+                    pp.text(",").append(pp.space()),
+                )
+                .parens(),
+            ]),
+
             Expr::PrimCall(rtsfun, args, _) => pp.concat(vec![
                 pp.as_string(rtsfun),
                 pp.intersperse(
