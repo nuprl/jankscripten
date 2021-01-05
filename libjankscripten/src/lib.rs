@@ -9,8 +9,6 @@ mod rope;
 mod rts_function;
 pub mod shared;
 
-use shared::UnwrapReport;
-
 #[macro_use]
 extern crate combine;
 
@@ -30,8 +28,8 @@ where
     javascript::desugar(&mut js_ast, &mut ng);
     let jankier_ast = jankierscript::from_javascript(js_ast);
     let mut janky_ast = jankierscript::insert_coercions(jankier_ast)?;
-    jankyscript::compile(&mut janky_ast, inspect_janky).unwrap_report();
+    jankyscript::compile(&mut janky_ast, inspect_janky).unwrap();
     let notwasm_ast = notwasm::from_jankyscript(janky_ast);
-    let wasm_bin = notwasm::compile(notwasm_ast, inspect_notwasm).unwrap_report();
+    let wasm_bin = notwasm::compile(notwasm_ast, inspect_notwasm).unwrap();
     Ok(wasm_bin)
 }

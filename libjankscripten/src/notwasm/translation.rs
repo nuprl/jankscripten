@@ -23,11 +23,6 @@ const FN_OBJ_SIZE: u32 = 4;
 
 type FuncTypeMap = HashMap<(Vec<ValueType>, Option<ValueType>), u32>;
 
-impl crate::shared::Report for Error {
-    fn report(&self) -> String {
-        format!("{}", self)
-    }
-}
 pub fn translate(program: N::Program) -> Result<Vec<u8>, Error> {
     serialize(translate_parity(program))
 }

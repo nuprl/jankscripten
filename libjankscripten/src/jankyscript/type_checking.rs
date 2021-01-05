@@ -5,65 +5,30 @@
 use super::syntax::*;
 use crate::pos::Pos;
 use crate::shared::std_lib::get_global_object;
-use crate::shared::Report;
 use im_rc::HashMap;
-
+use thiserror::Error;
 type Env = HashMap<Id, Type>;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum TypeCheckingError {
-    // Expected expression to have the first type, but it had the second
+    #[error("`{0}` expected type `{1}` but received `{2}` at `{3}`")]
     TypeMismatch(String, Type, Type, Pos),
-    // Expected expression to be indexable (either DynObject or Arrray),
-    // but it had the given type
+    #[error("`{0}` expected indexable type, but received `{1}` at `{2}`")]
     ExpectedIndexable(String, Type, Pos),
-    // Expected an indexer (e.g. the `x` in arr[x]), but it had the given type
+    #[error("`{0}` expected indexer, but received `{1}` at `{2}`")]
     ExpectedIndexer(String, Type, Pos),
-    // Expected an expression to have a function type
+    #[error("`{0}` expected an expression to have a function type, but received `{1}` at `{2}`")]
     ExpectedFunction(String, Type, Pos),
-    // Tried to tag a value of the first type, but it had the second
+    #[error("tried to tag a value of type `{0}`, but received `{1}` at `{2}`")]
     TagTypeMismatch(Type, Type, Pos),
-    // Expected a ground type
+    #[error("`{0}` expected a ground type but got `{1}` at `{2}`")]
     ExpectedGround(String, Type, Pos),
-    // A return statement was used outside of a function
+    #[error("unexpected return of type `{0}` at `{1}`")]
     UnexpectedReturn(Type, Pos),
-    // A variable was referenced that does not exist
+    #[error("a variable named `{0}` was referenced that doesn't exist at `{1}`")]
     NoSuchVariable(Id, Pos),
+    #[error("Expected a box at `{0}`, but got `{1}`")]
     ExpectedBox(Type, Pos),
-}
-
-impl Report for TypeCheckingError {
-    fn report(&self) -> String {
-        use TypeCheckingError::*;
-        match self {
-            TypeMismatch(a, b, c, s) => {
-                format!("{} expected type {} but received {} at {}", a, b, c, s)
-            }
-            ExpectedIndexable(a, b, s) => {
-                format!("{} expected indexable type, but received {} at {}", a, b, s)
-            }
-            ExpectedIndexer(a, b, s) => {
-                format!("{} expected idexer, but received {} at {}", a, b, s)
-            }
-            ExpectedFunction(a, b, s) => format!(
-                "{} expected an expression to have a function type, but received {} at {}",
-                a, b, s
-            ),
-            TagTypeMismatch(a, b, s) => format!(
-                "tried to tag a value of type {}, but received {} at {}",
-                a, b, s
-            ),
-            ExpectedGround(a, b, s) => {
-                format!("{} expected a ground type but got {} at {}", a, b, s)
-            }
-            UnexpectedReturn(a, s) => format!("unexpected return of type {} at {}", a, s),
-            NoSuchVariable(a, s) => format!(
-                "a variable named {} was referenced that doesn't exist at {}",
-                a, s
-            ),
-            ExpectedBox(t, p) => format!("Expected a box at {}, but got {}", p, t),
-        }
-    }
 }
 
 pub type TypeCheckingResult<T> = Result<T, TypeCheckingError>;

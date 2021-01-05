@@ -2,6 +2,7 @@ use super::constructors::*;
 use super::syntax::*;
 use crate::pos::Pos;
 use im_rc::HashMap;
+use thiserror::Error;
 
 #[derive(Clone, Debug)]
 pub struct Env {
@@ -33,53 +34,34 @@ impl Env {
     }
 }
 
-// TODO(arjun): I don't think we get much out of enumerating all kinds of errors. Refactor this
-// into just TypeCheckingError::Other.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum TypeCheckingError {
+    #[error("undefined variable `{0}` at `{0}`")]
     NoSuchVariable(Id, Pos),
+    #[error("`{0}` expected type `{1}` but received `{2}` at `{3}`")]
     TypeMismatch(String, Type, Type, Pos),
+    #[error("expected function (`{0}`), but got `{1}` at `{2}`")]
     ExpectedFunction(Id, Type, Pos),
+    #[error("`{0}` expected hash table, but got `{1}` at `{2}`")]
     ExpectedHT(String, Type, Pos),
+    #[error("`{0}` expected array, but got `{1}` at `{2}`")]
     ExpectedArray(String, Type, Pos),
+    #[error("`{0}` expected ref, but got `{1}` at `{2}`")]
     ExpectedRef(String, Type, Pos),
+    #[error("unexpected return type `{0}` at `{1}`")]
     UnexpectedReturn(Type, Pos),
-    ArityMismatch(Id, usize, usize, Pos), // params, then args
+    #[error(
+        "arity mismatch at `{0}`, expected `{1}` parameters but received `{1}` arguments at `{2}`"
+    )]
+    ArityMismatch(Id, usize, usize, Pos),
+    #[error("identifier `{0}` is multiply defined at `{1}`")]
     MultiplyDefined(Id, Pos),
+    #[error("In context `{0}`, unexpected type `{1}` at `{2}`")]
     InvalidInContext(String, Type, Pos),
+    #[error("Error type-checking NotWasm: `{0}` at `{1}`")]
     Other(String, Pos),
 }
-impl crate::shared::Report for TypeCheckingError {
-    fn report(&self) -> String {
-        use TypeCheckingError::*;
-        match self {
-            NoSuchVariable(a, s) => {
-                format!("undefined variable {} at {}", a, s)
-            }
-            TypeMismatch(a, b, c, s) => {
-                format!("{} expected type {:?} but received {:?} at {}", a, b, c, s)
-            }
-            ExpectedFunction(a, b, s) => {
-                format!("expected function ({}), but got {} at {}", a, b, s)
-            }
-            ExpectedHT(a, b, s) => format!("{} expected hash table, but got {} at {}", a, b, s),
-            ExpectedArray(a, b, s) => format!("{} expected array, but got {} at {}", a, b, s),
-            ExpectedRef(a, b, s) => format!("{} expected ref, but got {} at {}", a, b, s),
-            UnexpectedReturn(a, s) => {
-                format!("unexpected return type {} at {}", a, s)
-            }
-            ArityMismatch(a, b, c, s) => format!(
-                "arity mismatch at {}, expected {} parameters but received {} arguments at {}",
-                a, b, c, s
-            ),
-            MultiplyDefined(a, s) => format!("identifier {} is multiply defined at {}", a, s),
-            InvalidInContext(a, b, s) => {
-                format!("In context {}, unexpected type {} at {}", a, b, s)
-            }
-            Other(a, s) => format!("Error type-checking NotWasm: {} at {}", a, s),
-        }
-    }
-}
+
 pub type TypeCheckingResult<T> = Result<T, TypeCheckingError>;
 
 macro_rules! error {
