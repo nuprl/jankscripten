@@ -46,6 +46,20 @@ pub fn i32s_or_as_f64s_any(
     )
 }
 
+/// if a is *already* an object (no coercion), return Some(a as
+/// Object). otherwise return None
+pub fn match_object(a: AnyEnum) -> Option<ObjectPtr> {
+    if let AnyEnum::Ptr(p) = a {
+        if let HeapRefView::ObjectPtrPtr(obj) = p.view() {
+            Some(obj)
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
 /// adapted from https://ecma-international.org/ecma-262/5.1/#sec-11.9.3
 pub fn abstract_eq(a: AnyEnum, b: AnyEnum) -> bool {
     // 1. same type

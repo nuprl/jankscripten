@@ -2,6 +2,7 @@ use super::class_list::Class;
 use super::constants::DATA_OFFSET;
 use super::heap_values::*;
 use super::{Heap, ALIGNMENT};
+use crate::coercions::match_object;
 use crate::heap_types::StringPtr;
 use crate::static_strings::static_strings;
 use crate::{AnyEnum, AnyValue};
@@ -154,13 +155,11 @@ impl ObjectDataPtr {
 
             // Is it a real object that we can read from? As opposed to `null`
             // or any other type of value.
-            if let AnyEnum::Ptr(proto_ptr) = proto_val {
-                if let HeapRefView::ObjectPtrPtr(proto_obj) = proto_ptr.view() {
-                    // this is Case 2. Perform the same read on the proto obj.
+            if let Some(proto_obj) = match_object(proto_val) {
+                // this is Case 2. Perform the same read on the proto obj.
 
-                    // -1 because we don't cache reads on the prototype chain
-                    return proto_obj.get(heap, name, &mut -1);
-                }
+                // -1 because we don't cache reads on the prototype chain
+                return proto_obj.get(heap, name, &mut -1);
             }
         }
 

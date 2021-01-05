@@ -28,6 +28,7 @@ pub enum RTSFunction {
     Equal,
     StrictNotEqual,
     NotEqual,
+    InstanceOf,
 }
 
 // The name of a runtime function implementation.
@@ -62,6 +63,7 @@ impl RTSFunction {
             Equal => Rust("janky_equal"),
             StrictNotEqual => Rust("janky_strict_not_equal"),
             NotEqual => Rust("janky_not_equal"),
+            InstanceOf => Rust("instance_of"),
         }
     }
 
@@ -94,7 +96,8 @@ impl RTSFunction {
             Todo(name) => todo!("unimplemented operator: {}", name),
             LogAny => Function(vec![Any, Any], Box::new(Any)),
             Typeof => Function(vec![Any], Box::new(String)),
-            Delete => Function(vec![Any, Any], Box::new(Bool)),
+            // the second operand of InstanceOf is really "any closure" but we don't have a type for that
+            Delete | InstanceOf => Function(vec![Any, Any], Box::new(Bool)),
             Void => Function(vec![Any], Box::new(Any)),
             Plus | Minus | Times | Mod => Function(vec![Any, Any], Box::new(Any)),
             Over => Function(vec![Any, Any], Box::new(Float)),
@@ -128,6 +131,7 @@ impl std::fmt::Display for RTSFunction {
                 Equal => "==",
                 StrictNotEqual => "!==",
                 NotEqual => "!=",
+                InstanceOf => "instanceof",
             }
         )
     }
