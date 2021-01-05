@@ -2,6 +2,7 @@
 
 use crate::heap;
 use crate::heap_types::*;
+use crate::static_strings::static_strings;
 use crate::{AnyEnum, AnyValue, HeapPtr, HeapRefView};
 
 #[no_mangle]
@@ -46,7 +47,7 @@ pub extern "C" fn object_create(
                     // TODO(luna): we could avoid allocating this by interning it in the first place
                     new_object.insert(
                         heap(),
-                        ObjectPtr::__PROTO__STR,
+                        static_strings().__proto__,
                         maybe_prototype_chain,
                         &mut -1,
                     );

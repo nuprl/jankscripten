@@ -25,6 +25,7 @@ use constants::*;
 use f64_allocator::F64Allocator;
 use heap_types::*;
 pub use heap_values::Tag;
+pub use heap_values::TypeTag;
 use heap_values::*;
 
 #[cfg(test)]
