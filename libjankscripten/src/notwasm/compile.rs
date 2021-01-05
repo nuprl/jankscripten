@@ -1,8 +1,9 @@
 use super::syntax::Program;
 use super::*;
+use crate::opts::Opts;
 use std::error::Error;
 
-pub fn compile<G>(mut program: Program, inspect: G) -> Result<Vec<u8>, Box<dyn Error>>
+pub fn compile<G>(opts: &Opts, mut program: Program, inspect: G) -> Result<Vec<u8>, Box<dyn Error>>
 where
     G: FnOnce(&Program) -> (),
 {
@@ -13,5 +14,5 @@ where
     inspect(&program);
     type_checking::type_check(&mut program)?;
     intern(&mut program);
-    Ok(translate(program)?)
+    Ok(translate(opts, program)?)
 }

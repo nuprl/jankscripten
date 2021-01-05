@@ -5,6 +5,7 @@
 use super::super::rts_function::*;
 use super::rt_bindings::get_rt_bindings;
 use super::syntax as N;
+use crate::opts::Opts;
 use parity_wasm::builder::*;
 use parity_wasm::elements::*;
 use parity_wasm::serialize;
@@ -23,13 +24,13 @@ const FN_OBJ_SIZE: u32 = 4;
 
 type FuncTypeMap = HashMap<(Vec<ValueType>, Option<ValueType>), u32>;
 
-pub fn translate(program: N::Program) -> Result<Vec<u8>, Error> {
-    serialize(translate_parity(program))
+pub fn translate(opts: &Opts, program: N::Program) -> Result<Vec<u8>, Error> {
+    serialize(translate_parity(opts, program))
 }
 
 type IdEnv = im_rc::HashMap<N::Id, IdIndex>;
 
-pub fn translate_parity(mut program: N::Program) -> Module {
+pub fn translate_parity(opts: &Opts, mut program: N::Program) -> Module {
     // The initial environment maps functions names to their indices.
     let mut global_env = IdEnv::default();
     for (index, (name, _)) in program.functions.iter().enumerate() {
@@ -121,8 +122,13 @@ pub fn translate_parity(mut program: N::Program) -> Module {
     }
     // data segment
     for global in program.globals.values_mut() {
-        let mut visitor =
-            Translate::new(&rt_indexes, &type_indexes, &global_env, &mut program.data);
+        let mut visitor = Translate::new(
+            opts,
+            &rt_indexes,
+            &type_indexes,
+            &global_env,
+            &mut program.data,
+        );
         if let Some(atom) = &mut global.atom {
             visitor.translate_atom(atom);
         } else {
@@ -175,6 +181,7 @@ pub fn translate_parity(mut program: N::Program) -> Module {
 
     for (func_name, func) in program.functions.iter_mut() {
         let (f, local_map) = translate_func(
+            opts,
             func,
             &global_env,
             &rt_indexes,
@@ -196,6 +203,7 @@ pub fn translate_parity(mut program: N::Program) -> Module {
             .insert(actual_function_index, local_map);
     }
     insert_generated_main(
+        opts,
         &program.globals,
         &global_env,
         &rt_indexes,
@@ -226,13 +234,14 @@ pub fn translate_parity(mut program: N::Program) -> Module {
 }
 
 fn translate_func(
+    opts: &Opts,
     func: &mut N::Function,
     id_env: &IdEnv,
     rt_indexes: &HashMap<String, u32>,
     type_indexes: &FuncTypeMap,
     data: &mut Vec<u8>,
 ) -> (FunctionDefinition, IndexMap<String>) {
-    let mut translator = Translate::new(rt_indexes, type_indexes, id_env, data);
+    let mut translator = Translate::new(opts, rt_indexes, type_indexes, id_env, data);
 
     // Add indices for parameters
     for (arg_name, arg_typ) in func.params.iter().zip(func.fn_type.args.iter()) {
@@ -249,14 +258,20 @@ fn translate_func(
     translator.translate_rec(&mut env, &mut func.body);
     let mut insts = vec![];
 
-    // Eager shadow stack: The runtime system needs to create a shadow stack
-    // frame that has enough slots for the local variables.
-    let num_slots = translator.locals.len() + func.params.len();
-    insts.push(I32Const(num_slots.try_into().unwrap()));
-    insts.push(Call(*rt_indexes.get("gc_enter_fn").expect("no enter")));
+    if opts.disable_gc == false {
+        // Eager shadow stack: The runtime system needs to create a shadow stack
+        // frame that has enough slots for the local variables.
+        let num_slots = translator.locals.len() + func.params.len();
+        insts.push(I32Const(num_slots.try_into().unwrap()));
+        insts.push(Call(*rt_indexes.get("gc_enter_fn").expect("no enter")));
+    }
 
     insts.append(&mut translator.out);
-    insts.push(Call(*rt_indexes.get("gc_exit_fn").expect("no exit")));
+
+    if opts.disable_gc == false {
+        insts.push(Call(*rt_indexes.get("gc_exit_fn").expect("no exit")));
+    }
+
     insts.push(End);
     let locals: Vec<_> = translator
         .locals
@@ -293,6 +308,7 @@ fn option_as_wasm(ty: &Option<Box<N::Type>>) -> Option<ValueType> {
 }
 
 struct Translate<'a> {
+    opts: &'a Opts,
     out: Vec<Instruction>,
     rt_indexes: &'a HashMap<String, u32>,
     type_indexes: &'a FuncTypeMap,
@@ -338,12 +354,14 @@ enum IdIndex {
 
 impl<'a> Translate<'a> {
     fn new(
+        opts: &'a Opts,
         rt_indexes: &'a HashMap<String, u32>,
         type_indexes: &'a FuncTypeMap,
         id_env: &IdEnv,
         data: &'a mut Vec<u8>,
     ) -> Self {
         Self {
+            opts,
             out: Vec::new(),
             rt_indexes,
             type_indexes,
@@ -409,7 +427,7 @@ impl<'a> Translate<'a> {
                 );
 
                 // Eager shadow stack:
-                if var_stmt.ty().is_gc_root() == false {
+                if self.opts.disable_gc == true || var_stmt.ty().is_gc_root() == false {
                     self.out.push(SetLocal(index));
                 } else {
                     self.out.push(TeeLocal(index));
@@ -430,7 +448,7 @@ impl<'a> Translate<'a> {
                 {
                     IdIndex::Local(n, ty) => {
                         self.translate_expr(expr);
-                        if ty.is_gc_root() == false {
+                        if self.opts.disable_gc == true || ty.is_gc_root() == false {
                             self.out.push(SetLocal(n));
                         } else {
                             self.out.push(TeeLocal(n));
@@ -442,7 +460,7 @@ impl<'a> Translate<'a> {
                         self.translate_expr(expr);
                         // no tee for globals
                         self.out.push(SetGlobal(n));
-                        if ty.is_gc_root() {
+                        if self.opts.disable_gc == false && ty.is_gc_root() {
                             self.out.push(GetGlobal(n));
                             self.out.push(I32Const((n).try_into().unwrap()));
                             self.out
@@ -500,7 +518,9 @@ impl<'a> Translate<'a> {
                 self.out.push(Br(i as u32));
             }
             N::Stmt::Return(atom, _) => {
-                self.rt_call("gc_exit_fn");
+                if self.opts.disable_gc == false {
+                    self.rt_call("gc_exit_fn");
+                }
                 self.translate_atom(atom);
                 self.out.push(Return);
             }
@@ -927,6 +947,7 @@ impl<'a> Translate<'a> {
 }
 
 fn insert_generated_main(
+    opts: &Opts,
     globals: &HashMap<N::Id, N::Global>,
     global_env: &IdEnv,
     rt_indexes: &HashMap<String, u32>,
@@ -938,22 +959,29 @@ fn insert_generated_main(
     let mut insts = Vec::new();
     // rust init function
     insts.push(Call(*rt_indexes.get("init").expect("no enter")));
-    // globals are roots! put them in the first shadow frame
-    let num_slots = rt_globals_len + globals.len();
-    insts.push(I32Const(num_slots.try_into().unwrap()));
-    // this function doesn't really have locals. this is for the globals
-    insts.push(Call(
-        *rt_indexes.get("gc_enter_fn").expect("no gc_enter_fn"),
-    ));
+
+    if opts.disable_gc == false {
+        // globals are roots! put them in the first shadow frame
+        let num_slots = rt_globals_len + globals.len();
+        insts.push(I32Const(num_slots.try_into().unwrap()));
+        // this function doesn't really have locals. this is for the globals
+        insts.push(Call(
+            *rt_indexes.get("gc_enter_fn").expect("no gc_enter_fn"),
+        ));
+    }
+
+    // TODO(arjun): Luna -- is the following comment stale? Could we figure out
+    // what this is about?
     // these two for loops, i realize now, don't do anything in practice since
     // all the globals happen to be lazy
     for (index, global) in globals.values().enumerate() {
-        if global.ty.is_gc_root() && global.atom.is_some() {
+        if opts.disable_gc == false && global.ty.is_gc_root() && global.atom.is_some() {
             insts.push(GetGlobal((rt_globals_len + index) as u32));
             insts.push(I32Const((rt_globals_len + index) as i32));
             insts.push(get_set_in_globals_frame(rt_indexes, &global.ty));
         }
     }
+
     if let Some(IdIndex::Fun(func)) = global_env.get(&N::Id::Named("jnks_init".to_string())) {
         insts.push(Call(*func + rt_indexes.len() as u32))
     } else {
@@ -967,7 +995,9 @@ fn insert_generated_main(
     } else {
         panic!("cannot find notwasm main");
     }
-    insts.push(Call(*rt_indexes.get("gc_exit_fn").expect("no gc_exit_fn")));
+    if opts.disable_gc == false {
+        insts.push(Call(*rt_indexes.get("gc_exit_fn").expect("no gc_exit_fn")));
+    }
     insts.push(End);
     // this is just the worst hack due to lack of void type. i still
     // don't want to add it because it doesn't exist in from-jankyscript

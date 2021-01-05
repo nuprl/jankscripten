@@ -14,6 +14,9 @@ struct Compile {
 
     #[clap(short, long)]
     notwasm_dump: bool,
+    /// Only for debugging.
+    #[clap(long)]
+    disable_gc: bool,
 }
 
 #[derive(Clap)]
@@ -31,6 +34,16 @@ enum SubCommand {
 struct Opts {
     #[clap(subcommand)]
     subcmd: SubCommand,
+}
+
+impl Compile {
+    fn libjankscripten_opts(&self) -> libjankscripten::opts::Opts {
+        let mut compile_opts = libjankscripten::opts::Opts::new();
+        if self.disable_gc {
+            compile_opts.disable_gc = true;
+        }
+        compile_opts
+    }
 }
 
 fn make_output_filename(
@@ -64,10 +77,13 @@ fn expect_extension(p: &Path) -> &str {
     }
 }
 
-fn compile_notwasm(input_path: &str, input: &str, output: &Path) {
+fn compile_notwasm(opts: Compile, input: &str, output: &Path) {
     use libjankscripten::notwasm;
-    let parsed = notwasm::parse(input_path, input);
-    let wasm = notwasm::compile(parsed, |_| ()).unwrap();
+    let parsed = notwasm::parse(opts.input.as_str(), input);
+    let wasm = match notwasm::compile(&opts.libjankscripten_opts(), parsed, |_| ()) {
+        Ok(o) => o,
+        Err(_) => todo!("(luna) how to print error without source locations?"),
+    };
     fs::write(output, wasm).expect("writing file");
 }
 
@@ -78,11 +94,12 @@ fn compile(opts: Compile) {
         "notwasm" => {
             let output_path = make_output_filename(&opts.output, input_path, "wasm");
             let input = read_file(input_path);
-            compile_notwasm(opts.input.as_str(), &input, output_path.as_path());
+            compile_notwasm(opts, &input, output_path.as_path());
         }
         "js" => {
             let js_code = read_file(input_path);
             let wasm_bin = libjankscripten::javascript_to_wasm(
+                opts.libjankscripten_opts(),
                 &opts.input,
                 &js_code,
                 |janky| {
