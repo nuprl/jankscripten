@@ -1,8 +1,8 @@
 use super::syntax::Program;
 use super::*;
-use crate::shared::Report;
+use std::error::Error;
 
-pub fn compile<G>(mut program: Program, inspect: G) -> Result<Vec<u8>, Box<dyn Report>>
+pub fn compile<G>(mut program: Program, inspect: G) -> Result<Vec<u8>, Box<dyn Error>>
 where
     G: FnOnce(&Program) -> (),
 {

@@ -67,10 +67,7 @@ fn expect_extension(p: &Path) -> &str {
 fn compile_notwasm(input_path: &str, input: &str, output: &Path) {
     use libjankscripten::notwasm;
     let parsed = notwasm::parse(input_path, input);
-    let wasm = match notwasm::compile(parsed, |_| ()) {
-        Ok(o) => o,
-        Err(e) => panic!("error compiling notwasm: {}", e.report()),
-    };
+    let wasm = notwasm::compile(parsed, |_| ()).unwrap();
     fs::write(output, wasm).expect("writing file");
 }
 
