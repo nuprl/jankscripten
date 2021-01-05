@@ -3,7 +3,7 @@
 use crate::{AnyEnum, AnyValue};
 use std::alloc;
 use std::alloc::Layout;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::mem;
 mod class_list;
 mod constants;
@@ -30,13 +30,18 @@ use heap_values::*;
 #[cfg(test)]
 mod tests;
 
+/// A managed heap backed by rust allocation (it simply tracks where objects
+/// are allocated)
+///
 /// When running a program, we have a single global Heap ([crate::heap()]).
 /// However, during testing, we create several heaps.
 pub struct Heap {
-    buffer: *mut u8,
     pub f64_allocator: RefCell<F64Allocator>,
     size: isize,
-    free_list: RefCell<FreeList>,
+    // an estimate of the memory used by the rust allocator to support this
+    // heap, based on allocation sizes, but not layout
+    used_mem: Cell<isize>,
+    alloc_list: RefCell<AllocList>,
     tag_size: isize,
     pub classes: RefCell<ClassList>,
     /// We initialize this to the empty stack. Before calling [Heap::gc()], the
@@ -44,135 +49,100 @@ pub struct Heap {
     shadow_stack: RefCell<Vec<Vec<Option<*mut Tag>>>>,
 }
 
-#[derive(Debug, Clone, Copy)]
-struct Block {
-    start: *mut u8,
-    size: isize,
+/// https://rust-unofficial.github.io/too-many-lists/second-option.html
+#[derive(Debug)]
+struct AllocList {
+    list: Link,
+}
+type Link = Option<Box<AllocItem>>;
+#[derive(Debug)]
+struct AllocItem {
+    tag: *mut Tag,
+    next: Link,
 }
 
-/// https://rust-unofficial.github.io/too-many-lists/first-layout.html
-#[derive(Clone, Debug)]
-enum FreeList {
-    Nil,
-    Block(Box<(Block, FreeList)>),
+impl AllocList {
+    pub fn new() -> Self {
+        return AllocList { list: None };
+    }
+
+    pub fn push(&mut self, tag: *mut Tag) {
+        self.list = Some(Box::new(AllocItem {
+            tag,
+            next: self.list.take(),
+        }));
+    }
+
+    /// Returns map from sizes to counts of everything in the free list
+    fn histogram(&self, heap: &Heap) -> std::collections::BTreeMap<usize, usize> {
+        let mut map = std::collections::BTreeMap::new();
+        let mut to = &self.list;
+        loop {
+            match to {
+                Some(more) => {
+                    let tag = unsafe { AnyPtr::new(more.tag) };
+                    *map.entry(tag.get_data_size(heap)).or_insert(0) += 1;
+                    to = &to.as_ref().unwrap().next;
+                }
+                None => break,
+            }
+        }
+        map
+    }
 }
 
-impl FreeList {
-    pub fn new(start: *mut u8, size: isize) -> Self {
-        let block = Block { start, size };
-        return FreeList::Block(Box::new((block, FreeList::Nil)));
-    }
-
-    pub fn insert(&mut self, start: *mut u8, size: isize) {
-        // this has to be iterative because no tail call optimization in wasm
-        // (this might be an issue for jankscripten as well tbh)
-        //
-        // nota bene: we ALWAYS add blocks to the END of the free list, so if
-        // the new block occurs before an old block, something is very wrong
-        //
-        // ie we have two base cases:
-        // - new block occurs at the VERY end of block (expand block)
-        // - new block occurs after block (assert rest == Nil)
-        // and one recursion case:
-        // - new block occurs before this block (ignore and proceed with rest)
-        let mut to = self;
-        loop {
-            match to {
-                FreeList::Nil => {
-                    // this is the case where we weren't contiguous, and we
-                    // want to add to the end. unless something has gone horribly
-                    // wrong, and we don't even know it
-                    *to = FreeList::new(start, size);
-                    break;
-                }
-                FreeList::Block(more) => {
-                    let (block, rest) = more.as_mut();
-                    let old_block_end = unsafe { block.start.offset(block.size) };
-                    if start == old_block_end {
-                        // this is the best case because we don't even have to
-                        // add a new list item
-                        // +-------+-----------+
-                        // | block | new block |
-                        // +-------+-----------+
-                        block.size += size;
-                        break;
-                    } else if old_block_end < start {
-                        // +-------+-----------------------------+-----------+
-                        // | block | mix of used and free blocks | new block |
-                        // +-------+-----------------------------+-----------+
-                        to = rest;
-                    } else {
-                        log_panic!("insert to not-the-end. new block occurs before a known block");
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Returns the address of a free block of size `size`, and updates the
-     * free size.
-     */
-    pub fn find_free_size(&mut self, size: isize) -> Option<*mut u8> {
-        let mut to: &mut FreeList = self;
-        loop {
-            match to {
-                FreeList::Block(more) => {
-                    let block = &mut more.0;
-                    if size == block.size {
-                        let addr = block.start;
-                        let next = mem::replace(&mut more.1, FreeList::Nil);
-                        *to = next;
-                        break Some(addr);
-                    } else if size < block.size {
-                        block.size = block.size - size;
-                        let addr = block.start;
-                        block.start = unsafe { block.start.add(size as usize) };
-                        break Some(addr);
-                    } else
-                    /* size > block.size */
-                    {
-                        // reborrow because borrow checker. if you try to
-                        // refactor this to be clean, the borrow checker error
-                        // will be on the wrong line. it will make no sense. you
-                        // will read tutorials about linked lists in rust. they
-                        // will not help.
-                        to = match to {
-                            FreeList::Block(more) => &mut more.1,
-                            FreeList::Nil => log_panic!("unreachable"),
-                        }
-                    }
-                }
-                FreeList::Nil => {
-                    break None;
-                }
-            }
-        }
-    }
+/// allocate the number of bytes using the rust allocator, with an alignment of
+/// 4, and return the address
+fn alloc_raw(bytes: isize) -> *mut Tag {
+    debug_assert!(bytes > 0);
+    // SAFETY: assertion above ensures size is not zero, and the alignment is
+    // valid in wasm (power of two)
+    unsafe { alloc::alloc(Layout::from_size_align_unchecked(bytes as usize, 4)) as *mut Tag }
 }
 
 impl Heap {
+    /// Create a new heap with the given approximate max size
+    ///
+    /// The size given is approximately how much rust memory the heap should
+    /// occupy before garbage collecting. It should be well below the amount of
+    /// rust memory actually available, for two reasons:
+    ///
+    /// 1. Garbage collection may reserve some incidental memory, and OOM
+    ///    should be avoided
+    /// 2. The occupied memory of the heap is merely an estimate, and may be
+    ///    more or less depending on how rust deals with things
     pub fn new(size: isize) -> Self {
-        let layout = Layout::from_size_align(size as usize, ALIGNMENT).unwrap();
         let f64_allocator = RefCell::new(F64Allocator::new());
-        let buffer = unsafe { alloc::alloc_zeroed(layout) };
-        let free_list = RefCell::new(FreeList::new(buffer, size));
+        let used_mem = Cell::new(0);
+        let alloc_list = RefCell::new(AllocList::new());
         let tag_size = layout::layout_aligned::<Tag>(ALIGNMENT).size() as isize;
         let classes = RefCell::new(ClassList::new());
         let shadow_stack = RefCell::new(vec![]);
         return Heap {
-            buffer,
             f64_allocator,
             size,
-            free_list,
+            used_mem,
+            alloc_list,
             tag_size,
             classes,
             shadow_stack,
         };
     }
 
-    // NOTE(arjun): It is now clear to me that the lifetime parameter on heap values
-    // is pointless.
+    /// if there is enough space to [`alloc_raw`], **increase used_mem by that
+    /// amount, add entry to alloc_list** and return the address. otherwise,
+    /// return None
+    fn alloc_raw(&self, bytes: isize) -> Option<*mut Tag> {
+        if (self.size - self.used_mem.get()) < bytes {
+            None
+        } else {
+            self.used_mem.set(self.used_mem.get() + bytes);
+            let tag = alloc_raw(bytes);
+            self.alloc_list.borrow_mut().push(tag);
+            Some(tag)
+        }
+    }
+
     pub fn f64_to_any(&self, x: f64) -> AnyValue {
         AnyEnum::F64(self.alloc_f64_or_gc(x)).into()
     }
@@ -209,10 +179,7 @@ impl Heap {
         }
     }
     fn alloc_tag<T>(&self, tag: Tag, value: T) -> Result<TypePtr<T>, T> {
-        let opt_ptr = self
-            .free_list
-            .borrow_mut()
-            .find_free_size(self.tag_size + TypePtr::<T>::size());
+        let opt_ptr = self.alloc_raw(self.tag_size + TypePtr::<T>::size());
         match opt_ptr {
             None => Err(value),
             Some(ptr) => {
@@ -321,15 +288,10 @@ impl Heap {
     /// size must be exactly AnyPtr::new(&tag).get_data_size(). size must
     /// be aligned
     ///
-    /// TODO(luna): i want to provide resizable Array within the allocator
-    /// because it shouldn't be hard with everything we currently have and
-    /// it prevents OOM-before-allocator-knows-it. then we could back Object
-    /// with an Array, delete ObjectDataPtr, and get O(n) cached inserts
+    /// TODO(luna): Because we use the rust allocator, we could back Object
+    /// with a Vec, delete ObjectDataPtr, and get O(n) cached inserts
     unsafe fn alloc_slice(&self, tag: Tag, size: isize) -> Option<*mut Tag> {
-        let ptr = self
-            .free_list
-            .borrow_mut()
-            .find_free_size(self.tag_size + size)?;
+        let ptr = self.alloc_raw(self.tag_size + size)?;
         let tag_ptr = ptr as *mut Tag;
         tag_ptr.write(tag);
         Some(tag_ptr)
@@ -444,95 +406,42 @@ impl Heap {
     }
 
     fn sweep_phase(&self) {
-        use std::borrow::BorrowMut;
-        let mut free_list = self.free_list.borrow_mut();
-
-        // we construct a little zipper (i think) that has the free list we've
-        // already considered in before and the rest of the free list in after. as
-        // we loop, we add new and old free blocks to before, removing old ones
-        // from after, until after is Nil and before is our new free list
-        let mut free_list_before = FreeList::Nil;
-        // technically free_list_before is always being added exactly to its
-        // tail. this way insert is O(1) instead of O(n)
-        let mut free_list_before_tail = &mut free_list_before;
-        let free_list_after: &mut FreeList = free_list.borrow_mut();
-
-        let mut ptr: *mut u8 = self.buffer;
-        let heap_max = unsafe { self.buffer.offset(self.size) };
         let mut count = 0;
-        while ptr < heap_max {
-            // the free_list_before_tail is the tail with a value, not
-            // nil. because we check this every time, this has to shed at most one
-            // entry (one for free or freed, zero for marked)
-            // tailify (a:b:[]) = b:[]
-            // tailify (a:[]) = a:[]
-            // tailify [] = []
-            if let FreeList::Block(more) = free_list_before_tail {
-                let rest = &mut more.1;
-                if let FreeList::Block(_) = rest {
-                    // we can't use rest because borrow checker shenanigans
-                    // similar to find_free_size. so we start from the
-                    // beginning again
-                    free_list_before_tail = match free_list_before_tail {
-                        FreeList::Block(more) => &mut more.1,
-                        FreeList::Nil => log_panic!("unreachable"),
-                    }
+        let mut to = &mut self.alloc_list.borrow_mut().list;
+        while let Some(ref item) = to {
+            let ptr = item.tag;
+            unsafe {
+                if (*ptr).marked {
+                    (*ptr).marked = false;
+                    to = &mut to.as_mut().unwrap().next;
+                } else {
+                    let any_ptr = AnyPtr::new(ptr);
+                    let size = self.tag_size as usize + any_ptr.get_data_size(self);
+                    // drop any rust memory that may exist
+                    any_ptr.final_drop();
+                    alloc::dealloc(
+                        item.tag as *mut u8,
+                        Layout::from_size_align_unchecked(size, 4),
+                    );
+                    self.used_mem.set(self.used_mem.get() - size as isize);
+                    count += 1;
+                    // remove from the free list
+                    *to = to.take().unwrap().next;
                 }
             }
-            match free_list_after {
-                FreeList::Block(more) => {
-                    let (block, _) = more.as_mut();
-                    let block_end = unsafe { block.start.offset(block.size) };
-                    if ptr < block.start {
-                        // since we delete blocks ptr is greater than, ptr
-                        // must not have been in a free block, so it is currently
-                        // allocated. continue as normal to see if it is marked
-                    } else if ptr >= block.start && ptr < block_end {
-                        // ptr is already free. skip to the end of the block
-                        ptr = block_end;
-                        // add the old free block to the new free list, at the
-                        // end. this will unfortunately require looping/recursion
-                        // despite knowing it should go at the tail because i
-                        // haven't bothered to figure out how to get a reference
-                        // to the tail
-                        free_list_before_tail.insert(block.start, block.size);
-                        // remove this block from the old free list to avoid
-                        // need for recursion
-                        let rest2 = mem::replace(&mut more.1, FreeList::Nil);
-                        *free_list_after = rest2;
-                        // check if we're at heap_max again
-                        continue;
-                    } else {
-                        // ptr is past the end of this block, which means we
-                        // never hit the previous condition as part of this free
-                        // block and skipped over it. that's messed up
-                        log_panic!("nothing free was free");
-                    }
-                }
-                // ptr is definitely currently allocated
-                FreeList::Nil => (),
-            }
-            let any_ptr = unsafe { AnyPtr::new(mem::transmute(ptr)) };
-            let tag_ref = unsafe { &mut *any_ptr.get_ptr() };
-            let size = self.tag_size as usize + any_ptr.get_data_size(self);
-            if tag_ref.marked {
-                tag_ref.marked = false;
-            } else {
-                free_list_before_tail.insert(ptr, size as isize);
-                // drop any rust memory that may exist
-                any_ptr.final_drop();
-                count += 1;
-            }
-            ptr = unsafe { ptr.add(size) };
         }
-        // everything is before us now
-        *free_list = free_list_before;
-        error!("=====      FREED {} OBJECTS     =====", count);
+        error!(
+            "===== FREED {} OBJECTS. {}/{} USED =====",
+            count,
+            self.used_mem.get(),
+            self.size
+        );
         error!("=====      END JANKYSCRIPT GC     =====");
     }
 
-    #[cfg(test)]
-    pub fn raw(&self) -> &[u8] {
-        return unsafe { std::slice::from_raw_parts(self.buffer, self.size as usize) };
+    /// for debugging. print info about free vs allocated memory
+    pub fn mem_info(&self) {
+        let hist = self.alloc_list.borrow().histogram(self);
+        error!("FREE LIST HIST\n{:#?}\nEND", hist);
     }
 }

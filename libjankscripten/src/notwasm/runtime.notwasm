@@ -96,6 +96,9 @@ function jnks_init() {
     var run_gc_f = rt(run_gc);
     var run_gc = clos(run_gc_f, );
     __JNKS.run_gc = any(run_gc);
+    var mem_info_f = rt(mem_info);
+    var mem_info = clos(mem_info_f, );
+    __JNKS.mem_info = any(mem_info);
 
     // Other cached runtime functions
     var primitive_plusF = rt(janky_primitive_plus);

@@ -179,12 +179,11 @@ fn gc_f64s() {
 #[wasm_bindgen_test]
 fn update_prims() {
     let heap = Heap::new((ALIGNMENT * 4) as isize);
-    heap.alloc(32).expect("first alloc");
+    let a = heap.alloc(32).expect("first alloc");
     let mut ptr = heap.alloc(64).expect("second alloc");
     *ptr.get_mut() = 128;
-    let raw = heap.raw();
-    assert_eq!(raw[ALIGNMENT], 32);
-    assert_eq!(raw[ALIGNMENT * 3], 128);
+    assert_eq!(*a, 32);
+    assert_eq!(*ptr, 128);
 }
 
 #[test]
