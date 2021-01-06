@@ -89,7 +89,7 @@ where
 {
     let wasm = match compile(&Opts::new(), program, |notwasm| eprintln!("{}", notwasm)) {
         Ok(o) => o,
-        Err(_) => panic!("could not compile"),
+        Err(e) => panic!("could not compile: {:?}", e),
     };
     expect_wasm(expected, wasm)
 }
