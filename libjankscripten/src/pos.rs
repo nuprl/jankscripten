@@ -1,4 +1,5 @@
 //! Source locations for the jankscripten toolchain.
+use super::notwasm::parser2::PinnedLexer;
 use combine::stream::state::SourcePosition;
 use std::fmt;
 use std::rc::Rc;
@@ -20,6 +21,7 @@ enum P {
     /// You are probably wondering why we don't store line and column information. See the
     /// implementation of `fmt::Debug for P` for the answer.
     SWC(Rc<SourceMap>, Span),
+    Grmtools(Rc<PinnedLexer>, lrpar::Span),
     Unknown,
 }
 
@@ -73,6 +75,10 @@ impl std::fmt::Display for P {
                     loc.col_display + 1
                 )
             }
+            P::Grmtools(lexer, span) => {
+                let ((row, col), _) = lexer.line_col(*span);
+                write!(f, "line {}, column {}", row, col)
+            }
         }
     }
 }
@@ -88,6 +94,12 @@ impl Pos {
     pub fn from_swc(source_map: &Rc<SourceMap>, span: Span) -> Pos {
         Pos {
             pos: P::SWC(Rc::clone(source_map), span),
+        }
+    }
+
+    pub fn from_grmtools(lexer: &Rc<PinnedLexer>, span: lrpar::Span) -> Pos {
+        Pos {
+            pos: P::Grmtools(lexer.clone(), span),
         }
     }
 

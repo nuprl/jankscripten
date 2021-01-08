@@ -12,6 +12,14 @@ mod elim_gotos;
 mod from_jankyscript;
 mod label_apps;
 
+use lrlex::lrlex_mod;
+use lrpar::lrpar_mod;
+
+lrlex_mod!("notwasm/lexer.l");
+lrpar_mod!("notwasm/parser.y");
+
+pub mod parser2;
+
 use intern::intern;
 use translation::translate;
 

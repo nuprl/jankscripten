@@ -36,7 +36,7 @@ impl Env {
 
 #[derive(Debug, Clone, Error)]
 pub enum TypeCheckingError {
-    #[error("undefined variable `{0}` at `{0}`")]
+    #[error("undefined variable `{0}` at `{1}`")]
     NoSuchVariable(Id, Pos),
     #[error("`{0}` expected type `{1}` but received `{2}` at `{3}`")]
     TypeMismatch(String, Type, Type, Pos),

@@ -15,7 +15,7 @@ use std::rc::Rc;
 
 type Lang<'a, I> = LanguageEnv<'a, I>;
 
-parser! {
+parser! { // done expect string
     fn lit['a, 'b, I](lang: &'b Lang<'a, I>)(I) -> Lit
     where [I: Stream<Item = char>]
     {
@@ -28,7 +28,7 @@ parser! {
     }
 }
 
-parser! {
+parser! { //done
     fn id['a, 'b, I](lang: &'b Lang<'a, I>)(I) -> Id
     where [I: Stream<Item = char>]
     {
@@ -41,7 +41,7 @@ parser! {
     }
 }
 
-parser! {
+parser! { //done
     fn binop_prec_mul['a, 'b, I](lang: &'b Lang<'a, I>)(I) -> BinaryOp
     where [I: Stream<Item = char>]
     {
@@ -50,7 +50,7 @@ parser! {
         .or(lang.reserved_op("/.").with(value(BinaryOp::F64Div)))
     }
 }
-parser! {
+parser! { // done
     fn binop_prec_add['a, 'b, I](file: &'b Rc<String>, lang: &'b Lang<'a, I>)(I) -> BinaryOp
     where [I: Stream<Item = char>]
     {
@@ -67,7 +67,7 @@ parser! {
     }
 }
 
-parser! {
+parser! { //done
     fn product['a, 'b, I](file: &'b Rc<String>, lang: &'b Lang<'a, I>)(I) -> Atom
     where [I: Stream<Item = char, Position = SourcePosition>]
     {
@@ -82,7 +82,7 @@ parser! {
     }
 }
 
-parser! {
+parser! { //done
     fn atom['a, 'b, I](file: &'b Rc<String>, lang: &'b Lang<'a, I>)(I) -> Atom
     where [I: Stream<Item = char, Position = SourcePosition>]
     {
@@ -97,7 +97,7 @@ parser! {
     }
 }
 
-parser! {
+parser! { // done
     fn atom_item['a, 'b, I](file: &'b Rc<String>, lang: &'b Lang<'a, I>)(I) -> Atom
     where [I: Stream<Item = char, Position = SourcePosition>]
     {
@@ -184,7 +184,7 @@ parser! {
     }
 }
 
-parser! {
+parser! { // done except atom
     fn expr['a, 'b, I](file: &'b Rc<String>, lang: &'b Lang<'a, I>)(I) ->  Expr
     where [I: Stream<Item = char, Position = SourcePosition>]
     {
@@ -234,7 +234,7 @@ parser! {
     }
 }
 
-parser! {
+parser! { // COMPLETE
     fn fn_type['a, 'b, I](file: &'b Rc<String>, lang: &'b Lang<'a,I>)(I) -> FnType
     where [I: Stream<Item = char, Position = SourcePosition>]
     {
@@ -248,7 +248,7 @@ parser! {
     }
 }
 
-parser! {
+parser! {     // COMPLETE
     fn type_['a, 'b, I](file: &'b Rc<String>, lang: &'b Lang<'a, I>)(I) -> Type
     where [ I: Stream<Item = char, Position = SourcePosition>]
     {
@@ -464,66 +464,70 @@ parser! {
     }
 }
 
-pub fn parse(filename: &str, input: &str) -> Program {
-    let filename = Rc::new(filename.to_string());
-    // NOTE(arjun): It would be nice to extract this language definition into
-    // a function. But, I have no idea what its type should be, since the
-    // input type is not &str, but a "stream" (defined in the combine library).
-    let lang = LanguageEnv::new(LanguageDef {
-        ident: Identifier {
-            start: letter().or(token('$')).or(token('_')),
-            rest: alpha_num().or(token('_')),
-            reserved: [
-                "as",
-                "bogus",
-                "clos",
-                "env",
-                "if",
-                "else",
-                "true",
-                "false",
-                "function",
-                "loop",
-                "return",
-                "i32",
-                "str",
-                "bool",
-                "while",
-                "f64",
-                "HT",
-                "Array",
-                "const",
-                "var",
-                "arrayPush",
-                "strlen",
-                "any",
-                "rt",
-            ]
-            .iter()
-            .map(|x| (*x).into())
-            .collect(),
-        },
-        // NOTE(arjun): This is from the combine-language documentation. I have
-        // not bothered to understand it. But, it ought to define a pattern that
-        // matches operators. Our operators are quite straightforward.
-        op: Identifier {
-            start: satisfy(|c| "+-*/[{:.<,=!".chars().any(|x| x == c)),
-            rest: satisfy(|c| "]}.<>=".chars().any(|x| x == c)),
-            reserved: [
-                "=", "==", "===", "+", "-", "*", "/", "[]", "{}", ":", ".", "*.", "/.", "+.", "-.",
-                "<", ",", "&", "<<", "->", "!",
-            ]
-            .iter()
-            .map(|x| (*x).into())
-            .collect(),
-        },
-        comment_start: string("/*").map(|_| ()),
-        comment_end: string("*/").map(|_| ()),
-        comment_line: string("//").map(|_| ()),
-    });
+// pub fn parse(filename: &str, input: &str) -> Program {
+//     let filename = Rc::new(filename.to_string());
+//     // NOTE(arjun): It would be nice to extract this language definition into
+//     // a function. But, I have no idea what its type should be, since the
+//     // input type is not &str, but a "stream" (defined in the combine library).
+//     let lang = LanguageEnv::new(LanguageDef {
+//         ident: Identifier {
+//             start: letter().or(token('$')).or(token('_')),
+//             rest: alpha_num().or(token('_')),
+//             reserved: [
+//                 "as",
+//                 "bogus",
+//                 "clos",
+//                 "env",
+//                 "if",
+//                 "else",
+//                 "true",
+//                 "false",
+//                 "function",
+//                 "loop",
+//                 "return",
+//                 "i32",
+//                 "str",
+//                 "bool",
+//                 "while",
+//                 "f64",
+//                 "HT",
+//                 "Array",
+//                 "const",
+//                 "var",
+//                 "arrayPush",
+//                 "strlen",
+//                 "any",
+//                 "rt",
+//             ]
+//             .iter()
+//             .map(|x| (*x).into())
+//             .collect(),
+//         },
+//         // NOTE(arjun): This is from the combine-language documentation. I have
+//         // not bothered to understand it. But, it ought to define a pattern that
+//         // matches operators. Our operators are quite straightforward.
+//         op: Identifier {
+//             start: satisfy(|c| "+-*/[{:.<,=!".chars().any(|x| x == c)),
+//             rest: satisfy(|c| "]}.<>=".chars().any(|x| x == c)),
+//             reserved: [
+//                 "=", "==", "===", "+", "-", "*", "/", "[]", "{}", ":", ".", "*.", "/.", "+.", "-.",
+//                 "<", ",", "&", "<<", "->", "!",
+//             ]
+//             .iter()
+//             .map(|x| (*x).into())
+//             .collect(),
+//         },
+//         comment_start: string("/*").map(|_| ()),
+//         comment_end: string("*/").map(|_| ()),
+//         comment_line: string("//").map(|_| ()),
+//     });
 
-    let mut parser = program(&filename, &lang);
-    let input_stream = State::new(input);
-    let p = parser.easy_parse(input_stream).expect("parsing error");
-    return p.0;
+//     let mut parser = program(&filename, &lang);
+//     let input_stream = State::new(input);
+//     let p = parser.easy_parse(input_stream).expect("parsing error");
+//     return p.0;
+// }
+
+pub fn parse(filename: &str, input: &str) -> Program {
+    super::parser2::parse(input.to_string())
 }
