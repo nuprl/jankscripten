@@ -831,17 +831,49 @@ impl<'a> Translate<'a> {
             N::Atom::EnvGet(index, ty, _) => {
                 // get the env which is always the first argument
                 self.out.push(GetLocal(0));
-                let ty_offset = match ty.as_wasm() {
-                    ValueType::I32 => 4,
-                    ValueType::I64 => 0,
-                    ValueType::F32 => panic!("invalid type"),
-                    ValueType::F64 => panic!("invalid in-any type"),
-                };
-                let offset = TAG_SIZE + LENGTH_SIZE + FN_OBJ_SIZE + *index * ANY_SIZE + ty_offset;
-                // make sure you don't accidentally put ty_offset here
-                self.load(ty, offset);
+                let offset = TAG_SIZE + LENGTH_SIZE + FN_OBJ_SIZE + *index * ANY_SIZE;
+                // as an optimization, we can avoid calling the coercion
+                // functions in the runtime since we know the type already
+                if let N::Type::Closure(_) = ty {
+                    // the closure is the only "special" type in an any: it is
+                    // stored is the most significant 48 bits of the AnyValue,
+                    // however, the closure is supposed to be stored in the
+                    // *least* significant 48 bits. one might load with an offset
+                    // of 2 and only load 48 bits, but it's not supported by
+                    // wasm. or, you could load the full 64 bits and let
+                    // the garbage be the padding. except, that is memory
+                    // unsafe. it could be tried as an optimization, but this will
+                    // work for now
+                    self.out.push(I64Load(2, offset));
+                    self.out.push(I64Const(16));
+                    self.out.push(I64ShrU);
+                } else {
+                    if ty.as_wasm() == ValueType::I64 {
+                        self.out.push(I64Load(2, offset));
+                    } else {
+                        // anything else is stored as the most significant 32 bits
+                        // of the AnyValue. Note That Because Of Little Endian
+                        // Byte Order This Means It's The Last Bytes
+                        self.out.push(I32Load(2, offset + 4));
+                    }
+                }
             }
         }
+    }
+
+    /// this is useful for debugging when you want to put a log every time you
+    /// generate some code. the to-any is handled and the return is dropped
+    #[allow(unused)]
+    fn call_log_any(&mut self, insts: Vec<Instruction>, ty: &N::Type) {
+        // the env is not read, so it can be anything
+        self.out.push(I32Const(0));
+        // this
+        self.rt_call("get_undefined");
+        self.out.extend(insts);
+        // our thing
+        self.to_any(ty);
+        self.rt_call("log_any");
+        self.out.push(Drop);
     }
 
     fn load(&mut self, ty: &N::Type, offset: u32) {

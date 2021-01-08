@@ -30,6 +30,15 @@ pub struct I64Val<T> {
     val: u128,
     _phantom: PhantomData<T>,
 }
+impl<T> I64Val<T> {
+    /// for debugging, provides the backing 64-int including garbage padding
+    /// bits. these should be treated carefully, for example, not compared for
+    /// equality
+    #[cfg(target_pointer_width = "32")]
+    pub(crate) fn raw_val(&self) -> u64 {
+        self.val
+    }
+}
 impl<T> Deref for I64Val<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {

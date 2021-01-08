@@ -265,4 +265,59 @@ mod test {
         assert_eq!(std::mem::size_of::<AnyEnum>(), 16);
         assert_eq!(std::mem::size_of::<Option<AnyEnum>>(), 16);
     }
+    /// as an optimization in libjankscripten, we avoid certain runtime calls
+    /// by making some assumptions about the structure of an any_value. this
+    /// is technically undefined behavior in rust. this test ensures that the
+    /// undefined behavior is the behavior we expect. since we literally only
+    /// target one platform, that seems good enough
+    /// the assumed structure for 32-bit is:
+    /// [32-bit payload data][32-bit descriminant/padding]
+    #[wasm_bindgen_test]
+    fn any_value_has_predicted_structure_32() {
+        use crate::allocator::Tag;
+        assert_eq!(18, cast_predicted_structure_32(AnyEnum::I32(18)));
+        let f = 7.34;
+        let point_f = &f as *const _;
+        assert_eq!(
+            point_f,
+            cast_predicted_structure_32(AnyEnum::F64(point_f)) as *const _
+        );
+        assert_eq!(true, cast_predicted_structure_32(AnyEnum::Bool(true)) != 0);
+        // this is the only way to construct a tag from outside allocator
+        let mut tag = Tag::object(5);
+        let point_tag = &mut tag as *mut _;
+        let anyptr = unsafe { AnyPtr::new(point_tag) };
+        assert_eq!(
+            point_tag,
+            cast_predicted_structure_32(AnyEnum::Ptr(anyptr)) as *mut _
+        );
+    }
+    fn cast_predicted_structure_32(a: AnyEnum) -> u32 {
+        (AnyValue::from(a).raw_val() >> 32) as u32
+    }
+    /// similarly to [any_value_has_predicted_structure_32], with 48-bit
+    /// structs, the predicted structure is:
+    /// an I64Val<Closure> looks like this:
+    /// [16-bit padding][48-bit closure]
+    /// an I64Val<AnyEnum::Closure> looks like this:
+    /// [48-bit closure][16-bit descriminant/padding]
+    #[wasm_bindgen_test]
+    fn any_value_has_predicted_structure_48() {
+        use crate::closure::*;
+        use crate::env::*;
+        use crate::object::*;
+        crate::init();
+        let fake_env = unsafe {
+            let fake_env = env_alloc(1, object_empty());
+            env_init_at(fake_env, 0, AnyEnum::Undefined.into());
+            fake_env
+        };
+        let fake_closure = closure_new(fake_env, 13);
+        let into_any = any_from_closure(fake_closure);
+        log!("{:064b}", fake_closure.raw_val());
+        log!("{:064b}", into_any.raw_val());
+        let raw_data_of_shifted = into_any.raw_val() >> 16;
+        let calculated_closure: ClosureVal = unsafe { std::mem::transmute(raw_data_of_shifted) };
+        assert_eq!(calculated_closure, fake_closure);
+    }
 }
