@@ -14,7 +14,7 @@ use super::parser_y;
 /// input string. Thus, within reference counted cell, we must store both the input string and
 /// the lexer. For example, we may try something like this:
 ///
-/// ```
+/// ```rust,ignore
 /// struct LexerAndInput {
 ///   input: String,
 ///   lexer: LRNonStreamingLexerDef<'a>, // where 'a is the lifetime of self.input
@@ -65,13 +65,19 @@ pub fn parse(_filename: &str, input: impl Into<String>) -> super::syntax::Progra
         lexer: None,
         _pin: PhantomPinned,
     };
+    // pinned_lexer.inner is immovable in memory.
     let mut pinned_lexer = PinnedLexer {
         inner: Box::pin(pinned_lexer_inner),
-    };
+    };    
     let lexer = pinned_lexer
         .inner
         .lexerdef
         .lexer(pinned_lexer.inner.input.as_str());
+    // The lifetime arguments on lexer refer to the lifetimes of pinned_lexer.inner.lexerdef and
+    // pinned_lexer.inner.input, which have the same lifetime as pinned_lexer.inner. We are about to
+    // move lexer into pinned_lexer.inner.lexer, so the lifetime arguments should be set to the
+    // lifetime of pinned_lexer.inner. But, we cannot express this constraint, and the transmute
+    // is necessary.
     let lexer: LRNonStreamingLexer<'static, 'static, u32> = unsafe { std::mem::transmute(lexer) };
     unsafe {
         let mut_ref = Pin::as_mut(&mut pinned_lexer.inner);
