@@ -1,7 +1,7 @@
 %start Program
 %%
 
-UInt -> u32 :
+U32 -> u32 :
     'INT' { parse_uint($lexer.span_str($1.unwrap().span())) }
   ;
 
@@ -23,7 +23,7 @@ IdString -> String :
   ;
 
 Id -> Id : 
-    'ID' { Id::Named($lexer.span_str($1.unwrap().span()).to_string()) }
+    'ID'                  { Id::Named($lexer.span_str($1.unwrap().span()).to_string()) }
   | 'bogus' '(' 'env' ')' { Id::Bogus("env") }
   ;
 
@@ -32,11 +32,11 @@ IdAtom -> Atom :
   ;
 
 Lit -> (Lit, Pos) :
-    'true'  { (Lit::Bool(true), pos($1)) }
-  | 'false' { (Lit::Bool(false), pos($1)) }
-  | 'null'  { (Lit::Null, pos($1)) }
-  | I32     { (Lit::I32($1.0), $1.1) }
-  | F64     { (Lit::F64($1.0), $1.1) }
+    'true'       { (Lit::Bool(true), pos($1)) }
+  | 'false'      { (Lit::Bool(false), pos($1)) }
+  | 'null'       { (Lit::Null, pos($1)) }
+  | I32          { (Lit::I32($1.0), $1.1) }
+  | F64          { (Lit::F64($1.0), $1.1) }
   | 'STRING_LIT' { (Lit::String($lexer.span_str($1.unwrap().span()).to_string()), pos($1)) }
   ;
 
@@ -76,24 +76,24 @@ Atom -> Atom :
   // TODO(arjun): should translate to an RTS call, right?
   // 'sqrt' '(' Atom ')'   { Atom::Unary(UnaryOp::Sqrt, Box::new($3), pos($1)) }
   // TODO(arjun): should translate to an RTS call, right?
-    'strlen' '(' Atom ')' { Atom::StringLen(Box::new($3), pos($1)) }
-  | 'any' '(' Atom ')'    { Atom::ToAny(ToAny::new($3), pos($1)) }
-  | 'env' '.' UInt ':' Type { Atom::EnvGet($3, $5, pos($4)) }
-  | 'rt' '(' Id ')'         { Atom::GetPrimFunc($3, pos($1)) }
-  | Lit                { Atom::Lit($1.0, $1.1) }
+    'strlen' '(' Atom ')'  { Atom::StringLen(Box::new($3), pos($1)) }
+  | 'any' '(' Atom ')'     { Atom::ToAny(ToAny::new($3), pos($1)) }
+  | 'env' '.' U32 ':' Type { Atom::EnvGet($3, $5, pos($4)) }
+  | 'rt' '(' Id ')'        { Atom::GetPrimFunc($3, pos($1)) }
+  | Lit                    { Atom::Lit($1.0, $1.1) }
   // TODO(arjun): The concrete syntax is more restrictive than the abstract syntax.
-  | IdAtom '.' IdString { Atom::ObjectGet(Box::new($1), Box::new(Atom::Lit(Lit::String($3), pos($2))), pos($2)) }
+  | IdAtom '.' IdString    { Atom::ObjectGet(Box::new($1), Box::new(Atom::Lit(Lit::String($3), pos($2))), pos($2)) }
   // TODO(arjun): The concrete syntax is more restrictive than the abstract syntax.
   // TODO(arjun): Should this turn into an RTS call?
-  | IdAtom '<<' 'length' { Atom::ArrayLen(Box::new($1), pos($2)) }
+  | IdAtom '<<' 'length'   { Atom::ArrayLen(Box::new($1), pos($2)) }
   // TODO(arjun): The concrete syntax is more restrictive than the abstract syntax.
-  | IdAtom '<<' IdString { Atom::HTGet(Box::new($1), Box::new(Atom::Lit(Lit::String($3), pos($2))), pos($2)) }
-  | IdAtom '[' Atom ']' { Atom::Index(Box::new($1), Box::new($3), pos($2)) }
-  | IdAtom { $1 }
+  | IdAtom '<<' IdString   { Atom::HTGet(Box::new($1), Box::new(Atom::Lit(Lit::String($3), pos($2))), pos($2)) }
+  | IdAtom '[' Atom ']'    { Atom::Index(Box::new($1), Box::new($3), pos($2)) }
+  | IdAtom                 { $1 }
   // TODO(arjun): The type annotation on deref should not be necessary in the
   // concrete syntax. The type-checker can figure it out.
-  | '*' Atom ':' Type { Atom::Deref(Box::new($2), $4, pos($1)) }
-  | Atom 'as' Type { Atom::FromAny(Box::new($1), $3, pos($2)) }
+  | '*' Atom ':' Type      { Atom::Deref(Box::new($2), $4, pos($1)) }
+  | Atom 'as' Type         { Atom::FromAny(Box::new($1), $3, pos($2)) }
   ;
 
 AtomMul -> Atom :
@@ -105,16 +105,16 @@ AtomMul -> Atom :
 
 AtomAdd -> Atom :
     AtomMul { $1 }
-  | AtomMul '+' AtomAdd { binary_(BinaryOp::I32Add, $1, $3, pos($2)) }
-  | AtomMul '>' AtomAdd { binary_(BinaryOp::I32GT, $1, $3, pos($2)) }
-  | AtomMul '<' AtomAdd { binary_(BinaryOp::I32LT, $1, $3, pos($2)) }
-  | AtomMul '>=' AtomAdd { binary_(BinaryOp::I32Ge, $1, $3, pos($2)) }
-  | AtomMul '<=' AtomAdd { binary_(BinaryOp::I32Le, $1, $3, pos($2)) }
-  | AtomMul '-' AtomAdd { binary_(BinaryOp::I32Sub, $1, $3, pos($2)) }
+  | AtomMul '+' AtomAdd   { binary_(BinaryOp::I32Add, $1, $3, pos($2)) }
+  | AtomMul '>' AtomAdd   { binary_(BinaryOp::I32GT, $1, $3, pos($2)) }
+  | AtomMul '<' AtomAdd   { binary_(BinaryOp::I32LT, $1, $3, pos($2)) }
+  | AtomMul '>=' AtomAdd  { binary_(BinaryOp::I32Ge, $1, $3, pos($2)) }
+  | AtomMul '<=' AtomAdd  { binary_(BinaryOp::I32Le, $1, $3, pos($2)) }
+  | AtomMul '-' AtomAdd   { binary_(BinaryOp::I32Sub, $1, $3, pos($2)) }
   | AtomMul '===' AtomAdd { binary_(BinaryOp::PtrEq, $1, $3, pos($2)) }
-  | AtomMul '==' AtomAdd { binary_(BinaryOp::I32Eq, $1, $3, pos($2)) }
-  | AtomMul '+.' AtomAdd { binary_(BinaryOp::F64Add, $1, $3, pos($2)) }
-  | AtomMul '-.' AtomAdd { binary_(BinaryOp::F64Sub, $1, $3, pos($2)) }
+  | AtomMul '==' AtomAdd  { binary_(BinaryOp::I32Eq, $1, $3, pos($2)) }
+  | AtomMul '+.' AtomAdd  { binary_(BinaryOp::F64Add, $1, $3, pos($2)) }
+  | AtomMul '-.' AtomAdd  { binary_(BinaryOp::F64Sub, $1, $3, pos($2)) }
   ;
 
 // TODO(arjun): The concrete syntax is more restrictive than the abstract syntax.
@@ -131,18 +131,18 @@ IdTypeSeq -> Vec<(Id, Type)> :
   ;
 
 Expr -> Expr :
-    '[' ']' { Expr::Array }
-  | 'HT' '{' '}' { Expr::HT }
-  | '{' '}' { Expr::ObjectEmpty }
+    '[' ']'                             { Expr::Array }
+  | 'HT' '{' '}'                        { Expr::HT }
+  | '{' '}'                             { Expr::ObjectEmpty }
   | 'clos' '(' Id ',' IdAtomTypeSeq ')' { Expr::Closure($3, $5, pos($1)) }
-  | 'arrayPush' '(' Atom ',' Atom ')' { Expr::Push($3, $5, pos($1)) }
+  | 'arrayPush' '(' Atom ',' Atom ')'   { Expr::Push($3, $5, pos($1)) }
   // NOTE(arjun): The line below was in the grammar, and was not necessary
-  // | 'sqrt' '(' Atom ')' { Expr::Atom(sqrt_($3, pos($1)), pos($1)) }
+  // | 'sqrt' '(' Atom ')'              { Expr::Atom(sqrt_($3, pos($1)), pos($1)) }
   // TODO(arjun): We can infer the type annotation.
-  | 'newRef' '(' Atom ',' Type ')' { Expr::NewRef($3, $5, pos($1)) }
-  | Id '!' '(' IdSeq ')' { Expr::ClosureCall($1, $4, pos($2)) }
-  | Id '(' IdSeq ')' { Expr::Call($1, $3, pos($2)) }
-  | AtomAdd { let p = $1.pos().clone(); Expr::Atom($1, p) }
+  | 'newRef' '(' Atom ',' Type ')'      { Expr::NewRef($3, $5, pos($1)) }
+  | Id '!' '(' IdSeq ')'                { Expr::ClosureCall($1, $4, pos($2)) }
+  | Id '(' IdSeq ')'                    { Expr::Call($1, $3, pos($2)) }
+  | AtomAdd                             { let p = $1.pos().clone(); Expr::Atom($1, p) }
   ;
 
 TypeOpt -> Option<Type>:
@@ -162,27 +162,27 @@ Block -> Stmt :
 Stmt -> Stmt :
     'var' Id TypeOpt '=' Expr ';'
     { Stmt::Var(VarStmt { id: $2, named: $5, ty: $3 }, pos($1)) }
-  | Id '=' Expr ';' { Stmt::Assign($1, $3, pos($2)) }
+  | Id '=' Expr ';'                         { Stmt::Assign($1, $3, pos($2)) }
   | IdString ':' Block                      { label_($1, $3, pos($2)) }
   // TODO(arjun): The concrete syntax is more restrictive than the abstract syntax.
   | IdAtom '.' IdString '=' AtomAdd ';'
     { Stmt::Var(VarStmt::new(id_("_"), Expr::ObjectSet($1, str_($3, pos($2)), $5, pos($2))), pos($2)) }
   // TODO(arjun): The concrete syntax is more restrictive than the abstract syntax.
-  | IdAtom '<<' IdString '=' AtomAdd ';'
+  | IdAtom '<<' IdString '=' AtomAdd ';'   
     { Stmt::Var(VarStmt::new(id_("_"), Expr::HTSet($1, str_($3, pos($2)), $5, pos($2))), pos($2)) }
   | 'if' '(' AtomAdd ')' Block 'else' Block { Stmt::If($3, Box::new($5), Box::new($7), pos($1)) }
-  | 'loop' Block { Stmt::Loop(Box::new($2), pos($1)) }
-  | 'return' AtomAdd ';' { Stmt::Return($2, pos($1)) }
-  | 'break' IdString ';' { Stmt::Break(Label::Named($2), pos($1)) }
-  | 'while' '(' AtomAdd ')' Block { while_($3, $5, pos($1)) }
-  | '*' Id '=' Expr ';' { Stmt::Store($2, $4, pos($1)) }
-  | Expr ';' { Stmt::Expression($1, pos($2)) }
+  | 'loop' Block                            { Stmt::Loop(Box::new($2), pos($1)) }
+  | 'return' AtomAdd ';'                    { Stmt::Return($2, pos($1)) }
+  | 'break' IdString ';'                    { Stmt::Break(Label::Named($2), pos($1)) }
+  | 'while' '(' AtomAdd ')' Block           { while_($3, $5, pos($1)) }
+  | '*' Id '=' Expr ';'                     { Stmt::Store($2, $4, pos($1)) }
+  | Expr ';'                                { Stmt::Expression($1, pos($2)) }
   ; 
 
 Global -> (Id, Global) :
     'const' Id ':' Type '=' AtomAdd ';' { ($2, Global { is_mut: false, ty: $4, atom: Some($6) }) }
-  | 'var' Id ':' Type '=' AtomAdd ';' { ($2, Global { is_mut: true, ty: $4, atom: Some($6) }) }
-  | 'var' Id ':' Type ';' { ($2, Global { is_mut: true, ty: $4, atom: None }) }
+  | 'var' Id ':' Type '=' AtomAdd ';'   { ($2, Global { is_mut: true, ty: $4, atom: Some($6) }) }
+  | 'var' Id ':' Type ';'               { ($2, Global { is_mut: true, ty: $4, atom: None }) }
   ;
 
 GlobalVec -> HashMap<Id, Global> :
@@ -215,8 +215,7 @@ Function -> (Id, Function) :
   ;
 
 Program -> Program :
-    GlobalVec FunctionVec
-    { Program { globals: $1, functions: $2, data: Vec::new() } }
+    GlobalVec FunctionVec { Program { globals: $1, functions: $2, data: Vec::new() } }
   ;
 
 // An idiom that turns lexing errors into parsing errors. Any mismatched
@@ -231,7 +230,7 @@ Unmatched -> ():
 use std::collections::HashMap;
 use super::syntax::*;
 use super::constructors::*;
-use super::parser2::pos;
+use super::parser::pos;
 use super::super::pos::Pos;
 
 fn parse_uint(s: &str) -> u32 {

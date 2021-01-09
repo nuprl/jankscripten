@@ -10,9 +10,6 @@ mod rope;
 mod rts_function;
 pub mod shared;
 
-#[macro_use]
-extern crate combine;
-
 pub fn javascript_to_wasm<F, G>(
     opts: opts::Opts,
     src_name: &str,

@@ -1,6 +1,5 @@
 //! Source locations for the jankscripten toolchain.
-use super::notwasm::parser2::PinnedLexer;
-use combine::stream::state::SourcePosition;
+use super::notwasm::parser::PinnedLexer;
 use std::fmt;
 use std::rc::Rc;
 use swc_common::{SourceMap, Span};
@@ -15,12 +14,10 @@ pub struct Pos {
 
 #[derive(Clone)]
 enum P {
-    /// Line, column (indexed by one), and filename. The filename appears at every AST node. Thus we
-    /// reference count to avoid copying the `String`, and to avoid writing `Pos<'a>` everywhere.
-    Combine(usize, usize, Rc<String>),
     /// You are probably wondering why we don't store line and column information. See the
     /// implementation of `fmt::Debug for P` for the answer.
     SWC(Rc<SourceMap>, Span),
+    /// This one is also complicated for the same reason that SWC is complicated.
     Grmtools(Rc<PinnedLexer>, lrpar::Span),
     Unknown,
 }
@@ -32,9 +29,7 @@ impl PartialEq for P {
             // Ignores filenames, which should be fine since jankscripten only works with a single
             // JavaScript input file at a time.
             (P::SWC(_, span1), P::SWC(_, span2)) => span1 == span2,
-            (P::Combine(line1, col1, file1), P::Combine(line2, col2, file2)) => {
-                line1 == line2 && col1 == col2 && file1 == file2
-            }
+            (P::Grmtools(_, span1), P::Grmtools(_, span2)) => span1 == span2,
             (P::Unknown, P::Unknown) => true,
             _ => false,
         }
@@ -58,7 +53,6 @@ impl std::fmt::Display for P {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             P::Unknown => write!(f, "unknown position"),
-            P::Combine(line, col, file) => write!(f, "{}: line {}, column {}", file, line, col),
             P::SWC(source_map, span) => {
                 // The implementation of this function starts from the beginning of the file and
                 // counts newline characters and multi-byte Unicode characters. If we were to call
@@ -76,6 +70,7 @@ impl std::fmt::Display for P {
                 )
             }
             P::Grmtools(lexer, span) => {
+                // Same issue as with SWC.
                 let ((row, col), _) = lexer.line_col(*span);
                 write!(f, "line {}, column {}", row, col)
             }
@@ -84,13 +79,6 @@ impl std::fmt::Display for P {
 }
 
 impl Pos {
-    pub fn from_combine(filename: &Rc<String>, sp: SourcePosition) -> Pos {
-        // Classic "garbage-in garbage-out" if `sp.line` or `sp.column` are negative.
-        Pos {
-            pos: P::Combine(sp.line as usize, sp.column as usize, filename.clone()),
-        }
-    }
-
     pub fn from_swc(source_map: &Rc<SourceMap>, span: Span) -> Pos {
         Pos {
             pos: P::SWC(Rc::clone(source_map), span),
