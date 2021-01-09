@@ -85,7 +85,7 @@ fn compile_notwasm(opts: Compile, input: &str, output: &Path) {
     let parsed = notwasm::parse(opts.input.as_str(), input);
     let wasm = match notwasm::compile(&opts.libjankscripten_opts(), parsed, |_| ()) {
         Ok(o) => o,
-        Err(_) => todo!("(luna) how to print error without source locations?"),
+        Err(e) => panic!("{}", e),
     };
     fs::write(output, wasm).expect("writing file");
 }

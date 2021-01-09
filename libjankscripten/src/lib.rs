@@ -9,9 +9,7 @@ pub mod pos;
 mod rope;
 mod rts_function;
 pub mod shared;
-
-#[macro_use]
-extern crate combine;
+mod string_escaping;
 
 pub fn javascript_to_wasm<F, G>(
     opts: opts::Opts,
