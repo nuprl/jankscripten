@@ -37,7 +37,7 @@ Lit -> (Lit, Pos) :
   | 'null'       { (Lit::Null, pos($1)) }
   | I32          { (Lit::I32($1.0), $1.1) }
   | F64          { (Lit::F64($1.0), $1.1) }
-  | 'STRING_LIT' { (Lit::String($lexer.span_str($1.unwrap().span()).to_string()), pos($1)) }
+  | 'STRING_LIT' { (Lit::String(unescape_string($lexer.span_str($1.unwrap().span())).unwrap()), pos($1)) }
   ;
 
 TypeSeq -> Vec<Type> :
@@ -232,6 +232,7 @@ use super::syntax::*;
 use super::constructors::*;
 use super::parser::pos;
 use super::super::pos::Pos;
+use crate::string_escaping::unescape_string;
 
 fn parse_uint(s: &str) -> u32 {
     match s.parse::<u32>() {
