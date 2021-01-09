@@ -1,36 +1,36 @@
+//! Unfortunately, this module is disasterously complicated, but it is necessary to keep the
+//! rest of our toolchain simple.
+//!
+//! Similar to SWC, an lrpar grammar makes it easy to access the span (offset) of a token, but
+//! we have to call a helper function on the lexer to turn the offset into a line and column. That
+//! function runs in O(n) time, where n is the length of the file. Thus, it is not a good idea
+//! to call it at every note (parsing would become quadratic). Instead, at every AST node, we
+//! store a span and a reference-counted call that contains the lexer.
+//!
+//! However, the lexer data structure (LRNonStreamingLexerDef) stores borrowed references to the
+//! input string. Thus, within reference counted cell, we must store both the input string and
+//! the lexer. For example, we may try something like this:
+//!
+//! ```rust,ignore
+//! struct LexerAndInput {
+//!   input: String,
+//!   lexer: LRNonStreamingLexerDef<'a>, // where 'a is the lifetime of self.input
+//! }
+//! ```
+//!
+//! Thus `LexerAndInput` is a self-referential structure, which must be pinned in memory and use
+//! a modicum of unsafe code in initialization. This is a well-known unsafe idiom, which is
+//! documented in the Rust reference for the `std::pin` module.
+//!
+//! A final problem is that the semantic actions for Grmtools parsers cannot have any auxiliary
+//! arguments, so there is no easy way to provide the `LexerAndInput` structure to the rules.
+//! To workaround this limitation, this module uses thread-local state.
+//!
+//! In the code below, the `PinnedLexer` struct is the boxed, and pinned version of
+//! `LexerAndInput`.
 use super::super::pos::Pos;
 use super::lexer_l;
 use super::parser_y;
-/// Unfortunately, this module is disasterously complicated, but it is necessary to keep the
-/// rest of our toolchain simple.
-///
-/// Similar to SWC, an lrpar grammar makes it easy to access the span (offset) of a token, but
-/// we have to call a helper function on the lexer to turn the offset into a line and column. That
-/// function runs in O(n) time, where n is the length of the file. Thus, it is not a good idea
-/// to call it at every note (parsing would become quadratic). Instead, at every AST node, we
-/// store a span and a reference-counted call that contains the lexer.
-///
-/// However, the lexer data structure (LRNonStreamingLexerDef) stores borrowed references to the
-/// input string. Thus, within reference counted cell, we must store both the input string and
-/// the lexer. For example, we may try something like this:
-///
-/// ```rust,ignore
-/// struct LexerAndInput {
-///   input: String,
-///   lexer: LRNonStreamingLexerDef<'a>, // where 'a is the lifetime of self.input
-/// }
-/// ```
-///
-/// Thus `LexerAndInput` is a self-referential structure, which must be pinned in memory and use
-/// a modicum of unsafe code in initialization. This is a well-known unsafe idiom, which is
-/// documented in the Rust reference for the `std::pin` module.
-///
-/// A final problem is that the semantic actions for Grmtools parsers cannot have any auxiliary
-/// arguments, so there is no easy way to provide the `LexerAndInput` structure to the rules.
-/// To workaround this limitation, this module uses thread-local state.
-///
-/// In the code below, the `PinnedLexer` struct is the boxed, and pinned version of
-/// `LexerAndInput`.
 use lrlex::{LRNonStreamingLexer, LRNonStreamingLexerDef};
 use lrpar::{Lexeme, Span};
 use std::cell::RefCell;
@@ -68,7 +68,7 @@ pub fn parse(_filename: &str, input: impl Into<String>) -> super::syntax::Progra
     // pinned_lexer.inner is immovable in memory.
     let mut pinned_lexer = PinnedLexer {
         inner: Box::pin(pinned_lexer_inner),
-    };    
+    };
     let lexer = pinned_lexer
         .inner
         .lexerdef
