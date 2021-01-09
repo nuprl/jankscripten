@@ -249,6 +249,30 @@ pub enum Atom {
     EnvGet(u32, Type, Pos),
 }
 
+impl Atom {
+    // Every Atom must have a position. Do not create a bogus position here.
+    pub fn pos(&self) -> &Pos {
+        match self {
+            Atom::Lit(_, p) => p,
+            Atom::ToAny(_, p) => p,
+            Atom::FromAny(_, _, p) => p,
+            Atom::FloatToInt(_, p) => p,
+            Atom::IntToFloat(_, p) => p,
+            Atom::HTGet(_, _, p) => p,
+            Atom::ObjectGet(_, _, p) => p,
+            Atom::Index(_, _, p) => p,
+            Atom::ArrayLen(_, p) => p,
+            Atom::Id(_, p) => p,
+            Atom::GetPrimFunc(_, p) => p,
+            Atom::StringLen(_, p) => p,
+            Atom::Unary(_, _, p) => p,
+            Atom::Binary(_, _, _, p) => p,
+            Atom::Deref(_, _, p) => p,
+            Atom::EnvGet(_, _, p) => p,
+        }
+    }
+}
+
 // An `Expr` is an expression that may trigger garbage collection.
 #[derive(Debug, PartialEq)]
 pub enum Expr {
