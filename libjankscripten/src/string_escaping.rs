@@ -5,14 +5,14 @@ use thiserror::Error;
 pub struct UnescapingError {
     pub original: String,
     pub offset: usize,
-    pub message: String
+    pub message: String,
 }
 
 fn err(original: &str, offset: usize, message: &str) -> UnescapingError {
     return UnescapingError {
         original: original.to_string(),
         offset: offset,
-        message: message.to_string()
+        message: message.to_string(),
     };
 }
 
@@ -32,8 +32,8 @@ pub fn unescape_string(s: &str) -> Result<String, UnescapingError> {
 
     match iter.next() {
         None => return Err(err(s, offset, "no characters in string")),
-        Some('"') | Some('\'') => { }
-        Some(_) => return Err(err(s, offset, "string does not begin with \" or \'"))
+        Some('"') | Some('\'') => {}
+        Some(_) => return Err(err(s, offset, "string does not begin with \" or \'")),
     }
 
     while let Some(ch) = iter.next() {
@@ -50,12 +50,11 @@ pub fn unescape_string(s: &str) -> Result<String, UnescapingError> {
             buf.push(ch);
             continue;
         }
-        let char_after_backslash = iter.next()
-        .ok_or(err(s, offset, "character after backslash"))?;
+        let char_after_backslash =
+            iter.next()
+                .ok_or(err(s, offset, "character after backslash"))?;
         offset += 1;
-        match char_after_backslash
-        {
-
+        match char_after_backslash {
             '\'' | '"' | '\\' => buf.push(char_after_backslash),
             'n' => buf.push('\n'),
             'r' => buf.push('\r'),
@@ -71,9 +70,8 @@ pub fn unescape_string(s: &str) -> Result<String, UnescapingError> {
                     iter.next()
                         .ok_or(err(s, offset, "second hex digit after \\x"))?,
                 );
-                let n = u8::from_str_radix(&hex_s, 16).map_err(|_| {
-                    err(s, offset, &format!("invalid escape \\x{}", &s))
-                })?;
+                let n = u8::from_str_radix(&hex_s, 16)
+                    .map_err(|_| err(s, offset, &format!("invalid escape \\x{}", &s)))?;
                 buf.push(n as char);
             }
             'u' => {
@@ -88,11 +86,12 @@ pub fn unescape_string(s: &str) -> Result<String, UnescapingError> {
                     iter.next()
                         .ok_or(err(s, offset, "fourth hex digit after \\x"))?
                 );
-                let n = u16::from_str_radix(&hex_s, 16).map_err(|_| {
-                    err(s, offset, &format!("invalid unicode escape {}", &s))
-                })?;
-                buf.push(std::char::from_u32(n as u32).ok_or(err(s, offset, 
-                    &format!("invalid Unicode character {}", n)
+                let n = u16::from_str_radix(&hex_s, 16)
+                    .map_err(|_| err(s, offset, &format!("invalid unicode escape {}", &s)))?;
+                buf.push(std::char::from_u32(n as u32).ok_or(err(
+                    s,
+                    offset,
+                    &format!("invalid Unicode character {}", n),
                 ))?);
             }
             ch => {
@@ -113,8 +112,10 @@ pub fn unescape_string(s: &str) -> Result<String, UnescapingError> {
                         _ => (),
                     }
                     let n = u32::from_str_radix(&octal_str, 8).map_err(|_| {
-                        err(s, offset, 
-                            &format!("invalid octal escape \\u{}", &octal_str)
+                        err(
+                            s,
+                            offset,
+                            &format!("invalid octal escape \\u{}", &octal_str),
                         )
                     })?;
                     // 2-digit octal value is in range for UTF-8, thus unwrap should succeed
@@ -133,12 +134,18 @@ mod tests {
 
     #[test]
     fn no_escapes_double_quote() {
-        assert_eq!(unescape_string(r#""hello, world""#).unwrap(), "hello, world");
+        assert_eq!(
+            unescape_string(r#""hello, world""#).unwrap(),
+            "hello, world"
+        );
     }
 
     #[test]
     fn no_escapes_single_quote() {
-        assert_eq!(unescape_string(r#"'hello, world'"#).unwrap(), "hello, world");
+        assert_eq!(
+            unescape_string(r#"'hello, world'"#).unwrap(),
+            "hello, world"
+        );
     }
 
     #[test]
