@@ -47,11 +47,14 @@ impl Visitor for ThisParameter<'_> {
                 // Object.create(f.prototype)
                 let new_obj = call_(
                     dot_(id_("Object", s.clone()), "create", s.clone()),
-                    vec![Expr::Dot(
-                        Box::new(Expr::Id(func_name.clone(), s.clone())),
-                        Id::Named("prototype".to_string()),
-                        s.clone(),
-                    )],
+                    vec![
+                        id_("Object", s.clone()),
+                        Expr::Dot(
+                            Box::new(Expr::Id(func_name.clone(), s.clone())),
+                            Id::Named("prototype".to_string()),
+                            s.clone(),
+                        ),
+                    ],
                     s.clone(),
                 );
 

@@ -11,7 +11,7 @@ var jnks_null_dynobject: DynObject;
 
 // Cached Object properties to be used in jnks_new_object.
 // ASSUMPTION: Object.prototype is never modified by user code.
-var jnks_objectCreate: clos(env, any) -> any;
+var jnks_objectCreate: clos(env, any, any) -> any;
 // this is needed for an awful check in jnks_new_object, explained there
 // the type is bool, but notwasm sucks and can't compare bools, so here we are
 var jnks_objectCreateExists: i32 = 0;
@@ -41,7 +41,7 @@ function jnks_init_std_lib(): i32 {
 // `new Object()`.
 function jnks_new_object(): DynObject {
     var objectCreate = jnks_objectCreate;
-    var newObject = objectCreate!(jnks_objectPrototype);
+    var newObject = objectCreate!(undefined, jnks_objectPrototype);
     return newObject as DynObject;
 }
 
