@@ -53,7 +53,7 @@ pub fn get_rt_bindings() -> BindMap {
     insert(m, "get_undefined", vec![], Any);
     insert(m, "get_null", vec![], Any);
     insert(m, "object_empty", vec![], DynObject);
-    insert(m, "object_create", vec![Env, Any], Any);
+    insert_ground(m, "object_create", 1);
     // I32s are caches here
     insert(m, "object_set", vec![DynObject, String, Any, I32], Any);
     insert(m, "object_get", vec![DynObject, String, I32], Any);

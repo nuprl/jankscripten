@@ -29,12 +29,12 @@ function jnks_init_std_lib(): i32 {
 
     // create the actual object for Object
     var nullVar = null;
-    var objectClass = jnks_objectCreate!(nullVar);
+    var objectClass = jnks_objectCreate!(undefined, nullVar);
     Object = objectClass as DynObject;
 
     // set a completely empty prototype.
     // it's called objectPrototypeAny because its type is any.
-    var objectPrototypeAny = jnks_objectCreate!(nullVar);
+    var objectPrototypeAny = jnks_objectCreate!(undefined, nullVar);
     Object.prototype = objectPrototypeAny;
 
     // assign static methods to Object
@@ -118,7 +118,7 @@ function error_raw(_: env, _this: any, message: str): DynObject {
     e_proto.name = any("Error");
     e_proto.message = any(message);
     var e_proto_any = any(e_proto);
-    var e = jnks_objectCreate!(e_proto_any);
+    var e = jnks_objectCreate!(undefined, e_proto_any);
     return e as DynObject;
 }
 
