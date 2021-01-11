@@ -22,7 +22,6 @@ impl Env {
         self.env.get(id)
     }
 
-    #[deprecated(note = "Refactor to use .update instead")]
     pub fn insert(&mut self, id: Id, ty: Type) -> Option<Type> {
         self.env.insert(id, ty)
     }
@@ -106,6 +105,10 @@ fn ensure(msg: &str, expected: Type, got: Type, s: &Pos) -> TypeCheckingResult<T
 pub fn type_check(p: &mut Program) -> TypeCheckingResult<()> {
     // Top-level type environment, including checks for duplicate identifiers.
     let mut env: Env = Env::new();
+    for (x, t) in &p.rts_fn_imports {
+        env.insert(Id::Named(x.to_string()), t.clone());
+    }
+
     for (id, f) in p.functions.iter() {
         if env
             .insert(id.clone(), f.fn_type.clone().to_type())

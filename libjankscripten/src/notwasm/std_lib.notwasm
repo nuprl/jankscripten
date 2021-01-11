@@ -1,3 +1,76 @@
+import ht_new : () -> HT;
+import ht_get: (HT, str) -> any;
+import ht_set: (HT, str, any) -> any;
+import array_new: () -> Array;
+import array_push: (Array, any) -> i32; // new length
+import array_index: (Array, i32) -> any;
+import array_set: (Array, i32, any) -> any;
+import array_len: (Array) -> i32;
+import any_from_ptr: (i32) -> any;
+import any_to_ptr: (any) -> i32;
+import get_undefined: () -> any;
+import get_null: () -> any;
+import object_empty: () -> DynObject;
+import object_create: (env, any) -> any;
+// i32s are caches here
+import object_set: (DynObject, str, any, i32) -> any;
+import object_get: (DynObject, str, i32) -> any;
+import string_len: (str) -> i32;
+// i32 is any i32-sized data
+import ref_new_non_ptr_32: (i32) -> Ref(i32);
+import ref_new_f64: (f64) -> Ref(f64);
+import ref_new_any: (any) -> Ref(any);
+// i32 is any POINTER, will return a pointer to THAT
+import ref_new_ptr: (i32) -> Ref(i32);
+import init: () -> void;
+import gc_enter_fn: (i32) -> void;
+import gc_exit_fn: () -> void;
+// NOTE(arjun): The type below is not accurate. The first argument is
+// a *mut Tag, but we don't have a type for that.
+import set_in_current_shadow_frame_slot: (i32, i32) -> void;
+import set_any_in_current_shadow_frame_slot : (any, i32) -> void;
+import set_closure_in_current_shadow_frame_slot : (clos () -> void, i32) -> void;
+// The type below is not accurate. The first argument is
+// a *mut Tag, but we don't have a type for that.
+import set_in_globals_frame: (i32, i32) -> void;
+import set_any_in_globals_frame: (any, i32) -> void;
+import set_closure_in_globals_frame : (clos () -> void, i32) -> void;
+import any_to_f64: (any) -> f64;
+import f64_to_any: (f64) -> any;
+// length -> Env
+import env_alloc: (i32, DynObject) -> i32;
+// TODO(luna): this could be a single wasm instruction too
+// (env: Env, index, item) -> Env
+import env_init_at: (i32, i32, any) -> i32;
+// this could be 2 wasm instructions
+import closure_new: (i32, i32) -> clos () -> void;
+// i tried writing these 2 in wasm too but it got more complicated than i'd
+// like; i don't think i'd write it smarter than the rust compiler inlining
+// aside; and i hope we can inline the runtime automatically at some point
+// -> Env
+import closure_env: (clos () -> void) -> i32;
+import closure_func: (clos () -> void) -> () -> void;
+
+// here's some standard library stuff!!
+// most of these take Env, Any which is _env, _this (usually ignored)
+import parse_int : (env, any, any) -> any;
+// returns 5 for now because void messiness remains
+import console_log : (env, any, any) -> any;
+// math
+import math_sqrt : (env, any, any) -> any;
+import math_sin : (env, any, any) -> any;
+import math_abs : (env, any, any) -> any;
+import math_min : (env, any, any, any) -> any;
+import math_max : (env, any, any, any) -> any;
+// __JNKS
+import heap_dump : (env, any) -> any;
+
+import janky_primitive_plus : (any, any) -> any;
+import any_is_object : (any) -> bool;
+
+import run_gc : (env, any) -> any;
+import mem_info : (env, any) -> any;
+
 // Lazily-initialized global variables. DO NOT READ FROM THESE UNTIL THEY HAVE
 // BEEN WRITTEN TO.
 var Object: DynObject;
@@ -41,14 +114,14 @@ function jnks_init_std_lib(): i32 {
     Object.create = any(jnks_objectCreate);
 
     // Cache Object properties for jnks_new_object
-    jnks_objectPrototype = objectPrototypeAny;
+    jnks_objectPrototype = objectPrototypeany;
 
     // assign methods to Object.prototype.
-    // first, unwrap objectPrototypeAny into a DynObject
-    var objectPrototype = objectPrototypeAny as DynObject;
-    var objectToStringF = jnks_Object_prototype_toString;
-    var objectToString = clos(objectToStringF, );
-    objectPrototype.toString = any(objectToString);
+    // first, unwrap objectPrototypeany into a DynObject
+    var objectPrototype = objectPrototypeany as DynObject;
+    var objectTostrF = jnks_Object_prototype_tostr;
+    var objectTostr = clos(objectTostrF, );
+    objectPrototype.toString = any(objectTostr);
 
     Math = {};
     var mathSqrtF = rt(math_sqrt);
@@ -136,12 +209,12 @@ function error_ground(dummyEnv: env, this: any, message: any): any {
 // The default implementation of `Object.prototype.toString`.
 // All objects that don't specifically override `toString` will
 // have this implementation.
-function jnks_Object_prototype_toString(_: env, this: any): any {
+function jnks_Object_prototype_tostr(_: env, this: any): any {
     return any("[object Object]");
 }
 
 // Converts the given value into a primitive value.
-// This really just amounts to calling `toString` if the value
+// This really just amounts to calling `tostr` if the value
 // is an object.
 // This isn't implemented to spec but should have the same behavior
 // unless you're doing some funky stuff with objects:
@@ -153,8 +226,8 @@ function to_primitive(val: any): any {
     var is_val_obj = is_object(val);
     if (is_val_obj) {
         var val_obj = val as DynObject;
-        var val_obj_toString = val_obj.toString as clos(env, any) -> any;
-        var val_res = val_obj_toString!(val);
+        var val_obj_tostr = val_obj.toString as clos(env, any) -> any;
+        var val_res = val_obj_tostr!(val);
         return val_res;
     } else { }
     return val;

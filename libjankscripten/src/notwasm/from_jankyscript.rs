@@ -583,6 +583,7 @@ pub fn from_jankyscript(janky_program: J::Stmt) -> Program {
         },
     );
     Program {
+        rts_fn_imports: HashMap::new(),
         functions: state.functions,
         globals: HashMap::new(),
         data: Vec::new(),

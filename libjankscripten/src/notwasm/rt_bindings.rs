@@ -5,8 +5,6 @@ use std::collections::HashMap;
 use strum::IntoEnumIterator;
 use Type::*;
 
-const KEY: Type = Type::String;
-
 type BindMap = HashMap<std::string::String, Type>;
 
 /// Generate a map of the runtime functions available to NotWasm.
@@ -26,14 +24,6 @@ pub fn get_rt_bindings() -> BindMap {
     let a_clos = clos_ty_(vec![], None);
 
     // Step 1: Manually insert runtime functions for NotWasm.
-    insert(m, "ht_new", vec![], HT);
-    insert(m, "ht_get", vec![HT, KEY], Any);
-    insert(m, "ht_set", vec![HT, KEY, Any], Any);
-    insert(m, "array_new", vec![], Array);
-    insert(m, "array_push", vec![Array, Any], I32); // new length
-    insert(m, "array_index", vec![Array, I32], Any);
-    insert(m, "array_set", vec![Array, I32, Any], Any);
-    insert(m, "array_len", vec![Array], I32);
     insert_mono(
         m,
         "any_from",
@@ -48,84 +38,6 @@ pub fn get_rt_bindings() -> BindMap {
         &mono,
         vec![I32, Bool, a_clos.clone()],
     );
-    insert(m, "any_from_ptr", vec![I32], Any);
-    insert(m, "any_to_ptr", vec![Any], I32);
-    insert(m, "get_undefined", vec![], Any);
-    insert(m, "get_null", vec![], Any);
-    insert(m, "object_empty", vec![], DynObject);
-    insert_ground(m, "object_create", 1);
-    // I32s are caches here
-    insert(m, "object_set", vec![DynObject, String, Any, I32], Any);
-    insert(m, "object_get", vec![DynObject, String, I32], Any);
-    insert(m, "string_len", vec![String], I32);
-    // I32 is any I32-sized data
-    insert(m, "ref_new_non_ptr_32", vec![I32], ref_ty_(I32));
-    insert(m, "ref_new_f64", vec![F64], ref_ty_(F64));
-    insert(m, "ref_new_any", vec![Any], ref_ty_(Any));
-    // I32 is any POINTER, will return a pointer to THAT
-    insert(m, "ref_new_ptr", vec![I32], ref_ty_(I32));
-    insert(m, "init", vec![], None);
-    insert(m, "gc_enter_fn", vec![I32], None);
-    insert(m, "gc_exit_fn", vec![], None);
-    // NOTE(arjun): The type below is not accurate. The first argument is
-    // a *mut Tag, but we don't have a type for that.
-    insert(m, "set_in_current_shadow_frame_slot", vec![I32, I32], None);
-    insert(
-        m,
-        "set_any_in_current_shadow_frame_slot",
-        vec![Any, I32],
-        None,
-    );
-    insert(
-        m,
-        "set_closure_in_current_shadow_frame_slot",
-        vec![a_clos.clone(), I32],
-        None,
-    );
-    // The type below is not accurate. The first argument is
-    // a *mut Tag, but we don't have a type for that.
-    insert(m, "set_in_globals_frame", vec![I32, I32], None);
-    insert(m, "set_any_in_globals_frame", vec![Any, I32], None);
-    insert(
-        m,
-        "set_closure_in_globals_frame",
-        vec![a_clos.clone(), I32],
-        None,
-    );
-    insert(m, "any_to_f64", vec![Any], F64);
-    insert(m, "f64_to_any", vec![F64], Any);
-    // length -> Env
-    insert(m, "env_alloc", vec![I32, DynObject], I32);
-    // TODO(luna): this could be a single wasm instruction too
-    // (env: Env, index, item) -> Env
-    insert(m, "env_init_at", vec![I32, I32, Any], I32);
-    // this could be 2 wasm instructions
-    insert(m, "closure_new", vec![I32, I32], a_clos.clone());
-    // i tried writing these 2 in wasm too but it got more complicated than i'd
-    // like; i don't think i'd write it smarter than the rust compiler inlining
-    // aside; and i hope we can inline the runtime automatically at some point
-    // -> Env
-    insert(m, "closure_env", vec![a_clos.clone()], I32);
-    insert(m, "closure_func", vec![a_clos.clone()], a_fn.clone());
-    // here's some standard library stuff!!
-    // most of these take Env, Any which is _env, _this (usually ignored)
-    insert_ground(m, "parse_int", 1);
-    // returns 5 for now because void messiness remains
-    insert_ground(m, "console_log", 1);
-    // math
-    insert_ground(m, "math_sqrt", 1);
-    insert_ground(m, "math_sin", 1);
-    insert_ground(m, "math_abs", 1);
-    insert_ground(m, "math_min", 2);
-    insert_ground(m, "math_max", 2);
-    // __JNKS
-    insert_ground(m, "heap_dump", 0);
-    insert(m, "janky_primitive_plus", vec![Any, Any], Any);
-    insert(m, "any_is_object", vec![Any], Bool);
-
-    // Step 2: automatically insert Rust runtime functions from RTSFunction.
-    insert_ground(m, "run_gc", 0);
-    insert_ground(m, "mem_info", 0);
     // Step 2: automatically insert runtime functions from RTSFunction.
     for rts in RTSFunction::iter() {
         if let RTSFunction::Todo(_) = rts {
@@ -157,18 +69,4 @@ fn insert_mono<'a, X, I>(
         let ret_ty = ret_ty.clone().into().map(|f| f(replace_ty));
         map.insert(mono_name, fn_ty_(params_tys, ret_ty));
     }
-}
-
-fn insert<I: Into<Option<Type>>>(map: &mut BindMap, name: &str, params_tys: Vec<Type>, ret_ty: I) {
-    map.insert(name.into(), fn_ty_(params_tys, ret_ty.into()));
-}
-fn insert_ground(map: &mut BindMap, name: &str, real_params: usize) {
-    map.insert(name.into(), ground_ty(real_params));
-}
-fn ground_ty(real_params: usize) -> Type {
-    // env: env, this: any, [any x real_params] -> any
-    let all_params = std::iter::once(Env)
-        .chain(std::iter::repeat(Any).take(real_params + 1))
-        .collect();
-    fn_ty_(all_params, Any)
 }

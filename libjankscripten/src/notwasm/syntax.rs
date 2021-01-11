@@ -373,6 +373,7 @@ pub struct Function {
 
 #[derive(Debug, PartialEq)]
 pub struct Program {
+    pub rts_fn_imports: HashMap<String, Type>,
     pub functions: HashMap<Id, Function>,
     /// Atom must be const as defined by wasm
     pub globals: HashMap<Id, Global>,
@@ -382,6 +383,7 @@ pub struct Program {
 
 impl Program {
     pub fn merge_in(&mut self, other: Program) {
+        self.rts_fn_imports.extend(other.rts_fn_imports.into_iter());
         self.functions.extend(other.functions.into_iter());
         self.globals.extend(other.globals.into_iter());
         assert_eq!(other.data.len(), 0, "can't merge data segments");

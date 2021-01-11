@@ -79,7 +79,11 @@ pub fn translate_parity(opts: &Opts, mut program: N::Program) -> Module {
     let mut rt_indexes = HashMap::new();
     // build up indexes for mutual recursion first
     let mut type_indexes = HashMap::new();
-    for (func_i, (name, ty)) in rt_types.iter().enumerate() {
+    for (func_i, (name, ty)) in rt_types
+        .into_iter()
+        .chain(program.rts_fn_imports)
+        .enumerate()
+    {
         let type_i = if let N::Type::Fn(fn_ty) = ty {
             let wasm_ty = (types_as_wasm(&fn_ty.args), option_as_wasm(&fn_ty.result));
             let i_check = module.push_signature(
@@ -99,7 +103,7 @@ pub fn translate_parity(opts: &Opts, mut program: N::Program) -> Module {
         rt_indexes.insert(name.clone(), func_i as u32);
         module = module
             .import()
-            .path("runtime", name)
+            .path("runtime", &name)
             .with_external(External::Function(type_i))
             .build();
     }
