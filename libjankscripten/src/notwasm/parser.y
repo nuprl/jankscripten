@@ -42,7 +42,7 @@ Lit -> (Lit, Pos) :
 
 TypeSeq -> Vec<Type> :
                      { Vec::new() }
-    Type             { vec![$1] }
+  | Type             { vec![$1] }
   | TypeSeq ',' Type { $1.push($3); $1 }
   ;
 
@@ -214,8 +214,18 @@ Function -> (Id, Function) :
     }
   ;
 
+Import -> (String, Type) :
+    'import' IdString ':' Type ';' { ($2, $4) }
+  ;
+
+Imports -> HashMap<String, Type> :
+                   { HashMap::new() }
+  | Imports Import { $1.insert($2.0, $2.1); $1 }
+  ;
+
 Program -> Program :
-    GlobalVec FunctionVec { Program { globals: $1, functions: $2, data: Vec::new() } }
+    Imports GlobalVec FunctionVec 
+    { Program { rts_fn_imports: $1, globals: $2, functions: $3, data: Vec::new() } }
   ;
 
 // An idiom that turns lexing errors into parsing errors. Any mismatched

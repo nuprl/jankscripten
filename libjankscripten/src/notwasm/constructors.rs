@@ -111,6 +111,7 @@ pub fn ht_set_(a: Atom, b: Atom, c: Atom, s: Pos) -> Expr {
 pub fn program_(functions: HashMap<Id, Function>) -> Program {
     Program {
         functions,
+        rts_fn_imports: HashMap::new(),
         globals: HashMap::new(),
         data: Vec::new(),
     }
