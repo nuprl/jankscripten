@@ -1,6 +1,5 @@
-#![allow(unused)]
+pub mod constructors;
 mod syntax;
-// pub mod constructors;
 // pub mod inference;
 mod coercion_insertion;
 mod from_javascript;

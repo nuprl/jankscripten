@@ -195,6 +195,12 @@ where
                 let loc = Loc::Node(Context::Stmt, loc);
                 self.walk_expr(a, &loc);
             }
+            // 1xExpr, 1xStmt
+            ForIn(_, e, s, _) => {
+                let loc = Loc::Node(Context::Stmt, loc);
+                self.walk_expr(e, &loc);
+                self.walk_stmt(s, &loc);
+            }
             // 1xExpr, 2xStmt
             If(e, sa, sb, _) => {
                 let loc = Loc::Node(Context::Stmt, loc);

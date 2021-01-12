@@ -88,6 +88,10 @@ pub fn loop_(body: Stmt, s: Pos) -> Stmt {
     Stmt::Loop(Box::new(body), s)
 }
 
+pub fn for_in_(bind: Id, container: Expr, body: Stmt, s: Pos) -> Stmt {
+    Stmt::ForIn(bind, Box::new(container), Box::new(body), s)
+}
+
 pub fn empty_() -> Stmt {
     Stmt::Empty
 }

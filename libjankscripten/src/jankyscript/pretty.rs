@@ -298,6 +298,14 @@ impl Pretty for Stmt {
                 pp.hardline(),
             ),
             Stmt::Loop(s, _) => pp.concat(vec![pp.text("loop"), pp.hardline(), s.pretty(pp)]),
+            Stmt::ForIn(bind, container, body, _) => pp
+                .text("for (")
+                .append(pp.as_string(bind))
+                .append(pp.text(" in "))
+                .append(container.pretty(pp))
+                .append(pp.text(")"))
+                .append(pp.line())
+                .append(body.pretty(pp)),
             Stmt::Label(lbl, s, _) => pp.concat(vec![
                 pp.as_string(lbl),
                 pp.text(":"),

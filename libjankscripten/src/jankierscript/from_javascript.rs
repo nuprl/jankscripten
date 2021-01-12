@@ -1,5 +1,6 @@
 use super::super::javascript::constructors as Js_;
 use super::super::javascript::syntax as Js;
+use super::constructors::*;
 use super::syntax::*;
 use crate::pos::Pos;
 
@@ -66,7 +67,10 @@ fn stmt(s: Js::Stmt) -> Stmt {
             Box::new(stmt(*e)),
             s,
         ),
-        Js::ForIn(_, _, _, _, s) => todo!("for in loops"),
+        Js::ForIn(is_var, bind, container, body, s) => {
+            assert!(!is_var, "for..in was not desugared to not use var");
+            for_in_(bind, expr(*container), stmt(*body), s)
+        }
         Js::Label(x, st, s) => Label(x, Box::new(stmt(*st)), s),
         Js::Break(x, s) => Break(x.unwrap(), s),
         Js::Continue(_, s) => unexpected(&s),
