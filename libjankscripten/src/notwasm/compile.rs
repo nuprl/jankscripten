@@ -14,14 +14,10 @@ where
 {
     //label_apps(&mut program);
     //elim_gotos(&mut program);
-    if let Some(src_ref) = &mut opts.notwasm_stdlib_source_code {
-        let mut src = String::new();
-        std::mem::swap(&mut src, src_ref);
-        let notwasm_std_lib = parse("std_lib.notwasm", src);
-        program.merge_in(notwasm_std_lib);
-    } else {
-        eprintln!("Warning: NotWasm standard library not provided.");
-    }
+    let mut src = String::new();
+    std::mem::swap(&mut src, &mut opts.notwasm_stdlib_source_code);
+    let notwasm_std_lib = parse("std_lib.notwasm", src);
+    program.merge_in(notwasm_std_lib);
 
     inspect(&program);
     type_checking::type_check(&mut program)?;

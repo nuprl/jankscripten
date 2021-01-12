@@ -48,10 +48,9 @@ impl Compile {
         if self.disable_gc {
             compile_opts.disable_gc = true;
         }
-        if let Some(p) = &self.stdlib {
-            let stdlib_source_code = fs::read_to_string(p).expect(&format!("reading {}", p));
-            compile_opts.notwasm_stdlib_source_code = Some(stdlib_source_code);
-        }
+        let p = self.stdlib.as_ref().unwrap();
+        let stdlib_source_code = fs::read_to_string(p).expect(&format!("reading {}", p));
+        compile_opts.notwasm_stdlib_source_code = stdlib_source_code;
         compile_opts
     }
 }
@@ -203,7 +202,20 @@ fn parse(opts: Parse) {
 fn main() {
     let opts = Opts::parse();
     match opts.subcmd {
-        SubCommand::Compile(opts) => compile(opts),
+        SubCommand::Compile(mut opts) => {
+            if opts.stdlib == None {
+                // On Linux, this produces the target of a symlink.
+                let mut exe_path = std::env::current_exe().unwrap();
+                // Assume the standard library is at ../../../stdlib.notwasm
+                exe_path.pop();
+                exe_path.pop();
+                exe_path.pop();
+                exe_path.push("stdlib.notwasm");
+                opts.stdlib = Some(exe_path.into_os_string().into_string().unwrap());
+            }
+
+            compile(opts)
+        }
         SubCommand::Parse(opts) => parse(opts),
     }
 }
