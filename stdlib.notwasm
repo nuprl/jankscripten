@@ -11,7 +11,7 @@ import any_to_ptr: (any) -> i32;
 import get_undefined: () -> any;
 import get_null: () -> any;
 import object_empty: () -> DynObject;
-import object_create: (env, any) -> any;
+import object_create: (env, any, any) -> any;
 // i32s are caches here
 import object_set: (DynObject, str, any, i32) -> any;
 import object_get: (DynObject, str, i32) -> any;
@@ -71,6 +71,25 @@ import any_is_object : (any) -> bool;
 import run_gc : (env, any) -> any;
 import mem_info : (env, any) -> any;
 
+// this is the minimal runtime which doesn't initialize the standard library,
+// and only does the bare minimum to allow {} to work
+// this plus std_lib.notwasm comprises the entire notwasm runtime
+// this file can be merged without std_lib.notwasm for a minimal working
+// notwasm
+
+var undefined: any;
+
+// abusing lazy globals to create a null DynObject for jnks_new_object
+var jnks_null_dynobject: DynObject;
+
+// Cached Object properties to be used in jnks_new_object.
+// ASSUMPTION: Object.prototype is never modified by user code.
+var jnks_objectCreate: clos(env, any, any) -> any;
+// this is needed for an awful check in jnks_new_object, explained there
+// the type is bool, but notwasm sucks and can't compare bools, so here we are
+var jnks_objectCreateExists: i32 = 0;
+var jnks_objectPrototype: any;
+
 // Lazily-initialized global variables. DO NOT READ FROM THESE UNTIL THEY HAVE
 // BEEN WRITTEN TO.
 var Object: DynObject;
@@ -89,6 +108,59 @@ var Error: clos(env, any, any) -> any;
 // Other cached runtime functions
 var jnks_any_is_object: (any) -> bool;
 var jnks_primitive_plus: (any, any) -> any;
+
+
+// Initialize JankScripten runtime.
+function jnks_init() {
+    // load the Object.create runtime function
+    var objectCreateF = rt(object_create);
+    // comma is obligatory to indicate an empty environment
+    var objectCreate = clos(objectCreateF, );
+    jnks_objectCreate = objectCreate;
+    jnks_objectCreateExists = 1;
+    var getUndefined = rt(get_undefined);
+    undefined = getUndefined();
+    jnks_init_std_lib();
+}
+
+// this is a placeholder that will be replaced with the actual initialization
+// iff it's not disabled
+function jnks_init_std_lib(): i32 {
+    // notwasm limitation
+    return 0;
+}
+
+// Runtime function to create a regular empty object like `{}` or
+// `new Object()`.
+function jnks_new_object(): DynObject {
+    var objectCreate = jnks_objectCreate;
+    var newObject = objectCreate!(undefined, jnks_objectPrototype);
+    return newObject as DynObject;
+}
+
+// Create an empty object to be used as a function object.
+// The only current difference between this function and jnks_new_object
+// is that a `prototype` field is automatically initialized here.
+function jnks_new_fn_obj(): DynObject {
+    // Create new object that inherits from Object.prototype,
+    // AND has a `prototype` field automatically initialized.
+
+    // a new fn object is created to store in the closure of... you guessed it,
+    // objectCreate. so we need to give a fake object for that closure
+    // only. this hopefully won't be necessary after we optimize non-object
+    // functions.
+
+    if (jnks_objectCreateExists == 1) {
+        var newObject = jnks_new_object();
+        var newObjectProto = jnks_new_object();
+        newObject.prototype = any(newObjectProto);
+        return newObject;
+    } else {}
+    // not written as an if-else because wasm typechecking strictness
+    // this thing may or may not even be null. it doesn't really matter
+    return jnks_null_dynobject;
+
+}
 
 // Initialize JankScripten runtime.
 function jnks_init_std_lib(): i32 {
@@ -114,11 +186,11 @@ function jnks_init_std_lib(): i32 {
     Object.create = any(jnks_objectCreate);
 
     // Cache Object properties for jnks_new_object
-    jnks_objectPrototype = objectPrototypeany;
+    jnks_objectPrototype = objectPrototypeAny;
 
     // assign methods to Object.prototype.
-    // first, unwrap objectPrototypeany into a DynObject
-    var objectPrototype = objectPrototypeany as DynObject;
+    // first, unwrap objectPrototypeAny into a DynObject
+    var objectPrototype = objectPrototypeAny as DynObject;
     var objectTostrF = jnks_Object_prototype_tostr;
     var objectTostr = clos(objectTostrF, );
     objectPrototype.toString = any(objectTostr);
