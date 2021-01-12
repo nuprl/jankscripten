@@ -86,6 +86,7 @@ impl Pretty for BinaryOp {
             BinaryOp::I32Le => pp.text("<="),
             BinaryOp::I32And => pp.text("&"),
             BinaryOp::I32Or => pp.text("|"),
+            BinaryOp::I32Xor => pp.text("^"),
             BinaryOp::I32Div => pp.text("/"),
             BinaryOp::I32Rem => pp.text("%"),
             BinaryOp::I32Shl => pp.text("<<"),
