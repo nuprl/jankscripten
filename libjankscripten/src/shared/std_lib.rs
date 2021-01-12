@@ -119,7 +119,9 @@ pub fn get_global_object() -> BindMap {
     insert(m, "isNaN", Any);
     insert(m, "parseFloat", Any);
     // i think this specifies before closure conversion but after this-conversion
-    insert(m, "parseInt", Function(vec![Any, Any], Box::new(Any)));
+    // this always accepts the radix, which is normalized in
+    // javascript::normalize_std_lib_calls
+    insert(m, "parseInt", Function(vec![Any, Any, Any], Box::new(Any)));
     // constants
     insert(m, "undefined", Any);
     insert(m, "null", Any);

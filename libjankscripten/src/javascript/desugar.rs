@@ -2,6 +2,7 @@ use super::*;
 
 pub fn desugar(stmt: &mut Stmt, ng: &mut NameGen) {
     stmt.walk(&mut super::desugar_function_stmts::DesugarFunctionStmts {});
+    normalize_std_lib_calls::normalize_std_lib_calls(stmt);
     desugar_switch::desugar_switch(stmt, ng);
     // dep: desugar_switch
     desugar_loops::desugar_loops(stmt, ng);

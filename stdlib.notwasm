@@ -53,7 +53,9 @@ import closure_func: (clos () -> void) -> () -> void;
 
 // here's some standard library stuff!!
 // most of these take Env, Any which is _env, _this (usually ignored)
-import parse_int : (env, any, any) -> any;
+// note this is normalized to always accept the radix by
+// javascript::normalize_std_lib_calls
+import parse_int : (env, any, any, any) -> any;
 // returns 5 for now because void messiness remains
 import console_log : (env, any, any) -> any;
 // math
@@ -97,8 +99,8 @@ var Math: DynObject;
 var global: DynObject;
 var console: DynObject;
 var __JNKS: DynObject;
-// (_, _this, what) -> i32 or f64(NaN)
-var parseInt: clos(env, any, any) -> any;
+// (_, _this, what, radix) -> i32 or f64(NaN)
+var parseInt: clos(env, any, any, any) -> any;
 // temporary Error ground to see other compile-time errors (unrelated to this
 // being called Error)
 var Error: clos(env, any, any) -> any;
