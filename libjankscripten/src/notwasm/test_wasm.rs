@@ -88,7 +88,7 @@ where
     <T as FromStr>::Err: Debug,
 {
     let mut opts = Opts::new();
-    opts.notwasm_stdlib_source_code = Some(std::fs::read_to_string("../stdlib.notwasm").unwrap());
+    opts.notwasm_stdlib_source_code = std::fs::read_to_string("../stdlib.notwasm").unwrap();
     let (wasm, _) = match compile(&mut opts, program, |notwasm| eprintln!("{}", notwasm)) {
         Ok(o) => o,
         Err(e) => panic!("could not compile: {:?}", e),
