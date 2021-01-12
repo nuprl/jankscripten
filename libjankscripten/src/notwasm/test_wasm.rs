@@ -89,7 +89,7 @@ where
 {
     let mut opts = Opts::new();
     opts.notwasm_stdlib_source_code = Some(std::fs::read_to_string("../stdlib.notwasm").unwrap());
-    let wasm = match compile(&mut opts, program, |notwasm| eprintln!("{}", notwasm)) {
+    let (wasm, _) = match compile(&mut opts, program, |notwasm| eprintln!("{}", notwasm)) {
         Ok(o) => o,
         Err(e) => panic!("could not compile: {:?}", e),
     };

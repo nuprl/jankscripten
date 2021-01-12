@@ -1,13 +1,14 @@
 use super::syntax::Program;
 use super::*;
 use crate::opts::Opts;
+use std::collections::HashMap;
 use std::error::Error;
 
 pub fn compile<G>(
     opts: &mut Opts,
     mut program: Program,
     inspect: G,
-) -> Result<Vec<u8>, Box<dyn Error>>
+) -> Result<(Vec<u8>, HashMap<String, u32>), Box<dyn Error>>
 where
     G: FnOnce(&Program) -> (),
 {
@@ -24,6 +25,7 @@ where
 
     inspect(&program);
     type_checking::type_check(&mut program)?;
-    intern(&mut program);
-    Ok(translate(opts, program)?)
+    let inverted_interned_strings = intern(&mut program);
+    let wasm = translate(opts, program)?;
+    Ok((wasm, inverted_interned_strings))
 }

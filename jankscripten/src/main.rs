@@ -1,4 +1,5 @@
 use clap::Clap;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
@@ -19,6 +20,9 @@ struct Compile {
     disable_gc: bool,
     #[clap(long)]
     stdlib: Option<String>,
+    /// Dump the offsets of interned strings to the console (for debugging).
+    #[clap(long)]
+    dump_interned: bool,
 }
 
 #[derive(Clap)]
@@ -49,6 +53,17 @@ impl Compile {
             compile_opts.notwasm_stdlib_source_code = Some(stdlib_source_code);
         }
         compile_opts
+    }
+}
+
+fn display_interned_strings_offset(interned_strings: HashMap<String, u32>) {
+    let mut inverted = interned_strings
+        .into_iter()
+        .map(|(k, v)| (v, k))
+        .collect::<Vec<(u32, String)>>();
+    inverted.sort_by(|(k1, _), (k2, _)| k1.cmp(k2));
+    for (offset, s) in inverted {
+        println!("{} -> {}", offset, s);
     }
 }
 
@@ -86,8 +101,14 @@ fn expect_extension(p: &Path) -> &str {
 fn compile_notwasm(opts: Compile, input: &str, output: &Path) {
     use libjankscripten::notwasm;
     let parsed = notwasm::parse(opts.input.as_str(), input);
+
     let wasm = match notwasm::compile(&mut opts.libjankscripten_opts(), parsed, |_| ()) {
-        Ok(o) => o,
+        Ok((wasm, interned_strings)) => {
+            if opts.dump_interned {
+                display_interned_strings_offset(interned_strings);
+            }
+            wasm
+        }
         Err(e) => panic!("{}", e),
     };
     fs::write(output, wasm).expect("writing file");
@@ -104,7 +125,7 @@ fn compile(opts: Compile) {
         }
         "js" => {
             let js_code = read_file(input_path);
-            let wasm_bin = libjankscripten::javascript_to_wasm(
+            let (wasm_bin, interned_strings) = libjankscripten::javascript_to_wasm(
                 opts.libjankscripten_opts(),
                 &opts.input,
                 &js_code,
@@ -120,6 +141,9 @@ fn compile(opts: Compile) {
                 },
             )
             .expect("compile error");
+            if opts.dump_interned {
+                display_interned_strings_offset(interned_strings);
+            }
             let output_path = make_output_filename(&opts.output, input_path, "wasm");
             fs::write(output_path, wasm_bin).expect("writing wasm output");
         }
