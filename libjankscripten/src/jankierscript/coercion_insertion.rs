@@ -303,7 +303,19 @@ impl InsertCoercions {
                 if let Some(EnvItem::JsId(ty)) = env.env.get(&id) {
                     Ok((Janky::Expr::Id(id, ty.clone(), s), ty.clone()))
                 } else {
-                    panic!("unknown identifier: {:?}", id)
+                    // this is a stopgap to cover all the things like:
+                    // typeof __compiler_optional_thing === "undefined" ? 5 : __compiler_optional_thing
+                    // these happen in about half of compilers. these
+                    // should be taken seriously and run to ground, because if
+                    // it's not guaranteed to never hit, very bad things will
+                    // happen. TODO(luna): it would be better to generate a trap
+                    // here; perhaps for example by generating something like
+                    // __JNKS.wasmTrap()
+                    eprintln!(
+                        "SERIOUS WARNING: unknown identifier: {:?} at {:?}. generating undefined",
+                        id, s
+                    );
+                    Ok((Janky_::lit_(Lit::Undefined, s), Type::Any))
                 }
             }
             Expr::Bracket(container, field, s) => {
@@ -440,6 +452,15 @@ impl InsertCoercions {
             }
             Expr::Unary(op, e, s) => {
                 use super::super::javascript::UnaryOp;
+                // typeof is a very special operation for which a nonexistant
+                // name does NOT cause ReferenceError, instead it yields undefined
+                if op == UnaryOp::TypeOf {
+                    if let Expr::Id(id, s) = &*e {
+                        if env.env.get(&id).is_none() {
+                            return Ok((Janky_::lit_(Lit::Undefined, s.clone()), Type::Any));
+                        }
+                    }
+                }
                 let (coerced_e, e_ty) = self.expr_and_type(*e, &mut env.clone())?;
                 match (&op, &e_ty) {
                     // Bitwise not; needed for one particular dart benchmark
