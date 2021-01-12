@@ -556,6 +556,7 @@ impl<'a> Translate<'a> {
             NO::I32Rem => self.out.push(I32RemS),
             NO::I32And => self.out.push(I32And),
             NO::I32Or => self.out.push(I32Or),
+            NO::I32Xor => self.out.push(I32Xor),
             NO::I32Shl => self.out.push(I32Shl),
             NO::I32Shr => self.out.push(I32ShrS),
             NO::F64Add => self.out.push(F64Add),

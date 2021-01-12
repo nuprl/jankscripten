@@ -152,6 +152,7 @@ fn binop_overload(op: &BinOp, lhs_ty: &Type, rhs_ty: &Type) -> TypeOverload {
         (BinOp::LeftShift, _, _) => prim_same(BinaryOp::I32Shl, Int),
         (BinOp::RightShift, _, _) => prim_same(BinaryOp::I32Shr, Int),
         (BinOp::InstanceOf, _, _) => rts(RTSFunction::InstanceOf, Bool),
+        (BinOp::XOr, _, _) => prim_same(BinaryOp::I32Xor, Int),
         (_, _, _) => (
             Overload::RTS(RTSFunction::Todo(Box::leak(Box::new(format!(
                 "unimplemented binop {:?} {:?} {:?}",

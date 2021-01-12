@@ -56,6 +56,8 @@ pub fn get_global_object() -> BindMap {
     insert(m, "confirm", Any);
     insert(m, "setTimeout", Any);
     insert(m, "stop", Any);
+    // pyjs
+    insert(m, "alert", Any);
 
     // Built-in objects
     // ----------------
