@@ -9,24 +9,27 @@
 
 use super::syntax::*;
 use super::walk::*;
+use std::collections::HashMap;
 
 /// String is specified as TypeTag 1 in the runtime to make it consistent
 /// across compiles
 /// [marked, String = 1, pad, pad]
 const STRING_TAG: [u8; 4] = [0, 1, 0, 0];
 
-pub fn intern(program: &mut Program) {
+pub fn intern(program: &mut Program) -> HashMap<String, u32> {
     let mut vis = InternVisitor::default();
     program.walk(&mut vis);
     program.data = vis.data;
+    return vis.already_interned;
 }
 
 #[derive(Default)]
 struct InternVisitor {
     data: Vec<u8>,
     /// Helps avoid interning the same static string multiple times.
-    already_interned: std::collections::HashMap<String, u32>,
+    already_interned: HashMap<String, u32>,
 }
+
 impl Visitor for InternVisitor {
     fn exit_atom(&mut self, atom: &mut Atom, _loc: &mut Loc) {
         match atom {
