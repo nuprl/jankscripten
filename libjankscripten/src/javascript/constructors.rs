@@ -87,6 +87,10 @@ pub fn str_(st: impl Into<String>, s: Pos) -> Expr {
     Expr::Lit(Lit::String(st.into()), s)
 }
 
+pub fn int_(i: i32, s: Pos) -> Expr {
+    Expr::Lit(Lit::Num(Num::Int(i)), s)
+}
+
 pub fn id_<I: Into<Id>>(id: I, s: Pos) -> Expr {
     Expr::Id(id.into(), s)
 }

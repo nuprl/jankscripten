@@ -14,6 +14,7 @@ mod desugar_this;
 mod desugar_updates;
 mod desugar_vardecls;
 mod lift_vars;
+mod normalize_std_lib_calls;
 mod parser;
 pub mod syntax;
 pub mod walk;
