@@ -12,7 +12,7 @@ pub mod shared;
 mod string_escaping;
 
 pub fn javascript_to_wasm<F, G>(
-    opts: opts::Opts,
+    mut opts: opts::Opts,
     src_name: &str,
     js_code: &str,
     inspect_janky: F,
@@ -30,6 +30,6 @@ where
     let mut janky_ast = jankierscript::insert_coercions(jankier_ast)?;
     jankyscript::compile(&mut janky_ast, inspect_janky).unwrap();
     let notwasm_ast = notwasm::from_jankyscript(janky_ast);
-    let wasm_bin = notwasm::compile(&opts, notwasm_ast, inspect_notwasm).unwrap();
+    let wasm_bin = notwasm::compile(&mut opts, notwasm_ast, inspect_notwasm).unwrap();
     Ok(wasm_bin)
 }

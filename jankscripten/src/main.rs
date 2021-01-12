@@ -18,7 +18,7 @@ struct Compile {
     #[clap(long)]
     disable_gc: bool,
     #[clap(long)]
-    no_std: bool,
+    stdlib: Option<String>,
 }
 
 #[derive(Clap)]
@@ -44,7 +44,10 @@ impl Compile {
         if self.disable_gc {
             compile_opts.disable_gc = true;
         }
-        compile_opts.no_std = self.no_std;
+        if let Some(p) = &self.stdlib {
+            let stdlib_source_code = fs::read_to_string(p).expect(&format!("reading {}", p));
+            compile_opts.notwasm_stdlib_source_code = Some(stdlib_source_code);
+        }
         compile_opts
     }
 }
@@ -83,7 +86,7 @@ fn expect_extension(p: &Path) -> &str {
 fn compile_notwasm(opts: Compile, input: &str, output: &Path) {
     use libjankscripten::notwasm;
     let parsed = notwasm::parse(opts.input.as_str(), input);
-    let wasm = match notwasm::compile(&opts.libjankscripten_opts(), parsed, |_| ()) {
+    let wasm = match notwasm::compile(&mut opts.libjankscripten_opts(), parsed, |_| ()) {
         Ok(o) => o,
         Err(e) => panic!("{}", e),
     };
