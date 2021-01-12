@@ -123,13 +123,6 @@ function jnks_init() {
     jnks_init_std_lib();
 }
 
-// this is a placeholder that will be replaced with the actual initialization
-// iff it's not disabled
-function jnks_init_std_lib(): i32 {
-    // notwasm limitation
-    return 0;
-}
-
 // Runtime function to create a regular empty object like `{}` or
 // `new Object()`.
 function jnks_new_object(): DynObject {
