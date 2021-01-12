@@ -513,6 +513,7 @@ fn compile_stmt<'a>(state: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
             Stmt::Block(compile_stmt(state, *body).into_iter().collect(), p.clone()),
             p,
         )),
+        S::ForIn(..) => todo!("for..in in notwasm"),
         S::Label(x, body, p) => Rope::singleton(label_(
             Label::Named(x.to_pretty(80)),
             Stmt::Block(compile_stmt(state, *body).into_iter().collect(), p.clone()),

@@ -169,6 +169,19 @@ fn type_check_stmt(stmt: &Stmt, env: Env, ret_ty: &Option<Type>) -> TypeChecking
 
             Ok(env)
         }
+        Stmt::ForIn(bind, container, body, s) => {
+            ensure_indexable(
+                "for..in",
+                type_check_expr(container, env.clone())?,
+                s.clone(),
+            )?;
+            // type check body in a new scope
+            // TODO(luna): like in jankyscript::fv, this is a guess, and ForIn
+            // should really have a type
+            let for_in_env = env.clone().update(bind.clone(), Type::Any);
+            type_check_stmt(&body, for_in_env, ret_ty)?;
+            Ok(env)
+        }
         Stmt::Throw(e, _) => {
             // expression we're throwing should be well-typed
             type_check_expr(&e, env.clone())?;

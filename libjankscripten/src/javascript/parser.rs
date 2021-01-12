@@ -709,7 +709,7 @@ fn parse_lit(lit: swc::Lit, source_map: &Rc<SourceMap>) -> ParseResult<(S::Lit, 
             unsupported_message("big int literal", span, source_map)
         }
         Regex(swc::Regex { exp, flags, span }) => {
-            unsupported_message("regex not yet supported", span, source_map)
+            Ok((S::Lit::Regex(exp.to_string(), flags.to_string()), span))
         }
         JSXText(swc::JSXText { span, .. }) => {
             unsupported_message("jsx string literal", span, source_map)

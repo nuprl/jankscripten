@@ -42,6 +42,20 @@ fn var_summary(stmt: &mut Stmt) -> (IdMap, IdMap) {
             )
         }
         Loop(s, _) => var_summary(s),
+        ForIn(bind, container, body, _) => {
+            let (declared_in_body, referenced_in_body) = var_summary(body);
+            let referenced_in_container = fv_expr(container);
+            // TODO(luna): this is a guess based on how variable lifting
+            // interacts with coercion_insertion but it's not really a proper
+            // way to do things. maybe for..in needs a type field?
+            let referenced_in_bind = IdMap::unit(bind.clone(), Type::Any);
+            (
+                declared_in_body,
+                referenced_in_body
+                    .union(referenced_in_container)
+                    .union(referenced_in_bind),
+            )
+        }
         Break(_, _) => (empty(), empty()),
         Catch(body, exn_name, catch_body, _) => {
             let (declared_in_body, referenced_in_body) = var_summary(body);

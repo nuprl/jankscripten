@@ -191,6 +191,13 @@ impl InsertCoercions {
                 let body = self.stmt(*body, &mut env.clone(), ret_ty)?;
                 Ok(Janky_::loop_(body, s))
             }
+            Stmt::ForIn(bind, container, body, s) => {
+                // could be DynObject or Array
+                let container = self.expr(*container, Type::Any, &mut env.clone(), s.clone())?;
+                // new scope
+                let body = self.stmt(*body, &mut env.clone(), ret_ty)?;
+                Ok(Janky_::for_in_(bind, container, body, s))
+            }
             Stmt::Empty => Ok(Janky_::empty_()),
             Stmt::Expr(e, s) => {
                 // One of the few cases where the type does not matter

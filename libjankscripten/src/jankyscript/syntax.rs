@@ -120,6 +120,7 @@ pub enum Stmt {
     Expr(Box<Expr>, Pos),
     If(Box<Expr>, Box<Stmt>, Box<Stmt>, Pos),
     Loop(Box<Stmt>, Pos),
+    ForIn(Id, Box<Expr>, Box<Stmt>, Pos),
     Label(Id, Box<Stmt>, Pos),
     Break(Id, Pos),
     Catch(Box<Stmt>, Id, Box<Stmt>, Pos),
