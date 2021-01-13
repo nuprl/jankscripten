@@ -10,8 +10,6 @@ where
     F: FnOnce(&Stmt) -> (),
 {
     type_check(janky_ast)?;
-    eprintln!("TODO(luna): REMOVE THIS LINE. IT'S FOR DEBUGGING 'JUST GET TYPE CHECK TO WORK'");
-    std::process::exit(0);
     // TODO(luna): maybe the runtime should be added in jankierscript or
     // jankyscript. this would mean we could assert free_vars == \emptyset
     free_vars(janky_ast);
