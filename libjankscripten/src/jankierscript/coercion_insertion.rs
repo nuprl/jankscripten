@@ -365,16 +365,32 @@ impl InsertCoercions {
             }
             Expr::Assign(lv, e, s) => match *lv {
                 LValue::Id(id) => {
-                    // TODO(michael) if we're going to allow strong update, some change has to happen here
-                    let (_, into_ty) = self.expr_and_type(Expr::Id(id.clone(), s.clone()), env)?;
-                    Ok((
-                        Janky_::assign_(
-                            Janky::LValue::Id(id, into_ty.clone()),
-                            self.expr(*e, into_ty.clone(), env, s.clone())?,
-                            s,
-                        ),
-                        into_ty,
-                    ))
+                    if env.env.get(&id).is_none() {
+                        eprintln!(
+                            "
+                            WARNING: a nonexistant variable was assigned
+                            to. this is not legal in strict mode!! however
+                            it happens in some benchmarks. the quirks mode
+                            way to handle this is to convert it to a variable
+                            declaration. however, that would be hard, and since
+                            our benchmarks supposedly work in strict mode, we
+                            will simply generate undefined. a better solution
+                            would be to generate a trap"
+                        );
+                        Ok((Janky_::lit_(Lit::Undefined, s.clone()), Type::Any))
+                    } else {
+                        // TODO(michael) if we're going to allow strong update, some change has to happen here
+                        let (_, into_ty) =
+                            self.expr_and_type(Expr::Id(id.clone(), s.clone()), env)?;
+                        Ok((
+                            Janky_::assign_(
+                                Janky::LValue::Id(id, into_ty.clone()),
+                                self.expr(*e, into_ty.clone(), env, s.clone())?,
+                                s,
+                            ),
+                            into_ty,
+                        ))
+                    }
                 }
                 LValue::Dot(container, field) => {
                     let cont = self.expr(container, Type::DynObject, env, s.clone())?;
