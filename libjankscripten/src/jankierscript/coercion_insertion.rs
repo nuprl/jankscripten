@@ -153,6 +153,11 @@ fn binop_overload(op: &BinOp, lhs_ty: &Type, rhs_ty: &Type) -> TypeOverload {
         (BinOp::RightShift, _, _) => prim_same(BinaryOp::I32Shr, Int),
         (BinOp::InstanceOf, _, _) => rts(RTSFunction::InstanceOf, Bool),
         (BinOp::XOr, _, _) => prim_same(BinaryOp::I32Xor, Int),
+        // TODO(luna): this is very likely to produce values that are larger
+        // than signed 32-bit integers can hold. it should probably actually go to
+        // f64 which is awful but more correct
+        (BinOp::UnsignedRightShift, _, _) => prim_same(BinaryOp::I32ShrU, Int),
+        (BinOp::In, _, _) => rts(RTSFunction::In, Bool),
         (_, _, _) => (
             Overload::RTS(RTSFunction::Todo(Box::leak(Box::new(format!(
                 "unimplemented binop {:?} {:?} {:?}",
@@ -546,7 +551,7 @@ impl InsertCoercions {
                     )),
                     (UnaryOp::Delete, _) => Ok((
                         Janky::Expr::PrimCall(
-                            RTSFunction::Todo("delete"),
+                            RTSFunction::Delete,
                             vec![self.coerce(coerced_e, e_ty, Type::Any, s.clone())],
                             s,
                         ),

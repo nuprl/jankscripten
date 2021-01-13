@@ -23,7 +23,7 @@ impl BinaryOp {
             I32Eq | I32Ne | I32GT | I32LT | I32Ge | I32Le => (Type::Int, Type::Bool),
             F64Eq | F64Ne | F64LT | F64GT | F64Ge | F64Le => (Type::Float, Type::Bool),
             I32Add | I32Sub | I32Mul | I32Div | I32Rem | I32And | I32Or | I32Xor | I32Shl
-            | I32Shr => (Type::Int, Type::Int),
+            | I32Shr | I32ShrU => (Type::Int, Type::Int),
             F64Add | F64Sub | F64Mul | F64Div => (Type::Float, Type::Float),
         }
     }

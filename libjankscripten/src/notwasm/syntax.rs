@@ -128,6 +128,7 @@ pub enum BinaryOp {
     I32Xor,
     I32Shl,
     I32Shr,
+    I32ShrU,
     F64Add,
     F64Sub,
     F64Mul,
