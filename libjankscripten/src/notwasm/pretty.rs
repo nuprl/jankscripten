@@ -91,6 +91,7 @@ impl Pretty for BinaryOp {
             BinaryOp::I32Rem => pp.text("%"),
             BinaryOp::I32Shl => pp.text("<<"),
             BinaryOp::I32Shr => pp.text(">>"),
+            BinaryOp::I32ShrU => pp.text(">>>"),
             BinaryOp::F64Eq => pp.text("==="),
             BinaryOp::F64Ne => pp.text("!="),
             BinaryOp::F64Add => pp.text("+"),
