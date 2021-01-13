@@ -98,6 +98,10 @@ pub extern "C" fn janky_delete(_a: Any, _b: Any) -> bool {
 pub extern "C" fn janky_void(_: Any) -> Any {
     AnyEnum::Undefined.into()
 }
+#[no_mangle]
+pub extern "C" fn janky_not(a: i32) -> i32 {
+    !a
+}
 
 #[no_mangle]
 pub extern "C" fn instance_of(a: Any, b: Any) -> bool {
@@ -166,6 +170,11 @@ fn inclusive_instance_of(obj: ObjectPtr, should_match: ObjectPtr) -> bool {
             false
         }
     }
+}
+
+#[no_mangle]
+pub extern "C" fn janky_in(a: Any, b: Any) -> bool {
+    log_panic!("TODO(luna): janky_in");
 }
 
 fn typeof_as_str(a: Any) -> &'static str {

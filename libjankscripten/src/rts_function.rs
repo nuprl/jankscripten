@@ -66,8 +66,8 @@ impl RTSFunction {
             StrictNotEqual => Rust("janky_strict_not_equal"),
             NotEqual => Rust("janky_not_equal"),
             InstanceOf => Rust("instance_of"),
-            In => todo!("janky_in"),
-            BitwiseNot => todo!("janky_not"),
+            In => Rust("janky_in"),
+            BitwiseNot => Rust("janky_not"),
         }
     }
 
