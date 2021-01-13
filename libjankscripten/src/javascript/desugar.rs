@@ -14,7 +14,7 @@ pub fn desugar(stmt: &mut Stmt, ng: &mut NameGen) {
     // dep: desugar_vardecls
     // we want this to go sooner rather than later to reduce anys
     lift_vars::lift_vars(stmt);
-    // dep: add_blocks
+    // dep: add_blocks, normalize_std_lib_calls
     desugar_this::desugar_this(stmt, ng);
     // accesses are immediately applied
     // dep: desugar_this, add_blocks

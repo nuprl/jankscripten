@@ -30,6 +30,7 @@ pub enum RTSFunction {
     NotEqual,
     InstanceOf,
     In,
+    BitwiseNot,
 }
 
 // The name of a runtime function implementation.
@@ -65,7 +66,8 @@ impl RTSFunction {
             StrictNotEqual => Rust("janky_strict_not_equal"),
             NotEqual => Rust("janky_not_equal"),
             InstanceOf => Rust("instance_of"),
-            In => Rust("janky_in"),
+            In => todo!("janky_in"),
+            BitwiseNot => todo!("janky_not"),
         }
     }
 
@@ -107,6 +109,7 @@ impl RTSFunction {
             StrictEqual | Equal | StrictNotEqual | NotEqual | In => {
                 Function(vec![Any, Any], Box::new(Bool))
             }
+            BitwiseNot => Function(vec![Int], Box::new(Int)),
         }
     }
 }
@@ -135,6 +138,7 @@ impl std::fmt::Display for RTSFunction {
                 NotEqual => "!=",
                 InstanceOf => "instanceof",
                 In => "in",
+                BitwiseNot => "~",
             }
         )
     }

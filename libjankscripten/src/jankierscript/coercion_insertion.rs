@@ -471,7 +471,7 @@ impl InsertCoercions {
                     // Bitwise not; needed for one particular dart benchmark
                     (UnaryOp::Tilde, _) => Ok((
                         Janky::Expr::PrimCall(
-                            RTSFunction::Todo("bitwise not"),
+                            RTSFunction::BitwiseNot,
                             vec![self.coerce(coerced_e, e_ty, Type::Int, s.clone())],
                             s,
                         ),
@@ -483,7 +483,15 @@ impl InsertCoercions {
                         Janky::Expr::PrimCall(
                             RTSFunction::Plus,
                             vec![
-                                Janky::Expr::Lit(Janky::Lit::Num(Janky::Num::Int(0)), s.clone()),
+                                self.coerce(
+                                    Janky::Expr::Lit(
+                                        Janky::Lit::Num(Janky::Num::Int(0)),
+                                        s.clone(),
+                                    ),
+                                    Type::Int,
+                                    Type::Any,
+                                    s.clone(),
+                                ),
                                 self.coerce(coerced_e, e_ty, Type::Any, s.clone()),
                             ],
                             s,

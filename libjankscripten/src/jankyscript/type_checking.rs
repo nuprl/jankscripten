@@ -544,7 +544,6 @@ fn type_check_lit(l: &Lit) -> Type {
         Lit::Num(Num::Float(_)) => Type::Float,
         Lit::Num(Num::Int(_)) => Type::Int,
         Lit::Undefined => Type::Any,
-        _ => todo!("regex"),
-        // Regex(String, String), // TODO(arjun): The Regex is not properly parsed
+        Lit::Regex(_, _) => Type::Any,
     }
 }
