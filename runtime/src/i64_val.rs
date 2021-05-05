@@ -21,49 +21,46 @@ pub trait AsI64 {}
 
 /// a 64-bit type that can be returned from a wasm function and stored in
 /// 1 local. rust is too stubborn to allow most types to do this automatically
-#[repr(transparent)]
 #[derive(Clone, Copy)]
-pub struct I64Val<T> {
+#[repr(C)]
+pub union I64Val<T: Copy> {
     #[cfg(target_pointer_width = "32")]
-    val: u64,
+    int: u64,
     #[cfg(target_pointer_width = "64")]
-    val: u128,
-    _phantom: PhantomData<T>,
+    int: u128,
+    val: T,
 }
-impl<T> I64Val<T> {
+impl<T: Copy> I64Val<T> {
     /// for debugging, provides the backing 64-int including garbage padding
     /// bits. these should be treated carefully, for example, not compared for
     /// equality
     #[cfg(target_pointer_width = "32")]
     pub(crate) fn raw_val(&self) -> u64 {
-        self.val
+        unsafe { self.int }
     }
 }
-impl<T> Deref for I64Val<T> {
+impl<T: Copy> Deref for I64Val<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
-        let ptr = self as *const Self as *const Self::Target;
-        unsafe { &*ptr }
+        unsafe { &self.val }
     }
 }
-impl<T> DerefMut for I64Val<T> {
+impl<T: Copy> DerefMut for I64Val<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        let ptr = self as *mut Self as *mut Self::Target;
-        unsafe { &mut *ptr }
+        unsafe { &mut self.val }
     }
 }
-impl<T: Debug> Debug for I64Val<T> {
+impl<T: Debug + Copy> Debug for I64Val<T> {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         write!(f, "{:?}", **self)
     }
 }
 impl<T: Copy> From<T> for I64Val<T> {
     fn from(val: T) -> Self {
-        let pointer_crimes = &val as *const T as *const Self;
-        unsafe { *pointer_crimes }
+        I64Val { val }
     }
 }
-impl<T: PartialEq> PartialEq<Self> for I64Val<T> {
+impl<T: PartialEq + Copy> PartialEq<Self> for I64Val<T> {
     fn eq(&self, other: &Self) -> bool {
         **self == **other
     }
