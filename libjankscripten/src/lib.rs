@@ -23,8 +23,7 @@ where
     F: FnOnce(&jankyscript::syntax::Stmt) -> (),
     G: FnOnce(&notwasm::syntax::Program) -> (),
 {
-    let maybe_js_ast = javascript::parse(src_name, js_code);
-    let mut js_ast = maybe_js_ast?;
+    let mut js_ast = javascript::parse(src_name, js_code)?;
     let mut ng = shared::NameGen::default();
     javascript::desugar(&mut js_ast, &mut ng);
     let jankier_ast = jankierscript::from_javascript(js_ast);
