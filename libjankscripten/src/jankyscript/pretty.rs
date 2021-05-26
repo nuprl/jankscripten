@@ -11,6 +11,7 @@ impl Pretty for Type {
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
         match self {
+            Type::Missing => pp.text("_"),
             Type::Float => pp.text("i32"),
             Type::Int => pp.text("f64"),
             Type::String => pp.text("string"),
@@ -130,6 +131,7 @@ impl Pretty for Expr {
     {
         match self {
             Expr::Lit(lit, _) => lit.pretty(pp),
+            Expr::JsOp(op, es, _) => pp.text("<todo -- jsop pretty-printing>"),
             Expr::Array(es, _) => pp
                 .intersperse(
                     es.iter().map(|e| e.pretty(pp)),

@@ -1,7 +1,8 @@
 //! A simplified AST for JavaScript.
 //!
 //! This AST supports most of ECMAScript-262, 3rd edition, but excludes some
-//! annoying features, such as `with`.
+//! annoying features, such as `with`. The AST is not desugared. But, it can
+//! be desugared further using this library.
 
 use crate::pos::Pos;
 pub use crate::shared::Id;

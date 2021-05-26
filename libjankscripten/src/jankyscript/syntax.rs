@@ -85,6 +85,12 @@ impl Func {
 }
 
 #[derive(Debug, PartialEq)]
+pub enum JsOp {
+    Binary(super::super::javascript::BinaryOp),
+    Unary(super::super::javascript::UnaryOp),
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Expr {
     Lit(Lit, Pos),
     Array(Vec<Expr>, Pos),
@@ -92,6 +98,7 @@ pub enum Expr {
     Id(Id, Type, Pos),
     Dot(Box<Expr>, Id, Pos),
     Bracket(Box<Expr>, Box<Expr>, Pos),
+    JsOp(JsOp, Vec<Expr>, Pos),
     Unary(UnaryOp, Box<Expr>, Pos),
     Binary(BinaryOp, Box<Expr>, Box<Expr>, Pos),
     Assign(Box<LValue>, Box<Expr>, Pos),

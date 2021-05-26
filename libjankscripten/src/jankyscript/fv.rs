@@ -98,7 +98,7 @@ fn fv_expr(expr: &mut Expr) -> IdMap {
         Binary(_, e1, e2, _) => fv_expr(e1).union(fv_expr(e2)),
         Assign(lv, e, _) => fv_lv(lv).union(fv_expr(e)),
         Call(e, es, _) => fv_expr(e).union(IdMap::unions(es.iter_mut().map(|arg| fv_expr(arg)))),
-        PrimCall(_, es, _) => IdMap::unions(es.iter_mut().map(|arg| fv_expr(arg))),
+        JsOp(_, es, _) | PrimCall(_, es, _) => IdMap::unions(es.iter_mut().map(|arg| fv_expr(arg))),
         Func(f, _) => {
             let fv_body = fv_stmt(&mut f.body);
             let fv = fv_body.relative_complement(f.args_with_typs.iter().cloned().collect());

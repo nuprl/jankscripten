@@ -3,6 +3,7 @@ mod closure_convert;
 mod collect_assigns;
 mod compile;
 pub mod constructors;
+mod from_js;
 mod fv;
 mod pretty;
 pub mod syntax;

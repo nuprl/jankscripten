@@ -225,7 +225,7 @@ where
                 self.visitor.exit_fn(f, &loc);
             }
             // 1x[Expr]
-            Array(es, _) | PrimCall(.., es, _) => {
+            JsOp(_, es, _) | Array(es, _) | PrimCall(.., es, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 for e in es {
                     self.walk_expr(e, &loc);

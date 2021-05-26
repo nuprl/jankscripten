@@ -5,6 +5,7 @@ use crate::notwasm::syntax::{FnType, Type as NotWasmType};
 // TODO(arjun): should be exactly the same as NotWasm types for a first pass.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
+    Missing,
     Any,
     Float,
     Int,
@@ -22,6 +23,7 @@ pub enum Type {
 impl Type {
     pub fn notwasm_typ(&self) -> NotWasmType {
         match self {
+            Type::Missing => panic!("received Type::Missing"),
             Type::Any => NotWasmType::Any,
             Type::Float => NotWasmType::F64,
             Type::Int => NotWasmType::I32,
@@ -69,6 +71,7 @@ impl std::fmt::Display for Type {
             f,
             "{}",
             match self {
+                Type::Missing => "_",
                 Type::Float => "i32",
                 Type::Int => "f64",
                 Type::String => "string",

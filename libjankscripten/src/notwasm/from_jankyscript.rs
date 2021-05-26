@@ -243,6 +243,7 @@ fn coercion_to_expr(c: J::Coercion, a: Atom, p: Pos) -> Atom {
 
 fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
     match expr {
+        J::Expr::JsOp(..) => panic!("impossible case: cannot compile JsOp to WebAssembly"),
         J::Expr::Lit(lit, p) => cxt.recv_a(state, Atom::Lit(compile_lit(lit), p)),
         J::Expr::Array(members, p) => compile_exprs(state, members, move |state, member_ids| {
             let array_name = state.fresh();

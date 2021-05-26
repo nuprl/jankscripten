@@ -300,6 +300,7 @@ fn type_check_func(f: &Func, env: Env) -> TypeCheckingResult<Type> {
 
 fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
     match expr {
+        Expr::JsOp(_, _, _) => panic!("cannot type-check JsOp"),
         Expr::Func(f, _) => type_check_func(f, env),
         Expr::Assign(lval, rval, s) => {
             // rval should be well typed
