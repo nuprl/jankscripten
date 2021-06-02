@@ -123,53 +123,6 @@ z3_datatype! {
     (any)
     (int)
     (bool)
+    (str)
     (fun (args (datatype Z3Typ)))
 }
-
-/*
-pub struct Z3State<'a> {
-    /// Z3 solver context
-    cxt: &'a z3::Context,
-    /// A new sort that represents types in Z3
-    typ_sort: &'a Sort<'a>,
-    /// Holds accessors, etc. for typ_sort.
-    typ: &'a z3::DatatypeSort<'a>,
-    /// Z3 constant that represents Type::Any.
-    const_any: z3::Dynamic<'a>,
-    /// Z3 constant that represents Type::Float.
-    const_float: z3::Dynamic<'a>,
-    /// Z3 constant that represents Type::Int.
-    const_int: z3::Dynamic<'a>,
-    /// Z3 constant that represents Type::Bool.
-    const_bool: z3::Dynamic<'a>,
-    /// Z3 constant that represents Type::String.
-    const_string: z3::Dynamic<'a>,
-    /// Z3 constant that represents Type::Array.
-    const_array: z3::Dynamic<'a>,
-    /// Z3 constant that represents Type::DynObject.
-    const_dynobject: z3::Dynamic<'a>,
-    /// Z3 function to construct a `typ_sort` that represents a thunk.
-    ctor_func0: &'a FuncDecl<'a>,
-    /// Z3 function to construct a `typ_sort` that represents a unary function.
-    ctor_func1: &'a FuncDecl<'a>,
-    /// Z3 function to construct a `typ_sort` that represents a binary function.
-    ctor_func1: &'a FuncDecl<'a>,
-}
-*/
-/*
- * Populates the given Z3 context with new sorts for type inference. This essentially defines
- * the following datatype:
- *
- * ```
- * (declare-datatypes ()
- *   ((Typ Any
- *         Float
- *         Int
- *         Bool
- *         String
- *         Array
- *         DynObject
- *         (AnyFun (arity N))
- *         (Fun (args (List Typ)) (result Typ)))))
- *
- */

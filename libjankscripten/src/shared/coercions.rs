@@ -30,6 +30,7 @@ pub enum Coercion {
     /// Coercion::Seq(t1, t2) where t1 : S -> U and t2 : U -> T
     /// has the type S -> Ts
     Seq(Box<Coercion>, Box<Coercion>),
+    Meta(Type, Type),
 }
 
 impl Coercion {

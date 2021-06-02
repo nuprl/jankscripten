@@ -13,7 +13,7 @@ pub enum BinOp {
     LogicalOp(LogicalOp),
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Hash, Eq)]
 pub enum UnaryOp {
     Minus,
     Plus,
@@ -24,7 +24,7 @@ pub enum UnaryOp {
     Delete,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Hash, Eq)]
 pub enum BinaryOp {
     Equal,
     NotEqual,

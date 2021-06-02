@@ -1,4 +1,4 @@
-//! The JankierScript language
+//! The JankyScript language
 
 use crate::pos::Pos;
 use crate::rts_function::RTSFunction;
@@ -84,7 +84,7 @@ impl Func {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Hash, Eq)]
 pub enum JsOp {
     Binary(super::super::javascript::BinaryOp),
     Unary(super::super::javascript::UnaryOp),
@@ -98,7 +98,9 @@ pub enum Expr {
     Id(Id, Type, Pos),
     Dot(Box<Expr>, Id, Pos),
     Bracket(Box<Expr>, Box<Expr>, Pos),
-    JsOp(JsOp, Vec<Expr>, Pos),
+    /// A JavaScript operator. The vector of types is filled in during type
+    /// inference. During desugaring, we set it to the empty vector.
+    JsOp(JsOp, Vec<Expr>, Vec<Type>, Pos),
     Unary(UnaryOp, Box<Expr>, Pos),
     Binary(BinaryOp, Box<Expr>, Box<Expr>, Pos),
     Assign(Box<LValue>, Box<Expr>, Pos),

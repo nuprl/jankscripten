@@ -17,10 +17,17 @@ pub enum Type {
     /// Ref(T) is the type of heap-allocated boxes that contain values of type
     /// T.
     Ref(Box<Type>),
-    // TODO: others
+    Metavar(usize),
 }
 
 impl Type {
+    pub fn unwrap_fun(&self) -> (&Vec<Type>, &Type) {
+        match self {
+            Type::Function(args, ret) => (args, ret),
+            _ => panic!("unwrap_fun expects a function"),
+        }
+    }
+
     pub fn notwasm_typ(&self) -> NotWasmType {
         match self {
             Type::Missing => panic!("received Type::Missing"),
@@ -36,6 +43,7 @@ impl Type {
             Type::Array => NotWasmType::Array,
             Type::DynObject => NotWasmType::DynObject,
             Type::Ref(of) => NotWasmType::Ref(Box::new(of.notwasm_typ())),
+            Type::Metavar(_) => panic!("Metavar received"),
         }
     }
 
@@ -65,6 +73,7 @@ impl Type {
     }
 }
 
+// TODO(arjun): Refactor to use derive display
 impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -81,6 +90,7 @@ impl std::fmt::Display for Type {
                 Type::Function(..) => "fn",
                 Type::Any => "any",
                 Type::Ref(..) => "ref",
+                Type::Metavar(..) => "metavar",
             }
         )
     }

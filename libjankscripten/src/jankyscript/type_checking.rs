@@ -300,7 +300,7 @@ fn type_check_func(f: &Func, env: Env) -> TypeCheckingResult<Type> {
 
 fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
     match expr {
-        Expr::JsOp(_, _, _) => panic!("cannot type-check JsOp"),
+        Expr::JsOp(..) => panic!("cannot type-check JsOp"),
         Expr::Func(f, _) => type_check_func(f, env),
         Expr::Assign(lval, rval, s) => {
             // rval should be well typed
@@ -494,6 +494,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
 // types.
 fn type_check_coercion(c: &Coercion, s: Pos) -> TypeCheckingResult<(Type, Type)> {
     match c {
+        Coercion::Meta(..) => panic!("Meta coercion remains"),
         Coercion::FloatToInt => Ok((Type::Float, Type::Int)),
         Coercion::IntToFloat => Ok((Type::Int, Type::Float)),
         Coercion::Tag(from_type) => Ok((from_type.clone(), Type::Any)),

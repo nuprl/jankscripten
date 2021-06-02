@@ -31,6 +31,7 @@ impl Pretty for Type {
             ]),
             Type::Any => pp.text("any"),
             Type::Ref(of) => pp.text("ref").append(of.pretty(pp).parens()),
+            Type::Metavar(..) => pp.text("metavar"),
         }
     }
 }
@@ -43,6 +44,10 @@ impl Pretty for Coercion {
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
         match self {
+            Coercion::Meta(t1, t2) => pp.text("coerce").append(
+                pp.intersperse(vec![t1.pretty(pp), t2.pretty(pp)], pp.text(","))
+                    .parens(),
+            ),
             Coercion::Id(t) => pp.text("id").append(t.pretty(pp).parens()),
             Coercion::Tag(t) => t.pretty(pp).append(pp.text("!")),
             Coercion::Untag(t) => t.pretty(pp).append(pp.text("?")),
@@ -131,7 +136,13 @@ impl Pretty for Expr {
     {
         match self {
             Expr::Lit(lit, _) => lit.pretty(pp),
-            Expr::JsOp(op, es, _) => pp.text("<todo -- jsop pretty-printing>"),
+            Expr::JsOp(_op, es, ts, _) => pp.concat(vec![
+                pp.text("op"),
+                pp.intersperse(ts.iter().map(|t| t.pretty(pp)), pp.text(","))
+                    .parens(),
+                pp.intersperse(es.iter().map(|e| e.pretty(pp)), pp.text(","))
+                    .parens(),
+            ]),
             Expr::Array(es, _) => pp
                 .intersperse(
                     es.iter().map(|e| e.pretty(pp)),

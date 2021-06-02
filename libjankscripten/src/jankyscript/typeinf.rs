@@ -11,9 +11,10 @@
 use super::super::shared::coercions::Coercion;
 use super::syntax::*;
 use super::typeinf_z3::Z3Typ;
+use super::walk::{Loc, Visitor};
+use crate::pos::Pos;
 use lazy_static::lazy_static;
 use maplit::hashmap;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use z3::ast::{self, Ast, Dynamic};
 use z3::{Model, Optimize, SatResult};
@@ -36,6 +37,10 @@ fn typ_lit(lit: &Lit) -> Type {
     }
 }
 
+fn coerce(src: Type, dst: Type, e: Expr, p: Pos) -> Expr {
+    Expr::Coercion(Coercion::Meta(src, dst), Box::new(e), p)
+}
+
 macro_rules! typ {
     (int) => (Type::Int);
     (bool) => (Type::Bool);
@@ -47,7 +52,7 @@ macro_rules! typ {
 
 lazy_static! {
     static ref OP_OVERLOADS: HashMap<JsOp, Vec<Type>> = {
-        use super::super::javascript::{BinaryOp, UnaryOp};
+        use super::super::javascript::BinaryOp;
 
         let mut binops = hashmap! {
             BinaryOp::Plus => vec![
@@ -65,18 +70,65 @@ lazy_static! {
     };
 }
 
+struct SubtMetavarVisitor<'a> {
+    vars: &'a Vec<Type>,
+}
+
+impl<'a> Visitor for SubtMetavarVisitor<'a> {
+    fn enter_typ(&mut self, t: &mut Type) {
+        match t {
+            Type::Metavar(n) => {
+                *t = self
+                    .vars
+                    .get(*n)
+                    .expect("unbound type metavariable")
+                    .clone();
+                println!("Found a metavar: {}", t);
+            }
+            _ => (),
+        }
+    }
+
+    fn exit_expr(&mut self, expr: &mut Expr, _loc: &Loc) {
+        use super::super::javascript::BinaryOp;
+        match expr {
+            Expr::JsOp(JsOp::Binary(BinaryOp::Plus), es, ts, p) => {
+                let t1 = &ts[0];
+                let t2 = &ts[1];
+                match (t1, t2) {
+                    (Type::Any, Type::Any) => {
+                        let es = std::mem::replace(es, Default::default());
+                        let p = std::mem::replace(p, Default::default());
+                        *expr = Expr::PrimCall(crate::rts_function::RTSFunction::Plus, es, p)
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 impl<'a> Typeinf<'a> {
     fn t(&self, t: &Type) -> z3::ast::Dynamic<'a> {
         match t {
             Type::Int => self.z.make_int(),
             Type::Any => self.z.make_any(),
-            _ => todo!(),
+            Type::String => self.z.make_str(),
+            Type::Metavar(n) => self
+                .vars
+                .get(*n)
+                .expect("unbound type metavariable")
+                .clone(),
+            _ => todo!("Type: {:?}", t),
         }
     }
 
     fn z3_to_typ(&self, model: &'a Model, e: Dynamic) -> Type {
         if self.z.is_int(model, &e) {
             Type::Int
+        } else if self.z.is_any(model, &e) {
+            Type::Any
         } else {
             todo!()
         }
@@ -95,9 +147,23 @@ impl<'a> Typeinf<'a> {
         return (x, Type::Metavar(n));
     }
 
+    pub fn cgen_stmt(&mut self, stmt: &mut Stmt) {
+        match stmt {
+            Stmt::Expr(e, _) => {
+                let (phi, _) = self.cgen_expr(&mut *e);
+                self.solver.assert(&phi);
+            }
+            Stmt::Block(stmts, _) => {
+                for s in stmts.iter_mut() {
+                    self.cgen_stmt(s);
+                }
+            }
+            _ => todo!("{:?}", stmt),
+        }
+    }
+
     pub fn cgen_expr(&mut self, expr: &mut Expr) -> (ast::Bool<'a>, Type) {
-        let mut e = expr.take();
-        match &mut e {
+        match expr {
             Expr::Binary(..) => panic!("cgen_expr received Expr::Binary"),
             Expr::Lit(l, p) => {
                 let t = typ_lit(&l);
@@ -105,10 +171,11 @@ impl<'a> Typeinf<'a> {
                 let (alpha, alpha_t) = self.fresh_metavar("alpha");
                 let w = self.fresh_weight();
                 let phi = (alpha._eq(&self.t(&t)) & &w) | (alpha._eq(&self.z.make_any()) & !w);
-                *expr = Expr::Coercion(Coercion::Meta(t.clone(), alpha_t.clone()), Box::new(e), p);
+                let mut e = expr.take();
+                *expr = coerce(t, alpha_t.clone(), e, p);
                 (phi, alpha_t)
             }
-            Expr::JsOp(op, args, _) => {
+            Expr::JsOp(op, args, empty_args_t, _) => {
                 // NOTE(arjun): We do not have any weights here. Why bother?
                 // Fresh variable for the result
                 let (alpha, alpha_t) = self.fresh_metavar("alpha");
@@ -135,13 +202,14 @@ impl<'a> Typeinf<'a> {
                 let cases =
                     ast::Bool::or(self.z.cxt, disjuncts.iter().collect::<Vec<_>>().as_slice());
                 args_phi.push(cases);
+                *empty_args_t = args_t;
                 (
                     ast::Bool::and(self.z.cxt, args_phi.iter().collect::<Vec<_>>().as_slice()),
                     alpha_t,
                 )
             }
             // }
-            _ => todo!(),
+            _ => todo!("Expression: {:?}", expr),
         }
     }
 
@@ -155,7 +223,8 @@ impl<'a> Typeinf<'a> {
     }
 }
 
-pub fn typeinf(mut expr: Expr) {
+pub fn typeinf(stmt: &mut Stmt) {
+    println!("Mapping: {}", &stmt);
     let z3_cfg = z3::Config::new();
     let cxt = z3::Context::new(&z3_cfg);
     let dts = Z3Typ::make_dts(&cxt);
@@ -165,8 +234,7 @@ pub fn typeinf(mut expr: Expr) {
         z,
         solver: Optimize::new(&cxt),
     };
-    let (phi, t) = state.cgen_expr(&mut expr);
-    state.solver.assert(&phi);
+    state.cgen_stmt(stmt);
     match state.solver.check(&[]) {
         SatResult::Unknown => panic!("Got an unknown from Z3"),
         SatResult::Unsat => panic!("type error"),
@@ -177,7 +245,11 @@ pub fn typeinf(mut expr: Expr) {
         .get_model()
         .expect("model not available (despite SAT result)");
     let mapping = state.solve_model(model);
-    println!("{:?}", &mapping);
+
+    let mut subst_metavar = SubtMetavarVisitor { vars: &mapping };
+    stmt.walk(&mut subst_metavar);
+
+    println!("Mapping: {}", &stmt);
 }
 
 #[cfg(test)]
@@ -185,9 +257,16 @@ mod tests {
     use super::super::syntax::*;
     use super::typeinf;
 
+    fn typeinf_test(s: &str) {
+        let mut js = crate::javascript::parse("<text>>", s).expect("error parsing JavaScript");
+        let mut ng = crate::shared::NameGen::default();
+        crate::javascript::desugar(&mut js, &mut ng);
+        let mut janky = crate::jankyscript::from_js::from_javascript(js);
+        typeinf(&mut janky);
+    }
+
     #[test]
     fn num() {
-        typeinf(Expr::Lit(Lit::Num(Num::Int(10)), Default::default()));
-        assert!(false);
+        typeinf_test(r#"1 + "2";"#);
     }
 }

@@ -29,9 +29,9 @@ fn expr(e: Js::Expr) -> Expr {
         E::Dot(e, x, s) => Expr::Dot(Box::new(expr(*e)), x, s),
         E::Bracket(e1, e2, s) => Expr::Bracket(Box::new(expr(*e1)), Box::new(expr(*e2)), s),
         E::New(_, _, _) => unexpected(e),
-        E::Unary(op, e, s) => Expr::JsOp(JsOp::Unary(op), vec![expr(*e)], s),
+        E::Unary(op, e, s) => Expr::JsOp(JsOp::Unary(op), vec![expr(*e)], vec![], s),
         E::Binary(BinOp::BinaryOp(op), e1, e2, s) => {
-            Expr::JsOp(JsOp::Binary(op), vec![expr(*e1), expr(*e2)], s)
+            Expr::JsOp(JsOp::Binary(op), vec![expr(*e1), expr(*e2)], vec![], s)
         }
         E::Binary(BinOp::LogicalOp(_), _, _, _) => unexpected(e),
         E::UnaryAssign(_, _, _) => unexpected(e),

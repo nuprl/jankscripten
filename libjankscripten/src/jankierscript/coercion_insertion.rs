@@ -675,13 +675,6 @@ impl InsertCoercions {
                         self.coercion(gf, Type::Function(args, ret), s),
                     )
                 }
-                (Type::Any, Type::Function(args, ret)) => {
-                    let gf = Type::ground_function(args.len());
-                    Coercion::seq(
-                        self.coercion(Type::Function(args, ret), gf.clone(), s.clone()),
-                        self.coercion(gf, Type::Any, s),
-                    )
-                }
                 (Type::Function(args1, ret1), Type::Function(args2, ret2)) => {
                     if args1.len() != args2.len() {
                         panic!("Coercing between arities: {:?} to {:?}", args1, args2);

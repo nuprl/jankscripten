@@ -31,6 +31,7 @@ pub trait Visitor {
     fn enter_fn(&mut self, _func: &mut Func, _loc: &Loc) {}
     /// called after recursing on a function
     fn exit_fn(&mut self, _func: &mut Func, _loc: &Loc) {}
+    fn enter_typ(&mut self, _typ: &mut Type) {}
 }
 
 struct VisitorState<'v, V> {
@@ -212,6 +213,18 @@ where
         self.visitor.exit_stmt(stmt, &loc);
     }
 
+    pub fn walk_coercion(&mut self, coercion: &mut Coercion) {
+        match coercion {
+            Coercion::Meta(t1, t2) => {
+                self.visitor.enter_typ(t1);
+                self.visitor.enter_typ(t2);
+            }
+            _ => {
+                // TODO(arjun): what here?
+            }
+        }
+    }
+
     pub fn walk_expr(&mut self, expr: &mut Expr, loc: &Loc) {
         use Expr::*;
         self.visitor.enter_expr(expr, loc);
@@ -224,8 +237,17 @@ where
                 self.walk_stmt(&mut *f.body, &loc);
                 self.visitor.exit_fn(f, &loc);
             }
+            JsOp(_, es, ts, _) => {
+                let loc = Loc::Node(Context::Expr, loc);
+                for e in es {
+                    self.walk_expr(e, &loc);
+                }
+                for t in ts {
+                    self.visitor.enter_typ(t)
+                }
+            }
             // 1x[Expr]
-            JsOp(_, es, _) | Array(es, _) | PrimCall(.., es, _) => {
+            Array(es, _) | PrimCall(.., es, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 for e in es {
                     self.walk_expr(e, &loc);
@@ -238,8 +260,14 @@ where
                     self.walk_expr(e, &loc);
                 }
             }
+            Coercion(c, e, _) => {
+                let loc = Loc::Node(Context::Expr, loc);
+                self.walk_coercion(c);
+                println!("After the exit coercion is {:?}", &c);
+                self.walk_expr(e, &loc);
+            }
             // 1xExpr
-            Dot(e, ..) | Unary(.., e, _) | Coercion(.., e, _) | NewRef(e, ..) | Deref(e, ..) => {
+            Dot(e, ..) | Unary(.., e, _) | NewRef(e, ..) | Deref(e, ..) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_expr(e, &loc);
             }
