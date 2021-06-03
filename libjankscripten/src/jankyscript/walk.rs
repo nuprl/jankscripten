@@ -263,7 +263,6 @@ where
             Coercion(c, e, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_coercion(c);
-                println!("After the exit coercion is {:?}", &c);
                 self.walk_expr(e, &loc);
             }
             // 1xExpr

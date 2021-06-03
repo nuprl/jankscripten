@@ -497,7 +497,7 @@ impl Pretty for Program {
     }
 }
 
-fn hex_dump<'b, D, A>(pp: &'b D, arr: &'b [u8]) -> pretty::DocBuilder<'b, D, A>
+fn _hex_dump<'b, D, A>(pp: &'b D, arr: &'b [u8]) -> pretty::DocBuilder<'b, D, A>
 where
     D: pretty::DocAllocator<'b, A>,
     A: std::clone::Clone,

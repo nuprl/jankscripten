@@ -106,7 +106,7 @@ fn ensure_function(msg: &str, got: Type, s: Pos) -> TypeCheckingResult<(Vec<Type
     }
 }
 
-fn ensure_ground(msg: &str, got: Type, s: Pos) -> TypeCheckingResult<Type> {
+fn _ensure_ground(msg: &str, got: Type, s: Pos) -> TypeCheckingResult<Type> {
     if got.is_ground() {
         Ok(got)
     } else {
@@ -494,7 +494,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
 // types.
 fn type_check_coercion(c: &Coercion, s: Pos) -> TypeCheckingResult<(Type, Type)> {
     match c {
-        Coercion::Meta(..) => panic!("Meta coercion remains"),
+        Coercion::Meta(t1, t2) => Ok((t1.clone(), t2.clone())),
         Coercion::FloatToInt => Ok((Type::Float, Type::Int)),
         Coercion::IntToFloat => Ok((Type::Int, Type::Float)),
         Coercion::Tag(from_type) => Ok((from_type.clone(), Type::Any)),

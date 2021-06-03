@@ -3,9 +3,7 @@
 //! This is based on the following file:
 //!
 //! https://github.com/arjunguha/TypeWhich/commits/main/src/z3_state.rs
-use super::super::shared::Type;
 use paste::paste;
-use z3::*;
 
 macro_rules! z3_datatype_accessor (
     ((datatype $name:ident)) => (z3::DatatypeAccessor::Datatype(stringify!($name).into()));

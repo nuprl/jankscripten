@@ -49,7 +49,7 @@ impl Env {
         Env { env }
     }
 
-    pub fn get(&self, id: &Id) -> Option<&Type> {
+    pub fn _get(&self, id: &Id) -> Option<&Type> {
         match self.env.get(id) {
             Some(EnvItem::JsId(t)) => Some(t),
             _ => None,
@@ -173,7 +173,7 @@ fn binop_overload(op: &BinOp, lhs_ty: &Type, rhs_ty: &Type) -> TypeOverload {
 impl InsertCoercions {
     fn stmt(&self, stmt: Stmt, env: &mut Env, ret_ty: &Type) -> CoercionResult<Janky::Stmt> {
         match stmt {
-            Stmt::Var(x, t, e, s) => {
+            Stmt::Var(x, _t, e, s) => {
                 let (e, t) = self.expr_and_type(*e, env)?;
                 env.env.insert(x.clone(), EnvItem::JsId(t.clone()));
                 Ok(Janky_::var_(x, t, e, s))

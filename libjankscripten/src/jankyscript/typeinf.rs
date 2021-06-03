@@ -27,7 +27,7 @@ struct Typeinf<'a> {
 
 fn typ_lit(lit: &Lit) -> Type {
     match lit {
-        Lit::Num(Num::Float(_)) => Type::Float,
+        Lit::Num(Num::Float(_)) => { println!("ugh float"); Type::Float },
         Lit::Num(Num::Int(_)) => Type::Int,
         Lit::String(_) => Type::String,
         Lit::Bool(_) => Type::Bool,
@@ -60,6 +60,9 @@ lazy_static! {
                 typ!(fun(string, string) -> string),
                 typ!(fun(any, any) -> any)
             ],
+            BinaryOp::LeftShift => vec![
+                typ!(fun(int, int) -> int),
+            ],
         };
 
         let mut m = HashMap::new();
@@ -83,7 +86,6 @@ impl<'a> Visitor for SubtMetavarVisitor<'a> {
                     .get(*n)
                     .expect("unbound type metavariable")
                     .clone();
-                println!("Found a metavar: {}", t);
             }
             _ => (),
         }
@@ -91,15 +93,24 @@ impl<'a> Visitor for SubtMetavarVisitor<'a> {
 
     fn exit_expr(&mut self, expr: &mut Expr, _loc: &Loc) {
         use super::super::javascript::BinaryOp;
+        use super::super::notwasm::syntax::{BinaryOp as WasmBinOp};
         match expr {
+            // Expr::JsOp(JsOp::Binary(BinaryOp::LeftShift), es, ts, p)
             Expr::JsOp(JsOp::Binary(BinaryOp::Plus), es, ts, p) => {
                 let t1 = &ts[0];
                 let t2 = &ts[1];
                 match (t1, t2) {
                     (Type::Any, Type::Any) => {
-                        let es = std::mem::replace(es, Default::default());
+                        let e2 = es.pop().unwrap();
+                        let e1 = es.pop().unwrap();
                         let p = std::mem::replace(p, Default::default());
-                        *expr = Expr::PrimCall(crate::rts_function::RTSFunction::Plus, es, p)
+                        *expr = Expr::PrimCall(crate::rts_function::RTSFunction::Plus, vec![e1, e2], p)
+                    }
+                    (Type::Int, Type::Int) => {
+                        let e2 = es.pop().unwrap();
+                        let e1 = es.pop().unwrap();
+                        let p = std::mem::replace(p, Default::default());
+                        *expr = Expr::Binary(WasmBinOp::I32Add, Box::new(e1), Box::new(e2), p);
                     }
                     _ => {}
                 }
@@ -171,7 +182,7 @@ impl<'a> Typeinf<'a> {
                 let (alpha, alpha_t) = self.fresh_metavar("alpha");
                 let w = self.fresh_weight();
                 let phi = (alpha._eq(&self.t(&t)) & &w) | (alpha._eq(&self.z.make_any()) & !w);
-                let mut e = expr.take();
+                let e = expr.take();
                 *expr = coerce(t, alpha_t.clone(), e, p);
                 (phi, alpha_t)
             }
@@ -223,8 +234,8 @@ impl<'a> Typeinf<'a> {
     }
 }
 
+#[allow(unused)]
 pub fn typeinf(stmt: &mut Stmt) {
-    println!("Mapping: {}", &stmt);
     let z3_cfg = z3::Config::new();
     let cxt = z3::Context::new(&z3_cfg);
     let dts = Z3Typ::make_dts(&cxt);
@@ -245,28 +256,60 @@ pub fn typeinf(stmt: &mut Stmt) {
         .get_model()
         .expect("model not available (despite SAT result)");
     let mapping = state.solve_model(model);
+    println!("Mapping: {:?}", &mapping);
 
     let mut subst_metavar = SubtMetavarVisitor { vars: &mapping };
     stmt.walk(&mut subst_metavar);
 
-    println!("Mapping: {}", &stmt);
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::syntax::*;
     use super::typeinf;
+    use super::super::syntax::*;
+    use super::super::walk::*;
+    use super::super::type_checking::type_check;
+    use super::super::super::javascript::{parse, desugar};
+    use super::super::super::shared::NameGen;
 
-    fn typeinf_test(s: &str) {
-        let mut js = crate::javascript::parse("<text>>", s).expect("error parsing JavaScript");
-        let mut ng = crate::shared::NameGen::default();
-        crate::javascript::desugar(&mut js, &mut ng);
+    #[derive(Default)]
+    struct CountAnys {
+        num_anys: usize
+    }
+
+    impl Visitor for CountAnys {
+        fn enter_typ(&mut self, t: &mut Type) {
+            if let Type::Any = t {
+                self.num_anys += 1;
+            }
+        }
+    }
+
+    fn typeinf_test(s: &str) -> usize {
+        let mut js = parse("<text>>", s).expect("error parsing JavaScript");
+        let mut ng = NameGen::default();
+        desugar(&mut js, &mut ng);
         let mut janky = crate::jankyscript::from_js::from_javascript(js);
+        println!("Before type inference:\n{}", &janky);
         typeinf(&mut janky);
+        println!("Result of type inference:\n{}", &janky);
+        let mut count_anys = CountAnys::default();
+        janky.walk(&mut count_anys);
+        type_check(&janky)
+            .expect("result of type inference does not type check");
+        return count_anys.num_anys;
     }
 
     #[test]
-    fn num() {
-        typeinf_test(r#"1 + "2";"#);
+    fn janky_plus() {
+        let n = typeinf_test(r#"1 + "2";"#);
+        assert_eq!(n, 2);
     }
+
+    #[test]
+    fn num_plus() {
+        let n = typeinf_test(r#"1 + 2;"#);
+        assert_eq!(n, 0);
+    }
+
 }

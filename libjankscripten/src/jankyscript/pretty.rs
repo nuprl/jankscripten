@@ -127,6 +127,22 @@ impl Pretty for Key {
     }
 }
 
+impl Pretty for JsOp {
+    fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A>
+    where
+        D: pretty::DocAllocator<'b, A>,
+        A: std::clone::Clone,
+        <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
+    {
+        match self {
+            JsOp::Binary(op) => pp.text(format!("{:?}", &op)),
+            JsOp::Unary(op) => pp.text(format!("{:?}", &op)),
+        }
+    }
+}
+
+
+
 impl Pretty for Expr {
     fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A>
     where
@@ -136,13 +152,14 @@ impl Pretty for Expr {
     {
         match self {
             Expr::Lit(lit, _) => lit.pretty(pp),
-            Expr::JsOp(_op, es, ts, _) => pp.concat(vec![
-                pp.text("op"),
-                pp.intersperse(ts.iter().map(|t| t.pretty(pp)), pp.text(","))
-                    .parens(),
-                pp.intersperse(es.iter().map(|e| e.pretty(pp)), pp.text(","))
-                    .parens(),
-            ]),
+            Expr::JsOp(op, es, ts, _) => pp.text("JsOp").append(
+                pp.intersperse(vec![
+                    op.pretty(pp),
+                    pp.intersperse(ts.iter().map(|t| t.pretty(pp)), pp.text(","))
+                      .parens(),
+                    pp.intersperse(es.iter().map(|e| e.pretty(pp)), pp.text(","))
+                      .parens(),
+                ], pp.text(","))),
             Expr::Array(es, _) => pp
                 .intersperse(
                     es.iter().map(|e| e.pretty(pp)),
