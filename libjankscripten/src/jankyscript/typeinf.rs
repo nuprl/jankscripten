@@ -50,19 +50,37 @@ macro_rules! typ {
         (Type::Function(vec![ $( typ!($arg) ),* ], Box::new(typ!($ret))))
 }
 
+struct Overload {
+    overloads: Vec<Type>,
+    result_on_other_args: Option<Type>
+}
+
+impl Overload {
+    fn new(overloads: &[Type]) -> Self {
+        Overload { 
+            overloads: overloads.to_vec(),
+            result_on_other_args: None
+         }
+    }
+
+    fn others(mut self, t: Type) -> Self {
+        self.result_on_other_args = Some(t);
+        self
+    }
+}
+
 lazy_static! {
-    static ref OP_OVERLOADS: HashMap<JsOp, Vec<Type>> = {
-        use super::super::javascript::BinaryOp;
+    static ref OP_OVERLOADS: HashMap<JsOp, Overload> = {
+        use super::super::javascript::BinaryOp::*;
 
         let mut binops = hashmap! {
-            BinaryOp::Plus => vec![
+            Plus => Overload::new(&[
                 typ!(fun(int, int) -> int),
                 typ!(fun(string, string) -> string),
-                typ!(fun(any, any) -> any)
-            ],
-            BinaryOp::LeftShift => vec![
+            ]).others(typ!(any)),
+            LeftShift => Overload::new(&[
                 typ!(fun(int, int) -> int),
-            ],
+            ]).others(typ!(int)),
         };
 
         let mut m = HashMap::new();
@@ -112,7 +130,9 @@ impl<'a> Visitor for SubtMetavarVisitor<'a> {
                         let p = std::mem::replace(p, Default::default());
                         *expr = Expr::Binary(WasmBinOp::I32Add, Box::new(e1), Box::new(e2), p);
                     }
-                    _ => {}
+                    _ => {
+                        println!("NOOP: {:?} {:?}", t1, t2);
+                    }
                 }
             }
             _ => {}
@@ -140,6 +160,8 @@ impl<'a> Typeinf<'a> {
             Type::Int
         } else if self.z.is_any(model, &e) {
             Type::Any
+        } else if self.z.is_str(model, &e) {
+            Type::String
         } else {
             todo!()
         }
@@ -187,33 +209,55 @@ impl<'a> Typeinf<'a> {
                 (phi, alpha_t)
             }
             Expr::JsOp(op, args, empty_args_t, _) => {
-                // NOTE(arjun): We do not have any weights here. Why bother?
-                // Fresh variable for the result
-                let (alpha, alpha_t) = self.fresh_metavar("alpha");
-                // Recur into each argument
-                let (mut args_phi, args_t): (Vec<_>, Vec<_>) =
-                    args.iter_mut().map(|e| self.cgen_expr(e)).unzip();
                 // all overloads for op
                 let sigs = OP_OVERLOADS
                     .get(op)
                     .expect(&format!("missing specification for {:?}", op));
+                // NOTE(arjun): We do not have any weights here. Why bother?
+                // Fresh type metavariable for the result of this expression
+                let (alpha, alpha_t) = self.fresh_metavar("alpha");
+                // Recur into each argument and unzip Z3 constants and our type metavars
+                let args_rec = args.iter_mut().map(|e| self.cgen_expr(e));
+                let (mut args_phi, args_t): (Vec<_>, Vec<_>) = args_rec.unzip();
+                // Fresh type metavariables for each argument
+                let mut betas_t = Vec::new();
+                let mut betas_phi = Vec::new();
+                for (arg, arg_t) in args.iter_mut().zip(&args_t) {
+                    let a = arg.take();
+                    let (beta_phi, beta_t) = self.fresh_metavar("beta");
+                    *arg = coerce(arg_t.clone(), beta_t.clone(), a, Default::default());
+                    betas_t.push(beta_t);
+                    betas_phi.push(beta_phi);
+                }
                 // In DNF, one disjunct for each overload
                 let mut disjuncts = Vec::new();
-                for (op_arg_t, op_ret_t) in sigs.iter().map(|t| t.unwrap_fun()) {
+                for (op_arg_t, op_ret_t) in sigs.overloads.iter().map(|t| t.unwrap_fun()) {
                     // For this overload, arguments and result must match
                     let mut conjuncts = Vec::new();
-                    for (t1, t2) in args_t.iter().zip(op_arg_t) {
-                        let x = self.t(t1)._eq(&self.t(t2));
-                        conjuncts.push(x);
+                    for ((t1, t2), t3) in args_t.iter().zip(op_arg_t).zip(betas_t.iter()) {
+                        conjuncts.push(self.t(t1)._eq(&self.t(t2)));
+                        conjuncts.push(self.t(t2)._eq(&self.t(t3)));
                     }
                     conjuncts.push(alpha._eq(&self.t(op_ret_t)));
+                    let cases = conjuncts.iter().collect::<Vec<_>>();
+                    disjuncts.push(ast::Bool::and(self.z.cxt, cases.as_slice()));
+                }
+
+                if let Some(result_typ) = &sigs.result_on_other_args {
+                    let mut conjuncts = Vec::new();
+                    for (_t1, t2) in args_t.iter().zip(betas_t.iter()) {
+                        // TODO(arjun): t1 must be compatible with any
+                        conjuncts.push(self.t(t2)._eq(&self.z.make_any()));
+                    }
+                    conjuncts.push(alpha._eq(&self.t(result_typ)));
                     let cases = conjuncts.iter().collect::<Vec<_>>();
                     disjuncts.push(ast::Bool::and(self.z.cxt, cases.as_slice()));
                 }
                 let cases =
                     ast::Bool::or(self.z.cxt, disjuncts.iter().collect::<Vec<_>>().as_slice());
                 args_phi.push(cases);
-                *empty_args_t = args_t;
+                // Annotate the AST with the type metavariables that hold the argument types
+                *empty_args_t = betas_t;
                 (
                     ast::Bool::and(self.z.cxt, args_phi.iter().collect::<Vec<_>>().as_slice()),
                     alpha_t,
