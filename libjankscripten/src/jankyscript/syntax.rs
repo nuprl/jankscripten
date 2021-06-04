@@ -6,6 +6,7 @@ pub use crate::shared::coercions::Coercion;
 pub use crate::shared::Type;
 use im_rc::HashMap;
 use im_rc::HashSet as ImmHashSet;
+use super::super::{javascript as js};
 
 pub type Id = super::super::javascript::Id;
 pub type Lit = super::super::javascript::Lit;
@@ -86,8 +87,20 @@ impl Func {
 
 #[derive(Debug, PartialEq, Hash, Eq)]
 pub enum JsOp {
-    Binary(super::super::javascript::BinaryOp),
-    Unary(super::super::javascript::UnaryOp),
+    Binary(js::BinaryOp),
+    Unary(js::UnaryOp),
+}
+
+impl From<js::BinaryOp> for JsOp {
+    fn from(op: js::BinaryOp) -> JsOp {
+        JsOp::Binary(op)
+    }
+}
+
+impl From<js::UnaryOp> for JsOp {
+    fn from(op: js::UnaryOp) -> JsOp {
+        JsOp::Unary(op)
+    }
 }
 
 #[derive(Debug, PartialEq)]

@@ -11,5 +11,6 @@ mod type_checking;
 mod typeinf;
 mod typeinf_z3;
 mod walk;
+mod operators;
 
 pub use compile::compile;

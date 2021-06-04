@@ -13,11 +13,9 @@ use super::syntax::*;
 use super::typeinf_z3::Z3Typ;
 use super::walk::{Loc, Visitor};
 use crate::pos::Pos;
-use lazy_static::lazy_static;
-use maplit::hashmap;
-use std::collections::HashMap;
 use z3::ast::{self, Ast, Dynamic};
 use z3::{Model, Optimize, SatResult};
+use super::operators::{OVERLOADS, NotwasmOp};
 
 struct Typeinf<'a> {
     vars: Vec<Dynamic<'a>>,
@@ -39,56 +37,6 @@ fn typ_lit(lit: &Lit) -> Type {
 
 fn coerce(src: Type, dst: Type, e: Expr, p: Pos) -> Expr {
     Expr::Coercion(Coercion::Meta(src, dst), Box::new(e), p)
-}
-
-macro_rules! typ {
-    (int) => (Type::Int);
-    (bool) => (Type::Bool);
-    (string) => (Type::String);
-    (any) => (Type::Any);
-    (fun($( $arg:tt ),*) -> $ret:tt) =>
-        (Type::Function(vec![ $( typ!($arg) ),* ], Box::new(typ!($ret))))
-}
-
-struct Overload {
-    overloads: Vec<Type>,
-    result_on_other_args: Option<Type>
-}
-
-impl Overload {
-    fn new(overloads: &[Type]) -> Self {
-        Overload { 
-            overloads: overloads.to_vec(),
-            result_on_other_args: None
-         }
-    }
-
-    fn others(mut self, t: Type) -> Self {
-        self.result_on_other_args = Some(t);
-        self
-    }
-}
-
-lazy_static! {
-    static ref OP_OVERLOADS: HashMap<JsOp, Overload> = {
-        use super::super::javascript::BinaryOp::*;
-
-        let mut binops = hashmap! {
-            Plus => Overload::new(&[
-                typ!(fun(int, int) -> int),
-                typ!(fun(string, string) -> string),
-            ]).others(typ!(any)),
-            LeftShift => Overload::new(&[
-                typ!(fun(int, int) -> int),
-            ]).others(typ!(int)),
-        };
-
-        let mut m = HashMap::new();
-        for (op, t) in binops.drain() {
-            m.insert(JsOp::Binary(op), t);
-        }
-        m
-    };
 }
 
 struct SubtMetavarVisitor<'a> {
@@ -113,26 +61,21 @@ impl<'a> Visitor for SubtMetavarVisitor<'a> {
         use super::super::javascript::BinaryOp;
         use super::super::notwasm::syntax::{BinaryOp as WasmBinOp};
         match expr {
-            // Expr::JsOp(JsOp::Binary(BinaryOp::LeftShift), es, ts, p)
-            Expr::JsOp(JsOp::Binary(BinaryOp::Plus), es, ts, p) => {
-                let t1 = &ts[0];
-                let t2 = &ts[1];
-                match (t1, t2) {
-                    (Type::Any, Type::Any) => {
-                        let e2 = es.pop().unwrap();
-                        let e1 = es.pop().unwrap();
+            Expr::JsOp(op, arg_es, arg_ts, p) => {
+                match OVERLOADS.target(op, arg_ts.as_slice()) {
+                    Some(NotwasmOp::BinOp(notwasm_op)) => {
+                        let e2 = arg_es.pop().unwrap();
+                        let e1 = arg_es.pop().unwrap();
                         let p = std::mem::replace(p, Default::default());
-                        *expr = Expr::PrimCall(crate::rts_function::RTSFunction::Plus, vec![e1, e2], p)
+                        *expr = Expr::Binary(notwasm_op.clone(), Box::new(e1), Box::new(e2), p);
                     }
-                    (Type::Int, Type::Int) => {
-                        let e2 = es.pop().unwrap();
-                        let e1 = es.pop().unwrap();
+                    Some(NotwasmOp::RTS(rts_fun)) => {
                         let p = std::mem::replace(p, Default::default());
-                        *expr = Expr::Binary(WasmBinOp::I32Add, Box::new(e1), Box::new(e2), p);
+                        let es = std::mem::replace(arg_es, Default::default());
+                        *expr = Expr::PrimCall(rts_fun.clone(), es, p);
                     }
-                    _ => {
-                        println!("NOOP: {:?} {:?}", t1, t2);
-                    }
+                    None => todo!()
+
                 }
             }
             _ => {}
@@ -210,9 +153,7 @@ impl<'a> Typeinf<'a> {
             }
             Expr::JsOp(op, args, empty_args_t, _) => {
                 // all overloads for op
-                let sigs = OP_OVERLOADS
-                    .get(op)
-                    .expect(&format!("missing specification for {:?}", op));
+                let sigs = OVERLOADS.overloads(op);
                 // NOTE(arjun): We do not have any weights here. Why bother?
                 // Fresh type metavariable for the result of this expression
                 let (alpha, alpha_t) = self.fresh_metavar("alpha");
@@ -231,7 +172,7 @@ impl<'a> Typeinf<'a> {
                 }
                 // In DNF, one disjunct for each overload
                 let mut disjuncts = Vec::new();
-                for (op_arg_t, op_ret_t) in sigs.overloads.iter().map(|t| t.unwrap_fun()) {
+                for (op_arg_t, op_ret_t) in sigs.map(|t| t.unwrap_fun()) {
                     // For this overload, arguments and result must match
                     let mut conjuncts = Vec::new();
                     for ((t1, t2), t3) in args_t.iter().zip(op_arg_t).zip(betas_t.iter()) {
@@ -243,7 +184,7 @@ impl<'a> Typeinf<'a> {
                     disjuncts.push(ast::Bool::and(self.z.cxt, cases.as_slice()));
                 }
 
-                if let Some(result_typ) = &sigs.result_on_other_args {
+                if let Some(result_typ) = OVERLOADS.on_any(op) {
                     let mut conjuncts = Vec::new();
                     for (_t1, t2) in args_t.iter().zip(betas_t.iter()) {
                         // TODO(arjun): t1 must be compatible with any
