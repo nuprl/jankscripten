@@ -13,7 +13,7 @@ macro_rules! typ {
         (Type::Function(vec![ $( typ!($arg) ),* ], Box::new(typ!($ret))))
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct OverloadTable {
     table: HashMap<JsOp, Overload>
 }
@@ -51,11 +51,33 @@ impl OverloadTable {
         }).map(|x| &x.1)
     }
 
+    pub fn any_target(&self, op: &JsOp) -> &(Type, NotwasmOp) {
+        self.table.get(op).unwrap().on_other_args.as_ref().unwrap()
+    }
+
 }
 
+#[derive(Debug)]
 pub enum NotwasmOp {
     BinOp(notwasm::BinaryOp),
     RTS(RTSFunction),
+}
+
+impl NotwasmOp {
+
+    pub fn make_app(&self, mut args: Vec<Expr>, p: crate::pos::Pos) -> Expr {
+        match self {
+            NotwasmOp::BinOp(notwasm_op) => {
+                let e2 = args.pop().unwrap();
+                let e1 = args.pop().unwrap();
+                assert_eq!(args.len(), 0);
+                Expr::Binary(notwasm_op.clone(), Box::new(e1), Box::new(e2), p)
+            }
+            NotwasmOp::RTS(rts_fun) => {
+                Expr::PrimCall(rts_fun.clone(), args, p)
+            }
+        }
+    }
 }
 
 impl From<notwasm::BinaryOp> for NotwasmOp {
@@ -70,7 +92,7 @@ impl From<RTSFunction> for NotwasmOp {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct Overload {
     overloads: Vec<(Type, NotwasmOp)>,
     on_other_args: Option<(Type, NotwasmOp)>,
@@ -84,12 +106,12 @@ lazy_static! {
         table.add(Plus, typ!(fun(int, int) -> int), I32Add);
         // TODO(arjun): Why not string cat?
         table.add(Plus, typ!(fun(string, string) -> any), RTSFunction::Plus);
-        table.add_on_any(Plus, typ!(any), RTSFunction::Plus);
+        table.add_on_any(Plus, typ!(fun(any, any) -> any), RTSFunction::Plus);
 
         table.add(LeftShift, typ!(fun(int, int) -> int), I32Shl);
         // ]).others(typ!(int)),
 
-      table
+        table
     };
 }
 

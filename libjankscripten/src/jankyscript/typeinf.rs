@@ -15,7 +15,7 @@ use super::walk::{Loc, Visitor};
 use crate::pos::Pos;
 use z3::ast::{self, Ast, Dynamic};
 use z3::{Model, Optimize, SatResult};
-use super::operators::{OVERLOADS, NotwasmOp};
+use super::operators::OVERLOADS;
 
 struct Typeinf<'a> {
     vars: Vec<Dynamic<'a>>,
@@ -23,9 +23,10 @@ struct Typeinf<'a> {
     solver: Optimize<'a>,
 }
 
+/// Calculates the type of a literal.
 fn typ_lit(lit: &Lit) -> Type {
     match lit {
-        Lit::Num(Num::Float(_)) => { println!("ugh float"); Type::Float },
+        Lit::Num(Num::Float(_)) => Type::Float,
         Lit::Num(Num::Int(_)) => Type::Int,
         Lit::String(_) => Type::String,
         Lit::Bool(_) => Type::Bool,
@@ -36,7 +37,7 @@ fn typ_lit(lit: &Lit) -> Type {
 }
 
 fn coerce(src: Type, dst: Type, e: Expr, p: Pos) -> Expr {
-    Expr::Coercion(Coercion::Meta(src, dst), Box::new(e), p)
+    super::constructors::coercion_(Coercion::meta(src, dst), e, p)
 }
 
 struct SubtMetavarVisitor<'a> {
@@ -58,24 +59,24 @@ impl<'a> Visitor for SubtMetavarVisitor<'a> {
     }
 
     fn exit_expr(&mut self, expr: &mut Expr, _loc: &Loc) {
-        use super::super::javascript::BinaryOp;
-        use super::super::notwasm::syntax::{BinaryOp as WasmBinOp};
         match expr {
             Expr::JsOp(op, arg_es, arg_ts, p) => {
+                let p = std::mem::replace(p, Default::default());
+                let mut es = std::mem::replace(arg_es, Default::default());
                 match OVERLOADS.target(op, arg_ts.as_slice()) {
-                    Some(NotwasmOp::BinOp(notwasm_op)) => {
-                        let e2 = arg_es.pop().unwrap();
-                        let e1 = arg_es.pop().unwrap();
-                        let p = std::mem::replace(p, Default::default());
-                        *expr = Expr::Binary(notwasm_op.clone(), Box::new(e1), Box::new(e2), p);
+                    Some(lower_op) => {
+                        *expr = lower_op.make_app(es, p);
                     }
-                    Some(NotwasmOp::RTS(rts_fun)) => {
-                        let p = std::mem::replace(p, Default::default());
-                        let es = std::mem::replace(arg_es, Default::default());
-                        *expr = Expr::PrimCall(rts_fun.clone(), es, p);
+                    None => {
+                        let (ty, lower_op) = OVERLOADS.any_target(op);
+                        let (conv_arg_tys, _) = ty.unwrap_fun();
+                        // TODO(arjun): This is going to end up duplicating a lot of
+                        // code that appears above. 
+                        for (e, t) in es.iter_mut().zip(conv_arg_tys) {
+                            *e = coerce(Type::Any, t.clone(), e.take(), p.clone());
+                        }
+                        *expr = lower_op.make_app(es, p);
                     }
-                    None => todo!()
-
                 }
             }
             _ => {}
@@ -128,6 +129,7 @@ impl<'a> Typeinf<'a> {
             Stmt::Expr(e, _) => {
                 let (phi, _) = self.cgen_expr(&mut *e);
                 self.solver.assert(&phi);
+                
             }
             Stmt::Block(stmts, _) => {
                 for s in stmts.iter_mut() {
@@ -152,9 +154,9 @@ impl<'a> Typeinf<'a> {
                 (phi, alpha_t)
             }
             Expr::JsOp(op, args, empty_args_t, _) => {
+                let w = self.fresh_weight();
                 // all overloads for op
                 let sigs = OVERLOADS.overloads(op);
-                // NOTE(arjun): We do not have any weights here. Why bother?
                 // Fresh type metavariable for the result of this expression
                 let (alpha, alpha_t) = self.fresh_metavar("alpha");
                 // Recur into each argument and unzip Z3 constants and our type metavars
@@ -174,7 +176,7 @@ impl<'a> Typeinf<'a> {
                 let mut disjuncts = Vec::new();
                 for (op_arg_t, op_ret_t) in sigs.map(|t| t.unwrap_fun()) {
                     // For this overload, arguments and result must match
-                    let mut conjuncts = Vec::new();
+                    let mut conjuncts = vec![ w.clone() ];
                     for ((t1, t2), t3) in args_t.iter().zip(op_arg_t).zip(betas_t.iter()) {
                         conjuncts.push(self.t(t1)._eq(&self.t(t2)));
                         conjuncts.push(self.t(t2)._eq(&self.t(t3)));
@@ -184,8 +186,9 @@ impl<'a> Typeinf<'a> {
                     disjuncts.push(ast::Bool::and(self.z.cxt, cases.as_slice()));
                 }
 
-                if let Some(result_typ) = OVERLOADS.on_any(op) {
-                    let mut conjuncts = Vec::new();
+                if let Some(any_ty) = OVERLOADS.on_any(op) {
+                    let (_, result_typ) = any_ty.unwrap_fun();
+                    let mut conjuncts = vec! [ !w ];
                     for (_t1, t2) in args_t.iter().zip(betas_t.iter()) {
                         // TODO(arjun): t1 must be compatible with any
                         conjuncts.push(self.t(t2)._eq(&self.z.make_any()));
@@ -196,7 +199,7 @@ impl<'a> Typeinf<'a> {
                 }
                 let cases =
                     ast::Bool::or(self.z.cxt, disjuncts.iter().collect::<Vec<_>>().as_slice());
-                args_phi.push(cases);
+                args_phi.push(cases);              
                 // Annotate the AST with the type metavariables that hold the argument types
                 *empty_args_t = betas_t;
                 (
@@ -241,7 +244,6 @@ pub fn typeinf(stmt: &mut Stmt) {
         .get_model()
         .expect("model not available (despite SAT result)");
     let mapping = state.solve_model(model);
-    println!("Mapping: {:?}", &mapping);
 
     let mut subst_metavar = SubtMetavarVisitor { vars: &mapping };
     stmt.walk(&mut subst_metavar);
@@ -271,13 +273,11 @@ mod tests {
     }
 
     fn typeinf_test(s: &str) -> usize {
-        let mut js = parse("<text>>", s).expect("error parsing JavaScript");
+        let mut js = parse("<text>", s).expect("error parsing JavaScript");
         let mut ng = NameGen::default();
         desugar(&mut js, &mut ng);
         let mut janky = crate::jankyscript::from_js::from_javascript(js);
-        println!("Before type inference:\n{}", &janky);
         typeinf(&mut janky);
-        println!("Result of type inference:\n{}", &janky);
         let mut count_anys = CountAnys::default();
         janky.walk(&mut count_anys);
         type_check(&janky)
