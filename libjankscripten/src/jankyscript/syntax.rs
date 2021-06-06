@@ -1,12 +1,12 @@
 //! The JankyScript language
 
+use super::super::javascript as js;
 use crate::pos::Pos;
 use crate::rts_function::RTSFunction;
 pub use crate::shared::coercions::Coercion;
 pub use crate::shared::Type;
 use im_rc::HashMap;
 use im_rc::HashSet as ImmHashSet;
-use super::super::{javascript as js};
 
 pub type Id = super::super::javascript::Id;
 pub type Lit = super::super::javascript::Lit;

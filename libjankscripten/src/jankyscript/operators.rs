@@ -1,8 +1,8 @@
 use super::syntax::*;
+use crate::notwasm::syntax as notwasm;
 use crate::rts_function::RTSFunction;
-use crate::notwasm::{syntax as notwasm};
-use std::collections::HashMap;
 use lazy_static::lazy_static;
+use std::collections::HashMap;
 
 macro_rules! typ {
     (int) => (Type::Int);
@@ -15,25 +15,18 @@ macro_rules! typ {
 
 #[derive(Debug, Default)]
 pub struct OverloadTable {
-    table: HashMap<JsOp, Overload>
+    table: HashMap<JsOp, Overload>,
 }
 
 impl OverloadTable {
-
-    fn add(
-        &mut self, 
-        op: impl Into<JsOp>, 
-        typ: Type,
-        notwasm: impl Into<NotwasmOp>) {
+    fn add(&mut self, op: impl Into<JsOp>, typ: Type, notwasm: impl Into<NotwasmOp>) {
         let overload = self.table.entry(op.into()).or_insert(Overload::default());
         overload.overloads.push((typ, notwasm.into()));
     }
 
-    fn add_on_any(&mut self, op: impl Into<JsOp>, typ: Type,
-        notwasm: impl Into<NotwasmOp>) {
+    fn add_on_any(&mut self, op: impl Into<JsOp>, typ: Type, notwasm: impl Into<NotwasmOp>) {
         let overload = self.table.entry(op.into()).or_insert(Overload::default());
         overload.on_other_args = Some((typ, notwasm.into()));
-            
     }
 
     pub fn overloads<'a, 'b>(&'a self, op: &'b JsOp) -> impl Iterator<Item = &'a Type> {
@@ -41,20 +34,30 @@ impl OverloadTable {
     }
 
     pub fn on_any<'a, 'b>(&'a self, op: &'b JsOp) -> Option<&'a Type> {
-        self.table.get(op).unwrap().on_other_args.as_ref().map(|(t, _)| t)
+        self.table
+            .get(op)
+            .unwrap()
+            .on_other_args
+            .as_ref()
+            .map(|(t, _)| t)
     }
 
     pub fn target(&self, op: &JsOp, arg_typs: &[Type]) -> Option<&NotwasmOp> {
-        self.table.get(op).unwrap().overloads.iter().find(|(typ, _)| {
-            let (fun_args, _) = typ.unwrap_fun();
-            arg_typs.eq(fun_args)
-        }).map(|x| &x.1)
+        self.table
+            .get(op)
+            .unwrap()
+            .overloads
+            .iter()
+            .find(|(typ, _)| {
+                let (fun_args, _) = typ.unwrap_fun();
+                arg_typs.eq(fun_args)
+            })
+            .map(|x| &x.1)
     }
 
     pub fn any_target(&self, op: &JsOp) -> &(Type, NotwasmOp) {
         self.table.get(op).unwrap().on_other_args.as_ref().unwrap()
     }
-
 }
 
 #[derive(Debug)]
@@ -64,7 +67,6 @@ pub enum NotwasmOp {
 }
 
 impl NotwasmOp {
-
     pub fn make_app(&self, mut args: Vec<Expr>, p: crate::pos::Pos) -> Expr {
         match self {
             NotwasmOp::BinOp(notwasm_op) => {
@@ -73,9 +75,7 @@ impl NotwasmOp {
                 assert_eq!(args.len(), 0);
                 Expr::Binary(notwasm_op.clone(), Box::new(e1), Box::new(e2), p)
             }
-            NotwasmOp::RTS(rts_fun) => {
-                Expr::PrimCall(rts_fun.clone(), args, p)
-            }
+            NotwasmOp::RTS(rts_fun) => Expr::PrimCall(rts_fun.clone(), args, p),
         }
     }
 }
@@ -87,7 +87,7 @@ impl From<notwasm::BinaryOp> for NotwasmOp {
 }
 
 impl From<RTSFunction> for NotwasmOp {
-    fn from (f: RTSFunction) -> NotwasmOp {
+    fn from(f: RTSFunction) -> NotwasmOp {
         NotwasmOp::RTS(f)
     }
 }
@@ -114,4 +114,3 @@ lazy_static! {
         table
     };
 }
-

@@ -34,12 +34,10 @@ pub enum Coercion {
 }
 
 impl Coercion {
-
     pub fn meta(t1: Type, t2: Type) -> Coercion {
         if t1 == t2 {
             Coercion::Id(t1)
-        }
-        else {
+        } else {
             Coercion::Meta(t1, t2)
         }
     }

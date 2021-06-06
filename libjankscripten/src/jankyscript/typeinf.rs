@@ -9,13 +9,13 @@
 //! https://github.com/arjunguha/TypeWhich
 
 use super::super::shared::coercions::Coercion;
+use super::operators::OVERLOADS;
 use super::syntax::*;
 use super::typeinf_z3::Z3Typ;
 use super::walk::{Loc, Visitor};
 use crate::pos::Pos;
 use z3::ast::{self, Ast, Dynamic};
 use z3::{Model, Optimize, SatResult};
-use super::operators::OVERLOADS;
 
 struct Typeinf<'a> {
     vars: Vec<Dynamic<'a>>,
@@ -71,7 +71,7 @@ impl<'a> Visitor for SubtMetavarVisitor<'a> {
                         let (ty, lower_op) = OVERLOADS.any_target(op);
                         let (conv_arg_tys, _) = ty.unwrap_fun();
                         // TODO(arjun): This is going to end up duplicating a lot of
-                        // code that appears above. 
+                        // code that appears above.
                         for (e, t) in es.iter_mut().zip(conv_arg_tys) {
                             *e = coerce(Type::Any, t.clone(), e.take(), p.clone());
                         }
@@ -126,11 +126,14 @@ impl<'a> Typeinf<'a> {
 
     pub fn cgen_stmt(&mut self, stmt: &mut Stmt) {
         match stmt {
+            Stmt::Var(..) => todo!(),
             Stmt::Expr(e, _) => {
                 let (phi, _) = self.cgen_expr(&mut *e);
                 self.solver.assert(&phi);
-                
             }
+            Stmt::Empty => (),
+            Stmt::Loop(s, _) => self.cgen_stmt(s),
+            Stmt::Label(_, s, _) => self.cgen_stmt(s),
             Stmt::Block(stmts, _) => {
                 for s in stmts.iter_mut() {
                     self.cgen_stmt(s);
@@ -142,7 +145,15 @@ impl<'a> Typeinf<'a> {
 
     pub fn cgen_expr(&mut self, expr: &mut Expr) -> (ast::Bool<'a>, Type) {
         match expr {
-            Expr::Binary(..) => panic!("cgen_expr received Expr::Binary"),
+            Expr::Binary(..)
+            | Expr::PrimCall(..)
+            | Expr::NewRef(..)
+            | Expr::Deref(..)
+            | Expr::Store(..)
+            | Expr::EnvGet(..)
+            | Expr::Coercion(..)
+            | Expr::Closure(..)
+            | Expr::Unary(..) => panic!("unexpected {:?}", &expr),
             Expr::Lit(l, p) => {
                 let t = typ_lit(&l);
                 let p = p.clone();
@@ -153,6 +164,11 @@ impl<'a> Typeinf<'a> {
                 *expr = coerce(t, alpha_t.clone(), e, p);
                 (phi, alpha_t)
             }
+            Expr::Array(..) => todo!(),
+            Expr::Object(..) => todo!(),
+            Expr::Id(..) => todo!(),
+            Expr::Dot(..) => todo!(),
+            Expr::Bracket(..) => todo!(),
             Expr::JsOp(op, args, empty_args_t, _) => {
                 let w = self.fresh_weight();
                 // all overloads for op
@@ -176,7 +192,7 @@ impl<'a> Typeinf<'a> {
                 let mut disjuncts = Vec::new();
                 for (op_arg_t, op_ret_t) in sigs.map(|t| t.unwrap_fun()) {
                     // For this overload, arguments and result must match
-                    let mut conjuncts = vec![ w.clone() ];
+                    let mut conjuncts = vec![w.clone()];
                     for ((t1, t2), t3) in args_t.iter().zip(op_arg_t).zip(betas_t.iter()) {
                         conjuncts.push(self.t(t1)._eq(&self.t(t2)));
                         conjuncts.push(self.t(t2)._eq(&self.t(t3)));
@@ -188,7 +204,7 @@ impl<'a> Typeinf<'a> {
 
                 if let Some(any_ty) = OVERLOADS.on_any(op) {
                     let (_, result_typ) = any_ty.unwrap_fun();
-                    let mut conjuncts = vec! [ !w ];
+                    let mut conjuncts = vec![!w];
                     for (_t1, t2) in args_t.iter().zip(betas_t.iter()) {
                         // TODO(arjun): t1 must be compatible with any
                         conjuncts.push(self.t(t2)._eq(&self.z.make_any()));
@@ -199,7 +215,7 @@ impl<'a> Typeinf<'a> {
                 }
                 let cases =
                     ast::Bool::or(self.z.cxt, disjuncts.iter().collect::<Vec<_>>().as_slice());
-                args_phi.push(cases);              
+                args_phi.push(cases);
                 // Annotate the AST with the type metavariables that hold the argument types
                 *empty_args_t = betas_t;
                 (
@@ -207,8 +223,9 @@ impl<'a> Typeinf<'a> {
                     alpha_t,
                 )
             }
-            // }
-            _ => todo!("Expression: {:?}", expr),
+            Expr::Assign(..) => todo!(),
+            Expr::Call(..) => todo!(),
+            Expr::Func(..) => todo!(),
         }
     }
 
@@ -247,21 +264,20 @@ pub fn typeinf(stmt: &mut Stmt) {
 
     let mut subst_metavar = SubtMetavarVisitor { vars: &mapping };
     stmt.walk(&mut subst_metavar);
-
 }
 
 #[cfg(test)]
 mod tests {
-    use super::typeinf;
-    use super::super::syntax::*;
-    use super::super::walk::*;
-    use super::super::type_checking::type_check;
-    use super::super::super::javascript::{parse, desugar};
+    use super::super::super::javascript::{desugar, parse};
     use super::super::super::shared::NameGen;
+    use super::super::syntax::*;
+    use super::super::type_checking::type_check;
+    use super::super::walk::*;
+    use super::typeinf;
 
     #[derive(Default)]
     struct CountAnys {
-        num_anys: usize
+        num_anys: usize,
     }
 
     impl Visitor for CountAnys {
@@ -280,8 +296,7 @@ mod tests {
         typeinf(&mut janky);
         let mut count_anys = CountAnys::default();
         janky.walk(&mut count_anys);
-        type_check(&janky)
-            .expect("result of type inference does not type check");
+        type_check(&janky).expect("result of type inference does not type check");
         return count_anys.num_anys;
     }
 
@@ -296,5 +311,4 @@ mod tests {
         let n = typeinf_test(r#"1 + 2;"#);
         assert_eq!(n, 0);
     }
-
 }
