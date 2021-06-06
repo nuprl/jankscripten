@@ -10,6 +10,7 @@ mod pretty;
 pub mod syntax;
 mod type_checking;
 mod typeinf;
+mod typeinf_env;
 mod typeinf_z3;
 mod walk;
 

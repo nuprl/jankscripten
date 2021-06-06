@@ -31,7 +31,7 @@ impl Pretty for Type {
             ]),
             Type::Any => pp.text("any"),
             Type::Ref(of) => pp.text("ref").append(of.pretty(pp).parens()),
-            Type::Metavar(..) => pp.text("metavar"),
+            Type::Metavar(n) => pp.text(format!("metavar-{}", n)),
         }
     }
 }

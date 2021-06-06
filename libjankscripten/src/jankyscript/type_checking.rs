@@ -200,12 +200,13 @@ fn type_check_stmt(stmt: &Stmt, env: Env, ret_ty: &Option<Type>) -> TypeChecking
             Ok(env)
         }
         Stmt::Var(x, t, e, s) => {
-            ensure(
-                "variable declaration matches given type",
-                t.clone(),
-                type_check_expr(e, env.clone())?,
-                &s,
-            )?;
+            // TODO(arjun): skipping variable initializers
+            // ensure(
+            //     "variable declaration matches given type",
+            //     t.clone(),
+            //     type_check_expr(e, env.clone())?,
+            //     &s,
+            // )?;
 
             Ok(env.update(x.clone(), t.clone()))
         }

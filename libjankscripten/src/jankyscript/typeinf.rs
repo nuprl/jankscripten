@@ -16,11 +16,14 @@ use super::walk::{Loc, Visitor};
 use crate::pos::Pos;
 use z3::ast::{self, Ast, Dynamic};
 use z3::{Model, Optimize, SatResult};
+use super::typeinf_env::Env;
 
 struct Typeinf<'a> {
     vars: Vec<Dynamic<'a>>,
     z: Z3Typ<'a>,
     solver: Optimize<'a>,
+    cxt: &'a z3::Context,
+    env: Env,
 }
 
 /// Calculates the type of a literal.
@@ -90,6 +93,7 @@ impl<'a> Typeinf<'a> {
             Type::Int => self.z.make_int(),
             Type::Any => self.z.make_any(),
             Type::String => self.z.make_str(),
+            Type::Bool => self.z.make_bool(),
             Type::Metavar(n) => self
                 .vars
                 .get(*n)
@@ -126,9 +130,15 @@ impl<'a> Typeinf<'a> {
 
     pub fn cgen_stmt(&mut self, stmt: &mut Stmt) {
         match stmt {
-            Stmt::Var(..) => todo!(),
+            Stmt::Var(x, t, e, _) => {
+                assert!(e.is_undefined());   
+                let (_, alpha) = self.fresh_metavar("x");
+                *t = alpha.clone();
+                self.env.update(x.clone(), alpha);
+            }
             Stmt::Expr(e, _) => {
                 let (phi, _) = self.cgen_expr(&mut *e);
+                println!("{:?}", &phi);
                 self.solver.assert(&phi);
             }
             Stmt::Empty => (),
@@ -138,6 +148,13 @@ impl<'a> Typeinf<'a> {
                 for s in stmts.iter_mut() {
                     self.cgen_stmt(s);
                 }
+            }
+            Stmt::Catch(body, exn_name, catch_body, _) => {
+                self.cgen_stmt(&mut *body);
+                let env = self.env.clone();
+                self.env.extend(exn_name.clone(), Type::Any);
+                self.cgen_stmt(catch_body);
+                self.env = env;
             }
             _ => todo!("{:?}", stmt),
         }
@@ -166,7 +183,10 @@ impl<'a> Typeinf<'a> {
             }
             Expr::Array(..) => todo!(),
             Expr::Object(..) => todo!(),
-            Expr::Id(..) => todo!(),
+            Expr::Id(x, t, _) => {
+                *t = self.env.get(x);
+                (ast::Bool::from_bool(self.cxt,true), t.clone())
+            }
             Expr::Dot(..) => todo!(),
             Expr::Bracket(..) => todo!(),
             Expr::JsOp(op, args, empty_args_t, _) => {
@@ -223,7 +243,17 @@ impl<'a> Typeinf<'a> {
                     alpha_t,
                 )
             }
-            Expr::Assign(..) => todo!(),
+            Expr::Assign(lval, e, _) => match &mut **lval {
+                LValue::Id(x, x_t) => {
+                    let t = self.env.get(x);
+                    *x_t = t.clone();
+                    let (phi_1, e_t) = self.cgen_expr(&mut *e);
+                    // TODO(arjun): Not quite right. Too strict
+                    let phi_2 = self.t(&t)._eq(&self.t(&e_t));
+                    (phi_1 & phi_2, t)
+                }
+                _ => todo!()
+            }
             Expr::Call(..) => todo!(),
             Expr::Func(..) => todo!(),
         }
@@ -245,10 +275,13 @@ pub fn typeinf(stmt: &mut Stmt) {
     let cxt = z3::Context::new(&z3_cfg);
     let dts = Z3Typ::make_dts(&cxt);
     let z = Z3Typ::new(&cxt, &dts);
+    let env = Env::new();
     let mut state = Typeinf {
         vars: Default::default(),
         z,
+        cxt: &cxt,
         solver: Optimize::new(&cxt),
+        env,
     };
     state.cgen_stmt(stmt);
     match state.solver.check(&[]) {
@@ -264,6 +297,7 @@ pub fn typeinf(stmt: &mut Stmt) {
 
     let mut subst_metavar = SubtMetavarVisitor { vars: &mapping };
     stmt.walk(&mut subst_metavar);
+    println!("After cgen: {}", &stmt);
 }
 
 #[cfg(test)]
@@ -311,4 +345,23 @@ mod tests {
         let n = typeinf_test(r#"1 + 2;"#);
         assert_eq!(n, 0);
     }
+
+    #[test]
+    fn simple_update() {
+        let n = typeinf_test(r#"
+            var x = 20;
+            x = 30 + x;
+        "#);
+        assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn any_inducing_update() {
+        let n = typeinf_test(r#"
+            var x = 20;
+            x = true;
+        "#);
+        assert_eq!(n, 5); // 3 occurrences + 2 conversions
+    }
+
 }

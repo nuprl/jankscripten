@@ -191,8 +191,14 @@ where
                 }
                 block_cxt.apply_patches(ss);
             }
+            Var(_, t, a, _) => {
+                let loc = Loc::Node(Context::Stmt, loc);
+                self.walk_type(t, &loc);
+                self.walk_expr(a, &loc);
+
+            }
             // 1xExpr
-            Throw(a, _) | Return(a, _) | Expr(a, _) | Var(_, _, a, _) => {
+            Throw(a, _) | Return(a, _) | Expr(a, _) => {
                 let loc = Loc::Node(Context::Stmt, loc);
                 self.walk_expr(a, &loc);
             }
@@ -230,7 +236,8 @@ where
         self.visitor.enter_expr(expr, loc);
         match expr {
             // 0
-            Lit(_, _) | Id(..) | EnvGet(..) => (),
+            Lit(_, _) | EnvGet(..) => (),
+            Id(_, t, _) => self.walk_type(t, loc),
             Func(f, _) => {
                 let loc = Loc::Node(Context::FunctionBody, loc);
                 self.visitor.enter_fn(f, &loc);
@@ -305,7 +312,9 @@ where
     pub fn walk_lval(&mut self, lval: &mut LValue, loc: &Loc) {
         use LValue::*;
         match lval {
-            Id(..) => (),
+            Id(_, t) => {
+                self.walk_type(t, &loc);
+            },
             Dot(e, ..) => {
                 let loc = Loc::Node(Context::LValue, loc);
                 self.walk_expr(e, &loc);
@@ -317,6 +326,11 @@ where
             }
         }
     }
+
+    pub fn walk_type(&mut self, t: &mut Type, _loc: &Loc) {
+        self.visitor.enter_typ(t);
+    }
+
 }
 
 impl Stmt {
@@ -366,5 +380,12 @@ impl Expr {
     /// value.
     pub fn take(&mut self) -> Self {
         std::mem::replace(self, Expr::Lit(Lit::Undefined, Default::default()))
+    }
+
+    pub fn is_undefined(&self) -> bool {
+        match self {
+            Expr::Lit(Lit::Undefined, _) => true,
+            _ => false
+        }
     }
 }
