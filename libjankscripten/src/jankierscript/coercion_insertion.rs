@@ -41,6 +41,8 @@ impl Env {
         let mut env: HashMap<Id, EnvItem> = HashMap::new();
         env.insert(
             Id::Named("log_any".to_string()),
+            // NOTE(arjun): This is the *ONLY* EnvItem::Prim that we construct,
+            // which seems silly. We can probably eliminate this.
             EnvItem::Prim(RTSFunction::LogAny),
         );
         for (k, v) in get_global_object().into_iter() {
