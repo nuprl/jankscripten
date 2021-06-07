@@ -122,5 +122,7 @@ z3_datatype! {
     (int)
     (bool)
     (str)
+    (array)
+    (dynobject)
     (fun (args (datatype Z3Typ)))
 }

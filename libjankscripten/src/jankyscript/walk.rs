@@ -195,7 +195,6 @@ where
                 let loc = Loc::Node(Context::Stmt, loc);
                 self.walk_type(t, &loc);
                 self.walk_expr(a, &loc);
-
             }
             // 1xExpr
             Throw(a, _) | Return(a, _) | Expr(a, _) => {
@@ -314,7 +313,7 @@ where
         match lval {
             Id(_, t) => {
                 self.walk_type(t, &loc);
-            },
+            }
             Dot(e, ..) => {
                 let loc = Loc::Node(Context::LValue, loc);
                 self.walk_expr(e, &loc);
@@ -330,7 +329,6 @@ where
     pub fn walk_type(&mut self, t: &mut Type, _loc: &Loc) {
         self.visitor.enter_typ(t);
     }
-
 }
 
 impl Stmt {
@@ -385,7 +383,7 @@ impl Expr {
     pub fn is_undefined(&self) -> bool {
         match self {
             Expr::Lit(Lit::Undefined, _) => true,
-            _ => false
+            _ => false,
         }
     }
 }

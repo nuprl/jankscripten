@@ -11,12 +11,12 @@
 use super::super::shared::coercions::Coercion;
 use super::operators::OVERLOADS;
 use super::syntax::*;
+use super::typeinf_env::Env;
 use super::typeinf_z3::Z3Typ;
 use super::walk::{Loc, Visitor};
 use crate::pos::Pos;
 use z3::ast::{self, Ast, Dynamic};
 use z3::{Model, Optimize, SatResult};
-use super::typeinf_env::Env;
 
 struct Typeinf<'a> {
     vars: Vec<Dynamic<'a>>,
@@ -94,6 +94,8 @@ impl<'a> Typeinf<'a> {
             Type::Any => self.z.make_any(),
             Type::String => self.z.make_str(),
             Type::Bool => self.z.make_bool(),
+            Type::Array => self.z.make_array(),
+            Type::DynObject => self.z.make_dynobject(),
             Type::Metavar(n) => self
                 .vars
                 .get(*n)
@@ -110,6 +112,10 @@ impl<'a> Typeinf<'a> {
             Type::Any
         } else if self.z.is_str(model, &e) {
             Type::String
+        } else if self.z.is_array(model, &e) {
+            Type::Array
+        } else if self.z.is_dynobject(&model, &e) {
+            Type::DynObject
         } else {
             todo!()
         }
@@ -131,7 +137,7 @@ impl<'a> Typeinf<'a> {
     pub fn cgen_stmt(&mut self, stmt: &mut Stmt) {
         match stmt {
             Stmt::Var(x, t, e, _) => {
-                assert!(e.is_undefined());   
+                assert!(e.is_undefined());
                 let (_, alpha) = self.fresh_metavar("x");
                 *t = alpha.clone();
                 self.env.update(x.clone(), alpha);
@@ -160,6 +166,25 @@ impl<'a> Typeinf<'a> {
         }
     }
 
+    fn cgen_exprs<'b>(
+        &mut self,
+        exprs: impl Iterator<Item = &'b mut Expr>,
+    ) -> (Vec<ast::Bool<'a>>, Vec<Type>) {
+        let mut phis = Vec::new();
+        let mut ts = Vec::new();
+        for e in exprs {
+            let (phi, t) = self.cgen_expr(e);
+            phis.push(phi);
+            ts.push(t);
+        }
+        (phis, ts)
+    }
+
+    fn zand(&self, phis: Vec<ast::Bool<'a>>) -> ast::Bool<'a> {
+        let phis = phis.iter().collect::<Vec<_>>();
+        ast::Bool::and(self.z.cxt, phis.as_slice())
+    }
+
     pub fn cgen_expr(&mut self, expr: &mut Expr) -> (ast::Bool<'a>, Type) {
         match expr {
             Expr::Binary(..)
@@ -181,11 +206,23 @@ impl<'a> Typeinf<'a> {
                 *expr = coerce(t, alpha_t.clone(), e, p);
                 (phi, alpha_t)
             }
-            Expr::Array(..) => todo!(),
-            Expr::Object(..) => todo!(),
+            Expr::Array(es, _) => {
+                let (mut phis, ts) = self.cgen_exprs(es.iter_mut());
+                for t in ts {
+                    phis.push(self.t(&t)._eq(&self.z.make_any()));
+                }
+                (self.zand(phis), Type::Array)
+            }
+            Expr::Object(props, _) => {
+                let (mut phis, ts) = self.cgen_exprs(props.iter_mut().map(|(_, e)| e));
+                for t in ts {
+                    phis.push(self.t(&t)._eq(&self.z.make_any()));
+                }
+                (self.zand(phis), Type::DynObject)
+            }
             Expr::Id(x, t, _) => {
                 *t = self.env.get(x);
-                (ast::Bool::from_bool(self.cxt,true), t.clone())
+                (ast::Bool::from_bool(self.cxt, true), t.clone())
             }
             Expr::Dot(..) => todo!(),
             Expr::Bracket(..) => todo!(),
@@ -218,8 +255,7 @@ impl<'a> Typeinf<'a> {
                         conjuncts.push(self.t(t2)._eq(&self.t(t3)));
                     }
                     conjuncts.push(alpha._eq(&self.t(op_ret_t)));
-                    let cases = conjuncts.iter().collect::<Vec<_>>();
-                    disjuncts.push(ast::Bool::and(self.z.cxt, cases.as_slice()));
+                    disjuncts.push(self.zand(conjuncts));
                 }
 
                 if let Some(any_ty) = OVERLOADS.on_any(op) {
@@ -230,18 +266,14 @@ impl<'a> Typeinf<'a> {
                         conjuncts.push(self.t(t2)._eq(&self.z.make_any()));
                     }
                     conjuncts.push(alpha._eq(&self.t(result_typ)));
-                    let cases = conjuncts.iter().collect::<Vec<_>>();
-                    disjuncts.push(ast::Bool::and(self.z.cxt, cases.as_slice()));
+                    disjuncts.push(self.zand(conjuncts))
                 }
                 let cases =
                     ast::Bool::or(self.z.cxt, disjuncts.iter().collect::<Vec<_>>().as_slice());
                 args_phi.push(cases);
                 // Annotate the AST with the type metavariables that hold the argument types
                 *empty_args_t = betas_t;
-                (
-                    ast::Bool::and(self.z.cxt, args_phi.iter().collect::<Vec<_>>().as_slice()),
-                    alpha_t,
-                )
+                (self.zand(args_phi), alpha_t)
             }
             Expr::Assign(lval, e, _) => match &mut **lval {
                 LValue::Id(x, x_t) => {
@@ -252,8 +284,8 @@ impl<'a> Typeinf<'a> {
                     let phi_2 = self.t(&t)._eq(&self.t(&e_t));
                     (phi_1 & phi_2, t)
                 }
-                _ => todo!()
-            }
+                _ => todo!(),
+            },
             Expr::Call(..) => todo!(),
             Expr::Func(..) => todo!(),
         }
@@ -348,20 +380,43 @@ mod tests {
 
     #[test]
     fn simple_update() {
-        let n = typeinf_test(r#"
+        let n = typeinf_test(
+            r#"
             var x = 20;
             x = 30 + x;
-        "#);
+        "#,
+        );
         assert_eq!(n, 0);
     }
 
     #[test]
     fn any_inducing_update() {
-        let n = typeinf_test(r#"
+        let n = typeinf_test(
+            r#"
             var x = 20;
             x = true;
-        "#);
-        assert_eq!(n, 5); // 3 occurrences + 2 conversions
+        "#,
+        );
+        assert_eq!(n, 5); // TODO(arjun): 2 occurrences + 2 conversions. Why 5?
     }
 
+    #[test]
+    fn heterogenous_array() {
+        let n = typeinf_test(
+            r#"
+            [10, "hi", true]
+        "#,
+        );
+        assert_eq!(n, 3);
+    }
+
+    #[test]
+    fn object_lit() {
+        let n = typeinf_test(
+            r#"
+            ({ x: 10, y: 20 })
+        "#,
+        );
+        assert_eq!(n, 2);
+    }
 }
