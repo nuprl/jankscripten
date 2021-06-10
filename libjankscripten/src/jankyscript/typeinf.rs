@@ -134,18 +134,18 @@ impl<'a> Typeinf<'a> {
         return e;
     }
 
-    fn fresh_metavar(&mut self, prefix: &'static str) -> (ast::Dynamic<'a>, Type) {
+    fn fresh_metavar(&mut self, prefix: &'static str) -> Type {
         let x = self.z.fresh(prefix);
         let n = self.vars.len();
         self.vars.push(x.clone());
-        return (x, Type::Metavar(n));
+        return Type::Metavar(n);
     }
 
     pub fn cgen_stmt(&mut self, stmt: &mut Stmt) {
         match stmt {
             Stmt::Var(x, t, e, _) => {
                 assert!(e.is_undefined());
-                let (_, alpha) = self.fresh_metavar("x");
+                let alpha = self.fresh_metavar("x");
                 *t = alpha.clone();
                 self.env.update(x.clone(), alpha);
             }
@@ -206,9 +206,9 @@ impl<'a> Typeinf<'a> {
             Expr::Lit(l, p) => {
                 let t = typ_lit(&l);
                 let p = p.clone();
-                let (alpha, alpha_t) = self.fresh_metavar("alpha");
+                let alpha_t = self.fresh_metavar("alpha");
                 let w = self.fresh_weight();
-                let phi = (alpha._eq(&self.t(&t)) & &w) | (alpha._eq(&self.z.make_any()) & !w);
+                let phi = (self.t(&alpha_t)._eq(&self.t(&t)) & &w) | (self.t(&alpha_t)._eq(&self.z.make_any()) & !w);
                 let e = expr.take();
                 *expr = coerce(t, alpha_t.clone(), e, p);
                 (phi, alpha_t)
@@ -247,19 +247,17 @@ impl<'a> Typeinf<'a> {
                 // all overloads for op
                 let sigs = OVERLOADS.overloads(op);
                 // Fresh type metavariable for the result of this expression
-                let (alpha, alpha_t) = self.fresh_metavar("alpha");
+                let alpha_t = self.fresh_metavar("alpha");
                 // Recur into each argument and unzip Z3 constants and our type metavars
                 let args_rec = args.iter_mut().map(|e| self.cgen_expr(e));
                 let (mut args_phi, args_t): (Vec<_>, Vec<_>) = args_rec.unzip();
                 // Fresh type metavariables for each argument
                 let mut betas_t = Vec::new();
-                let mut betas_phi = Vec::new();
                 for (arg, arg_t) in args.iter_mut().zip(&args_t) {
                     let a = arg.take();
-                    let (beta_phi, beta_t) = self.fresh_metavar("beta");
+                    let beta_t = self.fresh_metavar("beta");
                     *arg = coerce(arg_t.clone(), beta_t.clone(), a, Default::default());
                     betas_t.push(beta_t);
-                    betas_phi.push(beta_phi);
                 }
                 // In DNF, one disjunct for each overload
                 let mut disjuncts = Vec::new();
@@ -270,7 +268,7 @@ impl<'a> Typeinf<'a> {
                         conjuncts.push(self.t(t1)._eq(&self.t(t2)));
                         conjuncts.push(self.t(t2)._eq(&self.t(t3)));
                     }
-                    conjuncts.push(alpha._eq(&self.t(op_ret_t)));
+                    conjuncts.push(self.t(&alpha_t)._eq(&self.t(op_ret_t)));
                     disjuncts.push(self.zand(conjuncts));
                 }
 
@@ -281,7 +279,7 @@ impl<'a> Typeinf<'a> {
                         // TODO(arjun): t1 must be compatible with any
                         conjuncts.push(self.t(t2)._eq(&self.z.make_any()));
                     }
-                    conjuncts.push(alpha._eq(&self.t(result_typ)));
+                    conjuncts.push(self.t(&alpha_t)._eq(&self.t(result_typ)));
                     disjuncts.push(self.zand(conjuncts))
                 }
                 let cases =
@@ -343,6 +341,7 @@ pub fn typeinf(stmt: &mut Stmt) {
         .expect("model not available (despite SAT result)");
     let mapping = state.solve_model(model);
 
+    println!("Before subst: {}", &stmt);
     let mut subst_metavar = SubtMetavarVisitor { vars: &mapping };
     stmt.walk(&mut subst_metavar);
     println!("After cgen: {}", &stmt);
