@@ -109,6 +109,7 @@ lazy_static! {
         table.add_on_any(Plus, typ!(fun(any, any) -> any), RTSFunction::Plus);
 
         table.add(LeftShift, typ!(fun(int, int) -> int), I32Shl);
+        table.add_on_any(LeftShift, typ!(fun(int, int) -> int), I32Shl);
         // ]).others(typ!(int)),
 
         table

@@ -63,6 +63,13 @@ impl<'a> Visitor for SubtMetavarVisitor<'a> {
 
     fn exit_expr(&mut self, expr: &mut Expr, _loc: &Loc) {
         match expr {
+            Expr::Coercion(c, e, _) => {
+                if let Coercion::Meta(t1, t2) = c {
+                    if t1 == t2 {
+                        *expr = e.take();
+                    }
+                }
+            }
             Expr::JsOp(op, arg_es, arg_ts, p) => {
                 let p = std::mem::replace(p, Default::default());
                 let mut es = std::mem::replace(arg_es, Default::default());
@@ -224,7 +231,16 @@ impl<'a> Typeinf<'a> {
                 *t = self.env.get(x);
                 (ast::Bool::from_bool(self.cxt, true), t.clone())
             }
-            Expr::Dot(..) => todo!(),
+            Expr::Dot(e, _x, p) => {
+                let p = p.clone();
+                let w = self.fresh_weight();
+                let (phi_1, t) = self.cgen_expr(e);
+                let phi_2 = (self.t(&t)._eq(&self.z.make_dynobject()) & &w) | 
+                    (self.t(&t)._eq(&self.z.make_any()) & !w) ;
+                let e = expr.take();
+                *expr = coerce(t, Type::DynObject, e, p);
+                (phi_1 & phi_2, Type::Any)
+            }
             Expr::Bracket(..) => todo!(),
             Expr::JsOp(op, args, empty_args_t, _) => {
                 let w = self.fresh_weight();
@@ -318,7 +334,7 @@ pub fn typeinf(stmt: &mut Stmt) {
     state.cgen_stmt(stmt);
     match state.solver.check(&[]) {
         SatResult::Unknown => panic!("Got an unknown from Z3"),
-        SatResult::Unsat => panic!("type error"),
+        SatResult::Unsat => panic!("type inference failed (unsat)"),
         SatResult::Sat => (),
     };
     let model = state
@@ -418,5 +434,15 @@ mod tests {
         "#,
         );
         assert_eq!(n, 2);
+    }
+
+    #[test]
+    fn prop_read() {
+        let n = typeinf_test(
+            r#"
+            ({x : 10}).y << 2
+            "#,
+        );
+        assert_eq!(n, 1);
     }
 }
