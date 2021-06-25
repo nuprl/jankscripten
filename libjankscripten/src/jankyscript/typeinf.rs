@@ -40,7 +40,14 @@ fn typ_lit(lit: &Lit) -> Type {
 }
 
 fn coerce(src: Type, dst: Type, e: Expr, p: Pos) -> Expr {
-    super::constructors::coercion_(Coercion::meta(src, dst), e, p)
+    match (e, &src) {
+        (Expr::Coercion(Coercion::Meta(src1, Type::Any), e1, p1), Type::Any) => {
+            super::constructors::coercion_(Coercion::meta(src1, dst), *e1, p1)
+        }
+        (e, _) => {
+            super::constructors::coercion_(Coercion::meta(src, dst), e, p)
+        }
+    }
 }
 
 struct SubtMetavarVisitor<'a> {
@@ -254,10 +261,17 @@ impl<'a> Typeinf<'a> {
                 // Fresh type metavariables for each argument
                 let mut betas_t = Vec::new();
                 for (arg, arg_t) in args.iter_mut().zip(&args_t) {
-                    let a = arg.take();
-                    let beta_t = self.fresh_metavar("beta");
-                    *arg = coerce(arg_t.clone(), beta_t.clone(), a, Default::default());
-                    betas_t.push(beta_t);
+                    match arg_t {
+                        Type::Metavar(_) => {
+                            betas_t.push(arg_t.clone());
+                        }
+                        _ => {
+                            let a = arg.take();
+                            let beta_t = self.fresh_metavar("beta");
+                            *arg = coerce(arg_t.clone(), beta_t.clone(), a, Default::default());
+                            betas_t.push(beta_t);
+                        }
+                    }
                 }
                 // In DNF, one disjunct for each overload
                 let mut disjuncts = Vec::new();
@@ -442,6 +456,6 @@ mod tests {
             ({x : 10}).y << 2
             "#,
         );
-        assert_eq!(n, 1);
+        assert_eq!(n, 2);
     }
 }
