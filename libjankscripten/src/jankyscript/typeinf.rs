@@ -393,6 +393,7 @@ impl<'a> Typeinf<'a> {
                 let outer_return_typ = self.return_type.take();
                 // Fresh metavariable for the return type.
                 self.return_type = self.fresh_metavar("ret");
+                f.result_typ = self.return_type.clone();
                 // Fresh metavariables for formal arguments.
                 for (x, t) in f.args_with_typs.iter_mut() {
                     assert_eq!(t, &Type::Missing);
