@@ -184,13 +184,13 @@ impl<'a> Typeinf<'a> {
                 // getting named.
                 if !e.is_undefined() {
                     let (phi, t) = self.cgen_expr(e);
+                    self.solver.assert(&phi);
                     self.solver.assert(&z3f!(self,
                          (= (tid t) (tid alpha))));
                 }
             }
             Stmt::Expr(e, _) => {
                 let (phi, _) = self.cgen_expr(&mut *e);
-                println!("{:?}", &phi);
                 self.solver.assert(&phi);
             }
             Stmt::Empty => (),
@@ -210,12 +210,13 @@ impl<'a> Typeinf<'a> {
             }
             Stmt::Return(e, p) => {
                 let (phi, t) = self.cgen_expr(e);
+                let w = self.fresh_weight();
                 self.solver.assert(&phi);
                 let t_r = self.return_type.clone();
                 self.solver.assert(&z3f!(self,
-                    (or (= (tid t_r.clone()) (tid t.clone()))
+                    (or (and (id w.clone()) (= (tid t_r.clone()) (tid t.clone())))
                     // TODO(arjun): And t_r must be ground
-                        (= (tid t_r.clone()) (typ any)))
+                        (and (not (id w)) (= (tid t_r.clone()) (typ any))))
                 ));
                 **e = coerce(t, t_r, e.take(), p.clone());
             }
@@ -259,7 +260,9 @@ impl<'a> Typeinf<'a> {
                 let p = p.clone();
                 let alpha_t = self.fresh_metavar("alpha");
                 let w = self.fresh_weight();
-                let phi = (self.t(&alpha_t)._eq(&self.t(&t)) & &w) | (self.t(&alpha_t)._eq(&self.z.make_any()) & !w);
+                let phi =  z3f!(self,
+                    (or (and (unquote w.clone()) (= (tid alpha_t.clone()) (tid t.clone())))
+                        (and (not (unquote w)) (= (tid alpha_t.clone()) (typ any)))));
                 let e = expr.take();
                 *expr = coerce(t, alpha_t.clone(), e, p);
                 (phi, alpha_t)
@@ -582,6 +585,6 @@ mod tests {
             }
             F(100)
             "#);
-        assert_eq!(n, 0);
+        assert_eq!(n, 2);
     }
 }

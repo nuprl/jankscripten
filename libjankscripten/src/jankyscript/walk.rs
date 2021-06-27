@@ -243,7 +243,7 @@ where
                 for (_, t) in f.args_with_typs.iter_mut() {
                     self.walk_type(t, &loc);
                 }
-                self.walk_type(f.result_typ, &loc);
+                self.walk_type(&mut f.result_typ, &loc);
                 self.walk_stmt(&mut *f.body, &loc);
                 self.visitor.exit_fn(f, &loc);
             }
