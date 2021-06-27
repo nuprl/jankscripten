@@ -21,6 +21,11 @@ pub enum Type {
 }
 
 impl Type {
+
+    pub fn take(&mut self) -> Type {
+        std::mem::replace(self, Type::Missing)
+    }
+
     pub fn unwrap_fun(&self) -> (&Vec<Type>, &Type) {
         match self {
             Type::Function(args, ret) => (args, ret),

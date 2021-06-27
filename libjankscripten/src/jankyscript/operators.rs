@@ -4,13 +4,38 @@ use crate::rts_function::RTSFunction;
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 
+#[macro_export]
+macro_rules! z3f {
+    ($me:ident, (unquote $($t:tt)*)) => ($($t)*);
+    ($me:ident, (tid $($t:tt)*)) => ($me.t(&$($t)*));
+    ($me:ident, (typ $($t:tt)*)) => ($me.t(&typ!($($t)*)));
+    ($me:ident, (and $(($($t1:tt)*))*)) =>
+        ($me.zand(vec![ $(z3f!($me, ($($t1)*))),* ]));
+    // ($me:ident, (and ($($t1:tt)*) ($($t2:tt)*))) =>
+    //     (z3f!($me, ($($t1)*)) & &z3f!($me, ($($t2)*)));
+
+    ($me:ident, (or ($($t1:tt)*) ($($t2:tt)*))) =>
+        (z3f!($me, ($($t1)*)) | &z3f!($me, ($($t2)*)));
+
+    ($me:ident, (id $($t:tt)*)) => ($($t)*);
+    ($me:ident, (not ($($t1:tt)*))) =>
+    (!z3f!($me, ($($t1)*)));
+
+    ($me:ident, (= ($($t1:tt)*) ($($t2:tt)*))) =>
+        (z3f!($me, ($($t1)*))._eq(&z3f!($me, ($($t2)*))));
+}
+
+#[macro_export]
 macro_rules! typ {
     (int) => (Type::Int);
     (bool) => (Type::Bool);
     (string) => (Type::String);
     (any) => (Type::Any);
     (fun($( $arg:tt ),*) -> $ret:tt) =>
-        (Type::Function(vec![ $( typ!($arg) ),* ], Box::new(typ!($ret))))
+        (Type::Function(vec![ $( typ!($arg) ),* ], Box::new(typ!($ret))));
+    (fun_vec($($args:tt)*) -> $($ret:tt)*) =>
+        (Type::Function($($args)*, Box::new(typ!($($ret)*))));
+    (unquote ( $($x:tt)* ) ) => ($($x)*);
 }
 
 #[derive(Debug, Default)]

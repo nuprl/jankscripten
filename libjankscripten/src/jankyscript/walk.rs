@@ -218,11 +218,11 @@ where
         self.visitor.exit_stmt(stmt, &loc);
     }
 
-    pub fn walk_coercion(&mut self, coercion: &mut Coercion) {
+    pub fn walk_coercion(&mut self, coercion: &mut Coercion, loc: &Loc) {
         match coercion {
             Coercion::Meta(t1, t2) => {
-                self.visitor.enter_typ(t1);
-                self.visitor.enter_typ(t2);
+                self.walk_type(t1, loc);
+                self.walk_type(t2, loc);
             }
             _ => {
                 // TODO(arjun): what here?
@@ -240,6 +240,9 @@ where
             Func(f, _) => {
                 let loc = Loc::Node(Context::FunctionBody, loc);
                 self.visitor.enter_fn(f, &loc);
+                for (_, t) in f.args_with_typs.iter_mut() {
+                    self.walk_type(t, &loc);
+                }
                 self.walk_stmt(&mut *f.body, &loc);
                 self.visitor.exit_fn(f, &loc);
             }
@@ -268,7 +271,7 @@ where
             }
             Coercion(c, e, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
-                self.walk_coercion(c);
+                self.walk_coercion(c, &loc);
                 self.walk_expr(e, &loc);
             }
             // 1xExpr
@@ -326,8 +329,19 @@ where
         }
     }
 
-    pub fn walk_type(&mut self, t: &mut Type, _loc: &Loc) {
+    pub fn walk_type(&mut self, t: &mut Type, loc: &Loc) {
         self.visitor.enter_typ(t);
+        match t {
+            Type::Missing | Type::Any | Type::Float | Type::Int | Type::Bool | Type::String 
+            | Type::Array | Type::DynObject | Type::Metavar(..) => { }
+            Type::Function(args, ret) => {
+                for t in args.iter_mut() {
+                    self.walk_type(t, loc);
+                }
+                self.walk_type(ret, loc);
+            }
+            Type::Ref(t) => self.walk_type(t, loc)
+        }
     }
 }
 

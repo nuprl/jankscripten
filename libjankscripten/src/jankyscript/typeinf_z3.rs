@@ -54,11 +54,10 @@ macro_rules! z3_datatype {
             }
 
             #[allow(unused)]
-            pub fn make_dts(cxt: &'a z3::Context) -> z3::DatatypeSort<'a> {
+            pub fn make_dts(cxt: &'a z3::Context) -> z3::DatatypeBuilder<'a, 'a> {
                 z3::DatatypeBuilder::new(&cxt, stringify!($sort_name))
                     $(.variant(stringify!($variant),
                         vec![$( (stringify!($field_name), z3_datatype_accessor!($field_sort)) ),*]))*
-                    .finish()
             }
 
             // From TypeWhich, written by Luna.
@@ -98,9 +97,10 @@ macro_rules! z3_datatype {
                 $(
 
                 #[allow(unused)]
-                pub fn [<$variant _ $field_name>](self, e: &z3::ast::Dynamic<'a>) -> z3::ast::Dynamic<'a> {
+                pub fn [<$variant _ $field_name>](&self, e: &z3::ast::Dynamic<'a>) -> z3::ast::Dynamic<'a> {
                     let variant_index = self.variant_index(stringify!($variant));
-                    let field_index = *self.field_index.get(&(stringify!(variant_name), stringify!(field_name))).unwrap();
+                    let field_index = *self.field_index.get(&(stringify!($variant), stringify!($field_name)))
+                        .expect("macro error: field/variant combo missing");
                     return self.dts.variants[variant_index].accessors[field_index].apply(&[e]);
                 }
 
@@ -124,5 +124,11 @@ z3_datatype! {
     (str)
     (array)
     (dynobject)
-    (fun (args (datatype Z3Typ)))
+    (fun (args (datatype Z3TypList)) (ret (datatype Z3Typ)))
+}
+
+z3_datatype! {
+    Z3TypList
+    (tnil)
+    (tcons (thd (datatype Z3Typ)) (ttl (datatype Z3TypList)))
 }

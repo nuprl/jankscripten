@@ -7,12 +7,14 @@
 //! This module hews closely to the TypeWhich artifact:
 //!
 //! https://github.com/arjunguha/TypeWhich
+//!
 
+use crate::{typ, z3f};
 use super::super::shared::coercions::Coercion;
 use super::operators::OVERLOADS;
 use super::syntax::*;
 use super::typeinf_env::Env;
-use super::typeinf_z3::Z3Typ;
+use super::typeinf_z3::{Z3Typ, Z3TypList};
 use super::walk::{Loc, Visitor};
 use crate::pos::Pos;
 use z3::ast::{self, Ast, Dynamic};
@@ -21,9 +23,11 @@ use z3::{Model, Optimize, SatResult};
 struct Typeinf<'a> {
     vars: Vec<Dynamic<'a>>,
     z: Z3Typ<'a>,
+    zl: Z3TypList<'a>,
     solver: Optimize<'a>,
     cxt: &'a z3::Context,
     env: Env,
+    return_type: Type,
 }
 
 /// Calculates the type of a literal.
@@ -115,8 +119,25 @@ impl<'a> Typeinf<'a> {
                 .get(*n)
                 .expect("unbound type metavariable")
                 .clone(),
+            Type::Function(args, r) => {
+                let mut z_args = self.zl.make_tnil();
+                for a in args.iter().rev() {
+                    z_args = self.zl.make_tcons(&self.t(a), &z_args);
+                }
+                self.z.make_fun(&z_args, &self.t(r))
+            }
             _ => todo!("Type: {:?}", t),
         }
+    }
+
+    fn z3_to_typ_vec(&self, model: &'a Model, mut e: Dynamic<'a>) -> Vec<Type> {
+        let mut r = Vec::<Type>::new();
+        while !self.zl.is_tnil(&model, &e) {
+            let hd = model.eval(&self.zl.tcons_thd(&e)).expect("no head model");
+            r.push(self.z3_to_typ(model, hd));
+            e = model.eval(&self.zl.tcons_ttl(&e)).unwrap();
+        }
+        return r;
     }
 
     fn z3_to_typ(&self, model: &'a Model, e: Dynamic) -> Type {
@@ -130,7 +151,12 @@ impl<'a> Typeinf<'a> {
             Type::Array
         } else if self.z.is_dynobject(&model, &e) {
             Type::DynObject
-        } else {
+        } else if self.z.is_fun(&model, &e) {
+            let args = model.eval(&self.z.fun_args(&e)).expect("model for fun_args");
+            let ret = model.eval(&self.z.fun_ret(&e)).expect("model for fun_args");
+            Type::Function(self.z3_to_typ_vec(&model, args), Box::new(self.z3_to_typ(&model, ret)))
+        }
+        else {
             todo!()
         }
     }
@@ -151,10 +177,16 @@ impl<'a> Typeinf<'a> {
     pub fn cgen_stmt(&mut self, stmt: &mut Stmt) {
         match stmt {
             Stmt::Var(x, t, e, _) => {
-                assert!(e.is_undefined());
                 let alpha = self.fresh_metavar("x");
                 *t = alpha.clone();
-                self.env.update(x.clone(), alpha);
+                self.env.update(x.clone(), alpha.clone());
+                // TODO(arjun): This is a little hacky, but necessary to deal with function results
+                // getting named.
+                if !e.is_undefined() {
+                    let (phi, t) = self.cgen_expr(e);
+                    self.solver.assert(&z3f!(self,
+                         (= (tid t) (tid alpha))));
+                }
             }
             Stmt::Expr(e, _) => {
                 let (phi, _) = self.cgen_expr(&mut *e);
@@ -175,6 +207,17 @@ impl<'a> Typeinf<'a> {
                 self.env.extend(exn_name.clone(), Type::Any);
                 self.cgen_stmt(catch_body);
                 self.env = env;
+            }
+            Stmt::Return(e, p) => {
+                let (phi, t) = self.cgen_expr(e);
+                self.solver.assert(&phi);
+                let t_r = self.return_type.clone();
+                self.solver.assert(&z3f!(self,
+                    (or (= (tid t_r.clone()) (tid t.clone()))
+                    // TODO(arjun): And t_r must be ground
+                        (= (tid t_r.clone()) (typ any)))
+                ));
+                **e = coerce(t, t_r, e.take(), p.clone());
             }
             _ => todo!("{:?}", stmt),
         }
@@ -198,6 +241,7 @@ impl<'a> Typeinf<'a> {
         let phis = phis.iter().collect::<Vec<_>>();
         ast::Bool::and(self.z.cxt, phis.as_slice())
     }
+
 
     pub fn cgen_expr(&mut self, expr: &mut Expr) -> (ast::Bool<'a>, Type) {
         match expr {
@@ -314,8 +358,71 @@ impl<'a> Typeinf<'a> {
                 }
                 _ => todo!(),
             },
-            Expr::Call(..) => todo!(),
-            Expr::Func(..) => todo!(),
+            Expr::Call(f, args, p) => {
+                let w_1 = self.fresh_weight();
+                let w_2 = self.fresh_weight();
+                let (phi_1, t_f)= self.cgen_expr(f);
+                let (args_phi, args_t) = self.cgen_exprs(args.iter_mut());
+                let phi_2 = self.zand(args_phi);
+                let beta = self.fresh_metavar("beta");
+                let gamma = self.fresh_metavar("gamma");
+
+                let phi_31 = self.zand(args_t.iter().map(|x| z3f!(self, (= (tid x) (typ any)))).collect());
+                let phi_3 = z3f!(self, 
+                    (or
+                        (and (= (tid t_f) (typ fun_vec(args_t.clone()) -> unquote(beta.clone())))
+                             (id w_1.clone()))
+                        (and (= (tid t_f) (typ any))
+                             (= (tid beta) (typ any))
+                             (unquote phi_31)
+                             (not (id w_1)))));
+                let phi_4 = z3f!(self,
+                    (or (and (= (tid beta) (tid gamma)) (id w_2.clone()))
+                        (and (= (tid gamma) (typ any)) (not (id w_2)))));
+                **f = coerce(t_f, typ!(fun_vec(args_t) -> unquote(beta.clone())), f.take(), p.clone());
+                let p = p.clone();
+                let e = expr.take();
+                *expr = coerce(beta, gamma.clone(), e, p);
+                (self.zand(vec![phi_1, phi_2, phi_3, phi_4]), gamma)
+            }
+            // TypeWhich shows us how to do unary functions. Generazling
+            Expr::Func(f, p) => {
+                // Fudge stack with local state: the function body will
+                // update the environment and the return type.
+                let outer_env = self.env.clone();
+                let outer_return_typ = self.return_type.take();
+                // Fresh metavariable for the return type.
+                self.return_type = self.fresh_metavar("ret");
+                // Fresh metavariables for formal arguments.
+                for (x, t) in f.args_with_typs.iter_mut() {
+                    assert_eq!(t, &Type::Missing);
+                    *t = self.fresh_metavar("alpha");                    
+                    self.env.update(x.clone(), t.clone());
+                }
+                // Recur into the body.
+                self.cgen_stmt(&mut *f.body);
+                // Get the return type.
+                let return_typ = self.return_type.take();
+                // Pop the fudged stack.
+                self.return_type = outer_return_typ;
+                self.env = outer_env;
+
+                let args: Vec<Type> = f.args_with_typs.iter().map(|(_, t)| t.clone()).collect();
+
+                let w = self.fresh_weight();
+                let beta = self.fresh_metavar("beta");
+                let phi = z3f!(self,
+                    (or
+                        (and (= (typ unquote(beta)) (typ fun_vec(args.clone()) -> unquote(return_typ.clone())))
+                             (id w.clone()))
+                        (and (= (typ unquote(beta)) (typ any))
+                             (= (typ unquote(return_typ.clone())) (typ any))
+                             /* TODO(arjun): args must be * too. */
+                             (not (id w)))));
+                let p = p.clone();
+                *expr = coerce(typ!(fun_vec(args) -> unquote(return_typ)), beta.clone(), expr.take(), p);
+                (phi, beta)
+            }
         }
     }
 
@@ -334,13 +441,19 @@ pub fn typeinf(stmt: &mut Stmt) {
     let z3_cfg = z3::Config::new();
     let cxt = z3::Context::new(&z3_cfg);
     let dts = Z3Typ::make_dts(&cxt);
-    let z = Z3Typ::new(&cxt, &dts);
+    let dts_list = Z3TypList::make_dts(&cxt);
+    let sorts = z3::datatype_builder::create_datatypes(vec![dts, dts_list]);
+    let z = Z3Typ::new(&cxt, &sorts[0]);
+    let zl = Z3TypList::new(&cxt, &sorts[1]);
     let env = Env::new();
     let mut state = Typeinf {
         vars: Default::default(),
         z,
+        zl,
         cxt: &cxt,
         solver: Optimize::new(&cxt),
+        // Cannot have return statement at top-level
+        return_type: Type::Missing,
         env,
     };
     state.cgen_stmt(stmt);
@@ -457,5 +570,17 @@ mod tests {
             "#,
         );
         assert_eq!(n, 2);
+    }
+
+    #[test]
+    fn id_trivial_app() {
+        let n = typeinf_test(
+            r#"
+            function F(x) {
+                return x;
+            }
+            F(100)
+            "#);
+        assert_eq!(n, 0);
     }
 }
