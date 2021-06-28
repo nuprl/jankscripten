@@ -59,7 +59,7 @@ struct SubtMetavarVisitor<'a> {
 }
 
 impl<'a> Visitor for SubtMetavarVisitor<'a> {
-    fn enter_typ(&mut self, t: &mut Type) {
+    fn enter_typ(&mut self, t: &mut Type, _loc: &Loc) {
         match t {
             Type::Metavar(n) => {
                 *t = self
@@ -488,14 +488,17 @@ mod tests {
     use super::typeinf;
 
     #[derive(Default)]
-    struct CountAnys {
+    struct CountToAnys {
         num_anys: usize,
     }
 
-    impl Visitor for CountAnys {
-        fn enter_typ(&mut self, t: &mut Type) {
-            if let Type::Any = t {
-                self.num_anys += 1;
+    impl Visitor for CountToAnys {
+        fn enter_typ(&mut self, t: &mut Type, loc: &Loc) {
+            match (loc, t) {
+                (Loc::Node(Context::MetaCoercionRight(..), _), Type::Any) => {
+                    self.num_anys += 1;
+                }
+                _ => { }
             }
         }
     }
@@ -506,7 +509,7 @@ mod tests {
         desugar(&mut js, &mut ng);
         let mut janky = crate::jankyscript::from_js::from_javascript(js);
         typeinf(&mut janky);
-        let mut count_anys = CountAnys::default();
+        let mut count_anys = CountToAnys::default();
         janky.walk(&mut count_anys);
         type_check(&janky).expect("result of type inference does not type check");
         return count_anys.num_anys;
@@ -543,7 +546,7 @@ mod tests {
             x = true;
         "#,
         );
-        assert_eq!(n, 5); // TODO(arjun): 2 occurrences + 2 conversions. Why 5?
+        assert_eq!(n, 2);
     }
 
     #[test]
@@ -573,7 +576,7 @@ mod tests {
             ({x : 10}).y << 2
             "#,
         );
-        assert_eq!(n, 2);
+        assert_eq!(n, 1); // We coerce the 10 to any. The y is coerced *from* any
     }
 
     #[test]
@@ -584,6 +587,19 @@ mod tests {
                 return x;
             }
             F(100)
+            "#);
+        assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn poly_id() {
+        let n = typeinf_test(
+            r#"
+            function F(x) {
+                return x;
+            }
+            F(100);
+            F(true);
             "#);
         assert_eq!(n, 2);
     }

@@ -31,7 +31,7 @@ pub trait Visitor {
     fn enter_fn(&mut self, _func: &mut Func, _loc: &Loc) {}
     /// called after recursing on a function
     fn exit_fn(&mut self, _func: &mut Func, _loc: &Loc) {}
-    fn enter_typ(&mut self, _typ: &mut Type) {}
+    fn enter_typ(&mut self, _typ: &mut Type, _loc: &Loc) {}
 }
 
 struct VisitorState<'v, V> {
@@ -100,6 +100,13 @@ pub enum Context<'a> {
     AssignRhs,
     /// Within the context of an expression of an unknown kind.
     Expr,
+    /// Within the context of some type
+    Type,
+    /// Within the context of a coercion with the given type on the left-hand
+    /// side.
+    MetaCoercionRight(&'a Type),
+    /// Within the context of a bound identifier
+    BoundId(&'a Id),
     /// Within the left-hand side of an assignment expression.
     LValue,
     // Within a function body
@@ -121,6 +128,7 @@ pub enum Loc<'a> {
 }
 
 impl<'a> Loc<'a> {
+
     /// Produces 'true' if the current node is within a 'switch', but not nested inside a loop or a
     /// function. Thus, a 'break;' will break out of the 'switch'.
     pub fn in_switch_block(&self) -> bool {
@@ -222,7 +230,8 @@ where
         match coercion {
             Coercion::Meta(t1, t2) => {
                 self.walk_type(t1, loc);
-                self.walk_type(t2, loc);
+                let loc = Loc::Node(Context::MetaCoercionRight(t1), loc);
+                self.walk_type(t2, &loc);
             }
             _ => {
                 // TODO(arjun): what here?
@@ -236,7 +245,10 @@ where
         match expr {
             // 0
             Lit(_, _) | EnvGet(..) => (),
-            Id(_, t, _) => self.walk_type(t, loc),
+            Id(x, t, _) => {
+                let loc = Loc::Node(Context::BoundId(x), loc);
+                self.walk_type(t, &loc)
+            },
             Func(f, _) => {
                 let loc = Loc::Node(Context::FunctionBody, loc);
                 self.visitor.enter_fn(f, &loc);
@@ -253,7 +265,7 @@ where
                     self.walk_expr(e, &loc);
                 }
                 for t in ts {
-                    self.visitor.enter_typ(t)
+                    self.walk_type(t, &loc);
                 }
             }
             // 1x[Expr]
@@ -315,7 +327,8 @@ where
     pub fn walk_lval(&mut self, lval: &mut LValue, loc: &Loc) {
         use LValue::*;
         match lval {
-            Id(_, t) => {
+            Id(x, t) => {
+                let loc = Loc::Node(Context::BoundId(x), loc);
                 self.walk_type(t, &loc);
             }
             Dot(e, ..) => {
@@ -330,18 +343,19 @@ where
         }
     }
 
-    pub fn walk_type(&mut self, t: &mut Type, loc: &Loc) {
-        self.visitor.enter_typ(t);
-        match t {
+    pub fn walk_type(&mut self, typ: &mut Type, loc: &Loc) {
+        self.visitor.enter_typ(typ, loc);
+        let loc = Loc::Node(Context::Type, &loc);
+        match typ {
             Type::Missing | Type::Any | Type::Float | Type::Int | Type::Bool | Type::String 
             | Type::Array | Type::DynObject | Type::Metavar(..) => { }
             Type::Function(args, ret) => {
-                for t in args.iter_mut() {
-                    self.walk_type(t, loc);
+                for t in args {
+                    self.walk_type(t, &loc);
                 }
-                self.walk_type(ret, loc);
+                self.walk_type(ret, &loc);
             }
-            Type::Ref(t) => self.walk_type(t, loc)
+            Type::Ref(t) => self.walk_type(t, &loc)
         }
     }
 }
