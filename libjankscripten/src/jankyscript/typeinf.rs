@@ -220,7 +220,25 @@ impl<'a> Typeinf<'a> {
                 ));
                 **e = coerce(t, t_r, e.take(), p.clone());
             }
-            _ => todo!("{:?}", stmt),
+            Stmt::If(test, then_branch, else_branch, p) => {
+                let w = self.fresh_weight();
+                let (phi_1, t) = self.cgen_expr(test);
+                let phi_2 = z3f!(self,
+                    (or (and (id w.clone()) 
+                             (= (tid t.clone()) (typ bool)))
+                        (and (not (id w))
+                             (= (tid t.clone()) (typ any)))));
+                self.solver.assert(&phi_1);
+                self.solver.assert(&phi_2);
+                **test = coerce(t, typ!(bool), test.take(), p.clone());
+                self.cgen_stmt(then_branch);                       
+                self.cgen_stmt(else_branch);
+            }
+            Stmt::ForIn(..) => todo!(),
+            Stmt::Break(..) => todo!(),
+            Stmt::Throw(..) => todo!(),
+            Stmt::Finally(..) => todo!(),
+            // _ => todo!("{:?}", stmt),
         }
     }
 
@@ -308,6 +326,8 @@ impl<'a> Typeinf<'a> {
                 // Fresh type metavariables for each argument
                 let mut betas_t = Vec::new();
                 for (arg, arg_t) in args.iter_mut().zip(&args_t) {
+                    // TODO(arjun): A little hack to avoid creating pointless metavars. This can probably
+                    // be abstracted into a helper. It appears in several places, I think.
                     match arg_t {
                         Type::Metavar(_) => {
                             betas_t.push(arg_t.clone());
@@ -326,8 +346,9 @@ impl<'a> Typeinf<'a> {
                     // For this overload, arguments and result must match
                     let mut conjuncts = vec![w.clone()];
                     for ((t1, t2), t3) in args_t.iter().zip(op_arg_t).zip(betas_t.iter()) {
-                        conjuncts.push(self.t(t1)._eq(&self.t(t2)));
-                        conjuncts.push(self.t(t2)._eq(&self.t(t3)));
+                        // TODO(arjun): Duplication in Z3
+                        conjuncts.push(z3f!(self, (= (tid t1) (tid t2))));
+                        conjuncts.push(z3f!(self, (= (tid t2) (tid t3))));
                     }
                     conjuncts.push(self.t(&alpha_t)._eq(&self.t(op_ret_t)));
                     disjuncts.push(self.zand(conjuncts));
@@ -603,4 +624,32 @@ mod tests {
             "#);
         assert_eq!(n, 2);
     }
+
+    #[test]
+    fn inc_fn() {
+        let n = typeinf_test(r#"
+            function F(x) {
+                return x + 1; // In the generated constraint, the type of x is a metavariable
+            }
+            F(10);"#);
+        assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn fac() {
+        let n = typeinf_test(
+            r#"
+            function F(x) {
+                if (x === 0) {
+                    return 0;
+                }
+                else {
+                    return x * F(x - 1);
+                }
+            }
+            F(100);
+            "#);
+        assert_eq!(n, 0);
+    }
+
 }

@@ -28,6 +28,7 @@ macro_rules! z3f {
 #[macro_export]
 macro_rules! typ {
     (int) => (Type::Int);
+    (float) => (Type::Float);
     (bool) => (Type::Bool);
     (string) => (Type::String);
     (any) => (Type::Any);
@@ -67,6 +68,7 @@ impl OverloadTable {
             .map(|(t, _)| t)
     }
 
+    /// Used to select an operator once argument types are known.
     pub fn target(&self, op: &JsOp, arg_typs: &[Type]) -> Option<&NotwasmOp> {
         self.table
             .get(op)
@@ -80,6 +82,7 @@ impl OverloadTable {
             .map(|x| &x.1)
     }
 
+    // When arguments do not match a known overload, used to call a generic version of the operator.
     pub fn any_target(&self, op: &JsOp) -> &(Type, NotwasmOp) {
         self.table.get(op).unwrap().on_other_args.as_ref().unwrap()
     }
@@ -130,8 +133,13 @@ lazy_static! {
         let mut table = OverloadTable::default();
         table.add(Plus, typ!(fun(int, int) -> int), I32Add);
         // TODO(arjun): Why not string cat?
+        // TODO(arjun): should this be int*int->int?
         table.add(Plus, typ!(fun(string, string) -> any), RTSFunction::Plus);
         table.add_on_any(Plus, typ!(fun(any, any) -> any), RTSFunction::Plus);
+
+
+        table.add(Minus, typ!(fun(float, float) -> float), I32Sub);
+        table.add_on_any(Minus, typ!(fun(any, any) -> float), RTSFunction::Minus);
 
         table.add(LeftShift, typ!(fun(int, int) -> int), I32Shl);
         table.add_on_any(LeftShift, typ!(fun(int, int) -> int), I32Shl);
