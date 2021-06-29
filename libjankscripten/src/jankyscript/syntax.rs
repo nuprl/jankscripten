@@ -104,6 +104,15 @@ impl From<js::UnaryOp> for JsOp {
     }
 }
 
+#[derive(Debug, PartialEq, Default)]
+pub struct JsOpTypeinf {
+    /// During type inference, holds type-metavariables with the types of each argument.
+    pub arg_ts: Vec<Type>,
+    /// During type inference, holds a metavariable that resolved to the inferred NotwasmOp.
+    pub op_metavar: NotwasmOp,
+    pub any_case: Option<crate::z3ez::Bool>,
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Expr {
     Lit(Lit, Pos),
@@ -112,9 +121,8 @@ pub enum Expr {
     Id(Id, Type, Pos),
     Dot(Box<Expr>, Id, Pos),
     Bracket(Box<Expr>, Box<Expr>, Pos),
-    /// A JavaScript operator. The vector of types is filled in during type
-    /// inference. During desugaring, we set it to the empty vector.
-    JsOp(JsOp, Vec<Expr>, Vec<Type>, NotwasmOp, Pos),
+    /// A JavaScript operator.
+    JsOp(JsOp, Vec<Expr>, JsOpTypeinf, Pos),
     Unary(UnaryOp, Box<Expr>, Pos),
     Binary(BinaryOp, Box<Expr>, Box<Expr>, Pos),
     Assign(Box<LValue>, Box<Expr>, Pos),

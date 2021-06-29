@@ -1,6 +1,6 @@
 //! Type inference for JankyScript, using the TypeWhich approach.
 //!
-//! See the TypeWhich paper for details for a high-level overview:
+//! See the TypeWhich paper for a high-level overview:
 //!
 //! https://khoury.northeastern.edu/~arjunguha/main/papers/2021-typewhich.html
 //!
@@ -8,6 +8,13 @@
 //!
 //! https://github.com/arjunguha/TypeWhich
 //!
+//! However, it goes beyond the artifact and paper in a few ways:
+//! 
+//! 1. This module deals with operator overloading in a more sophisticated way. The presentation of
+//!    overloading in the TypeWhich paper hand-waved through instruction selection, which is
+//!    implemented here.
+//! 2. This module supports n-ary functions, which requires a second datatype in Z3 to represent a
+//!    list of types.
 
 use crate::{typ, z3f};
 use super::super::shared::coercions::Coercion;
@@ -17,6 +24,7 @@ use super::typeinf_env::Env;
 use super::typeinf_z3::{Z3Typ, Z3TypList};
 use super::walk::{Loc, Visitor};
 use crate::pos::Pos;
+use crate::z3ez::Z3EZ;
 use z3::ast::{self, Ast, Dynamic};
 use z3::{Model, Optimize, SatResult};
 use super::operators_z3::Z3Operators;
@@ -26,10 +34,12 @@ struct Typeinf<'a> {
     z: Z3Typ<'a>,
     zl: Z3TypList<'a>,
     ops: Z3Operators<'a>,
-    solver: Optimize<'a>,
+    solver: &'a Optimize<'a>,
     cxt: &'a z3::Context,
     env: Env,
     return_type: Type,
+    trace: bool,
+    z3ez: Z3EZ<'a>,
 }
 
 /// Calculates the type of a literal.
@@ -60,6 +70,7 @@ struct SubtMetavarVisitor<'a> {
     vars: &'a Vec<Type>,
     ops: &'a Z3Operators<'a>,
     model: &'a Model<'a>,
+    z3ez: &'a Z3EZ<'a>,
 }
 
 impl<'a> Visitor for SubtMetavarVisitor<'a> {
@@ -85,29 +96,25 @@ impl<'a> Visitor for SubtMetavarVisitor<'a> {
                     }
                 }
             }
-            Expr::JsOp(op, arg_es, arg_ts, op_metavar, p) => {
+            Expr::JsOp(op, arg_es, JsOpTypeinf { arg_ts, op_metavar, any_case }, p) => {
                 let p = std::mem::replace(p, Default::default());
                 let mut es = std::mem::replace(arg_es, Default::default());
-                let lower_op = self.ops.eval_op(op_metavar, self.model);
-                *expr = lower_op.make_app(es, p);
-                // TODO(arjun): conversion code below is critical for any case
-                /*
-                match OVERLOADS.target(op, arg_ts.as_slice()) {
-                    Some(lower_op) => {
+                println!("JsOp selection: {:?}, {:?}", arg_ts, op_metavar);
+                match self.z3ez.eval_bool_const(self.model, &any_case.unwrap()) {
+                    true => {
+                        let lower_op = self.ops.eval_op(op_metavar, self.model);
                         *expr = lower_op.make_app(es, p);
                     }
-                    None => {
-                        let (ty, lower_op) = OVERLOADS.any_target(op);
-                        let (conv_arg_tys, _) = ty.unwrap_fun();
-                        // TODO(arjun): This is going to end up duplicating a lot of
-                        // code that appears above.
-                        for (e, t) in es.iter_mut().zip(conv_arg_tys) {
+                    false => {
+                        println!("in the false case");
+                        let lower_op = self.ops.eval_op(op_metavar, self.model);
+                        for (e, t) in es.iter_mut().zip(arg_ts) {
+                            println!("{:?}, {:?}", e, t);
                             *e = coerce(Type::Any, t.clone(), e.take(), p.clone());
                         }
                         *expr = lower_op.make_app(es, p);
                     }
-                }
-                */
+                }        
             }
             _ => {}
         }
@@ -155,7 +162,14 @@ impl<'a> Typeinf<'a> {
     fn z3_to_typ(&self, model: &'a Model, e: Dynamic) -> Type {
         if self.z.is_int(model, &e) {
             Type::Int
-        } else if self.z.is_any(model, &e) {
+        }
+        else if self.z.is_float(&model, &e) {
+            Type::Float
+        }
+        else if self.z.is_bool(&model, &e) {
+            Type::Bool
+        }
+        else if self.z.is_any(model, &e) {
             Type::Any
         } else if self.z.is_str(model, &e) {
             Type::String
@@ -169,7 +183,7 @@ impl<'a> Typeinf<'a> {
             Type::Function(self.z3_to_typ_vec(&model, args), Box::new(self.z3_to_typ(&model, ret)))
         }
         else {
-            todo!()
+            panic!("{:?}", model.eval(&e));
         }
     }
 
@@ -326,8 +340,10 @@ impl<'a> Typeinf<'a> {
                 (phi_1 & phi_2, Type::Any)
             }
             Expr::Bracket(..) => todo!(),
-            Expr::JsOp(op, args, empty_args_t, op_metavar, _) => {
+            Expr::JsOp(op, args, JsOpTypeinf { arg_ts, op_metavar, any_case }, _) => {
                 let w = self.fresh_weight();
+                *any_case = Some(self.z3ez.fresh_bool_const());
+                let any_case_z3 = any_case.unwrap().z(&self.z3ez);
                 // Fresh metavariable for the operator that we will select, stored in the AST for
                 // the next phase.
                 *op_metavar = self.ops.fresh_op_selector();
@@ -339,19 +355,10 @@ impl<'a> Typeinf<'a> {
                 // Fresh type metavariables for each argument
                 let mut betas_t = Vec::new();
                 for (arg, arg_t) in args.iter_mut().zip(&args_t) {
-                    // TODO(arjun): A little hack to avoid creating pointless metavars. This can probably
-                    // be abstracted into a helper. It appears in several places, I think.
-                    match arg_t {
-                        Type::Metavar(_) => {
-                            betas_t.push(arg_t.clone());
-                        }
-                        _ => {
-                            let a = arg.take();
-                            let beta_t = self.fresh_metavar("beta");
-                            *arg = coerce(arg_t.clone(), beta_t.clone(), a, Default::default());
-                            betas_t.push(beta_t);
-                        }
-                    }
+                    let a = arg.take();
+                    let beta_t = self.fresh_metavar("beta");
+                    *arg = coerce(arg_t.clone(), beta_t.clone(), a, Default::default());
+                    betas_t.push(beta_t);
                 }
                 // In DNF, one disjunct for each overload
                 let mut disjuncts = Vec::new();
@@ -361,6 +368,7 @@ impl<'a> Typeinf<'a> {
                     // For this overload, arguments and result must match
                     let mut conjuncts = vec![
                         w.clone(), // favor using a precise overload
+                        z3f!(self, (unquote any_case_z3.clone())),
                         z3f!(self, (= (unquote self.ops.z(&op_metavar)) (unquote self.ops.z(notwasm_op))))
                     ];
                     for ((t1, t2), t3) in args_t.iter().zip(op_arg_t).zip(betas_t.iter()) {
@@ -372,11 +380,13 @@ impl<'a> Typeinf<'a> {
                     disjuncts.push(self.zand(conjuncts));
                 }
 
+                // Special case: what we do when none of the precise overloads match
                 if let Some((any_ts, notwasm_op)) = OVERLOADS.on_any(op) {
                     let t = any_ts.instantiate();
-                    let (_, result_typ) = t.unwrap_fun();
+                    let (any_case_args, result_typ) = t.unwrap_fun();
                     let mut conjuncts = vec![
-                        !w, // Try to avoid this case
+                        !w, // Try to avoid this case,
+                        z3f!(self, (not (unquote any_case_z3))),
                         z3f!(self, (= (unquote self.ops.z(&op_metavar)) (unquote self.ops.z(notwasm_op))))
                     ];
                     for (_t1, t2) in args_t.iter().zip(betas_t.iter()) {
@@ -384,13 +394,12 @@ impl<'a> Typeinf<'a> {
                         conjuncts.push(self.t(t2)._eq(&self.z.make_any()));
                     }
                     conjuncts.push(self.t(&alpha_t)._eq(&self.t(result_typ)));
-                    disjuncts.push(self.zand(conjuncts))
+                    disjuncts.push(self.zand(conjuncts));
+                    *arg_ts = any_case_args.clone();
                 }
                 let cases =
                     ast::Bool::or(self.z.cxt, disjuncts.iter().collect::<Vec<_>>().as_slice());
                 args_phi.push(cases);
-                // Annotate the AST with the type metavariables that hold the argument types
-                *empty_args_t = betas_t;
                 (self.zand(args_phi), alpha_t)
             }
             Expr::Assign(lval, e, _) => match &mut **lval {
@@ -494,19 +503,27 @@ pub fn typeinf(stmt: &mut Stmt) {
     let zl = Z3TypList::new(&cxt, &sorts[1]);
     let ops = Z3Operators::new(&OVERLOADS, &cxt);
     let env = Env::new();
+    let trace = false;
+    let solver = Optimize::new(&cxt);
+    let z3ez = Z3EZ::new(&cxt, &solver);
     let mut state = Typeinf {
+        trace,
         vars: Default::default(),
         z,
         zl,
+        z3ez,
         cxt: &cxt,
         ops,
-        solver: Optimize::new(&cxt),
+        solver: &solver,
         // Cannot have return statement at top-level
         return_type: Type::Missing,
         env,
     };
     state.cgen_stmt(stmt);
-    println!("Before subst: {}", &stmt);    
+    println!("Before subst: {}", &stmt);  
+    if state.trace {
+        println!("{:?}", state.solver);
+    }  
     match state.solver.check(&[]) {
         SatResult::Unknown => panic!("Got an unknown from Z3"),
         SatResult::Unsat => panic!("type inference failed (unsat)"),
@@ -519,7 +536,7 @@ pub fn typeinf(stmt: &mut Stmt) {
     let mapping = state.solve_model(&model);
 
 
-    let mut subst_metavar = SubtMetavarVisitor { vars: &mapping, model: &model, ops: &state.ops };
+    let mut subst_metavar = SubtMetavarVisitor { z3ez: &state.z3ez, vars: &mapping, model: &model, ops: &state.ops };
     stmt.walk(&mut subst_metavar);
     println!("After cgen: {}", &stmt);
 }
@@ -665,8 +682,8 @@ mod tests {
         let n = typeinf_test(
             r#"
             function F(x) {
-                if (x === 0) {
-                    return 0;
+                if ( x === 0) {
+                    return 1;
                 }
                 else {
                     return x * F(x - 1);
@@ -674,7 +691,7 @@ mod tests {
             }
             F(100);
             "#);
-        assert_eq!(n, 0);
+        assert_eq!(n, 2); // coercions are for the comparison
     }
 
 }

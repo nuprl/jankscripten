@@ -195,13 +195,14 @@ lazy_static! {
 
         table.add(Minus, typ!(fun(float, float) -> float), F64Sub);
         table.add(Minus, typ!(fun(int, int) -> int), I32Sub);
-        table.add_on_any(Minus, typ!(fun(any, any) -> float), RTSFunction::Minus);
+        table.add_on_any(Minus, typ!(fun(any, any) -> any), RTSFunction::Minus);
 
         table.add(LeftShift, typ!(fun(int, int) -> int), I32Shl);
         table.add(Times, typ!(fun(float, float) -> float), F64Mul); 
         table.add(Times, typ!(fun(int, int) -> int), I32Mul); 
+        table.add(Times, typ!(fun(any, any) -> any), RTSFunction::Times);
         table.add_on_any(LeftShift, typ!(fun(int, int) -> int), I32Shl);
-        table.add(StrictEqual, typ!(fun(any, any) -> bool), RTSFunction::StrictEqual);
+        table.add_on_any(StrictEqual, typ!(fun(any, any) -> bool), RTSFunction::StrictEqual);
         // ]).others(typ!(int)),
 
         table
