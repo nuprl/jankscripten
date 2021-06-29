@@ -259,7 +259,7 @@ where
                 self.walk_stmt(&mut *f.body, &loc);
                 self.visitor.exit_fn(f, &loc);
             }
-            JsOp(_, es, ts, _) => {
+            JsOp(_, es, ts, _, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 for e in es {
                     self.walk_expr(e, &loc);

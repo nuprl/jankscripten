@@ -7,6 +7,7 @@ pub use crate::shared::coercions::Coercion;
 pub use crate::shared::Type;
 use im_rc::HashMap;
 use im_rc::HashSet as ImmHashSet;
+use super::operators::NotwasmOp;
 
 pub type Id = super::super::javascript::Id;
 pub type Lit = super::super::javascript::Lit;
@@ -113,7 +114,7 @@ pub enum Expr {
     Bracket(Box<Expr>, Box<Expr>, Pos),
     /// A JavaScript operator. The vector of types is filled in during type
     /// inference. During desugaring, we set it to the empty vector.
-    JsOp(JsOp, Vec<Expr>, Vec<Type>, Pos),
+    JsOp(JsOp, Vec<Expr>, Vec<Type>, NotwasmOp, Pos),
     Unary(UnaryOp, Box<Expr>, Pos),
     Binary(BinaryOp, Box<Expr>, Box<Expr>, Pos),
     Assign(Box<LValue>, Box<Expr>, Pos),

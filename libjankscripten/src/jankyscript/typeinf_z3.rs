@@ -120,6 +120,7 @@ z3_datatype! {
     Z3Typ
     (any)
     (int)
+    (float)
     (bool)
     (str)
     (array)

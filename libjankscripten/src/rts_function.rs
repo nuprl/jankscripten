@@ -8,7 +8,7 @@
 use super::jankyscript::syntax::Type::{self, *};
 use strum_macros::EnumIter;
 
-#[derive(Debug, Clone, Copy, PartialEq, EnumIter)]
+#[derive(Debug, Clone, Copy, PartialEq, EnumIter, Eq, Hash)]
 pub enum RTSFunction {
     Todo(&'static str),
     // ???

@@ -13,5 +13,6 @@ mod typeinf;
 mod typeinf_env;
 mod typeinf_z3;
 mod walk;
+mod operators_z3;
 
 pub use compile::compile;

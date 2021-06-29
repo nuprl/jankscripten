@@ -19,11 +19,13 @@ use super::walk::{Loc, Visitor};
 use crate::pos::Pos;
 use z3::ast::{self, Ast, Dynamic};
 use z3::{Model, Optimize, SatResult};
+use super::operators_z3::Z3Operators;
 
 struct Typeinf<'a> {
     vars: Vec<Dynamic<'a>>,
     z: Z3Typ<'a>,
     zl: Z3TypList<'a>,
+    ops: Z3Operators<'a>,
     solver: Optimize<'a>,
     cxt: &'a z3::Context,
     env: Env,
@@ -56,6 +58,8 @@ fn coerce(src: Type, dst: Type, e: Expr, p: Pos) -> Expr {
 
 struct SubtMetavarVisitor<'a> {
     vars: &'a Vec<Type>,
+    ops: &'a Z3Operators<'a>,
+    model: &'a Model<'a>,
 }
 
 impl<'a> Visitor for SubtMetavarVisitor<'a> {
@@ -81,9 +85,13 @@ impl<'a> Visitor for SubtMetavarVisitor<'a> {
                     }
                 }
             }
-            Expr::JsOp(op, arg_es, arg_ts, p) => {
+            Expr::JsOp(op, arg_es, arg_ts, op_metavar, p) => {
                 let p = std::mem::replace(p, Default::default());
                 let mut es = std::mem::replace(arg_es, Default::default());
+                let lower_op = self.ops.eval_op(op_metavar, self.model);
+                *expr = lower_op.make_app(es, p);
+                // TODO(arjun): conversion code below is critical for any case
+                /*
                 match OVERLOADS.target(op, arg_ts.as_slice()) {
                     Some(lower_op) => {
                         *expr = lower_op.make_app(es, p);
@@ -99,16 +107,20 @@ impl<'a> Visitor for SubtMetavarVisitor<'a> {
                         *expr = lower_op.make_app(es, p);
                     }
                 }
+                */
             }
             _ => {}
         }
     }
 }
 
+
+
 impl<'a> Typeinf<'a> {
     fn t(&self, t: &Type) -> z3::ast::Dynamic<'a> {
         match t {
             Type::Int => self.z.make_int(),
+            Type::Float => self.z.make_float(),
             Type::Any => self.z.make_any(),
             Type::String => self.z.make_str(),
             Type::Bool => self.z.make_bool(),
@@ -314,8 +326,11 @@ impl<'a> Typeinf<'a> {
                 (phi_1 & phi_2, Type::Any)
             }
             Expr::Bracket(..) => todo!(),
-            Expr::JsOp(op, args, empty_args_t, _) => {
+            Expr::JsOp(op, args, empty_args_t, op_metavar, _) => {
                 let w = self.fresh_weight();
+                // Fresh metavariable for the operator that we will select, stored in the AST for
+                // the next phase.
+                *op_metavar = self.ops.fresh_op_selector();
                 // Fresh type metavariable for the result of this expression
                 let alpha_t = self.fresh_metavar("alpha");
                 // Recur into each argument and unzip Z3 constants and our type metavars
@@ -340,9 +355,14 @@ impl<'a> Typeinf<'a> {
                 }
                 // In DNF, one disjunct for each overload
                 let mut disjuncts = Vec::new();
-                for (op_arg_t, op_ret_t) in OVERLOADS.overloads(op).map(|t| t.unwrap_fun()) {
+                for (ts, notwasm_op) in OVERLOADS.overloads(op) {
+                    let t = ts.instantiate();
+                    let (op_arg_t, op_ret_t) = t.unwrap_fun();
                     // For this overload, arguments and result must match
-                    let mut conjuncts = vec![w.clone()];
+                    let mut conjuncts = vec![
+                        w.clone(), // favor using a precise overload
+                        z3f!(self, (= (unquote self.ops.z(&op_metavar)) (unquote self.ops.z(notwasm_op))))
+                    ];
                     for ((t1, t2), t3) in args_t.iter().zip(op_arg_t).zip(betas_t.iter()) {
                         // TODO(arjun): Duplication in Z3
                         conjuncts.push(z3f!(self, (= (tid t1) (tid t2))));
@@ -352,9 +372,13 @@ impl<'a> Typeinf<'a> {
                     disjuncts.push(self.zand(conjuncts));
                 }
 
-                if let Some(any_ty) = OVERLOADS.on_any(op) {
-                    let (_, result_typ) = any_ty.unwrap_fun();
-                    let mut conjuncts = vec![!w];
+                if let Some((any_ts, notwasm_op)) = OVERLOADS.on_any(op) {
+                    let t = any_ts.instantiate();
+                    let (_, result_typ) = t.unwrap_fun();
+                    let mut conjuncts = vec![
+                        !w, // Try to avoid this case
+                        z3f!(self, (= (unquote self.ops.z(&op_metavar)) (unquote self.ops.z(notwasm_op))))
+                    ];
                     for (_t1, t2) in args_t.iter().zip(betas_t.iter()) {
                         // TODO(arjun): t1 must be compatible with any
                         conjuncts.push(self.t(t2)._eq(&self.z.make_any()));
@@ -449,7 +473,7 @@ impl<'a> Typeinf<'a> {
         }
     }
 
-    fn solve_model(&self, model: z3::Model) -> Vec<Type> {
+    fn solve_model(&self, model: &z3::Model) -> Vec<Type> {
         let mut result = Vec::new();
         for x_ast in self.vars.iter() {
             let x_val_ast = model.eval(x_ast).expect("evaluating metavar");
@@ -468,18 +492,21 @@ pub fn typeinf(stmt: &mut Stmt) {
     let sorts = z3::datatype_builder::create_datatypes(vec![dts, dts_list]);
     let z = Z3Typ::new(&cxt, &sorts[0]);
     let zl = Z3TypList::new(&cxt, &sorts[1]);
+    let ops = Z3Operators::new(&OVERLOADS, &cxt);
     let env = Env::new();
     let mut state = Typeinf {
         vars: Default::default(),
         z,
         zl,
         cxt: &cxt,
+        ops,
         solver: Optimize::new(&cxt),
         // Cannot have return statement at top-level
         return_type: Type::Missing,
         env,
     };
     state.cgen_stmt(stmt);
+    println!("Before subst: {}", &stmt);    
     match state.solver.check(&[]) {
         SatResult::Unknown => panic!("Got an unknown from Z3"),
         SatResult::Unsat => panic!("type inference failed (unsat)"),
@@ -489,10 +516,10 @@ pub fn typeinf(stmt: &mut Stmt) {
         .solver
         .get_model()
         .expect("model not available (despite SAT result)");
-    let mapping = state.solve_model(model);
+    let mapping = state.solve_model(&model);
 
-    println!("Before subst: {}", &stmt);
-    let mut subst_metavar = SubtMetavarVisitor { vars: &mapping };
+
+    let mut subst_metavar = SubtMetavarVisitor { vars: &mapping, model: &model, ops: &state.ops };
     stmt.walk(&mut subst_metavar);
     println!("After cgen: {}", &stmt);
 }
