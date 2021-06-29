@@ -316,8 +316,6 @@ impl<'a> Typeinf<'a> {
             Expr::Bracket(..) => todo!(),
             Expr::JsOp(op, args, empty_args_t, _) => {
                 let w = self.fresh_weight();
-                // all overloads for op
-                let sigs = OVERLOADS.overloads(op);
                 // Fresh type metavariable for the result of this expression
                 let alpha_t = self.fresh_metavar("alpha");
                 // Recur into each argument and unzip Z3 constants and our type metavars
@@ -342,7 +340,7 @@ impl<'a> Typeinf<'a> {
                 }
                 // In DNF, one disjunct for each overload
                 let mut disjuncts = Vec::new();
-                for (op_arg_t, op_ret_t) in sigs.map(|t| t.unwrap_fun()) {
+                for (op_arg_t, op_ret_t) in OVERLOADS.overloads(op).map(|t| t.unwrap_fun()) {
                     // For this overload, arguments and result must match
                     let mut conjuncts = vec![w.clone()];
                     for ((t1, t2), t3) in args_t.iter().zip(op_arg_t).zip(betas_t.iter()) {
