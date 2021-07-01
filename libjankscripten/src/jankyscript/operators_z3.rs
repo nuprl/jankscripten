@@ -1,5 +1,4 @@
-use super::operators::{NotwasmOp, OverloadTable, TypeScheme};
-use super::syntax::*;
+use super::operators::{NotwasmOp, OverloadTable};
 use std::collections::HashMap;
 use z3;
 

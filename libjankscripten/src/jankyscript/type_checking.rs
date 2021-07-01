@@ -200,13 +200,20 @@ fn type_check_stmt(stmt: &Stmt, env: Env, ret_ty: &Option<Type>) -> TypeChecking
             Ok(env)
         }
         Stmt::Var(x, t, e, s) => {
-            // TODO(arjun): skipping variable initializers
-            // ensure(
-            //     "variable declaration matches given type",
-            //     t.clone(),
-            //     type_check_expr(e, env.clone())?,
-            //     &s,
-            // )?;
+            match &**e {
+                Expr::Lit(Lit::Undefined, _) => {
+                    // TODO(arjun): This is a little hacky, but necessary to deal with function
+                    // results getting named.
+                }
+                _ => {
+                    ensure(
+                        "variable declaration matches given type",
+                        t.clone(),
+                        type_check_expr(e, env.clone())?,
+                        &s,
+                    )?;
+                }
+            }
 
             Ok(env.update(x.clone(), t.clone()))
         }

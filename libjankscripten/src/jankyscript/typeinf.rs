@@ -21,13 +21,34 @@ use super::operators::OVERLOADS;
 use super::operators_z3::Z3Operators;
 use super::syntax::*;
 use super::typeinf_env::Env;
-use super::typeinf_z3::{Z3Typ, Z3TypList};
 use super::walk::{Loc, Visitor};
 use crate::pos::Pos;
 use crate::z3ez::Z3EZ;
-use crate::{typ, z3f};
+use crate::{typ};
 use z3::ast::{self, Ast, Dynamic};
 use z3::{Model, Optimize, SatResult};
+// paste::paste and crate::z3_data_type_accessor are macros that appear during expansion of
+// z3_datatype. Do we really have to import them here? There must be a better way.
+use paste::paste;
+use crate::{z3f, z3_datatype, z3_datatype_accessor};
+
+z3_datatype! {
+    Z3Typ
+    (any)
+    (int)
+    (float)
+    (bool)
+    (str)
+    (array)
+    (dynobject)
+    (fun (args (datatype Z3TypList)) (ret (datatype Z3Typ)))
+}
+
+z3_datatype! {
+    Z3TypList
+    (tnil)
+    (tcons (thd (datatype Z3Typ)) (ttl (datatype Z3TypList)))
+}
 
 struct Typeinf<'a> {
     vars: Vec<Dynamic<'a>>,
@@ -94,29 +115,17 @@ impl<'a> Visitor for SubtMetavarVisitor<'a> {
                     }
                 }
             }
-            Expr::JsOp(
-                op,
-                arg_es,
-                JsOpTypeinf {
-                    arg_ts,
-                    op_metavar,
-                    any_case,
-                },
-                p,
-            ) => {
+            Expr::JsOp(_, arg_es, ti, p) => {
                 let p = std::mem::replace(p, Default::default());
                 let mut es = std::mem::replace(arg_es, Default::default());
-                println!("JsOp selection: {:?}, {:?}", arg_ts, op_metavar);
-                match self.z3ez.eval_bool_const(self.model, &any_case.unwrap()) {
+                match self.z3ez.eval_bool_const(self.model, &ti.any_case.unwrap()) {
                     true => {
-                        let lower_op = self.ops.eval_op(op_metavar, self.model);
+                        let lower_op = self.ops.eval_op(&ti.op_metavar, self.model);
                         *expr = lower_op.make_app(es, p);
                     }
                     false => {
-                        println!("in the false case");
-                        let lower_op = self.ops.eval_op(op_metavar, self.model);
-                        for (e, t) in es.iter_mut().zip(arg_ts) {
-                            println!("{:?}, {:?}", e, t);
+                        let lower_op = self.ops.eval_op(&ti.op_metavar, self.model);
+                        for (e, t) in es.iter_mut().zip(&ti.arg_ts) {
                             *e = coerce(Type::Any, t.clone(), e.take(), p.clone());
                         }
                         *expr = lower_op.make_app(es, p);
@@ -256,7 +265,7 @@ impl<'a> Typeinf<'a> {
                 let w = self.fresh_weight();
                 let (phi_1, t) = self.cgen_expr(test);
                 let phi_2 = z3f!(self,
-                    (or (and (id w.clone()) 
+                    (or (and (id w.clone())
                              (= (tid t.clone()) (typ bool)))
                         (and (not (id w))
                              (= (tid t.clone()) (typ any)))));
@@ -310,8 +319,8 @@ impl<'a> Typeinf<'a> {
                 let alpha_t = self.fresh_metavar("alpha");
                 let w = self.fresh_weight();
                 let phi = z3f!(self,
-                    (or (and (unquote w.clone()) (= (tid alpha_t.clone()) (tid t.clone())))
-                        (and (not (unquote w)) (= (tid alpha_t.clone()) (typ any)))));
+                    (or (and (unquote w.clone()) (= (tid alpha_t) (tid t)))
+                        (and (not (unquote w)) (= (tid alpha_t) (typ any)))));
                 let e = expr.take();
                 *expr = coerce(t, alpha_t.clone(), e, p);
                 (phi, alpha_t)
@@ -319,27 +328,33 @@ impl<'a> Typeinf<'a> {
             Expr::Array(es, _) => {
                 let (mut phis, ts) = self.cgen_exprs(es.iter_mut());
                 for t in ts {
-                    phis.push(self.t(&t)._eq(&self.z.make_any()));
+                    // The reader may wonder if this constraint is too strict. Why should we force
+                    // each element to be any, instead of coercing them to any? A coercion would
+                    // break pointer-equality.
+                    phis.push(z3f!(self, (= (tid t) (typ any))));
                 }
                 (self.zand(phis), Type::Array)
             }
             Expr::Object(props, _) => {
                 let (mut phis, ts) = self.cgen_exprs(props.iter_mut().map(|(_, e)| e));
                 for t in ts {
-                    phis.push(self.t(&t)._eq(&self.z.make_any()));
+                    // See note for array elements: same principle applies here.
+                    phis.push(z3f!(self, (= (tid t) (typ any))));
                 }
                 (self.zand(phis), Type::DynObject)
             }
             Expr::Id(x, t, _) => {
                 *t = self.env.get(x);
-                (ast::Bool::from_bool(self.cxt, true), t.clone())
+                (z3f!(self, true), t.clone())
             }
             Expr::Dot(e, _x, p) => {
                 let p = p.clone();
                 let w = self.fresh_weight();
                 let (phi_1, t) = self.cgen_expr(e);
-                let phi_2 = (self.t(&t)._eq(&self.z.make_dynobject()) & &w)
-                    | (self.t(&t)._eq(&self.z.make_any()) & !w);
+                let phi_2 = z3f!(self, 
+                    (or 
+                        (and (= (tid t) (typ dynobject)) (unquote w.clone()))
+                        (and (= (tid t) (typ any)) (not (unquote &w)))));
                 let e = expr.take();
                 *expr = coerce(t, Type::DynObject, e, p);
                 (phi_1 & phi_2, Type::Any)
@@ -376,8 +391,7 @@ impl<'a> Typeinf<'a> {
                 }
                 // In DNF, one disjunct for each overload
                 let mut disjuncts = Vec::new();
-                for (ts, notwasm_op) in OVERLOADS.overloads(op) {
-                    let t = ts.instantiate();
+                for (t, notwasm_op) in OVERLOADS.overloads(op) {
                     let (op_arg_t, op_ret_t) = t.unwrap_fun();
                     // For this overload, arguments and result must match
                     let mut conjuncts = vec![
@@ -395,8 +409,7 @@ impl<'a> Typeinf<'a> {
                 }
 
                 // Special case: what we do when none of the precise overloads match
-                if let Some((any_ts, notwasm_op)) = OVERLOADS.on_any(op) {
-                    let t = any_ts.instantiate();
+                if let Some((t, notwasm_op)) = OVERLOADS.on_any(op) {
                     let (any_case_args, result_typ) = t.unwrap_fun();
                     let mut conjuncts = vec![
                         !w, // Try to avoid this case,
@@ -442,7 +455,7 @@ impl<'a> Typeinf<'a> {
                         .map(|x| z3f!(self, (= (tid x) (typ any))))
                         .collect(),
                 );
-                let phi_3 = z3f!(self, 
+                let phi_3 = z3f!(self,
                     (or
                         (and (= (tid t_f) (typ fun_vec(args_t.clone()) -> unquote(beta.clone())))
                              (id w_1.clone()))

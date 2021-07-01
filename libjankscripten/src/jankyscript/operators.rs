@@ -6,33 +6,13 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 #[macro_export]
-macro_rules! z3f {
-    ($me:ident, (unquote $($t:tt)*)) => ($($t)*);
-    ($me:ident, (tid $($t:tt)*)) => ($me.t(&$($t)*));
-    ($me:ident, (typ $($t:tt)*)) => ($me.t(&typ!($($t)*)));
-    ($me:ident, (and $(($($t1:tt)*))*)) =>
-        ($me.zand(vec![ $(z3f!($me, ($($t1)*))),* ]));
-    // ($me:ident, (and ($($t1:tt)*) ($($t2:tt)*))) =>
-    //     (z3f!($me, ($($t1)*)) & &z3f!($me, ($($t2)*)));
-
-    ($me:ident, (or ($($t1:tt)*) ($($t2:tt)*))) =>
-        (z3f!($me, ($($t1)*)) | &z3f!($me, ($($t2)*)));
-
-    ($me:ident, (id $($t:tt)*)) => ($($t)*);
-    ($me:ident, (not ($($t1:tt)*))) =>
-    (!z3f!($me, ($($t1)*)));
-
-    ($me:ident, (= ($($t1:tt)*) ($($t2:tt)*))) =>
-        (z3f!($me, ($($t1)*))._eq(&z3f!($me, ($($t2)*))));
-}
-
-#[macro_export]
 macro_rules! typ {
     (int) => (Type::Int);
     (float) => (Type::Float);
     (bool) => (Type::Bool);
     (string) => (Type::String);
     (any) => (Type::Any);
+    (dynobject) => (Type::DynObject);
     (fun($( $arg:tt ),*) -> $ret:tt) =>
         (Type::Function(vec![ $( typ!($arg) ),* ], Box::new(typ!($ret))));
     (fun_vec($($args:tt)*) -> $($ret:tt)*) =>
@@ -50,18 +30,10 @@ pub enum NotwasmOp {
     Missing,
 }
 
-/// The type scheme (in the Standard ML sense) of an operator. We require type schemes to support
-/// polymorphic operators, such as equality.
-#[derive(Default, Debug)]
-pub struct TypeScheme {
-    pub vars: Vec<Id>,
-    pub typ: Type,
-}
-
 #[derive(Default, Debug)]
 struct Overload {
-    overloads: Vec<(TypeScheme, NotwasmOp)>,
-    on_other_args: Option<(TypeScheme, NotwasmOp)>,
+    overloads: Vec<(Type, NotwasmOp)>,
+    on_other_args: Option<(Type, NotwasmOp)>,
 }
 
 #[derive(Debug, Default)]
@@ -103,22 +75,6 @@ impl From<RTSFunction> for NotwasmOp {
     }
 }
 
-impl TypeScheme {
-    // A new type scheme with no type variables
-    pub fn monotype(typ: Type) -> Self {
-        TypeScheme { vars: vec![], typ }
-    }
-
-    pub fn instantiate<'a, 'b>(&'b self) -> Type {
-        // Easy common case. Cloning is a bit silly.
-        if self.vars.len() == 0 {
-            return self.typ.clone();
-        }
-
-        return self.typ.clone();
-    }
-}
-
 impl OverloadTable {
     /// The set of all operators defined in the table. Not clear if we really need this to be
     /// a set, if each overload maps to a unique NotWasmOp, which may be the case. However, no
@@ -139,20 +95,18 @@ impl OverloadTable {
     // fn to_z3(&self, cxt: &'a z3::Context)
     fn add(&mut self, op: impl Into<JsOp>, typ: Type, notwasm: impl Into<NotwasmOp>) {
         let overload = self.table.entry(op.into()).or_insert(Overload::default());
-        overload
-            .overloads
-            .push((TypeScheme::monotype(typ), notwasm.into()));
+        overload.overloads.push((typ, notwasm.into()));
     }
 
     fn add_on_any(&mut self, op: impl Into<JsOp>, typ: Type, notwasm: impl Into<NotwasmOp>) {
         let overload = self.table.entry(op.into()).or_insert(Overload::default());
-        overload.on_other_args = Some((TypeScheme::monotype(typ), notwasm.into()));
+        overload.on_other_args = Some((typ, notwasm.into()));
     }
 
     pub fn overloads<'a, 'b>(
         &'a self,
         op: &'b JsOp,
-    ) -> impl Iterator<Item = &'a (TypeScheme, NotwasmOp)> {
+    ) -> impl Iterator<Item = &'a (Type, NotwasmOp)> {
         self.table
             .get(op)
             .expect(&format!("no overloads found for {:?}", op))
@@ -160,28 +114,9 @@ impl OverloadTable {
             .iter()
     }
 
-    pub fn on_any<'a, 'b>(&'a self, op: &'b JsOp) -> Option<&'a (TypeScheme, NotwasmOp)> {
+    pub fn on_any<'a, 'b>(&'a self, op: &'b JsOp) -> Option<&'a (Type, NotwasmOp)> {
         self.table.get(op).unwrap().on_other_args.as_ref()
     }
-
-    // /// Used to select an operator once argument types are known.
-    // pub fn target(&self, op: &JsOp, arg_typs: &[Type]) -> Option<&NotwasmOp> {
-    //     self.table
-    //         .get(op)
-    //         .unwrap()
-    //         .overloads
-    //         .iter()
-    //         .find(|(typ, _)| {
-    //             let (fun_args, _) = typ.unwrap_fun();
-    //             arg_typs.eq(fun_args)
-    //         })
-    //         .map(|x| &x.1)
-    // }
-
-    // // When arguments do not match a known overload, used to call a generic version of the operator.
-    // pub fn any_target(&self, op: &JsOp) -> &(Type, NotwasmOp) {
-    //     self.table.get(op).unwrap().on_other_args.as_ref().unwrap()
-    // }
 }
 
 lazy_static! {
