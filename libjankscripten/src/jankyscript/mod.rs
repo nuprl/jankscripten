@@ -6,6 +6,7 @@ pub mod constructors;
 pub mod from_js;
 mod fv;
 mod operators;
+mod operators_z3;
 mod pretty;
 pub mod syntax;
 mod type_checking;
@@ -13,6 +14,5 @@ mod typeinf;
 mod typeinf_env;
 mod typeinf_z3;
 mod walk;
-mod operators_z3;
 
 pub use compile::compile;

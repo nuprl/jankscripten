@@ -128,7 +128,6 @@ pub enum Loc<'a> {
 }
 
 impl<'a> Loc<'a> {
-
     /// Produces 'true' if the current node is within a 'switch', but not nested inside a loop or a
     /// function. Thus, a 'break;' will break out of the 'switch'.
     pub fn in_switch_block(&self) -> bool {
@@ -248,7 +247,7 @@ where
             Id(x, t, _) => {
                 let loc = Loc::Node(Context::BoundId(x), loc);
                 self.walk_type(t, &loc)
-            },
+            }
             Func(f, _) => {
                 let loc = Loc::Node(Context::FunctionBody, loc);
                 self.visitor.enter_fn(f, &loc);
@@ -347,15 +346,22 @@ where
         self.visitor.enter_typ(typ, loc);
         let loc = Loc::Node(Context::Type, &loc);
         match typ {
-            Type::Missing | Type::Any | Type::Float | Type::Int | Type::Bool | Type::String 
-            | Type::Array | Type::DynObject | Type::Metavar(..) => { }
+            Type::Missing
+            | Type::Any
+            | Type::Float
+            | Type::Int
+            | Type::Bool
+            | Type::String
+            | Type::Array
+            | Type::DynObject
+            | Type::Metavar(..) => {}
             Type::Function(args, ret) => {
                 for t in args {
                     self.walk_type(t, &loc);
                 }
                 self.walk_type(ret, &loc);
             }
-            Type::Ref(t) => self.walk_type(t, &loc)
+            Type::Ref(t) => self.walk_type(t, &loc),
         }
     }
 }

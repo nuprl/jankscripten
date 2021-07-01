@@ -9,25 +9,25 @@
 //! https://github.com/arjunguha/TypeWhich
 //!
 //! However, it goes beyond the artifact and paper in a few ways:
-//! 
+//!
 //! 1. This module deals with operator overloading in a more sophisticated way. The presentation of
 //!    overloading in the TypeWhich paper hand-waved through instruction selection, which is
 //!    implemented here.
 //! 2. This module supports n-ary functions, which requires a second datatype in Z3 to represent a
 //!    list of types.
 
-use crate::{typ, z3f};
 use super::super::shared::coercions::Coercion;
 use super::operators::OVERLOADS;
+use super::operators_z3::Z3Operators;
 use super::syntax::*;
 use super::typeinf_env::Env;
 use super::typeinf_z3::{Z3Typ, Z3TypList};
 use super::walk::{Loc, Visitor};
 use crate::pos::Pos;
 use crate::z3ez::Z3EZ;
+use crate::{typ, z3f};
 use z3::ast::{self, Ast, Dynamic};
 use z3::{Model, Optimize, SatResult};
-use super::operators_z3::Z3Operators;
 
 struct Typeinf<'a> {
     vars: Vec<Dynamic<'a>>,
@@ -60,9 +60,7 @@ fn coerce(src: Type, dst: Type, e: Expr, p: Pos) -> Expr {
         (Expr::Coercion(Coercion::Meta(src1, Type::Any), e1, p1), Type::Any) => {
             super::constructors::coercion_(Coercion::meta(src1, dst), *e1, p1)
         }
-        (e, _) => {
-            super::constructors::coercion_(Coercion::meta(src, dst), e, p)
-        }
+        (e, _) => super::constructors::coercion_(Coercion::meta(src, dst), e, p),
     }
 }
 
@@ -96,7 +94,16 @@ impl<'a> Visitor for SubtMetavarVisitor<'a> {
                     }
                 }
             }
-            Expr::JsOp(op, arg_es, JsOpTypeinf { arg_ts, op_metavar, any_case }, p) => {
+            Expr::JsOp(
+                op,
+                arg_es,
+                JsOpTypeinf {
+                    arg_ts,
+                    op_metavar,
+                    any_case,
+                },
+                p,
+            ) => {
                 let p = std::mem::replace(p, Default::default());
                 let mut es = std::mem::replace(arg_es, Default::default());
                 println!("JsOp selection: {:?}, {:?}", arg_ts, op_metavar);
@@ -114,14 +121,12 @@ impl<'a> Visitor for SubtMetavarVisitor<'a> {
                         }
                         *expr = lower_op.make_app(es, p);
                     }
-                }        
+                }
             }
             _ => {}
         }
     }
 }
-
-
 
 impl<'a> Typeinf<'a> {
     fn t(&self, t: &Type) -> z3::ast::Dynamic<'a> {
@@ -162,14 +167,11 @@ impl<'a> Typeinf<'a> {
     fn z3_to_typ(&self, model: &'a Model, e: Dynamic) -> Type {
         if self.z.is_int(model, &e) {
             Type::Int
-        }
-        else if self.z.is_float(&model, &e) {
+        } else if self.z.is_float(&model, &e) {
             Type::Float
-        }
-        else if self.z.is_bool(&model, &e) {
+        } else if self.z.is_bool(&model, &e) {
             Type::Bool
-        }
-        else if self.z.is_any(model, &e) {
+        } else if self.z.is_any(model, &e) {
             Type::Any
         } else if self.z.is_str(model, &e) {
             Type::String
@@ -178,11 +180,15 @@ impl<'a> Typeinf<'a> {
         } else if self.z.is_dynobject(&model, &e) {
             Type::DynObject
         } else if self.z.is_fun(&model, &e) {
-            let args = model.eval(&self.z.fun_args(&e)).expect("model for fun_args");
+            let args = model
+                .eval(&self.z.fun_args(&e))
+                .expect("model for fun_args");
             let ret = model.eval(&self.z.fun_ret(&e)).expect("model for fun_args");
-            Type::Function(self.z3_to_typ_vec(&model, args), Box::new(self.z3_to_typ(&model, ret)))
-        }
-        else {
+            Type::Function(
+                self.z3_to_typ_vec(&model, args),
+                Box::new(self.z3_to_typ(&model, ret)),
+            )
+        } else {
             panic!("{:?}", model.eval(&e));
         }
     }
@@ -257,7 +263,7 @@ impl<'a> Typeinf<'a> {
                 self.solver.assert(&phi_1);
                 self.solver.assert(&phi_2);
                 **test = coerce(t, typ!(bool), test.take(), p.clone());
-                self.cgen_stmt(then_branch);                       
+                self.cgen_stmt(then_branch);
                 self.cgen_stmt(else_branch);
             }
             Stmt::ForIn(..) => todo!(),
@@ -287,7 +293,6 @@ impl<'a> Typeinf<'a> {
         ast::Bool::and(self.z.cxt, phis.as_slice())
     }
 
-
     pub fn cgen_expr(&mut self, expr: &mut Expr) -> (ast::Bool<'a>, Type) {
         match expr {
             Expr::Binary(..)
@@ -304,7 +309,7 @@ impl<'a> Typeinf<'a> {
                 let p = p.clone();
                 let alpha_t = self.fresh_metavar("alpha");
                 let w = self.fresh_weight();
-                let phi =  z3f!(self,
+                let phi = z3f!(self,
                     (or (and (unquote w.clone()) (= (tid alpha_t.clone()) (tid t.clone())))
                         (and (not (unquote w)) (= (tid alpha_t.clone()) (typ any)))));
                 let e = expr.take();
@@ -333,14 +338,23 @@ impl<'a> Typeinf<'a> {
                 let p = p.clone();
                 let w = self.fresh_weight();
                 let (phi_1, t) = self.cgen_expr(e);
-                let phi_2 = (self.t(&t)._eq(&self.z.make_dynobject()) & &w) | 
-                    (self.t(&t)._eq(&self.z.make_any()) & !w) ;
+                let phi_2 = (self.t(&t)._eq(&self.z.make_dynobject()) & &w)
+                    | (self.t(&t)._eq(&self.z.make_any()) & !w);
                 let e = expr.take();
                 *expr = coerce(t, Type::DynObject, e, p);
                 (phi_1 & phi_2, Type::Any)
             }
             Expr::Bracket(..) => todo!(),
-            Expr::JsOp(op, args, JsOpTypeinf { arg_ts, op_metavar, any_case }, _) => {
+            Expr::JsOp(
+                op,
+                args,
+                JsOpTypeinf {
+                    arg_ts,
+                    op_metavar,
+                    any_case,
+                },
+                _,
+            ) => {
                 let w = self.fresh_weight();
                 *any_case = Some(self.z3ez.fresh_bool_const());
                 let any_case_z3 = any_case.unwrap().z(&self.z3ez);
@@ -369,7 +383,7 @@ impl<'a> Typeinf<'a> {
                     let mut conjuncts = vec![
                         w.clone(), // favor using a precise overload
                         z3f!(self, (unquote any_case_z3.clone())),
-                        z3f!(self, (= (unquote self.ops.z(&op_metavar)) (unquote self.ops.z(notwasm_op))))
+                        z3f!(self, (= (unquote self.ops.z(&op_metavar)) (unquote self.ops.z(notwasm_op)))),
                     ];
                     for ((t1, t2), t3) in args_t.iter().zip(op_arg_t).zip(betas_t.iter()) {
                         // TODO(arjun): Duplication in Z3
@@ -387,7 +401,7 @@ impl<'a> Typeinf<'a> {
                     let mut conjuncts = vec![
                         !w, // Try to avoid this case,
                         z3f!(self, (not (unquote any_case_z3))),
-                        z3f!(self, (= (unquote self.ops.z(&op_metavar)) (unquote self.ops.z(notwasm_op))))
+                        z3f!(self, (= (unquote self.ops.z(&op_metavar)) (unquote self.ops.z(notwasm_op)))),
                     ];
                     for (_t1, t2) in args_t.iter().zip(betas_t.iter()) {
                         // TODO(arjun): t1 must be compatible with any
@@ -416,13 +430,18 @@ impl<'a> Typeinf<'a> {
             Expr::Call(f, args, p) => {
                 let w_1 = self.fresh_weight();
                 let w_2 = self.fresh_weight();
-                let (phi_1, t_f)= self.cgen_expr(f);
+                let (phi_1, t_f) = self.cgen_expr(f);
                 let (args_phi, args_t) = self.cgen_exprs(args.iter_mut());
                 let phi_2 = self.zand(args_phi);
                 let beta = self.fresh_metavar("beta");
                 let gamma = self.fresh_metavar("gamma");
 
-                let phi_31 = self.zand(args_t.iter().map(|x| z3f!(self, (= (tid x) (typ any)))).collect());
+                let phi_31 = self.zand(
+                    args_t
+                        .iter()
+                        .map(|x| z3f!(self, (= (tid x) (typ any))))
+                        .collect(),
+                );
                 let phi_3 = z3f!(self, 
                     (or
                         (and (= (tid t_f) (typ fun_vec(args_t.clone()) -> unquote(beta.clone())))
@@ -434,7 +453,12 @@ impl<'a> Typeinf<'a> {
                 let phi_4 = z3f!(self,
                     (or (and (= (tid beta) (tid gamma)) (id w_2.clone()))
                         (and (= (tid gamma) (typ any)) (not (id w_2)))));
-                **f = coerce(t_f, typ!(fun_vec(args_t) -> unquote(beta.clone())), f.take(), p.clone());
+                **f = coerce(
+                    t_f,
+                    typ!(fun_vec(args_t) -> unquote(beta.clone())),
+                    f.take(),
+                    p.clone(),
+                );
                 let p = p.clone();
                 let e = expr.take();
                 *expr = coerce(beta, gamma.clone(), e, p);
@@ -452,7 +476,7 @@ impl<'a> Typeinf<'a> {
                 // Fresh metavariables for formal arguments.
                 for (x, t) in f.args_with_typs.iter_mut() {
                     assert_eq!(t, &Type::Missing);
-                    *t = self.fresh_metavar("alpha");                    
+                    *t = self.fresh_metavar("alpha");
                     self.env.update(x.clone(), t.clone());
                 }
                 // Recur into the body.
@@ -476,7 +500,12 @@ impl<'a> Typeinf<'a> {
                              /* TODO(arjun): args must be * too. */
                              (not (id w)))));
                 let p = p.clone();
-                *expr = coerce(typ!(fun_vec(args) -> unquote(return_typ)), beta.clone(), expr.take(), p);
+                *expr = coerce(
+                    typ!(fun_vec(args) -> unquote(return_typ)),
+                    beta.clone(),
+                    expr.take(),
+                    p,
+                );
                 (phi, beta)
             }
         }
@@ -520,10 +549,10 @@ pub fn typeinf(stmt: &mut Stmt) {
         env,
     };
     state.cgen_stmt(stmt);
-    println!("Before subst: {}", &stmt);  
+    println!("Before subst: {}", &stmt);
     if state.trace {
         println!("{:?}", state.solver);
-    }  
+    }
     match state.solver.check(&[]) {
         SatResult::Unknown => panic!("Got an unknown from Z3"),
         SatResult::Unsat => panic!("type inference failed (unsat)"),
@@ -535,8 +564,12 @@ pub fn typeinf(stmt: &mut Stmt) {
         .expect("model not available (despite SAT result)");
     let mapping = state.solve_model(&model);
 
-
-    let mut subst_metavar = SubtMetavarVisitor { z3ez: &state.z3ez, vars: &mapping, model: &model, ops: &state.ops };
+    let mut subst_metavar = SubtMetavarVisitor {
+        z3ez: &state.z3ez,
+        vars: &mapping,
+        model: &model,
+        ops: &state.ops,
+    };
     stmt.walk(&mut subst_metavar);
     println!("After cgen: {}", &stmt);
 }
@@ -561,7 +594,7 @@ mod tests {
                 (Loc::Node(Context::MetaCoercionRight(..), _), Type::Any) => {
                     self.num_anys += 1;
                 }
-                _ => { }
+                _ => {}
             }
         }
     }
@@ -650,7 +683,8 @@ mod tests {
                 return x;
             }
             F(100)
-            "#);
+            "#,
+        );
         assert_eq!(n, 0);
     }
 
@@ -663,17 +697,20 @@ mod tests {
             }
             F(100);
             F(true);
-            "#);
+            "#,
+        );
         assert_eq!(n, 2);
     }
 
     #[test]
     fn inc_fn() {
-        let n = typeinf_test(r#"
+        let n = typeinf_test(
+            r#"
             function F(x) {
                 return x + 1; // In the generated constraint, the type of x is a metavariable
             }
-            F(10);"#);
+            F(10);"#,
+        );
         assert_eq!(n, 0);
     }
 
@@ -690,8 +727,8 @@ mod tests {
                 }
             }
             F(100);
-            "#);
+            "#,
+        );
         assert_eq!(n, 2); // coercions are for the comparison
     }
-
 }

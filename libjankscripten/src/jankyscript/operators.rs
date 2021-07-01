@@ -55,7 +55,7 @@ pub enum NotwasmOp {
 #[derive(Default, Debug)]
 pub struct TypeScheme {
     pub vars: Vec<Id>,
-    pub typ: Type
+    pub typ: Type,
 }
 
 #[derive(Default, Debug)]
@@ -69,7 +69,6 @@ pub struct OverloadTable {
     table: HashMap<JsOp, Overload>,
 }
 
-
 impl NotwasmOp {
     pub fn make_app(&self, mut args: Vec<Expr>, p: crate::pos::Pos) -> Expr {
         match self {
@@ -80,7 +79,7 @@ impl NotwasmOp {
                 Expr::Binary(notwasm_op.clone(), Box::new(e1), Box::new(e2), p)
             }
             NotwasmOp::RTS(rts_fun) => Expr::PrimCall(rts_fun.clone(), args, p),
-            NotwasmOp::Missing | NotwasmOp::Metavar(..) => panic!("received {:?}", self)
+            NotwasmOp::Missing | NotwasmOp::Metavar(..) => panic!("received {:?}", self),
         }
     }
 }
@@ -115,13 +114,12 @@ impl TypeScheme {
         if self.vars.len() == 0 {
             return self.typ.clone();
         }
-        
+
         return self.typ.clone();
     }
 }
 
 impl OverloadTable {
-
     /// The set of all operators defined in the table. Not clear if we really need this to be
     /// a set, if each overload maps to a unique NotWasmOp, which may be the case. However, no
     /// harm in building a set.
@@ -141,7 +139,9 @@ impl OverloadTable {
     // fn to_z3(&self, cxt: &'a z3::Context)
     fn add(&mut self, op: impl Into<JsOp>, typ: Type, notwasm: impl Into<NotwasmOp>) {
         let overload = self.table.entry(op.into()).or_insert(Overload::default());
-        overload.overloads.push((TypeScheme::monotype(typ), notwasm.into()));
+        overload
+            .overloads
+            .push((TypeScheme::monotype(typ), notwasm.into()));
     }
 
     fn add_on_any(&mut self, op: impl Into<JsOp>, typ: Type, notwasm: impl Into<NotwasmOp>) {
@@ -149,16 +149,19 @@ impl OverloadTable {
         overload.on_other_args = Some((TypeScheme::monotype(typ), notwasm.into()));
     }
 
-    pub fn overloads<'a, 'b>(&'a self, op: &'b JsOp) -> impl Iterator<Item=&'a(TypeScheme, NotwasmOp)> {
-        self.table.get(op).expect(&format!("no overloads found for {:?}", op)).overloads.iter()
-    }
-
-    pub fn on_any<'a, 'b>(&'a self, op: &'b JsOp) -> Option<&'a(TypeScheme, NotwasmOp)> {
+    pub fn overloads<'a, 'b>(
+        &'a self,
+        op: &'b JsOp,
+    ) -> impl Iterator<Item = &'a (TypeScheme, NotwasmOp)> {
         self.table
             .get(op)
-            .unwrap()
-            .on_other_args
-            .as_ref()
+            .expect(&format!("no overloads found for {:?}", op))
+            .overloads
+            .iter()
+    }
+
+    pub fn on_any<'a, 'b>(&'a self, op: &'b JsOp) -> Option<&'a (TypeScheme, NotwasmOp)> {
+        self.table.get(op).unwrap().on_other_args.as_ref()
     }
 
     // /// Used to select an operator once argument types are known.
@@ -198,8 +201,8 @@ lazy_static! {
         table.add_on_any(Minus, typ!(fun(any, any) -> any), RTSFunction::Minus);
 
         table.add(LeftShift, typ!(fun(int, int) -> int), I32Shl);
-        table.add(Times, typ!(fun(float, float) -> float), F64Mul); 
-        table.add(Times, typ!(fun(int, int) -> int), I32Mul); 
+        table.add(Times, typ!(fun(float, float) -> float), F64Mul);
+        table.add(Times, typ!(fun(int, int) -> int), I32Mul);
         table.add(Times, typ!(fun(any, any) -> any), RTSFunction::Times);
         table.add_on_any(LeftShift, typ!(fun(int, int) -> int), I32Shl);
         table.add_on_any(StrictEqual, typ!(fun(any, any) -> bool), RTSFunction::StrictEqual);

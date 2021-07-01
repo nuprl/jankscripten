@@ -1,7 +1,7 @@
-use z3;
-use std::collections::HashMap;
 use super::operators::{NotwasmOp, OverloadTable, TypeScheme};
 use super::syntax::*;
+use std::collections::HashMap;
+use z3;
 
 pub struct Z3Operators<'a> {
     sort: z3::Sort<'a>, // the sort in Z3 for operators
@@ -12,7 +12,6 @@ pub struct Z3Operators<'a> {
 }
 
 impl<'a> Z3Operators<'a> {
-
     pub fn new(table: &OverloadTable, ctx: &'a z3::Context) -> Self {
         // Turn the set into a vec to ensure stable enumeration order.
         let all_ops = table.all_ops().into_iter().collect::<Vec<_>>();
@@ -22,22 +21,30 @@ impl<'a> Z3Operators<'a> {
             // Awful names for operators.
             .map(|(i, _)| format!("op{}", i).into())
             .collect();
-        let (sort, ctors_vec, preds_vec) = z3::Sort::enumeration(
-            ctx, 
-            "Operators".into(), 
-            &names);
+        let (sort, ctors_vec, preds_vec) = z3::Sort::enumeration(ctx, "Operators".into(), &names);
         let mut ctors = HashMap::new();
         let mut preds = HashMap::new();
-        for ((op, ctor), pred) in all_ops.into_iter().zip(ctors_vec.into_iter()).zip(preds_vec.into_iter()) {
+        for ((op, ctor), pred) in all_ops
+            .into_iter()
+            .zip(ctors_vec.into_iter())
+            .zip(preds_vec.into_iter())
+        {
             ctors.insert(op.clone(), ctor);
             preds.insert(op, pred);
         }
         let metavars = Vec::new();
-        return Z3Operators { sort, ctors, preds, ctx, metavars };
+        return Z3Operators {
+            sort,
+            ctors,
+            preds,
+            ctx,
+            metavars,
+        };
     }
 
     pub fn fresh_op_selector(&mut self) -> NotwasmOp {
-        let ast = z3::ast::Dynamic::from_ast(&z3::ast::Datatype::fresh_const(self.ctx, "op", &self.sort));
+        let ast =
+            z3::ast::Dynamic::from_ast(&z3::ast::Datatype::fresh_const(self.ctx, "op", &self.sort));
         self.metavars.push(ast);
         return NotwasmOp::Metavar(self.metavars.len() - 1);
     }
@@ -45,7 +52,11 @@ impl<'a> Z3Operators<'a> {
     pub fn z(&self, op: &NotwasmOp) -> z3::ast::Dynamic<'a> {
         match op {
             NotwasmOp::Metavar(n) => self.metavars[*n].clone(),
-            _ => self.ctors.get(op).expect("operator not in table").apply(&[])
+            _ => self
+                .ctors
+                .get(op)
+                .expect("operator not in table")
+                .apply(&[]),
         }
     }
 
@@ -54,13 +65,18 @@ impl<'a> Z3Operators<'a> {
             NotwasmOp::Metavar(n) => {
                 let x = &self.metavars[*n];
                 for (notwasm_op, pred) in &self.preds {
-                    if model.eval(&pred.apply(&[&x]).as_bool().unwrap()).unwrap().as_bool().unwrap() {
+                    if model
+                        .eval(&pred.apply(&[&x]).as_bool().unwrap())
+                        .unwrap()
+                        .as_bool()
+                        .unwrap()
+                    {
                         return notwasm_op.clone();
                     }
                 }
                 panic!("no value for metavar");
             }
-            _ => panic!("not a metavar")
+            _ => panic!("not a metavar"),
         }
     }
 }

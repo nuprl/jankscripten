@@ -77,7 +77,11 @@ impl Pretty for LValue {
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
         match self {
-            LValue::Id(id, t) => pp.as_string(id).append(pp.text("/*")).append(t.pretty(pp)).append(pp.text("*/")),
+            LValue::Id(id, t) => pp
+                .as_string(id)
+                .append(pp.text("/*"))
+                .append(t.pretty(pp))
+                .append(pp.text("*/")),
             LValue::Dot(e, id) => e
                 .pretty(pp)
                 .append(pp.text("."))

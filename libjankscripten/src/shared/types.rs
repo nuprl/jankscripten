@@ -21,7 +21,6 @@ pub enum Type {
 }
 
 impl Type {
-
     pub fn take(&mut self) -> Type {
         std::mem::replace(self, Type::Missing)
     }
