@@ -12,14 +12,10 @@
 macro_rules! z3f {
     ($me:ident, true) => (z3::ast::Bool::from_bool($me.cxt, true));
     ($me:ident, false) => (z3::ast::Bool::from_bool($me.cxt, false));
-    ($me:ident, (unquote $($t:tt)*)) => ($($t)*);
     ($me:ident, (tid $($t:tt)*)) => ($me.t(&$($t)*));
     ($me:ident, (typ $($t:tt)*)) => ($me.t(&typ!($($t)*)));
     ($me:ident, (and $(($($t1:tt)*))*)) =>
         ($me.zand(vec![ $(z3f!($me, ($($t1)*))),* ]));
-    // ($me:ident, (and ($($t1:tt)*) ($($t2:tt)*))) =>
-    //     (z3f!($me, ($($t1)*)) & &z3f!($me, ($($t2)*)));
-
     ($me:ident, (or ($($t1:tt)*) ($($t2:tt)*))) =>
         (z3f!($me, ($($t1)*)) | &z3f!($me, ($($t2)*)));
 

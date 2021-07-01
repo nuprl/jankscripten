@@ -319,8 +319,8 @@ impl<'a> Typeinf<'a> {
                 let alpha_t = self.fresh_metavar("alpha");
                 let w = self.fresh_weight();
                 let phi = z3f!(self,
-                    (or (and (unquote w.clone()) (= (tid alpha_t) (tid t)))
-                        (and (not (unquote w)) (= (tid alpha_t) (typ any)))));
+                    (or (and (id w.clone()) (= (tid alpha_t) (tid t)))
+                        (and (not (id w)) (= (tid alpha_t) (typ any)))));
                 let e = expr.take();
                 *expr = coerce(t, alpha_t.clone(), e, p);
                 (phi, alpha_t)
@@ -353,8 +353,8 @@ impl<'a> Typeinf<'a> {
                 let (phi_1, t) = self.cgen_expr(e);
                 let phi_2 = z3f!(self, 
                     (or 
-                        (and (= (tid t) (typ dynobject)) (unquote w.clone()))
-                        (and (= (tid t) (typ any)) (not (unquote &w)))));
+                        (and (= (tid t) (typ dynobject)) (id w.clone()))
+                        (and (= (tid t) (typ any)) (not (id &w)))));
                 let e = expr.take();
                 *expr = coerce(t, Type::DynObject, e, p);
                 (phi_1 & phi_2, Type::Any)
@@ -396,8 +396,8 @@ impl<'a> Typeinf<'a> {
                     // For this overload, arguments and result must match
                     let mut conjuncts = vec![
                         w.clone(), // favor using a precise overload
-                        z3f!(self, (unquote any_case_z3.clone())),
-                        z3f!(self, (= (unquote self.ops.z(&op_metavar)) (unquote self.ops.z(notwasm_op)))),
+                        z3f!(self, (id any_case_z3.clone())),
+                        z3f!(self, (= (id self.ops.z(&op_metavar)) (id self.ops.z(notwasm_op)))),
                     ];
                     for ((t1, t2), t3) in args_t.iter().zip(op_arg_t).zip(betas_t.iter()) {
                         // TODO(arjun): Duplication in Z3
@@ -413,8 +413,8 @@ impl<'a> Typeinf<'a> {
                     let (any_case_args, result_typ) = t.unwrap_fun();
                     let mut conjuncts = vec![
                         !w, // Try to avoid this case,
-                        z3f!(self, (not (unquote any_case_z3))),
-                        z3f!(self, (= (unquote self.ops.z(&op_metavar)) (unquote self.ops.z(notwasm_op)))),
+                        z3f!(self, (not (id any_case_z3))),
+                        z3f!(self, (= (id self.ops.z(&op_metavar)) (id self.ops.z(notwasm_op)))),
                     ];
                     for (_t1, t2) in args_t.iter().zip(betas_t.iter()) {
                         // TODO(arjun): t1 must be compatible with any
@@ -461,7 +461,7 @@ impl<'a> Typeinf<'a> {
                              (id w_1.clone()))
                         (and (= (tid t_f) (typ any))
                              (= (tid beta) (typ any))
-                             (unquote phi_31)
+                             (id phi_31)
                              (not (id w_1)))));
                 let phi_4 = z3f!(self,
                     (or (and (= (tid beta) (tid gamma)) (id w_2.clone()))
