@@ -58,16 +58,19 @@ FnType -> FnType :
   ;
 
 Type -> Type :
-    'i32'                 { Type::I32 }
-  | 'str'                 { Type::String }
+    'any'                 { Type::Any }
+  | 'i32'                 { Type::I32 }
+  | 'f64'                 { Type::F64 }
   | 'bool'                { Type::Bool }
+  | 'str'                 { Type::String }
+  | 'Array'               { Type::Array }
+  | 'DynObject'           { Type::DynObject }
   | FnType                { Type::Fn($1) }
   | 'clos' FnType         { Type::Closure($2) }
-  | 'f64'                 { Type::F64 }
-  | 'any'                 { Type::Any }
-  | 'DynObject'           { Type::DynObject }
+
+
   | 'HT'                  { Type::HT }
-  | 'Array'               { Type::Array }
+
   | 'Ref' '(' Type ')'    { Type::Ref(Box::new($3)) }
   | 'env'                 { Type::Env }
   ;

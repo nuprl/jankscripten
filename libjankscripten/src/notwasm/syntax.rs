@@ -32,22 +32,21 @@ use std::collections::HashMap;
 /// runtime system (e.g., `TypeTag`, `Tag`, and `AnyEnum`).
 #[derive(Debug, PartialEq, Clone)]
 pub enum Type {
+    /// If `v : Any` then `v` is an `AnyEnum`.
+    Any,
     /// If `v : I32` then `v` is an `i32`.
     I32,
     /// If `v : F64`, then `v` is an `f64`.
     F64,
+    /// If `v : Bool` then `v` is an `i32` that is either `1` or `0`.
+    Bool,
     /// If `v : String` then `v` is a `*const Tag` followed by a 4-byte
     /// little-endian length followed by utf-8 of that length.
     /// Even interned strings are preceded by a tag, so that interned and
     /// uninterned strings have the same representation.
     String,
-    /// If `v : HT` then `v` is a `*const Tag`, where
-    ///  `v.type_tag === TypeTag::HT`.
-    HT,
     /// If `v : HT` then `v` is a `*const Tag`, where `v.type_tag == Array`.
     Array,
-    /// If `v : Bool` then `v` is an `i32` that is either `1` or `0`.
-    Bool,
     /// If `v : DynObject` then `v` is a `*const Tag` where
     /// `v.type_tag == Class`.
     /// TODO(arjun): We do not have a type_tag called class. What is this
@@ -56,12 +55,14 @@ pub enum Type {
     /// If `v : Fn(fn_type)` then `v` is an `i32`, which is an index of a
     /// function with the type `fn_type`.
     Fn(FnType),
+
+    /// If `v : HT` then `v` is a `*const Tag`, where
+    ///  `v.type_tag === TypeTag::HT`.
+    HT,
     /// If `v : Closure(fn_type)` then `v` is an `i64`, which is an EnvPtr
     /// followed by a 16-bit truncation of a function pointer followed by 16
     /// garbage bits
     Closure(FnType),
-    /// If `v : Any` then `v` is an `AnyEnum`.
-    Any,
     /// If `v : Ref(I32)` then `v` is a `*const Tag` and `v.type_tag == NonPtr32`.
     /// If `v : Ref(Bool)` then `v` is a `*const Tag` and `v.type_tag == NonPtr32`.
     /// If `v : Ref(F64)` then `v` is a `*const Tag` and resides in the f64 heap

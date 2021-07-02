@@ -12,6 +12,8 @@
 \newcommand{\system}{\texttt{jankscripten}\xspace}
 \newcommand{\notwasm}{\textsc{NotWasm}\xspace}
 \newcommand{\jankyscript}{JankyScript\xspace}
+\newcommand{\kw}[1]{\textbf{\texttt{#1}}}
+\newcommand{\metavar}[1]{\textit{#1}}
 
 \title{\system Guide}
 
@@ -179,5 +181,54 @@ correctly. See the
 \href{https://nodejs.org/en/docs/guides/debugging-getting-started/}{Node
 Debugging Guide} for more information.
 
+\section{\notwasm Guide}
+
+\notwasm programs use the following concrete syntax:
+
+\begin{tabular}{rcll}
+\textbf{Types} \\
+\metavar{T} & := & \kw{any} & Unknown type \\
+    & |  & \kw{i32} & Signed, 32-bit integer \\
+    & |  & \kw{f64} & 64-bit float \\
+    & |  & \kw{bool} & Boolean \\
+    & |  & \kw{str} & Pointer to an immutable string \\
+    & |  & \kw{Array} & A pointer to an array of any-typed values \\
+    & |  & \kw{DynObject} & A pointer to an object with a dynamic set of any-typed fields \\
+    & |  & \kw{(} \metavar{T} \kw{,...,} \metavar{T}\kw{) ->} \metavar{T}
+         & A pointer to a function \\
+    & |  & \kw{(} \metavar{T} \kw{,...,} \metavar{T}\kw{) -> void} 
+         & A pointer to a function that does not return a value \\
+    & |  & TODO: more to document \\
+\metavar{b} & := & \kw{true} | \kw{false} & Boolean literal \\
+\metavar{n} & := & ... | $-1$ | 0 | 1 | ... & Integer literals \\
+\metavar{s} & := & \texttt{"..."} & String literals \\
+\metavar{c} & := & b | n | s & Literals \\
+\metavar{e} & := & \textit{x}  & Bound identifier \\
+            & |  & \metavar{c} & Literal \\
+            & |  & e \kw{:} T  & Type ascription \\
+            & |  & \kw{(} \metavar{e} \kw{)} & Parenthesis \\
+            & |  & \kw{fun} \metavar{x} \kw{.} \metavar{e} & Function \\
+            & |  & \metavar{e}\textsubscript{1} \metavar{e}\textsubscript{2}
+                    & Application \\
+            & |  & \metavar{e}\textsubscript{1} \kw{+} \metavar{e}\textsubscript{2}
+                    & Addition \\
+            & |  & \metavar{e}\textsubscript{1} \kw{*} \metavar{e}\textsubscript{2}
+                    & Multiplication \\
+            & |  & \metavar{e}\textsubscript{1} \kw{=} \metavar{e}\textsubscript{2}
+                    & Integer equality \\
+            & |  & \metavar{e}\textsubscript{1} \kw{+?} \metavar{e}\textsubscript{2}
+                    & Addition or string concatenation (overloaded) \\
+            & |  & \kw{(}\metavar{e}\textsubscript{1}\kw{,}\metavar{e}\textsubscript{2}\kw{)}
+                    & Pair \\
+            & |  & \kw{fix} \metavar{f} \kw{.}\metavar{e}
+                    & Fixpoint \\
+            & |  & \kw{if} \metavar{e}\textsubscript{1} \kw{then} \metavar{e}\textsubscript{2} \kw{else} \metavar{e}\textsubscript{3}
+                    & Conditional \\
+            & |  & \kw{let} \metavar{x} \kw{=} \metavar{e}\textsubscript{1} \kw{in} \metavar{e}\textsubscript{2}
+                    & Let binding \\
+            & |  & \kw{let rec} \metavar{x} \kw{=} \metavar{e}\textsubscript{1} \kw{in} \metavar{e}\textsubscript{2}
+                    & Recursive let binding \\
+
+\end{tabular}
 
 \end{document}
