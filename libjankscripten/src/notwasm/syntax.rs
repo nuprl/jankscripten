@@ -55,7 +55,6 @@ pub enum Type {
     /// If `v : Fn(fn_type)` then `v` is an `i32`, which is an index of a
     /// function with the type `fn_type`.
     Fn(FnType),
-
     /// If `v : HT` then `v` is a `*const Tag`, where
     ///  `v.type_tag === TypeTag::HT`.
     HT,
@@ -79,6 +78,17 @@ pub enum Type {
 }
 
 impl Type {
+
+    pub fn unwrap_fun(&self) -> (&Vec<Type>, Option<&Type>) {
+        match self {
+            Type::Fn(fn_type) => (&fn_type.args, match &fn_type.result {
+                None => None,
+                Some(ret) => Some(& *ret)
+            }),
+            _ => panic!("unwrap_fun: unexpected type: {}", self),
+        }
+    }
+
     pub fn is_gc_root(&self) -> bool {
         match self {
             Type::I32 => false,
@@ -231,7 +241,9 @@ impl ToAny {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Atom {
     Lit(Lit, Pos),
-    ToAny(ToAny, Pos),
+    /// A primtive applciation that does not have any non-trivial interaction with the garbage 
+    /// collector.
+    PrimApp(Id, Vec<Atom>, Pos),
     /// `FromAny(atom, ty, Pos)`
     ///
     /// Concrete syntax: `<atom> as <ty>`
@@ -257,7 +269,7 @@ impl Atom {
     pub fn pos(&self) -> &Pos {
         match self {
             Atom::Lit(_, p) => p,
-            Atom::ToAny(_, p) => p,
+            Atom::PrimApp(_, _, p) => p,
             Atom::FromAny(_, _, p) => p,
             Atom::FloatToInt(_, p) => p,
             Atom::IntToFloat(_, p) => p,

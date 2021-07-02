@@ -36,9 +36,6 @@ pub fn var_<S: Into<String>>(a: S, b: Expr, s: Pos) -> Stmt {
 pub fn get_id_<S: Into<String>>(a: S, s: Pos) -> Atom {
     Atom::Id(id_(a), s)
 }
-pub fn to_any_(a: Atom, s: Pos) -> Atom {
-    Atom::ToAny(ToAny::new(a), s)
-}
 pub fn from_any_(a: Atom, ty: Type, s: Pos) -> Atom {
     Atom::FromAny(Box::new(a), ty, s)
 }

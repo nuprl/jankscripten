@@ -153,6 +153,41 @@ impl Pretty for ToAny {
     }
 }
 
+macro_rules! pretty {
+    ($pp:ident, space) => ($pp.space());
+    ($pp:ident, comma_sep ( $x:ident ) ) => 
+        ($pp.intersperse($x.iter().map(|item| item.pretty($pp)), $pp.text(",")));
+    ($pp:ident, ( $( $ts:tt )* ) ) =>
+        ((pretty!($pp, $( $ts )*)).parens());
+    ($pp:ident, $t:ident) => ($t.pretty($pp));
+    ($pp:ident, $t:literal) => ($t.pretty($pp));
+    ($pp:ident, $( $ts:tt ),* ) => ($pp.concat(vec![ $( pretty!($pp, $ts ) ),* ]));
+    //   (pretty!(pp, $t)).append(pretty!(pp, $( $ts ),+));
+//    pretty!($pp:ident, $($t:tt)* ) => (pp.concat(vec![pretty!($pp, $(pretty!($t)),*)])),
+}
+
+impl Pretty for &'static str {
+    fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A> 
+    where
+        D: pretty::DocAllocator<'b, A>,
+        A: std::clone::Clone,
+        <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,    
+    {
+        pp.text(*self)
+    }
+}
+
+impl Pretty for Id {
+    fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A> 
+    where
+        D: pretty::DocAllocator<'b, A>,
+        A: std::clone::Clone,
+        <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,    
+    {
+        pp.as_string(self)
+    }
+}
+
 impl Pretty for Atom {
     fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A>
     where
@@ -162,14 +197,8 @@ impl Pretty for Atom {
     {
         match self {
             Atom::Lit(l, _) => l.pretty(pp),
-            Atom::ToAny(to_any, _) => to_any.pretty(pp),
-            Atom::FromAny(a, t, _) => pp.concat(vec![
-                a.pretty(pp),
-                pp.space(),
-                pp.text("as"),
-                pp.space(),
-                t.pretty(pp),
-            ]),
+            Atom::PrimApp(name, args, _) => pretty!(pp, name, ( comma_sep(args) )),
+            Atom::FromAny(a, t, _) => pretty!(pp, a, space, "as", space, t),
             Atom::FloatToInt(a, _) => {
                 pp.concat(vec![pp.text("float_to_int"), pp.space(), a.pretty(pp)])
             }

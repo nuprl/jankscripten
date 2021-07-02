@@ -228,17 +228,38 @@ pub fn compile_ty(janky_typ: J::Type) -> Type {
     }
 }
 
+/*
+fn to_any(&mut self, ty: &N::Type) {
+    match ty {
+        N::Type::I32 => self.rt_call("any_from_i32"),
+        N::Type::Bool => self.rt_call("any_from_bool"),
+        N::Type::F64 => self.rt_call("f64_to_any"),
+        N::Type::Fn(..) => self.rt_call("any_from_fn"),
+        N::Type::Closure(..) => self.rt_call("any_from_closure"),
+        N::Type::Any => (),
+        _ => self.rt_call("any_from_ptr"),
+    }
+}
+*/
+
 fn coercion_to_expr(c: J::Coercion, a: Atom, p: Pos) -> Atom {
-    use J::Coercion::*;
+    use J::Coercion;
     match c {
-        FloatToInt => Atom::FloatToInt(Box::new(a), p),
-        IntToFloat => Atom::IntToFloat(Box::new(a), p),
-        Tag(..) => to_any_(a, p),
-        Untag(ty) => from_any_(a, compile_ty(ty), p),
-        Fun(..) => todo!(), // TODO(michael) needs to call something that proxies the function
-        Id(..) => a,
-        Seq(c1, c2) => coercion_to_expr(*c2, coercion_to_expr(*c1, a, p.clone()), p),
-        Meta(..) => panic!("Meta coerce remains"),
+        Coercion::FloatToInt => Atom::FloatToInt(Box::new(a), p),
+        Coercion::IntToFloat => Atom::IntToFloat(Box::new(a), p),
+        Coercion::Tag(J::Type::Int) => Atom::PrimApp("any_from_i32".into(), vec![a], p),
+        Coercion::Tag(J::Type::Bool) => Atom::PrimApp("any_from_bool".into(), vec![a], p),
+        Coercion::Tag(J::Type::Float) => Atom::PrimApp("f64_to_any".into(), vec![a], p),
+        Coercion::Tag(J::Type::Function(..)) => Atom::PrimApp("any_from_fn".into(), vec![a], p),
+        // Coercion::Tag(J::Type::(..)) => Atom::PrimApp("any_from_closure".into(), vec![a], p),
+        Coercion::Tag(J::Type::Any) => a,
+        Coercion::Tag(..) => Atom::PrimApp("any_from_ptr".into(), vec![a], p),
+        Coercion::Tag(t) => panic!("cannot tag {:?}", t),
+        Coercion::Untag(ty) => from_any_(a, compile_ty(ty), p),
+        Coercion::Fun(..) => todo!(), // TODO(michael) needs to call something that proxies the function
+        Coercion::Id(..) => a,
+        Coercion::Seq(c1, c2) => coercion_to_expr(*c2, coercion_to_expr(*c1, a, p.clone()), p),
+        Coercion::Meta(..) => panic!("Meta coerce remains"),
     }
 }
 

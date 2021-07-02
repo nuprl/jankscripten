@@ -767,6 +767,12 @@ impl<'a> Translate<'a> {
             N::Atom::Id(id, _) => {
                 self.get_id(id);
             }
+            N::Atom::PrimApp(id, args, _) => {
+                for a in args {
+                    self.translate_atom(a);
+                }
+                self.rt_call(&id.clone().into_name());
+            }
             N::Atom::GetPrimFunc(id, _) => {
                 // TODO(luna): i honestly for the life of me can't remember
                 // why we accept an &mut Atom instead of an Atom, which
@@ -776,10 +782,6 @@ impl<'a> Translate<'a> {
                 } else {
                     panic!("cannot find rt {}", id);
                 }
-            }
-            N::Atom::ToAny(to_any, _) => {
-                self.translate_atom(&mut to_any.atom);
-                self.to_any(to_any.ty());
             }
             N::Atom::FromAny(a, ty, _) => {
                 self.translate_atom(a);

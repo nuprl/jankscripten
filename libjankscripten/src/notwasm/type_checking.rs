@@ -483,13 +483,27 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             ensure_ref("deref atom", type_check_atom(env, a)?, s)?,
             s,
         ),
-        Atom::Lit(l, _) => Ok(l.notwasm_typ()),
-        Atom::ToAny(to_any, s) => {
-            let ty = type_check_atom(env, &mut to_any.atom)?;
-            assert_variant_of_any(&ty, s)?;
-            to_any.set_ty(ty);
-            Ok(Type::Any)
+        Atom::PrimApp(prim, args, s) => {
+            let ty = lookup(env, prim, s)?;
+            let (expected_arg_ts, ret_t) = ty.unwrap_fun();
+            let ret_t = ret_t.expect("primtive function that returns a value");
+            let arg_ts = args.iter_mut().map(|a| type_check_atom(env, a))
+                .collect::<Result<Vec<_>, _>>()?;
+            if arg_ts.len() != expected_arg_ts.len() {
+                return error!(
+                    s,
+                    "primitive {:?} expected {} arguments, but received {}",
+                    prim, expected_arg_ts.len(), 
+                    arg_ts.len());
+            }
+
+            if arg_ts.iter().zip(expected_arg_ts.iter())
+                    .any(|(t1, t2)| t1 != t2) {
+                return error!(s, "primitive {:?} applied to wrong argument type", prim);
+            }
+            return Ok(ret_t.clone());
         }
+        Atom::Lit(l, _) => Ok(l.notwasm_typ()),
         Atom::FromAny(a, ty, s) => {
             let got = type_check_atom(env, a)?;
             ensure("from_any", Type::Any, got, s)?;

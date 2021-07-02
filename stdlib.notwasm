@@ -111,7 +111,6 @@ var Error: clos(env, any, any) -> any;
 var jnks_any_is_object: (any) -> bool;
 var jnks_primitive_plus: (any, any) -> any;
 
-
 // Initialize JankScripten runtime.
 function jnks_init() {
     // load the Object.create runtime function
@@ -148,7 +147,7 @@ function jnks_new_fn_obj(): DynObject {
     if (jnks_objectCreateExists == 1) {
         var newObject = jnks_new_object();
         var newObjectProto = jnks_new_object();
-        newObject.prototype = any(newObjectProto);
+        newObject.prototype = @any_from_ptr(newObjectProto);
         return newObject;
     } else {}
     // not written as an if-else because wasm typechecking strictness
@@ -178,7 +177,7 @@ function jnks_init_std_lib(): i32 {
     Object.prototype = objectPrototypeAny;
 
     // assign static methods to Object
-    Object.create = any(jnks_objectCreate);
+    Object.create = @any_from_ptr(jnks_objectCreate);
 
     // Cache Object properties for jnks_new_object
     jnks_objectPrototype = objectPrototypeAny;
@@ -188,38 +187,38 @@ function jnks_init_std_lib(): i32 {
     var objectPrototype = objectPrototypeAny as DynObject;
     var objectTostrF = jnks_Object_prototype_tostr;
     var objectTostr = clos(objectTostrF, );
-    objectPrototype.toString = any(objectTostr);
+    objectPrototype.toString = @any_from_ptr(objectTostr);
 
     Math = {};
     var mathSqrtF = rt(math_sqrt);
     var mathSqrt = clos(mathSqrtF, );
-    Math.sqrt = any(mathSqrt);
+    Math.sqrt = @any_from_closure(mathSqrt);
     var mathSinF = rt(math_sin);
     var mathSin = clos(mathSinF, );
-    Math.sin = any(mathSin);
+    Math.sin = @any_from_closure(mathSin);
     var mathAbsF = rt(math_abs);
     var mathAbs = clos(mathAbsF, );
-    Math.abs = any(mathAbs);
+    Math.abs = @any_from_closure(mathAbs);
     var mathMinF = rt(math_min);
     var mathMin = clos(mathMinF, );
-    Math.min = any(mathMin);
+    Math.min = @any_from_closure(mathMin);
     var mathMaxF = rt(math_max);
     var mathMax = clos(mathMaxF, );
-    Math.max = any(mathMax);
+    Math.max = @any_from_closure(mathMax);
     // source: firefox console -> Math.PI
-    Math.PI = any(3.141592653589793f);
+    Math.PI = @f64_to_any(3.141592653589793f);
 
     // __JNKS
     __JNKS = {};
     var heapDumpF = rt(heap_dump);
     var heapDump = clos(heapDumpF, );
-    __JNKS.heap_dump = any(heapDump);
+    __JNKS.heap_dump = @any_from_closure(heapDump);
     var run_gc_f = rt(run_gc);
     var run_gc = clos(run_gc_f, );
-    __JNKS.run_gc = any(run_gc);
+    __JNKS.run_gc = @any_from_closure(run_gc);
     var mem_info_f = rt(mem_info);
     var mem_info = clos(mem_info_f, );
-    __JNKS.mem_info = any(mem_info);
+    __JNKS.mem_info = @any_from_closure(mem_info);
 
     // Other cached runtime functions
     var primitive_plusF = rt(janky_primitive_plus);
@@ -232,8 +231,8 @@ function jnks_init_std_lib(): i32 {
     console = {};
     var consoleLogF = rt(console_log);
     var consoleLog = clos(consoleLogF, );
-    console.log = any(consoleLog);
-    console.info = any(consoleLog);
+    console.log = @any_from_closure(consoleLog);
+    console.info = @any_from_closure(consoleLog);
 
     // === free-floating stuff in the global namespace ===
 
@@ -255,9 +254,9 @@ function error_raw(_: env, _this: any, message: str): DynObject {
     // `Error("err")` has same functionality as `new Error("err")`
     // so Error i guess doesn't use `this`
     var e_proto = {};
-    e_proto.name = any("Error");
-    e_proto.message = any(message);
-    var e_proto_any = any(e_proto);
+    e_proto.name = @any_from_ptr("Error");
+    e_proto.message = @any_from_ptr(message);
+    var e_proto_any = @any_from_ptr(e_proto);
     var e = jnks_objectCreate!(undefined, e_proto_any);
     return e as DynObject;
 }
@@ -270,14 +269,14 @@ function error_raw(_: env, _this: any, message: str): DynObject {
 function error_ground(dummyEnv: env, this: any, message: any): any {
     var messageStr = message as str;
     var result = error_raw(dummyEnv, this, messageStr);
-    return any(result);
+    return @any_from_ptr(result);
 }
 
 // The default implementation of `Object.prototype.toString`.
 // All objects that don't specifically override `toString` will
 // have this implementation.
 function jnks_Object_prototype_tostr(_: env, this: any): any {
-    return any("[object Object]");
+    return @any_from_ptr("[object Object]");
 }
 
 // Converts the given value into a primitive value.
