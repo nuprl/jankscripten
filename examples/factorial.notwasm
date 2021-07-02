@@ -1,3 +1,4 @@
+
 function factorial(n : i32) : i32 {
     var result = 1;
     while (n > 0) {
@@ -7,14 +8,20 @@ function factorial(n : i32) : i32 {
     return result;
 }
 
-function main() : i32 {
+function main() {
+
+    var consoleLogF  = rt(console_log);
+    var consoleLog  = clos(consoleLogF,);
     var total = 0;
     var counter = 10000000;    
+    var r = any(0);
     while (counter > 0) {
         var n = 10;
         var tmp = factorial(n);
         total = total + tmp;
         counter = counter - 1;
     }
-    return total;
+ 
+    r = any(total);
+    consoleLog!(r, r);
 }
