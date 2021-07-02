@@ -9,7 +9,6 @@
 % \bibliographystyle{abbrvnat}
 % \setcitestyle{authoryear}
 
-
 \newcommand{\system}{\texttt{jankscripten}\xspace}
 \newcommand{\notwasm}{\textsc{NotWasm}\xspace}
 \newcommand{\jankyscript}{JankyScript\xspace}
@@ -76,12 +75,21 @@ targets WebAssembly.
 
 \paragraph{Prerequites}
 \system is written in Rust, and uses the Rust WebAssembly toolchain. It depends
-on Rust packages that link to \emph{libssl} on Linux. Finally, the test suite
-relies on Node. Follow these steps to install the prerequisites:
+on Rust packages that link to \emph{libssl} on Linux, and it relies on the Z3
+SMT Solver. Finally, the test suite relies on Node. Follow these steps to
+install the prerequisites:
 
 \begin{enumerate}
 
 \item Install the \href{https://rustup.rs/}{Rust toolchain}.
+\textbf{We require Rust 1.51.0 (released March 2021).} More recent versions of
+Rust changed the ABI of the WebAssembly backend. We will fix this soon.
+After installing Rust, run the following commands:
+
+\begin{verbatim}
+rustup toolchain add 1.51.0
+rustup default 1.51.0
+\end{verbatim}
 
 \item Install \href{https://nodejs.org/en/}{Node}. We require Node 11 or higher.
 
@@ -101,6 +109,12 @@ cargo install wasm-bindgen-cli
 
 \begin{verbatim}
 sudo apt-get install libssl-dev pkg-config
+\end{verbatim}
+
+\item Install the Z3 library. On Ubuntu Linux:
+
+\begin{verbatim}
+sudo apt-get install libz3-dev
 \end{verbatim}
 
 \end{enumerate}
@@ -164,5 +178,6 @@ You can use Visual Studio Code or Edge, but source maps do not appear to work
 correctly. See the
 \href{https://nodejs.org/en/docs/guides/debugging-getting-started/}{Node
 Debugging Guide} for more information.
+
 
 \end{document}
