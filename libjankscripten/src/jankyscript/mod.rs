@@ -3,11 +3,15 @@ mod closure_convert;
 mod collect_assigns;
 mod compile;
 pub mod constructors;
-mod from_js;
+pub mod from_js;
 mod fv;
+mod operators;
+mod operators_z3;
 mod pretty;
 pub mod syntax;
 mod type_checking;
+mod typeinf;
+mod typeinf_env;
 mod walk;
 
 pub use compile::compile;

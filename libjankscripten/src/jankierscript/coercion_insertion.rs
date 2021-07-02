@@ -41,6 +41,8 @@ impl Env {
         let mut env: HashMap<Id, EnvItem> = HashMap::new();
         env.insert(
             Id::Named("log_any".to_string()),
+            // NOTE(arjun): This is the *ONLY* EnvItem::Prim that we construct,
+            // which seems silly. We can probably eliminate this.
             EnvItem::Prim(RTSFunction::LogAny),
         );
         for (k, v) in get_global_object().into_iter() {
@@ -49,7 +51,7 @@ impl Env {
         Env { env }
     }
 
-    pub fn get(&self, id: &Id) -> Option<&Type> {
+    pub fn _get(&self, id: &Id) -> Option<&Type> {
         match self.env.get(id) {
             Some(EnvItem::JsId(t)) => Some(t),
             _ => None,
@@ -173,7 +175,7 @@ fn binop_overload(op: &BinOp, lhs_ty: &Type, rhs_ty: &Type) -> TypeOverload {
 impl InsertCoercions {
     fn stmt(&self, stmt: Stmt, env: &mut Env, ret_ty: &Type) -> CoercionResult<Janky::Stmt> {
         match stmt {
-            Stmt::Var(x, t, e, s) => {
+            Stmt::Var(x, _t, e, s) => {
                 let (e, t) = self.expr_and_type(*e, env)?;
                 env.env.insert(x.clone(), EnvItem::JsId(t.clone()));
                 Ok(Janky_::var_(x, t, e, s))
@@ -673,13 +675,6 @@ impl InsertCoercions {
                     Coercion::seq(
                         self.coercion(Type::Any, gf.clone(), s.clone()),
                         self.coercion(gf, Type::Function(args, ret), s),
-                    )
-                }
-                (Type::Any, Type::Function(args, ret)) => {
-                    let gf = Type::ground_function(args.len());
-                    Coercion::seq(
-                        self.coercion(Type::Function(args, ret), gf.clone(), s.clone()),
-                        self.coercion(gf, Type::Any, s),
                     )
                 }
                 (Type::Function(args1, ret1), Type::Function(args2, ret2)) => {

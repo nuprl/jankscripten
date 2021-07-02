@@ -238,6 +238,7 @@ fn coercion_to_expr(c: J::Coercion, a: Atom, p: Pos) -> Atom {
         Fun(..) => todo!(), // TODO(michael) needs to call something that proxies the function
         Id(..) => a,
         Seq(c1, c2) => coercion_to_expr(*c2, coercion_to_expr(*c1, a, p.clone()), p),
+        Meta(..) => panic!("Meta coerce remains"),
     }
 }
 

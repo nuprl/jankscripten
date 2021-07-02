@@ -106,7 +106,7 @@ fn ensure_function(msg: &str, got: Type, s: Pos) -> TypeCheckingResult<(Vec<Type
     }
 }
 
-fn ensure_ground(msg: &str, got: Type, s: Pos) -> TypeCheckingResult<Type> {
+fn _ensure_ground(msg: &str, got: Type, s: Pos) -> TypeCheckingResult<Type> {
     if got.is_ground() {
         Ok(got)
     } else {
@@ -200,12 +200,20 @@ fn type_check_stmt(stmt: &Stmt, env: Env, ret_ty: &Option<Type>) -> TypeChecking
             Ok(env)
         }
         Stmt::Var(x, t, e, s) => {
-            ensure(
-                "variable declaration matches given type",
-                t.clone(),
-                type_check_expr(e, env.clone())?,
-                &s,
-            )?;
+            match &**e {
+                Expr::Lit(Lit::Undefined, _) => {
+                    // TODO(arjun): This is a little hacky, but necessary to deal with function
+                    // results getting named.
+                }
+                _ => {
+                    ensure(
+                        "variable declaration matches given type",
+                        t.clone(),
+                        type_check_expr(e, env.clone())?,
+                        &s,
+                    )?;
+                }
+            }
 
             Ok(env.update(x.clone(), t.clone()))
         }
@@ -300,7 +308,7 @@ fn type_check_func(f: &Func, env: Env) -> TypeCheckingResult<Type> {
 
 fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
     match expr {
-        Expr::JsOp(_, _, _) => panic!("cannot type-check JsOp"),
+        Expr::JsOp(..) => panic!("cannot type-check JsOp"),
         Expr::Func(f, _) => type_check_func(f, env),
         Expr::Assign(lval, rval, s) => {
             // rval should be well typed
@@ -494,6 +502,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
 // types.
 fn type_check_coercion(c: &Coercion, s: Pos) -> TypeCheckingResult<(Type, Type)> {
     match c {
+        Coercion::Meta(t1, t2) => Ok((t1.clone(), t2.clone())),
         Coercion::FloatToInt => Ok((Type::Float, Type::Int)),
         Coercion::IntToFloat => Ok((Type::Int, Type::Float)),
         Coercion::Tag(from_type) => Ok((from_type.clone(), Type::Any)),

@@ -30,9 +30,18 @@ pub enum Coercion {
     /// Coercion::Seq(t1, t2) where t1 : S -> U and t2 : U -> T
     /// has the type S -> Ts
     Seq(Box<Coercion>, Box<Coercion>),
+    Meta(Type, Type),
 }
 
 impl Coercion {
+    pub fn meta(t1: Type, t2: Type) -> Coercion {
+        if t1 == t2 {
+            Coercion::Id(t1)
+        } else {
+            Coercion::Meta(t1, t2)
+        }
+    }
+
     /// "Smart constructor" that eliminates unnecessary identity coercions in
     /// a sequence.
     pub fn seq(c1: Coercion, c2: Coercion) -> Coercion {

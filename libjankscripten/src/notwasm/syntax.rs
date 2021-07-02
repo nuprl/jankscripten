@@ -109,7 +109,7 @@ pub struct FnType {
 /// values.
 ///
 /// Note that all I32s are signed in jankyscript
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum BinaryOp {
     PtrEq,
     I32Eq,

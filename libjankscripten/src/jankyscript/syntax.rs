@@ -1,5 +1,7 @@
-//! The JankierScript language
+//! The JankyScript language
 
+use super::super::javascript as js;
+use super::operators::NotwasmOp;
 use crate::pos::Pos;
 use crate::rts_function::RTSFunction;
 pub use crate::shared::coercions::Coercion;
@@ -84,10 +86,31 @@ impl Func {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Hash, Eq)]
 pub enum JsOp {
-    Binary(super::super::javascript::BinaryOp),
-    Unary(super::super::javascript::UnaryOp),
+    Binary(js::BinaryOp),
+    Unary(js::UnaryOp),
+}
+
+impl From<js::BinaryOp> for JsOp {
+    fn from(op: js::BinaryOp) -> JsOp {
+        JsOp::Binary(op)
+    }
+}
+
+impl From<js::UnaryOp> for JsOp {
+    fn from(op: js::UnaryOp) -> JsOp {
+        JsOp::Unary(op)
+    }
+}
+
+#[derive(Debug, PartialEq, Default)]
+pub struct JsOpTypeinf {
+    /// During type inference, holds type-metavariables with the types of each argument.
+    pub arg_ts: Vec<Type>,
+    /// During type inference, holds a metavariable that resolved to the inferred NotwasmOp.
+    pub op_metavar: NotwasmOp,
+    pub any_case: Option<crate::z3ez::Bool>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -98,7 +121,8 @@ pub enum Expr {
     Id(Id, Type, Pos),
     Dot(Box<Expr>, Id, Pos),
     Bracket(Box<Expr>, Box<Expr>, Pos),
-    JsOp(JsOp, Vec<Expr>, Pos),
+    /// A JavaScript operator.
+    JsOp(JsOp, Vec<Expr>, JsOpTypeinf, Pos),
     Unary(UnaryOp, Box<Expr>, Pos),
     Binary(BinaryOp, Box<Expr>, Box<Expr>, Pos),
     Assign(Box<LValue>, Box<Expr>, Pos),

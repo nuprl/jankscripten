@@ -16,7 +16,7 @@ use super::*;
 struct NormalizeStdLibCalls;
 
 impl Visitor for NormalizeStdLibCalls {
-    fn exit_expr(&mut self, expr: &mut Expr, loc: &Loc) {
+    fn exit_expr(&mut self, expr: &mut Expr, _loc: &Loc) {
         match expr {
             // why not do this after `new` desugaring? because then we lose the
             // name of the call because of how we happen to do it

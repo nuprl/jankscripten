@@ -11,6 +11,7 @@ mod rope;
 mod rts_function;
 pub mod shared;
 mod string_escaping;
+mod z3ez;
 
 pub fn javascript_to_wasm<F, G>(
     mut opts: opts::Opts,

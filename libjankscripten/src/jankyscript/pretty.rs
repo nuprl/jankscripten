@@ -31,6 +31,7 @@ impl Pretty for Type {
             ]),
             Type::Any => pp.text("any"),
             Type::Ref(of) => pp.text("ref").append(of.pretty(pp).parens()),
+            Type::Metavar(n) => pp.text(format!("metavar-{}", n)),
         }
     }
 }
@@ -43,6 +44,10 @@ impl Pretty for Coercion {
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
         match self {
+            Coercion::Meta(t1, t2) => pp.text("coerce").append(
+                pp.intersperse(vec![t1.pretty(pp), t2.pretty(pp)], pp.text(","))
+                    .parens(),
+            ),
             Coercion::Id(t) => pp.text("id").append(t.pretty(pp).parens()),
             Coercion::Tag(t) => t.pretty(pp).append(pp.text("!")),
             Coercion::Untag(t) => t.pretty(pp).append(pp.text("?")),
@@ -72,7 +77,11 @@ impl Pretty for LValue {
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
         match self {
-            LValue::Id(id, _) => pp.as_string(id),
+            LValue::Id(id, t) => pp
+                .as_string(id)
+                .append(pp.text("/*"))
+                .append(t.pretty(pp))
+                .append(pp.text("*/")),
             LValue::Dot(e, id) => e
                 .pretty(pp)
                 .append(pp.text("."))
@@ -122,6 +131,20 @@ impl Pretty for Key {
     }
 }
 
+impl Pretty for JsOp {
+    fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A>
+    where
+        D: pretty::DocAllocator<'b, A>,
+        A: std::clone::Clone,
+        <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
+    {
+        match self {
+            JsOp::Binary(op) => pp.text(format!("{:?}", &op)),
+            JsOp::Unary(op) => pp.text(format!("{:?}", &op)),
+        }
+    }
+}
+
 impl Pretty for Expr {
     fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A>
     where
@@ -131,7 +154,14 @@ impl Pretty for Expr {
     {
         match self {
             Expr::Lit(lit, _) => lit.pretty(pp),
-            Expr::JsOp(op, es, _) => pp.text("<todo -- jsop pretty-printing>"),
+            Expr::JsOp(op, es, _, _) => pp.text("JsOp").append(pp.intersperse(
+                vec![
+                    op.pretty(pp),
+                    pp.intersperse(es.iter().map(|e| e.pretty(pp)), pp.text(","))
+                      .parens(),
+                ],
+                pp.text(","),
+            )),
             Expr::Array(es, _) => pp
                 .intersperse(
                     es.iter().map(|e| e.pretty(pp)),
