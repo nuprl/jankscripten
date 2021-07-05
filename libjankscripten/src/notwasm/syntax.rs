@@ -79,6 +79,16 @@ pub enum Type {
 }
 
 impl Type {
+
+    pub fn unwrap_fun(&self) -> (&Vec<Type>, Option<&Type>) {
+        match self {
+            Type::Fn(fn_type) => (&fn_type.args, match &fn_type.result {
+                None => None,
+                Some(ret) => Some(& *ret)
+            }),
+            _ => panic!("unwrap_fun: unexpected type: {}", self),
+        }
+    }    
     pub fn is_gc_root(&self) -> bool {
         match self {
             Type::I32 => false,
@@ -231,6 +241,9 @@ impl ToAny {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Atom {
     Lit(Lit, Pos),
+    /// A primtive applciation that does not have any non-trivial interaction with the garbage 
+    /// collector.
+    PrimApp(Id, Vec<Atom>, Pos),    
     ToAny(ToAny, Pos),
     /// `FromAny(atom, ty, Pos)`
     ///
@@ -257,6 +270,7 @@ impl Atom {
     pub fn pos(&self) -> &Pos {
         match self {
             Atom::Lit(_, p) => p,
+            Atom::PrimApp(_, _, p) => p,
             Atom::ToAny(_, p) => p,
             Atom::FromAny(_, _, p) => p,
             Atom::FloatToInt(_, p) => p,

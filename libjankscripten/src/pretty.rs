@@ -25,7 +25,7 @@ macro_rules! impl_Display_Pretty {
 ///
 /// prettyp!(pp, e) where
 /// 
-/// ```
+/// ```text
 /// <e> ::= space                // Insert a space or line break
 ///       | line                 // Insert a line break
 ///       | <string_lit>         // Prints a string literal

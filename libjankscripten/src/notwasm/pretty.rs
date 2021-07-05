@@ -186,6 +186,7 @@ impl Pretty for Atom {
     {
         match self {
             Atom::Lit(l, _) => l.pretty(pp),
+            Atom::PrimApp(f, args, _) => prettyp!(pp, (seq "@" (id f) (parens (comma_sep args)))),
             Atom::ToAny(to_any, _) => to_any.pretty(pp),
             Atom::FromAny(a, t, _) => prettyp!(pp, (seq (id a) space "as" space (id t))),
             Atom::FloatToInt(a, _) => prettyp!(pp, (seq "float_to_int" space (id a))),

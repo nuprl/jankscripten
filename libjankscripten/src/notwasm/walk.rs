@@ -161,6 +161,11 @@ where
         match atom {
             // 0
             Lit(..) | Id(..) | GetPrimFunc(..) | Deref(..) | EnvGet(..) => (),
+            PrimApp(_, args, _) => {
+                for a in args.iter_mut() {
+                    self.walk_atom(a, loc);
+                }
+            }            
             ToAny(to_any, _) => {
                 self.walk_atom(to_any.atom.as_mut(), loc);
             }

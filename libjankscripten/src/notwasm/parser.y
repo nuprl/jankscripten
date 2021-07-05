@@ -75,11 +75,19 @@ Type -> Type :
   | 'env'                 { Type::Env }
   ;
 
+AtomSeq -> Vec<Atom> :
+                     { Vec::new() }
+  | Atom             { vec![$1] }
+  | AtomSeq ',' Atom { $1.push($3); $1 }
+  ;
+
 Atom -> Atom :
+
   // TODO(arjun): should translate to an RTS call, right?
   // 'sqrt' '(' Atom ')'   { Atom::Unary(UnaryOp::Sqrt, Box::new($3), pos($1)) }
   // TODO(arjun): should translate to an RTS call, right?
     'strlen' '(' Atom ')'  { Atom::StringLen(Box::new($3), pos($1)) }
+  | '$' Id '(' AtomSeq ')' { Atom::PrimApp($2, $4, pos($1)) }    
   | 'any' '(' Atom ')'     { Atom::ToAny(ToAny::new($3), pos($1)) }
   | 'env' '.' U32 ':' Type { Atom::EnvGet($3, $5, pos($4)) }
   | 'rt' '(' Id ')'        { Atom::GetPrimFunc($3, pos($1)) }
