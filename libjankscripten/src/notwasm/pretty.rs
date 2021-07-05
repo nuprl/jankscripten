@@ -1,7 +1,7 @@
 use super::syntax::*;
 
 use crate::impl_Display_Pretty;
-use crate::shared::pretty::Pretty;
+use crate::pretty::Pretty;
 
 impl Pretty for Type {
     fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A>
