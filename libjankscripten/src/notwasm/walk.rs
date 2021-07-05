@@ -171,7 +171,6 @@ where
             }
             FloatToInt(ea, _)
             | IntToFloat(ea, _)
-            | StringLen(ea, _)
             | ArrayLen(ea, ..)
             | Unary(.., ea, _)
             | FromAny(ea, ..) => {

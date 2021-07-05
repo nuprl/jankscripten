@@ -546,7 +546,7 @@ fn strings() {
                 Default::default(),
             ),
             Stmt::Return(
-                len_(get_id_("s", Default::default()), Default::default()),
+                Atom::PrimApp(Id::from("string_len"),  vec![get_id_("s", Default::default())], Default::default()),
                 Default::default(),
             ),
         ],

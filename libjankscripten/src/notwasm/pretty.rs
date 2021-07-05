@@ -200,7 +200,6 @@ impl Pretty for Atom {
             Atom::ArrayLen(a, _) => prettyp!(pp, (seq (id a) ".array_len()")),
             Atom::Id(id, _) => pp.as_string(id),          
             Atom::GetPrimFunc(id, _) => prettyp!(pp, (seq "rt" (parens (id id)))),
-            Atom::StringLen(a, _) => prettyp!(pp, (seq (id a) ".string_len()")),
             Atom::Unary(op, a, _) => prettyp!(pp, (seq (id op) (id a))),
             Atom::Binary(op, l, r, _) => prettyp!(pp, (seq (id l) (id op) (id r))),
             Atom::Deref(a, _, _) => prettyp!(pp, (seq "*" (id a))),

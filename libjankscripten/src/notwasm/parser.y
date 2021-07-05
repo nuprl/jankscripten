@@ -82,12 +82,7 @@ AtomSeq -> Vec<Atom> :
   ;
 
 Atom -> Atom :
-
-  // TODO(arjun): should translate to an RTS call, right?
-  // 'sqrt' '(' Atom ')'   { Atom::Unary(UnaryOp::Sqrt, Box::new($3), pos($1)) }
-  // TODO(arjun): should translate to an RTS call, right?
-    'strlen' '(' Atom ')'  { Atom::StringLen(Box::new($3), pos($1)) }
-  | '$' Id '(' AtomSeq ')' { Atom::PrimApp($2, $4, pos($1)) }    
+    '$' Id '(' AtomSeq ')' { Atom::PrimApp($2, $4, pos($1)) }    
   | 'any' '(' Atom ')'     { Atom::ToAny(ToAny::new($3), pos($1)) }
   | 'env' '.' U32 ':' Type { Atom::EnvGet($3, $5, pos($4)) }
   | 'rt' '(' Id ')'        { Atom::GetPrimFunc($3, pos($1)) }
@@ -147,8 +142,6 @@ Expr -> Expr :
   | '{' '}'                             { Expr::ObjectEmpty }
   | 'clos' '(' Id ',' IdAtomTypeSeq ')' { Expr::Closure($3, $5, pos($1)) }
   | 'arrayPush' '(' Atom ',' Atom ')'   { Expr::Push($3, $5, pos($1)) }
-  // NOTE(arjun): The line below was in the grammar, and was not necessary
-  // | 'sqrt' '(' Atom ')'              { Expr::Atom(sqrt_($3, pos($1)), pos($1)) }
   // TODO(arjun): We can infer the type annotation.
   | 'newRef' '(' Atom ',' Type ')'      { Expr::NewRef($3, $5, pos($1)) }
   | Id '!' '(' IdSeq ')'                { Expr::ClosureCall($1, $4, pos($2)) }

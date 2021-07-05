@@ -94,9 +94,7 @@ pub fn bor_(a: Atom, b: Atom, s: Pos) -> Atom {
 pub fn eq_(a: Atom, b: Atom, s: Pos) -> Atom {
     binary_(BinaryOp::I32Eq, a, b, s)
 }
-pub fn len_(a: Atom, s: Pos) -> Atom {
-    Atom::StringLen(Box::new(a), s)
-}
+
 pub fn deref_(a: Atom, b: Type, s: Pos) -> Atom {
     Atom::Deref(Box::new(a), b, s)
 }

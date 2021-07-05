@@ -827,10 +827,6 @@ impl<'a> Translate<'a> {
                 self.translate_atom(array);
                 self.rt_call("array_len");
             }
-            N::Atom::StringLen(string, _) => {
-                self.translate_atom(string);
-                self.rt_call("string_len");
-            }
             N::Atom::Binary(op, a, b, _) => {
                 self.translate_atom(a);
                 self.translate_atom(b);
