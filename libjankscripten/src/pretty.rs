@@ -21,16 +21,48 @@ macro_rules! impl_Display_Pretty {
     };
 }
 
+/// Nice syntax for writing pretty printers.
+///
+/// prettyp!(pp, e) where
+/// 
+/// ```
+/// <e> ::= space                // Insert a space or line break
+///       | line                 // Insert a line break
+///       | <string_lit>         // Prints a string literal
+///       | (comma_sep <x>)      // Prints a comma separated list of <x>
+///       | (line_sep <x>)       // Prints a line separated list of <x>
+///       | (id <x>)             // Unquotation: prints <x>
+///       | (nest <e>)           // Prints <e> as a nested expression
+///       | (parens <e> )        // Parentheses
+///       | (brackets <e>)       // Square brackets
+///       | (braces <e>)         // Curly braces
+///       | (seq <e> ...)        // Sequence
+/// ```
 #[macro_export]
-macro_rules! pretty {
-    ($pp:ident, space) => ($pp.space());
-    ($pp:ident, comma_sep ( $x:ident ) ) =>
-        ($pp.intersperse($x.iter().map(|item| item.pretty($pp)), $pp.text(",")));
-    ($pp:ident, ( $( $ts:tt )* ) ) =>
-        ((pretty!($pp, $( $ts )*)).parens());
-    ($pp:ident, $t:ident) => ($t.pretty($pp));
+macro_rules! prettyp {
+    ($pp:ident, space) =>
+        ($pp.space());
+    ($pp:ident, line) =>
+        ($pp.line());
     ($pp:ident, $t:literal) => ($t.pretty($pp));
-    ($pp:ident, $( $ts:tt ),* ) => ($pp.concat(vec![ $( pretty!($pp, $ts ) ),* ]));
+    ($pp:ident, ( comma_sep $x:ident ) ) =>
+        ($pp.intersperse($x.iter().map(|item| item.pretty($pp)), $pp.text(",")));
+    ($pp:ident, ( line_sep $x:ident ) ) =>
+        ($pp.intersperse($x.iter().map(|item| item.pretty($pp)), $pp.line()));
+    ($pp:ident, ( as_string $t:ident ) ) =>
+        ($pp.as_string($t));
+    ($pp:ident, ( id $( $t:tt )* ) ) =>
+        (($($t)*).pretty($pp));        
+    ($pp:ident, ( nest $( $ts:tt )* ) ) =>
+        ((prettyp!($pp, $( $ts )*)).nest(2));
+    ($pp:ident, ( parens $( $ts:tt )* ) ) =>
+        ((prettyp!($pp, $( $ts )*)).parens());
+    ($pp:ident, ( brackets $( $ts:tt )* ) ) =>
+        ((prettyp!($pp, $( $ts )*)).brackets());
+    ($pp:ident, ( braces $( $ts:tt )* ) ) =>
+        ((prettyp!($pp, $( $ts )*)).braces());
+    ($pp:ident, ( seq $( $ts:tt )* ) ) =>
+        ($pp.concat(vec![ $( prettyp!($pp, $ts) ),* ]));
 }
 
 impl Pretty for &'static str {
@@ -41,5 +73,27 @@ impl Pretty for &'static str {
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
         pp.text(*self)
+    }
+}
+
+impl Pretty for String {
+    fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A>
+    where
+        D: pretty::DocAllocator<'b, A>,
+        A: std::clone::Clone,
+        <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
+    {
+        pp.text(self)
+    }
+}
+
+impl Pretty for u32 {
+    fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A>
+    where
+        D: pretty::DocAllocator<'b, A>,
+        A: std::clone::Clone,
+        <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
+    {
+        pp.text(format!("{}", *self))
     }
 }
