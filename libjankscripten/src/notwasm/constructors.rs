@@ -51,9 +51,6 @@ pub fn prim_app_<S: Into<String>>(a: S, args: Vec<Atom>, p: Pos) -> Atom {
     Atom::PrimApp(id_(a), args, p)
 }
 
-pub fn array_len_(a: Atom, s: Pos) -> Atom {
-    Atom::ArrayLen(Box::new(a), s)
-}
 pub fn i32_(a: i32, s: Pos) -> Atom {
     Atom::Lit(Lit::I32(a), s)
 }

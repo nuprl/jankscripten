@@ -171,7 +171,6 @@ where
             }
             FloatToInt(ea, _)
             | IntToFloat(ea, _)
-            | ArrayLen(ea, ..)
             | Unary(.., ea, _)
             | FromAny(ea, ..) => {
                 self.walk_atom(ea, loc);

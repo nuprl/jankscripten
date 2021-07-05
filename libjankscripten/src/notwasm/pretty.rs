@@ -195,7 +195,6 @@ impl Pretty for Atom {
                 Atom::Lit(Lit::String(r), _) => prettyp!(pp, (seq (id l) ".htget" (id r))),
                 _ => prettyp!(pp, (seq (id l) "." (id r))),
             },
-            Atom::ArrayLen(a, _) => prettyp!(pp, (seq (id a) ".array_len()")),
             Atom::Id(id, _) => pp.as_string(id),          
             Atom::GetPrimFunc(id, _) => prettyp!(pp, (seq "rt" (parens (id id)))),
             Atom::Unary(op, a, _) => prettyp!(pp, (seq (id op) (id a))),

@@ -252,7 +252,6 @@ pub enum Atom {
     FloatToInt(Box<Atom>, Pos), // MMG made these Atoms because they shouldn't ever allocate
     IntToFloat(Box<Atom>, Pos),
     ObjectGet(Box<Atom>, Box<Atom>, Pos),
-    ArrayLen(Box<Atom>, Pos),
     Id(Id, Pos),
     GetPrimFunc(Id, Pos),
     Unary(UnaryOp, Box<Atom>, Pos),
@@ -273,7 +272,6 @@ impl Atom {
             Atom::FloatToInt(_, p) => p,
             Atom::IntToFloat(_, p) => p,
             Atom::ObjectGet(_, _, p) => p,
-            Atom::ArrayLen(_, p) => p,
             Atom::Id(_, p) => p,
             Atom::GetPrimFunc(_, p) => p,
             Atom::Unary(_, _, p) => p,

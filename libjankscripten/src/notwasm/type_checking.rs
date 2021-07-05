@@ -527,11 +527,6 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
         }
         Atom::Id(id, s) => lookup(env, id, s),
         Atom::GetPrimFunc(id, s) => lookup(env, id, s),
-        Atom::ArrayLen(a, s) => {
-            let got = type_check_atom(env, a)?;
-            ensure("array len", Type::Array, got, s)?;
-            Ok(Type::I32)
-        }
         Atom::ObjectGet(a_obj, a_field, s) => {
             let got_obj = type_check_atom(env, a_obj)?;
             let got_field = type_check_atom(env, a_field)?;

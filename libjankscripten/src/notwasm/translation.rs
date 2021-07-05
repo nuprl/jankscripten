@@ -813,10 +813,6 @@ impl<'a> Translate<'a> {
                 self.data_cache();
                 self.rt_call("object_get");
             }
-            N::Atom::ArrayLen(array, _) => {
-                self.translate_atom(array);
-                self.rt_call("array_len");
-            }
             N::Atom::Binary(op, a, b, _) => {
                 self.translate_atom(a);
                 self.translate_atom(b);
