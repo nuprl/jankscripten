@@ -191,7 +191,6 @@ impl Pretty for Atom {
             Atom::FromAny(a, t, _) => prettyp!(pp, (seq (id a) space "as" space (id t))),
             Atom::FloatToInt(a, _) => prettyp!(pp, (seq "float_to_int" space (id a))),
             Atom::IntToFloat(a, _) => prettyp!(pp, (seq "int_to_float" space (id a))),
-            Atom::HTGet(l, r, _) => prettyp!(pp, (seq (id l) space ".htget" space (parens (id r)))),
             Atom::ObjectGet(l, r, _) => match &**r {
                 Atom::Lit(Lit::String(r), _) => prettyp!(pp, (seq (id l) ".htget" (id r))),
                 _ => prettyp!(pp, (seq (id l) "." (id r))),

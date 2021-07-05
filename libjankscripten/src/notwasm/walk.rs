@@ -176,7 +176,6 @@ where
             | FromAny(ea, ..) => {
                 self.walk_atom(ea, loc);
             }
-            HTGet(ea, eb, ..)
             | ObjectGet(ea, eb, ..)
             | Binary(.., ea, eb, _)
             | Index(ea, eb, ..) => {

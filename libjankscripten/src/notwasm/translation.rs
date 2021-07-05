@@ -807,11 +807,6 @@ impl<'a> Translate<'a> {
                 self.translate_atom(a);
                 self.out.push(F64ConvertSI32);
             }
-            N::Atom::HTGet(ht, field, _) => {
-                self.translate_atom(ht);
-                self.translate_atom(field);
-                self.rt_call("ht_get");
-            }
             N::Atom::ObjectGet(obj, field, _) => {
                 self.translate_atom(obj);
                 self.translate_atom(field);

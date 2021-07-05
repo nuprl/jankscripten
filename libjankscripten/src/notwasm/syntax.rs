@@ -251,7 +251,6 @@ pub enum Atom {
     FromAny(Box<Atom>, Type, Pos),
     FloatToInt(Box<Atom>, Pos), // MMG made these Atoms because they shouldn't ever allocate
     IntToFloat(Box<Atom>, Pos),
-    HTGet(Box<Atom>, Box<Atom>, Pos),
     ObjectGet(Box<Atom>, Box<Atom>, Pos),
     Index(Box<Atom>, Box<Atom>, Pos),
     ArrayLen(Box<Atom>, Pos),
@@ -274,7 +273,6 @@ impl Atom {
             Atom::FromAny(_, _, p) => p,
             Atom::FloatToInt(_, p) => p,
             Atom::IntToFloat(_, p) => p,
-            Atom::HTGet(_, _, p) => p,
             Atom::ObjectGet(_, _, p) => p,
             Atom::Index(_, _, p) => p,
             Atom::ArrayLen(_, p) => p,

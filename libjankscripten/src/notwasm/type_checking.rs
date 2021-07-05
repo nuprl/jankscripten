@@ -547,15 +547,6 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             let _ = ensure("object field", Type::DynObject, got_obj, s)?;
             Ok(Type::Any)
         }
-        Atom::HTGet(a_ht, a_field, s) => {
-            let got_ht = type_check_atom(env, a_ht)?;
-            let got_field = type_check_atom(env, a_field)?;
-
-            ensure("ht get", Type::HT, got_ht, s)?;
-            let _ = ensure("ht get (field)", Type::String, got_field, s)?;
-
-            Ok(Type::Any)
-        }
         Atom::Unary(op, a, s) => {
             let (ty_in, ty_out) = op.notwasm_typ();
             let got = type_check_atom(env, a)?;

@@ -108,7 +108,7 @@ fn test_ht() {
             x<<one = any(1);
             x<<two = any(2);
             x<<three = any(3);
-            return x<<one as i32;
+            return @ht_get(x, "one") as i32;
         }
         "#,
     );

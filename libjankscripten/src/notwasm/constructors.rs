@@ -42,9 +42,7 @@ pub fn to_any_(a: Atom, s: Pos) -> Atom {
 pub fn from_any_(a: Atom, ty: Type, s: Pos) -> Atom {
     Atom::FromAny(Box::new(a), ty, s)
 }
-pub fn ht_get_(a: Atom, b: Atom, s: Pos) -> Atom {
-    Atom::HTGet(Box::new(a), Box::new(b), s)
-}
+
 pub fn object_get_(a: Atom, b: Atom, s: Pos) -> Atom {
     Atom::ObjectGet(Box::new(a), Box::new(b), s)
 }
