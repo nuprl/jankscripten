@@ -177,8 +177,7 @@ where
                 self.walk_atom(ea, loc);
             }
             | ObjectGet(ea, eb, ..)
-            | Binary(.., ea, eb, _)
-            | Index(ea, eb, ..) => {
+            | Binary(.., ea, eb, _)  => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
             }

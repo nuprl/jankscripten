@@ -532,13 +532,6 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             ensure("array len", Type::Array, got, s)?;
             Ok(Type::I32)
         }
-        Atom::Index(a_arr, a_idx, s) => {
-            let got_arr = type_check_atom(env, a_arr)?;
-            let got_idx = type_check_atom(env, a_idx)?;
-            let _ = ensure("arrayi ndex (index)", Type::I32, got_idx, s)?;
-            let _ = ensure("array index (array)", Type::Array, got_arr, s);
-            Ok(Type::Any)
-        }
         Atom::ObjectGet(a_obj, a_field, s) => {
             let got_obj = type_check_atom(env, a_obj)?;
             let got_field = type_check_atom(env, a_field)?;

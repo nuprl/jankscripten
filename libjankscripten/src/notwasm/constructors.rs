@@ -46,9 +46,11 @@ pub fn from_any_(a: Atom, ty: Type, s: Pos) -> Atom {
 pub fn object_get_(a: Atom, b: Atom, s: Pos) -> Atom {
     Atom::ObjectGet(Box::new(a), Box::new(b), s)
 }
-pub fn index_(a: Atom, b: Atom, s: Pos) -> Atom {
-    Atom::Index(Box::new(a), Box::new(b), s)
+
+pub fn prim_app_<S: Into<String>>(a: S, args: Vec<Atom>, p: Pos) -> Atom {
+    Atom::PrimApp(id_(a), args, p)
 }
+
 pub fn array_len_(a: Atom, s: Pos) -> Atom {
     Atom::ArrayLen(Box::new(a), s)
 }

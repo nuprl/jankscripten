@@ -316,7 +316,7 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 compile_expr(
                     state,
                     *index,
-                    C::a(move |state, index| cxt.recv_a(state, index_(arr, index, p))),
+                    C::a(move |state, index| cxt.recv_a(state, prim_app_("array_index", vec![arr, index], p)))
                 )
             }),
         ),

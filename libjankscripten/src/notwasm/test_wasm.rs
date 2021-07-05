@@ -143,7 +143,7 @@ fn array_push_index() {
             var _ = arrayPush(x, any(135));
             var _ = arrayPush(x, any(7));
             var _ = arrayPush(x, any(98));
-            return x[2] as i32;
+            return @array_index(x, 2) as i32;
         }
         ",
     );

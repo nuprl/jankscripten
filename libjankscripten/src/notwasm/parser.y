@@ -92,7 +92,6 @@ Atom -> Atom :
   // TODO(arjun): The concrete syntax is more restrictive than the abstract syntax.
   // TODO(arjun): Should this turn into an RTS call?
   | IdAtom '<<' 'length'   { Atom::ArrayLen(Box::new($1), pos($2)) }
-  | IdAtom '[' Atom ']'    { Atom::Index(Box::new($1), Box::new($3), pos($2)) }
   | IdAtom                 { $1 }
   // TODO(arjun): The type annotation on deref should not be necessary in the
   // concrete syntax. The type-checker can figure it out.
