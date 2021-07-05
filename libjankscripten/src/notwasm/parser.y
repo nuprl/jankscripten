@@ -67,10 +67,8 @@ Type -> Type :
   | 'DynObject'           { Type::DynObject }
   | FnType                { Type::Fn($1) }
   | 'clos' FnType         { Type::Closure($2) }
-
-
+  | 'ptr'                 { Type::Ptr }
   | 'HT'                  { Type::HT }
-
   | 'Ref' '(' Type ')'    { Type::Ref(Box::new($3)) }
   | 'env'                 { Type::Env }
   ;

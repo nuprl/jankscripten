@@ -76,6 +76,8 @@ pub enum Type {
     /// all envs are "equal enough" for the code generation we do after closure
     /// conversion
     Env,
+    /// If `v : Ptr` then `v` is a `*const Tag` with some arbitrary value for `v.type_tag`.
+    Ptr,
 }
 
 impl Type {
@@ -105,6 +107,7 @@ impl Type {
             // uhhh i don't think there's a way for there to be a live env when
             // there's not a live closure? so this could probably become false?
             Type::Env => true,
+            Type::Ptr => true,
         }
     }
 }
@@ -430,6 +433,7 @@ impl std::fmt::Display for Type {
                 Closure(..) => "closure",
                 Any => "any",
                 Env => "env",
+                Ptr => "ptr",
             }
         )
     }

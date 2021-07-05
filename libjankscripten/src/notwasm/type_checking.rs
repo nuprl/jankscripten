@@ -472,6 +472,7 @@ fn assert_variant_of_any(ty: &Type, s: &Pos) -> TypeCheckingResult<()> {
         Type::DynObject => Ok(()),
         Type::Ref(..) => invalid_in_context("ref should not be stored in Any", &ty, s),
         Type::Env => invalid_in_context("environments are not values", &ty, s),
+        Type::Ptr => Ok(()),
     }
 }
 

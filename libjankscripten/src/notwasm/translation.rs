@@ -1066,6 +1066,7 @@ impl N::Type {
             Closure(..) => ValueType::I64,
             Ref(..) => ValueType::I32,
             Env => ValueType::I32,
+            Ptr => ValueType::I32,
         }
     }
 }
