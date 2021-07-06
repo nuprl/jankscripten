@@ -69,6 +69,12 @@ macro_rules! error {
     )
 }
 
+macro_rules! err {
+    ($s:expr, $($t:tt)*) => (
+        TypeCheckingError::Other(format!($($t)*), $s.clone())
+    )
+}
+
 fn invalid_in_context<T>(message: impl Into<String>, ty: &Type, s: &Pos) -> TypeCheckingResult<T> {
     return Err(TypeCheckingError::InvalidInContext(
         message.into(),
@@ -313,6 +319,34 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             let _ = ensure("object set (val)", Type::Any, got_val, s)?;
 
             Ok(Type::Any) // returns value set
+        }
+        Expr::PrimApp(prim, args, s) => {
+            let ty = env.get(&Id::from(prim.clone())).ok_or(err!(s, "primitive not found: {}", prim))?;
+            let arg_tys = args
+                .into_iter()
+                .map(|a| type_check_atom(env, a))
+                .collect::<Result<Vec<_>, _>>()?;            
+            let (expected_args, ret) = ty.unwrap_fun();
+            let ret = ret.ok_or(err!(s, "primitive {} does not return a value", prim))?;
+            if arg_tys.len() != expected_args.len() {
+                error!(
+                    s,
+                    "primitive {:?} expected {} arguments, but received {}",
+                    prim,
+                    expected_args.len(),
+                    arg_tys.len(),
+                )
+            }
+            else if arg_tys
+                .iter()
+                .zip(expected_args.iter())
+                .any(|(t1, t2)| t1 != t2)
+            {
+                error!(s, "primitive {:?} applied to wrong argument type", prim)
+            }
+            else {
+                Ok(ret.clone())
+            }       
         }
         Expr::PrimCall(prim, args, s) => {
             match prim.janky_typ().notwasm_typ() {

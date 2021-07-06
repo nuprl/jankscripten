@@ -268,7 +268,7 @@ where
                 }
             }
             // 1x[Expr]
-            Array(es, _) | PrimCall(.., es, _) => {
+            Array(es, _) | PrimCall(.., es, _) | PrimApp(_, es, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 for e in es {
                     self.walk_expr(e, &loc);

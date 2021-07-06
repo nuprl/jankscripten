@@ -14,9 +14,7 @@ where
 {
     //label_apps(&mut program);
     //elim_gotos(&mut program);
-    let mut src = String::new();
-    std::mem::swap(&mut src, &mut opts.notwasm_stdlib_source_code);
-    let notwasm_std_lib = parse("std_lib.notwasm", src);
+    let notwasm_std_lib = opts.take_stdlib();
     program.merge_in(notwasm_std_lib);
 
     inspect(&program);

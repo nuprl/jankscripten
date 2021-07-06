@@ -521,6 +521,7 @@ impl<'a> Typeinf<'a> {
                 );
                 (phi, beta)
             }
+            Expr::PrimApp(..) => todo!(),
         }
     }
 
@@ -620,7 +621,7 @@ mod tests {
         typeinf(&mut janky);
         let mut count_anys = CountToAnys::default();
         janky.walk(&mut count_anys);
-        type_check(&janky).expect("result of type inference does not type check");
+        type_check(Default::default(), &janky).expect("result of type inference does not type check");
         return count_anys.num_anys;
     }
 

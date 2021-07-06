@@ -82,6 +82,23 @@ pub enum Type {
 
 impl Type {
 
+    pub fn janky(&self) -> crate::jankyscript::syntax::Type {
+        use crate::jankyscript::syntax::{Type as J};
+        match self {
+            Type::Any => J::Any,
+            Type::I32 => J::Int,
+            Type::F64 => J::Float,
+            Type::Bool => J::Bool,
+            Type::String => J::String,
+            Type::Array => J::Array,
+            Type::DynObject => J::DynObject,
+            Type::Fn(fn_type) => J::Function(
+                    fn_type.args.iter().map(|x| x.janky()).collect(),
+                    Box::new(fn_type.result.as_ref().unwrap().janky())),
+            _ => panic!("Unhandled type: {}", self),
+        }
+    }
+
     pub fn unwrap_fun(&self) -> (&Vec<Type>, Option<&Type>) {
         match self {
             Type::Fn(fn_type) => (&fn_type.args, match &fn_type.result {
@@ -298,6 +315,7 @@ pub enum Expr {
     /// right now, never constructed from jankyscript, only in tests
     Call(Id, Vec<Id>, Pos),
     ClosureCall(Id, Vec<Id>, Pos),
+    PrimApp(String, Vec<Atom>, Pos),
     PrimCall(RTSFunction, Vec<Atom>, Pos),
     ObjectEmpty,
     /// ObjectSet(obj, field_name, value, typ, Pos) is obj.field_name: typ = value;

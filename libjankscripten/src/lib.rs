@@ -30,7 +30,7 @@ where
     javascript::desugar(&mut js_ast, &mut ng);
     let jankier_ast = jankierscript::from_javascript(js_ast);
     let mut janky_ast = jankierscript::insert_coercions(jankier_ast)?;
-    jankyscript::compile(&mut janky_ast, inspect_janky).unwrap();
+    jankyscript::compile(&mut opts, &mut janky_ast, inspect_janky).unwrap();
     let notwasm_ast = notwasm::from_jankyscript(janky_ast);
     notwasm::compile(&mut opts, notwasm_ast, inspect_notwasm)
 }

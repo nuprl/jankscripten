@@ -254,6 +254,7 @@ impl Pretty for Expr {
                 prettyp!(pp, (seq (id f) (parens (comma_sep args)))),
             Expr::ClosureCall(f, args, _) => prettyp!(pp, (seq (id f) "!" (parens (comma_sep args)))),
             Expr::PrimCall(rtsfun, args, _) => prettyp!(pp, (seq (as_string rtsfun) (parens (comma_sep args)))),
+            Expr::PrimApp(..) => todo!(),
             Expr::ObjectEmpty => pp.text("{}"),
             Expr::ObjectSet(a, Atom::Lit(Lit::String(s), _), c, _) => prettyp!(pp, (seq (id a) "." (id s) "=" (id c) ";")),
             Expr::ObjectSet(a, b, c, _) => prettyp!(pp, (seq (id a) "." (id b) "=" (id c) ";")),

@@ -417,6 +417,21 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 }
             }),
         ),
+        J::Expr::PrimApp(prim, args, p) => {
+            compile_exprs(state, args, move |state, arg_ids| {
+                cxt.recv_e(
+                    state,
+                    Expr::PrimApp(
+                        prim,
+                        arg_ids
+                            .into_iter()
+                            .map(|x| Atom::Id(x, p.clone()))
+                            .collect(),
+                        p,
+                    ),
+                )
+            })
+        }
         J::Expr::PrimCall(prim_name, args, p) => {
             compile_exprs(state, args, move |state, arg_ids| {
                 cxt.recv_e(

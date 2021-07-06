@@ -43,8 +43,9 @@ struct Opts {
 }
 
 impl Compile {
+
     fn libjankscripten_opts(&self) -> libjankscripten::opts::Opts {
-        let mut compile_opts = libjankscripten::opts::Opts::new();
+        let mut compile_opts = libjankscripten::opts::Opts::default();
         if self.disable_gc {
             compile_opts.disable_gc = true;
         }

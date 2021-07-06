@@ -216,6 +216,7 @@ impl Pretty for Expr {
                 )
                 .parens(),
             ]),
+            Expr::PrimApp(..) => todo!("prim app pretty printing"),
             Expr::Func(f, _) => f.pretty(pp),
             Expr::Coercion(c, e, _) => {
                 pp.concat(vec![c.pretty(pp).brackets(), pp.line(), e.pretty(pp)])

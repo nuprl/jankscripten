@@ -128,6 +128,7 @@ pub enum Expr {
     Assign(Box<LValue>, Box<Expr>, Pos),
     Call(Box<Expr>, Vec<Expr>, Pos),
     PrimCall(RTSFunction, Vec<Expr>, Pos),
+    PrimApp(String, Vec<Expr>, Pos),
     Func(Func, Pos),
     Closure(Func, Vec<(Expr, Type)>, Pos),
     Coercion(Coercion, Box<Expr>, Pos),

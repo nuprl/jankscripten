@@ -87,7 +87,7 @@ where
     T: Debug + FromStr + PartialEq,
     <T as FromStr>::Err: Debug,
 {
-    let mut opts = Opts::new();
+    let mut opts = Opts::default();
     opts.notwasm_stdlib_source_code = std::fs::read_to_string("../stdlib.notwasm").unwrap();
     let (wasm, _) = match compile(&mut opts, program, |notwasm| eprintln!("{}", notwasm)) {
         Ok(o) => o,
