@@ -1,0 +1,10 @@
+function main() {
+    var obj = {};
+    var ret = any(100);
+    obj.x = any(3);
+    obj.y = any(2);
+    obj.x = any(1);
+    obj.z = any(3);
+    ret = obj.x;
+    print_any(ret);
+}

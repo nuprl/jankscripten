@@ -1,0 +1,10 @@
+function toCall() : i32 {
+    return 5;
+}
+
+function main() {
+    var x = toCall();
+    var y = 4 + x;
+    var ret = any(y);
+    print_any(ret);
+}

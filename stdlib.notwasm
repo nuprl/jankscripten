@@ -316,3 +316,10 @@ function jnks_plus(left: any, right: any): any {
     var result = plus(left, right);
     return result;
 }
+
+function print_any(x: any): i32 {
+    var f = rt(console_log);
+    var g = clos(f,);
+    g!(undefined, x);
+    return 0;
+}

@@ -50,7 +50,7 @@ pub enum TypeCheckingError {
     #[error("unexpected return type `{0}` at `{1}`")]
     UnexpectedReturn(Type, Pos),
     #[error(
-        "arity mismatch at `{0}`, expected `{1}` parameters but received `{1}` arguments at `{2}`"
+        "arity mismatch at `{0}`, expected `{1}` parameters but received `{2}` arguments at `{3}`"
     )]
     ArityMismatch(Id, usize, usize, Pos),
     #[error("identifier `{0}` is multiply defined at `{1}`")]

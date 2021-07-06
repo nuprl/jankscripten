@@ -1,0 +1,8 @@
+function main() {
+    var r = newRef(150, i32);
+    var s = r;
+    *s = 130;
+    var ret = *r: i32;
+    var ret2 = any(ret);
+    print_any(ret2);
+}
