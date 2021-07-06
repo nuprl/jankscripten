@@ -23,14 +23,14 @@ use super::syntax::*;
 use super::typeinf_env::Env;
 use super::walk::{Loc, Visitor};
 use crate::pos::Pos;
+use crate::typ;
 use crate::z3ez::Z3EZ;
-use crate::{typ};
 use z3::ast::{self, Ast, Dynamic};
 use z3::{Model, Optimize, SatResult};
 // paste::paste and crate::z3_data_type_accessor are macros that appear during expansion of
 // z3_datatype. Do we really have to import them here? There must be a better way.
+use crate::{z3_datatype, z3_datatype_accessor, z3f};
 use paste::paste;
-use crate::{z3f, z3_datatype, z3_datatype_accessor};
 
 z3_datatype! {
     Z3Typ
@@ -351,8 +351,8 @@ impl<'a> Typeinf<'a> {
                 let p = p.clone();
                 let w = self.fresh_weight();
                 let (phi_1, t) = self.cgen_expr(e);
-                let phi_2 = z3f!(self, 
-                    (or 
+                let phi_2 = z3f!(self,
+                    (or
                         (and (= (tid t) (typ dynobject)) (id w.clone()))
                         (and (= (tid t) (typ any)) (not (id &w)))));
                 let e = expr.take();

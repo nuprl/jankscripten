@@ -1,0 +1,7 @@
+function main() {
+    var s1 = "Calvin Coolidge";
+    var s2 = "Calvin Coolidge";
+    var r = s1 === s2; // interned strings, so just one string allocated
+    var r2 = any(r);
+    print_any(r2);
+}

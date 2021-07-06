@@ -58,37 +58,35 @@ FnType -> FnType :
   ;
 
 Type -> Type :
-    'i32'                 { Type::I32 }
-  | 'str'                 { Type::String }
+    'any'                 { Type::Any }
+  | 'i32'                 { Type::I32 }
+  | 'f64'                 { Type::F64 }
   | 'bool'                { Type::Bool }
+  | 'str'                 { Type::String }
+  | 'Array'               { Type::Array }
+  | 'DynObject'           { Type::DynObject }
   | FnType                { Type::Fn($1) }
   | 'clos' FnType         { Type::Closure($2) }
-  | 'f64'                 { Type::F64 }
-  | 'any'                 { Type::Any }
-  | 'DynObject'           { Type::DynObject }
+  | 'ptr'                 { Type::Ptr }
   | 'HT'                  { Type::HT }
-  | 'Array'               { Type::Array }
   | 'Ref' '(' Type ')'    { Type::Ref(Box::new($3)) }
   | 'env'                 { Type::Env }
   ;
 
+AtomSeq -> Vec<Atom> :
+                     { Vec::new() }
+  | Atom             { vec![$1] }
+  | AtomSeq ',' Atom { $1.push($3); $1 }
+  ;
+
 Atom -> Atom :
-  // TODO(arjun): should translate to an RTS call, right?
-  // 'sqrt' '(' Atom ')'   { Atom::Unary(UnaryOp::Sqrt, Box::new($3), pos($1)) }
-  // TODO(arjun): should translate to an RTS call, right?
-    'strlen' '(' Atom ')'  { Atom::StringLen(Box::new($3), pos($1)) }
+    '$' Id '(' AtomSeq ')' { Atom::PrimApp($2, $4, pos($1)) }    
   | 'any' '(' Atom ')'     { Atom::ToAny(ToAny::new($3), pos($1)) }
   | 'env' '.' U32 ':' Type { Atom::EnvGet($3, $5, pos($4)) }
   | 'rt' '(' Id ')'        { Atom::GetPrimFunc($3, pos($1)) }
   | Lit                    { Atom::Lit($1.0, $1.1) }
   // TODO(arjun): The concrete syntax is more restrictive than the abstract syntax.
   | IdAtom '.' IdString    { Atom::ObjectGet(Box::new($1), Box::new(Atom::Lit(Lit::String($3), pos($2))), pos($2)) }
-  // TODO(arjun): The concrete syntax is more restrictive than the abstract syntax.
-  // TODO(arjun): Should this turn into an RTS call?
-  | IdAtom '<<' 'length'   { Atom::ArrayLen(Box::new($1), pos($2)) }
-  // TODO(arjun): The concrete syntax is more restrictive than the abstract syntax.
-  | IdAtom '<<' IdString   { Atom::HTGet(Box::new($1), Box::new(Atom::Lit(Lit::String($3), pos($2))), pos($2)) }
-  | IdAtom '[' Atom ']'    { Atom::Index(Box::new($1), Box::new($3), pos($2)) }
   | IdAtom                 { $1 }
   // TODO(arjun): The type annotation on deref should not be necessary in the
   // concrete syntax. The type-checker can figure it out.
@@ -136,8 +134,6 @@ Expr -> Expr :
   | '{' '}'                             { Expr::ObjectEmpty }
   | 'clos' '(' Id ',' IdAtomTypeSeq ')' { Expr::Closure($3, $5, pos($1)) }
   | 'arrayPush' '(' Atom ',' Atom ')'   { Expr::Push($3, $5, pos($1)) }
-  // NOTE(arjun): The line below was in the grammar, and was not necessary
-  // | 'sqrt' '(' Atom ')'              { Expr::Atom(sqrt_($3, pos($1)), pos($1)) }
   // TODO(arjun): We can infer the type annotation.
   | 'newRef' '(' Atom ',' Type ')'      { Expr::NewRef($3, $5, pos($1)) }
   | Id '!' '(' IdSeq ')'                { Expr::ClosureCall($1, $4, pos($2)) }

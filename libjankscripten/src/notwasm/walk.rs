@@ -161,21 +161,22 @@ where
         match atom {
             // 0
             Lit(..) | Id(..) | GetPrimFunc(..) | Deref(..) | EnvGet(..) => (),
+            PrimApp(_, args, _) => {
+                for a in args.iter_mut() {
+                    self.walk_atom(a, loc);
+                }
+            }            
             ToAny(to_any, _) => {
                 self.walk_atom(to_any.atom.as_mut(), loc);
             }
             FloatToInt(ea, _)
             | IntToFloat(ea, _)
-            | StringLen(ea, _)
-            | ArrayLen(ea, ..)
             | Unary(.., ea, _)
             | FromAny(ea, ..) => {
                 self.walk_atom(ea, loc);
             }
-            HTGet(ea, eb, ..)
             | ObjectGet(ea, eb, ..)
-            | Binary(.., ea, eb, _)
-            | Index(ea, eb, ..) => {
+            | Binary(.., ea, eb, _)  => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
             }

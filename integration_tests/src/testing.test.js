@@ -13,8 +13,9 @@ function makeTest(filename) {
     test(filename, () => {
         // Note that cp.execSync throws on a non-zero exit code.
         let jsPath = `${testDir}/${filename}`;
-        let wasmPath = jsPath.replace(/\.js$/, '.wasm');
-        let expectedOutputPath = jsPath.replace(/.js$/, '.txt');
+        // Replace the extension .js or .notwasm with .wasm.
+        let wasmPath = jsPath.replace(/\.js$|\.notwasm$/, '.wasm');
+        let expectedOutputPath = jsPath.replace(/\.js$|\.notwasm$/, '.txt');
     
         // Use -j for jankyscript output
         // Use -n for notwasm output
@@ -45,5 +46,5 @@ function makeTest(filename) {
 }
 
 fs.readdirSync(testDir)
-    .filter(filename => filename.endsWith('.js'))
+    .filter(filename => filename.endsWith('.js') || filename.endsWith('.notwasm'))
     .forEach(filename => makeTest(filename));

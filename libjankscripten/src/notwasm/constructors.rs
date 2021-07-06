@@ -42,18 +42,15 @@ pub fn to_any_(a: Atom, s: Pos) -> Atom {
 pub fn from_any_(a: Atom, ty: Type, s: Pos) -> Atom {
     Atom::FromAny(Box::new(a), ty, s)
 }
-pub fn ht_get_(a: Atom, b: Atom, s: Pos) -> Atom {
-    Atom::HTGet(Box::new(a), Box::new(b), s)
-}
+
 pub fn object_get_(a: Atom, b: Atom, s: Pos) -> Atom {
     Atom::ObjectGet(Box::new(a), Box::new(b), s)
 }
-pub fn index_(a: Atom, b: Atom, s: Pos) -> Atom {
-    Atom::Index(Box::new(a), Box::new(b), s)
+
+pub fn prim_app_<S: Into<String>>(a: S, args: Vec<Atom>, p: Pos) -> Atom {
+    Atom::PrimApp(id_(a), args, p)
 }
-pub fn array_len_(a: Atom, s: Pos) -> Atom {
-    Atom::ArrayLen(Box::new(a), s)
-}
+
 pub fn i32_(a: i32, s: Pos) -> Atom {
     Atom::Lit(Lit::I32(a), s)
 }
@@ -94,9 +91,7 @@ pub fn bor_(a: Atom, b: Atom, s: Pos) -> Atom {
 pub fn eq_(a: Atom, b: Atom, s: Pos) -> Atom {
     binary_(BinaryOp::I32Eq, a, b, s)
 }
-pub fn len_(a: Atom, s: Pos) -> Atom {
-    Atom::StringLen(Box::new(a), s)
-}
+
 pub fn deref_(a: Atom, b: Type, s: Pos) -> Atom {
     Atom::Deref(Box::new(a), b, s)
 }

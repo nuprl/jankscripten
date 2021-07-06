@@ -1,0 +1,14 @@
+function acceptEnv(_: env) : i32 {
+    return env.0: i32 + env.1: i32 + env.2: i32;
+}
+
+function main() {
+    // as a hack, this is the "local 0" as if it was the first param
+    var x = 5;
+    var y = 6;
+    var z = 7;
+    var F = clos(acceptEnv, x: i32, y: i32, z: i32);
+    var res = F!();
+    var res2 = any(res);
+    print_any(res2);
+}

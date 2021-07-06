@@ -1,7 +1,7 @@
 use super::syntax::*;
 
-use crate::impl_Display_Pretty;
-use crate::shared::pretty::Pretty;
+use crate::{prettyp, impl_Display_Pretty};
+use crate::pretty::Pretty;
 
 impl Pretty for Type {
     fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A>
@@ -23,6 +23,7 @@ impl Pretty for Type {
             Type::Fn(fn_t) => fn_t.pretty(pp),
             Type::Closure(fn_t) => pp.text("clos").append(fn_t.pretty(pp)),
             Type::Env => pp.text("env"),
+            Type::Ptr => pp.text("ptr"),
         }
     }
 }
@@ -140,6 +141,17 @@ impl Pretty for Lit {
     }
 }
 
+impl Pretty for Id {
+    fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A> 
+    where
+        D: pretty::DocAllocator<'b, A>,
+        A: std::clone::Clone,
+        <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,    
+    {
+        pp.as_string(self)
+    }
+}
+
 impl Pretty for ToAny {
     fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A>
     where
@@ -153,6 +165,19 @@ impl Pretty for ToAny {
     }
 }
 
+impl Pretty for (Atom, Type) {
+
+    fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A>
+    where
+        D: pretty::DocAllocator<'b, A>,
+        A: std::clone::Clone,
+        <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
+    {
+        let (x, t) = self;
+        prettyp!(pp, (seq (id x) ":" (id t)))
+    }
+}
+
 impl Pretty for Atom {
     fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A>
     where
@@ -162,42 +187,21 @@ impl Pretty for Atom {
     {
         match self {
             Atom::Lit(l, _) => l.pretty(pp),
+            Atom::PrimApp(f, args, _) => prettyp!(pp, (seq "@" (id f) (parens (comma_sep args)))),
             Atom::ToAny(to_any, _) => to_any.pretty(pp),
-            Atom::FromAny(a, t, _) => pp.concat(vec![
-                a.pretty(pp),
-                pp.space(),
-                pp.text("as"),
-                pp.space(),
-                t.pretty(pp),
-            ]),
-            Atom::FloatToInt(a, _) => {
-                pp.concat(vec![pp.text("float_to_int"), pp.space(), a.pretty(pp)])
-            }
-            Atom::IntToFloat(a, _) => {
-                pp.concat(vec![pp.text("int_to_float"), pp.space(), a.pretty(pp)])
-            }
-            Atom::HTGet(l, r, _) => {
-                pp.concat(vec![l.pretty(pp), pp.text(".htget"), r.pretty(pp).parens()])
-            }
+            Atom::FromAny(a, t, _) => prettyp!(pp, (seq (id a) space "as" space (id t))),
+            Atom::FloatToInt(a, _) => prettyp!(pp, (seq "float_to_int" space (id a))),
+            Atom::IntToFloat(a, _) => prettyp!(pp, (seq "int_to_float" space (id a))),
             Atom::ObjectGet(l, r, _) => match &**r {
-                Atom::Lit(Lit::String(r), _) => {
-                    l.pretty(pp).append(pp.text(".")).append(pp.text(r))
-                }
-                _ => l.pretty(pp).append(pp.text(".")).append(r.pretty(pp)),
+                Atom::Lit(Lit::String(r), _) => prettyp!(pp, (seq (id l) ".htget" (id r))),
+                _ => prettyp!(pp, (seq (id l) "." (id r))),
             },
-            Atom::Index(l, r, _) => pp.concat(vec![l.pretty(pp), r.pretty(pp).brackets()]),
-            Atom::ArrayLen(a, _) => pp.concat(vec![a.pretty(pp), pp.text(".array_len()")]),
-            Atom::Id(id, _) => pp.as_string(id),
-            Atom::GetPrimFunc(id, _) => pp.concat(vec![pp.text("rt"), pp.as_string(id).parens()]),
-            Atom::StringLen(a, _) => pp.concat(vec![a.pretty(pp), pp.text(".string_len()")]),
-            Atom::Unary(op, a, _) => pp.concat(vec![op.pretty(pp), a.pretty(pp)]),
-            Atom::Binary(op, l, r, _) => pp.concat(vec![l.pretty(pp), op.pretty(pp), r.pretty(pp)]),
-            Atom::Deref(a, _, _) => pp.concat(vec![pp.text("*"), a.pretty(pp)]),
-            Atom::EnvGet(index, t, _) => pp
-                .text("env.")
-                .append(pp.as_string(index))
-                .append(pp.text(":"))
-                .append(t.pretty(pp)),
+            Atom::Id(id, _) => pp.as_string(id),          
+            Atom::GetPrimFunc(id, _) => prettyp!(pp, (seq "rt" (parens (id id)))),
+            Atom::Unary(op, a, _) => prettyp!(pp, (seq (id op) (id a))),
+            Atom::Binary(op, l, r, _) => prettyp!(pp, (seq (id l) (id op) (id r))),
+            Atom::Deref(a, _, _) => prettyp!(pp, (seq "*" (id a))),
+            Atom::EnvGet(index, t, _) => prettyp!(pp, (seq "env." (id index) ":" (id t))),
         }
     }
 }
@@ -212,10 +216,10 @@ impl Pretty for Expr {
         match self {
             Expr::HT => pp.text("ht"),
             Expr::Array => pp.text("array"),
-            Expr::Push(l, r, _) => {
-                pp.concat(vec![l.pretty(pp), pp.text(".push"), r.pretty(pp).parens()])
-            }
-            Expr::ArraySet(a, b, c, _) => pp.concat(vec![
+            Expr::Push(l, r, _) =>
+                // pp.concat(vec![l.pretty(pp), pp.text(".push"), r.pretty(pp).parens()]),
+                prettyp!(pp, (seq (id l) ".push" (parens (id r)))),
+            Expr::ArraySet(a, b, c, _) => /* pp.concat(vec![
                 pp.text("array_set"),
                 pp.concat(vec![
                     a.pretty(pp),
@@ -225,8 +229,9 @@ impl Pretty for Expr {
                     c.pretty(pp),
                 ])
                 .braces(),
-            ]),
-            Expr::HTSet(a, b, c, _) => pp.concat(vec![
+            ]), */
+                prettyp!(pp, (seq "array_set" (braces (seq (id a) "," (id b) "," (id c))))),
+            Expr::HTSet(a, b, c, _) => /* pp.concat(vec![
                 pp.text("ht_set"),
                 pp.concat(vec![
                     a.pretty(pp),
@@ -236,68 +241,25 @@ impl Pretty for Expr {
                     c.pretty(pp),
                 ])
                 .braces(),
-            ]),
-            Expr::Call(f, args, _) => pp.concat(vec![
+            ]), */
+                prettyp!(pp, (seq "ht_set" (braces (seq (id a) "," (id b) "," (id c))))),
+            Expr::Call(f, args, _) => /* pp.concat(vec![
                 pp.as_string(f),
                 pp.intersperse(
                     args.iter().map(|a| pp.as_string(a)),
                     pp.text(",").append(pp.space()),
                 )
                 .parens(),
-            ]),
-            Expr::ClosureCall(f, args, _) => pp.concat(vec![
-                pp.as_string(f),
-                pp.text("!"),
-                pp.intersperse(
-                    args.iter().map(|a| pp.as_string(a)),
-                    pp.text(",").append(pp.space()),
-                )
-                .parens(),
-            ]),
-
-            Expr::PrimCall(rtsfun, args, _) => pp.concat(vec![
-                pp.as_string(rtsfun),
-                pp.intersperse(
-                    args.iter().map(|a| a.pretty(pp)),
-                    pp.text(",").append(pp.space()),
-                )
-                .parens(),
-            ]),
+            ]), */
+                prettyp!(pp, (seq (id f) (parens (comma_sep args)))),
+            Expr::ClosureCall(f, args, _) => prettyp!(pp, (seq (id f) "!" (parens (comma_sep args)))),
+            Expr::PrimCall(rtsfun, args, _) => prettyp!(pp, (seq (as_string rtsfun) (parens (comma_sep args)))),
             Expr::ObjectEmpty => pp.text("{}"),
-            Expr::ObjectSet(a, Atom::Lit(Lit::String(s), _), c, _) => pp.concat(vec![
-                a.pretty(pp),
-                pp.text("."),
-                pp.text(s),
-                pp.text("="),
-                c.pretty(pp),
-                pp.text(";"),
-            ]),
-            Expr::ObjectSet(a, b, c, _) => pp.concat(vec![
-                a.pretty(pp),
-                pp.text("."),
-                b.pretty(pp),
-                pp.text("="),
-                c.pretty(pp),
-                pp.text(";"),
-            ]),
-            Expr::NewRef(a, ty, _) => pp.concat(vec![
-                pp.text("new_ref::"),
-                ty.pretty(pp),
-                a.pretty(pp).parens(),
-            ]),
+            Expr::ObjectSet(a, Atom::Lit(Lit::String(s), _), c, _) => prettyp!(pp, (seq (id a) "." (id s) "=" (id c) ";")),
+            Expr::ObjectSet(a, b, c, _) => prettyp!(pp, (seq (id a) "." (id b) "=" (id c) ";")),
+            Expr::NewRef(a, ty, _) => prettyp!(pp, (seq "new_ref::" (id ty) (parens (id a)))),
             Expr::Atom(a, _) => a.pretty(pp),
-            Expr::Closure(id, env, _) => pp.text("clos").append(
-                pp.as_string(id)
-                    .append(", ")
-                    .append(
-                        pp.intersperse(
-                            env.iter()
-                                .map(|(a, ty)| a.pretty(pp).append(": ").append(ty.pretty(pp))),
-                            pp.text(", "),
-                        ),
-                    )
-                    .parens(),
-            ),
+            Expr::Closure(id, env, _) => prettyp!(pp, (seq "clos" (id id) (comma_sep env))),
         }
     }
 }
@@ -340,69 +302,16 @@ impl Pretty for Stmt {
             Stmt::Empty => pp.space(),
             Stmt::Var(var_stmt, _) => var_stmt.pretty(pp),
             Stmt::Expression(expr, _) => expr.pretty(pp),
-            Stmt::Assign(x, expr, _) => pp.concat(vec![
-                pp.as_string(x),
-                pp.space(),
-                pp.text("="),
-                pp.space(),
-                expr.pretty(pp),
-                pp.text(";"),
-            ]),
-            Stmt::Store(x, expr, _) => pp.concat(vec![
-                pp.text("*"),
-                pp.as_string(x),
-                pp.space(),
-                pp.text("="),
-                pp.space(),
-                expr.pretty(pp),
-                pp.text(";"),
-            ]),
-            Stmt::If(e, s1, s2, _) => pp.intersperse(
-                vec![
-                    pp.concat(vec![pp.text("if"), pp.space(), e.pretty(pp).parens()])
-                        .group(),
-                    s1.pretty(pp).nest(2),
-                    pp.text("else"),
-                    s2.pretty(pp).nest(2),
-                ],
-                pp.hardline(),
-            ),
-            Stmt::Loop(st, _) => pp.concat(vec![pp.text("loop"), pp.hardline(), st.pretty(pp)]),
-            Stmt::Label(lbl, st, _) => pp.concat(vec![
-                lbl.pretty(pp),
-                pp.text(":"),
-                pp.line(),
-                st.pretty(pp).brackets().nest(2),
-            ]),
-            Stmt::Break(lbl, _) => pp.concat(vec![
-                pp.text("break"),
-                pp.space(),
-                lbl.pretty(pp),
-                pp.text(";"),
-            ]),
-            Stmt::Return(e, _) => pp.concat(vec![
-                pp.text("return"),
-                pp.space(),
-                e.pretty(pp),
-                pp.text(";"),
-            ]),
-            Stmt::Block(stmts, _) => pp
-                .concat(vec![
-                    pp.hardline(),
-                    pp.intersperse(
-                        stmts.iter().map(|s| s.pretty(pp).nest(2).group()),
-                        pp.hardline(),
-                    ),
-                    pp.hardline(),
-                ])
-                .braces(),
+            Stmt::Assign(x, expr, _) => prettyp!(pp, (seq (id x) "=" (id expr) ";")),
+            Stmt::Store(x, expr, _) => prettyp!(pp, (seq "*" (id x) "=" (id expr) ";")),
+            Stmt::If(e, s1, s2, _) => prettyp!(pp, (seq (seq "if" space (parens (id e)) (nest (id s1)) "else" (nest (id s2))))),
+            Stmt::Loop(st, _) => prettyp!(pp, (seq "loop" (id st))),
+            Stmt::Label(lbl, st, _) => prettyp!(pp, (seq (id lbl) ":" line (id st))),
+            Stmt::Break(lbl, _) => prettyp!(pp, (seq "break" space (id lbl) ";")),
+            Stmt::Return(e, _) => prettyp!(pp, (seq "return" space (id e) ";")),
+            Stmt::Block(stmts, _) => prettyp!(pp, (nest (braces (line_sep stmts)))),
             Stmt::Trap => pp.text("trap"),
-            Stmt::Goto(lbl, _) => pp.concat(vec![
-                pp.text("goto"),
-                pp.space(),
-                lbl.pretty(pp),
-                pp.text(";"),
-            ]),
+            Stmt::Goto(lbl, _) => prettyp!(pp, (seq "goto" space (id lbl) ";")),
         }
     }
 }

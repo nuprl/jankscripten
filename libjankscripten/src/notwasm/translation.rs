@@ -767,6 +767,12 @@ impl<'a> Translate<'a> {
             N::Atom::Id(id, _) => {
                 self.get_id(id);
             }
+            N::Atom::PrimApp(id, args, _) => {
+                for a in args {
+                    self.translate_atom(a);
+                }
+                self.rt_call(&id.clone().into_name());
+            }            
             N::Atom::GetPrimFunc(id, _) => {
                 // TODO(luna): i honestly for the life of me can't remember
                 // why we accept an &mut Atom instead of an Atom, which
@@ -801,29 +807,11 @@ impl<'a> Translate<'a> {
                 self.translate_atom(a);
                 self.out.push(F64ConvertSI32);
             }
-            N::Atom::HTGet(ht, field, _) => {
-                self.translate_atom(ht);
-                self.translate_atom(field);
-                self.rt_call("ht_get");
-            }
             N::Atom::ObjectGet(obj, field, _) => {
                 self.translate_atom(obj);
                 self.translate_atom(field);
                 self.data_cache();
                 self.rt_call("object_get");
-            }
-            N::Atom::Index(arr, index, _) => {
-                self.translate_atom(arr);
-                self.translate_atom(index);
-                self.rt_call("array_index");
-            }
-            N::Atom::ArrayLen(array, _) => {
-                self.translate_atom(array);
-                self.rt_call("array_len");
-            }
-            N::Atom::StringLen(string, _) => {
-                self.translate_atom(string);
-                self.rt_call("string_len");
             }
             N::Atom::Binary(op, a, b, _) => {
                 self.translate_atom(a);
@@ -1078,6 +1066,7 @@ impl N::Type {
             Closure(..) => ValueType::I64,
             Ref(..) => ValueType::I32,
             Env => ValueType::I32,
+            Ptr => ValueType::I32,
         }
     }
 }

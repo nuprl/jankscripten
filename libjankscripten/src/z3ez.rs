@@ -1,6 +1,6 @@
 //! Some convenient abstractions for working with Z3.
 //!
-//! 
+//!
 //! The code for the macros in this file are based on:
 //!
 //! https://github.com/arjunguha/TypeWhich/commits/main/src/z3_state.rs

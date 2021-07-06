@@ -50,7 +50,7 @@ pub enum TypeCheckingError {
     #[error("unexpected return type `{0}` at `{1}`")]
     UnexpectedReturn(Type, Pos),
     #[error(
-        "arity mismatch at `{0}`, expected `{1}` parameters but received `{1}` arguments at `{2}`"
+        "arity mismatch at `{0}`, expected `{1}` parameters but received `{2}` arguments at `{3}`"
     )]
     ArityMismatch(Id, usize, usize, Pos),
     #[error("identifier `{0}` is multiply defined at `{1}`")]
@@ -472,6 +472,7 @@ fn assert_variant_of_any(ty: &Type, s: &Pos) -> TypeCheckingResult<()> {
         Type::DynObject => Ok(()),
         Type::Ref(..) => invalid_in_context("ref should not be stored in Any", &ty, s),
         Type::Env => invalid_in_context("environments are not values", &ty, s),
+        Type::Ptr => Ok(()),
     }
 }
 
@@ -484,6 +485,26 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             s,
         ),
         Atom::Lit(l, _) => Ok(l.notwasm_typ()),
+        Atom::PrimApp(prim, args, s) => {
+            let ty = lookup(env, prim, s)?;
+            let (expected_arg_ts, ret_t) = ty.unwrap_fun();
+            let ret_t = ret_t.expect("primtive function that returns a value");
+            let arg_ts = args.iter_mut().map(|a| type_check_atom(env, a))
+                .collect::<Result<Vec<_>, _>>()?;
+            if arg_ts.len() != expected_arg_ts.len() {
+                return error!(
+                    s,
+                    "primitive {:?} expected {} arguments, but received {}",
+                    prim, expected_arg_ts.len(), 
+                    arg_ts.len());
+            }
+
+            if arg_ts.iter().zip(expected_arg_ts.iter())
+                    .any(|(t1, t2)| t1 != t2) {
+                return error!(s, "primitive {:?} applied to wrong argument type", prim);
+            }
+            return Ok(ret_t.clone());
+        }        
         Atom::ToAny(to_any, s) => {
             let ty = type_check_atom(env, &mut to_any.atom)?;
             assert_variant_of_any(&ty, s)?;
@@ -507,39 +528,12 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
         }
         Atom::Id(id, s) => lookup(env, id, s),
         Atom::GetPrimFunc(id, s) => lookup(env, id, s),
-        Atom::StringLen(a, s) => {
-            let ty = type_check_atom(env, a)?;
-            let _ = ensure("string len", Type::String, ty, s)?;
-
-            Ok(Type::I32)
-        }
-        Atom::ArrayLen(a, s) => {
-            let got = type_check_atom(env, a)?;
-            ensure("array len", Type::Array, got, s)?;
-            Ok(Type::I32)
-        }
-        Atom::Index(a_arr, a_idx, s) => {
-            let got_arr = type_check_atom(env, a_arr)?;
-            let got_idx = type_check_atom(env, a_idx)?;
-            let _ = ensure("arrayi ndex (index)", Type::I32, got_idx, s)?;
-            let _ = ensure("array index (array)", Type::Array, got_arr, s);
-            Ok(Type::Any)
-        }
         Atom::ObjectGet(a_obj, a_field, s) => {
             let got_obj = type_check_atom(env, a_obj)?;
             let got_field = type_check_atom(env, a_field)?;
 
             let _ = ensure("object get field", Type::String, got_field, s)?;
             let _ = ensure("object field", Type::DynObject, got_obj, s)?;
-            Ok(Type::Any)
-        }
-        Atom::HTGet(a_ht, a_field, s) => {
-            let got_ht = type_check_atom(env, a_ht)?;
-            let got_field = type_check_atom(env, a_field)?;
-
-            ensure("ht get", Type::HT, got_ht, s)?;
-            let _ = ensure("ht get (field)", Type::String, got_field, s)?;
-
             Ok(Type::Any)
         }
         Atom::Unary(op, a, s) => {

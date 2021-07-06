@@ -1,0 +1,7 @@
+function main() {
+    var x = any(32.3f);
+    var y = x as f64;
+    var z = y +. 0.2f;
+    var ret = any(32.5f);
+    print_any(ret);
+}

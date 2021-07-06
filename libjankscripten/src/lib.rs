@@ -7,6 +7,7 @@ pub mod javascript;
 pub mod notwasm;
 pub mod opts;
 pub mod pos;
+mod pretty;
 mod rope;
 mod rts_function;
 pub mod shared;

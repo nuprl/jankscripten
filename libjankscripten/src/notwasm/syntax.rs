@@ -32,22 +32,21 @@ use std::collections::HashMap;
 /// runtime system (e.g., `TypeTag`, `Tag`, and `AnyEnum`).
 #[derive(Debug, PartialEq, Clone)]
 pub enum Type {
+    /// If `v : Any` then `v` is an `AnyEnum`.
+    Any,
     /// If `v : I32` then `v` is an `i32`.
     I32,
     /// If `v : F64`, then `v` is an `f64`.
     F64,
+    /// If `v : Bool` then `v` is an `i32` that is either `1` or `0`.
+    Bool,
     /// If `v : String` then `v` is a `*const Tag` followed by a 4-byte
     /// little-endian length followed by utf-8 of that length.
     /// Even interned strings are preceded by a tag, so that interned and
     /// uninterned strings have the same representation.
     String,
-    /// If `v : HT` then `v` is a `*const Tag`, where
-    ///  `v.type_tag === TypeTag::HT`.
-    HT,
     /// If `v : HT` then `v` is a `*const Tag`, where `v.type_tag == Array`.
     Array,
-    /// If `v : Bool` then `v` is an `i32` that is either `1` or `0`.
-    Bool,
     /// If `v : DynObject` then `v` is a `*const Tag` where
     /// `v.type_tag == Class`.
     /// TODO(arjun): We do not have a type_tag called class. What is this
@@ -56,12 +55,14 @@ pub enum Type {
     /// If `v : Fn(fn_type)` then `v` is an `i32`, which is an index of a
     /// function with the type `fn_type`.
     Fn(FnType),
+
+    /// If `v : HT` then `v` is a `*const Tag`, where
+    ///  `v.type_tag === TypeTag::HT`.
+    HT,
     /// If `v : Closure(fn_type)` then `v` is an `i64`, which is an EnvPtr
     /// followed by a 16-bit truncation of a function pointer followed by 16
     /// garbage bits
     Closure(FnType),
-    /// If `v : Any` then `v` is an `AnyEnum`.
-    Any,
     /// If `v : Ref(I32)` then `v` is a `*const Tag` and `v.type_tag == NonPtr32`.
     /// If `v : Ref(Bool)` then `v` is a `*const Tag` and `v.type_tag == NonPtr32`.
     /// If `v : Ref(F64)` then `v` is a `*const Tag` and resides in the f64 heap
@@ -75,9 +76,21 @@ pub enum Type {
     /// all envs are "equal enough" for the code generation we do after closure
     /// conversion
     Env,
+    /// If `v : Ptr` then `v` is a `*const Tag` with some arbitrary value for `v.type_tag`.
+    Ptr,
 }
 
 impl Type {
+
+    pub fn unwrap_fun(&self) -> (&Vec<Type>, Option<&Type>) {
+        match self {
+            Type::Fn(fn_type) => (&fn_type.args, match &fn_type.result {
+                None => None,
+                Some(ret) => Some(& *ret)
+            }),
+            _ => panic!("unwrap_fun: unexpected type: {}", self),
+        }
+    }    
     pub fn is_gc_root(&self) -> bool {
         match self {
             Type::I32 => false,
@@ -94,6 +107,7 @@ impl Type {
             // uhhh i don't think there's a way for there to be a live env when
             // there's not a live closure? so this could probably become false?
             Type::Env => true,
+            Type::Ptr => true,
         }
     }
 }
@@ -230,6 +244,9 @@ impl ToAny {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Atom {
     Lit(Lit, Pos),
+    /// A primtive applciation that does not have any non-trivial interaction with the garbage 
+    /// collector.
+    PrimApp(Id, Vec<Atom>, Pos),    
     ToAny(ToAny, Pos),
     /// `FromAny(atom, ty, Pos)`
     ///
@@ -237,13 +254,9 @@ pub enum Atom {
     FromAny(Box<Atom>, Type, Pos),
     FloatToInt(Box<Atom>, Pos), // MMG made these Atoms because they shouldn't ever allocate
     IntToFloat(Box<Atom>, Pos),
-    HTGet(Box<Atom>, Box<Atom>, Pos),
     ObjectGet(Box<Atom>, Box<Atom>, Pos),
-    Index(Box<Atom>, Box<Atom>, Pos),
-    ArrayLen(Box<Atom>, Pos),
     Id(Id, Pos),
     GetPrimFunc(Id, Pos),
-    StringLen(Box<Atom>, Pos),
     Unary(UnaryOp, Box<Atom>, Pos),
     Binary(BinaryOp, Box<Atom>, Box<Atom>, Pos),
     Deref(Box<Atom>, Type, Pos),
@@ -256,17 +269,14 @@ impl Atom {
     pub fn pos(&self) -> &Pos {
         match self {
             Atom::Lit(_, p) => p,
+            Atom::PrimApp(_, _, p) => p,
             Atom::ToAny(_, p) => p,
             Atom::FromAny(_, _, p) => p,
             Atom::FloatToInt(_, p) => p,
             Atom::IntToFloat(_, p) => p,
-            Atom::HTGet(_, _, p) => p,
             Atom::ObjectGet(_, _, p) => p,
-            Atom::Index(_, _, p) => p,
-            Atom::ArrayLen(_, p) => p,
             Atom::Id(_, p) => p,
             Atom::GetPrimFunc(_, p) => p,
-            Atom::StringLen(_, p) => p,
             Atom::Unary(_, _, p) => p,
             Atom::Binary(_, _, _, p) => p,
             Atom::Deref(_, _, p) => p,
@@ -423,6 +433,7 @@ impl std::fmt::Display for Type {
                 Closure(..) => "closure",
                 Any => "any",
                 Env => "env",
+                Ptr => "ptr",
             }
         )
     }
