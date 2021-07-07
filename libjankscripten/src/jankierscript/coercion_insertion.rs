@@ -62,7 +62,7 @@ impl Env {
     pub fn get_prim_ty(&self, expr: &Expr) -> Option<RTSFunction> {
         match expr {
             Expr::Id(id, _) => match self.env.get(id) {
-                Some(EnvItem::Prim(rts_func)) => Some(*rts_func),
+                Some(EnvItem::Prim(rts_func)) => Some(rts_func.clone()),
                 _ => None,
             },
             _ => None,
