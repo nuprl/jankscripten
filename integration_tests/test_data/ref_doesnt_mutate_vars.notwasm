@@ -1,0 +1,13 @@
+    function main() {
+        var x = 100;
+        // Refs are like OCaml refs, not like C pointers.
+        // They are essentially boxes that hold values.
+        var refX = newRef(x, i32); // copy value of x
+
+        // set value inside box. should not change value of x
+        *refX = 130;
+
+        // print original variable, which should be unchanged
+        var p = any(x);
+        print_any(p);
+    }

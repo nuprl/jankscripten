@@ -1,0 +1,11 @@
+function F(n : i32) : i32 {
+    return n + 1;
+}
+
+function main() {
+    var G = F;
+    var n  = 102;
+    var result = G(n);
+    var p = any(result);
+    print_any(p);
+}
