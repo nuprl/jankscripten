@@ -24,8 +24,4 @@ pub mod type_checking;
 
 pub use compile::compile;
 pub use parser::parse;
-
-#[cfg(test)]
-pub mod test_wasm;
-
 pub use from_jankyscript::*;

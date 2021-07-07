@@ -1,0 +1,19 @@
+function main2(): i32 {
+    var a = 1;
+    var b = 1;
+    loop {
+        if (b > 1000) {
+            return b;
+        } else { }
+        var temp = a + b;
+        a = b;
+        b = temp;
+    }
+    return b;
+}
+
+function main() {
+    var ret = main2();
+    var ret2 = any(ret);
+    print_any(ret2);
+}

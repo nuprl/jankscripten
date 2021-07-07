@@ -1,0 +1,10 @@
+function F(n : i32) : i32 {
+    return n;
+}
+
+function main() {
+    var n = 100;
+    var result = F(n);
+    var p = any(result);
+    print_any(p);
+}

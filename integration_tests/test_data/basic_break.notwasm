@@ -1,0 +1,9 @@
+function main() {
+    var x = 110;
+    dont_do: {
+        break dont_do;
+        x = 1;
+    }
+    var p = any(x);
+    print_any(p);
+}
