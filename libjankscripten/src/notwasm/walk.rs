@@ -1,6 +1,8 @@
 //! walk the statements / now you've made it
 
 use super::syntax::*;
+use crate::pos::Pos;
+use crate::rts_function::RTSFunction;
 
 /// a visitor is passed to [Stmt::walk] to describe what happens when walking
 ///
@@ -135,7 +137,8 @@ where
         use Expr::*;
         self.visitor.enter_expr(expr, loc);
         match expr {
-            ObjectEmpty | HT | Array | Call(..) | ClosureCall(..) | PrimCall(..) => (),
+            // TODO(arjun): PrimCall should be walking atom!
+            ObjectEmpty | Call(..) | ClosureCall(..) | PrimCall(..) => (),
             HTSet(ea, eb, ec, ..) | ObjectSet(ea, eb, ec, ..) | ArraySet(ea, eb, ec, _) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
@@ -205,6 +208,10 @@ impl Expr {
         let mut vs = VisitorState::new(v);
         let mut loc = Loc::Top;
         vs.walk_expr(self, &mut loc);
+    }
+
+    pub fn prim_call(name: impl Into<String>, args: Vec<Atom>, pos: Pos) -> Self {
+        Expr::PrimCall(RTSFunction::Import(name.into()), args, pos)
     }
 }
 

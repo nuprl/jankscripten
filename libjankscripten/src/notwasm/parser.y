@@ -129,9 +129,10 @@ IdTypeSeq -> Vec<(Id, Type)> :
   ;
 
 Expr -> Expr :
-    '[' ']'                             { Expr::Array }
-  | 'HT' '{' '}'                        { Expr::HT }
+    '[' ']'                             { warn("Use !array_new() instead of [] to allocate new arrays"); Expr::prim_call("array_new", vec![], pos($1)) }
+  | 'HT' '{' '}'                        { warn("Use !ht_new() instead of HT{} to allocate new arrays"); Expr::prim_call("ht_new", vec![], pos($1)) }
   | '{' '}'                             { Expr::ObjectEmpty }
+  | '!' Id '(' AtomSeq ')'              { Expr::prim_call($2.into_name(), $4, pos($1)) } 
   | 'clos' '(' Id ',' IdAtomTypeSeq ')' { Expr::Closure($3, $5, pos($1)) }
   | 'arrayPush' '(' Atom ',' Atom ')'   { Expr::Push($3, $5, pos($1)) }
   // TODO(arjun): We can infer the type annotation.
@@ -233,16 +234,30 @@ Unmatched -> ():
 
 %%
 
-use std::collections::HashMap;
+use std::collections::{HashSet, HashMap};
 use super::syntax::*;
 use super::constructors::*;
 use super::parser::pos;
 use super::super::pos::Pos;
 use crate::string_escaping::unescape_string;
+use std::cell::RefCell;
 
 fn parse_uint(s: &str) -> u32 {
     match s.parse::<u32>() {
         Ok(val) => val,
         Err(_) => panic!("{} cannot be represented as a u64", s)
     }
+}
+
+thread_local!(static WARNINGS: RefCell<HashSet<String>> = RefCell::new(Default::default()));
+
+fn warn(msg: impl Into<String>) {
+  let s = msg.into();
+  WARNINGS.with(move |warnings| {
+    let mut warnings = warnings.borrow_mut();
+    if false == warnings.contains(&s) {
+      eprintln!("Parser warning: {}", &s);
+      warnings.insert(s);
+    }
+  });
 }

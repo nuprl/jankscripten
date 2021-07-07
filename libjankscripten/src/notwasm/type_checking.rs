@@ -7,6 +7,7 @@ use thiserror::Error;
 #[derive(Clone, Debug)]
 pub struct Env {
     env: HashMap<Id, Type>,
+    imports: HashMap<Id, Type>,
 }
 
 impl Env {
@@ -15,7 +16,7 @@ impl Env {
             .into_iter()
             .map(|(k, v)| (Id::Named(k), v))
             .collect();
-        Env { env }
+        Env { env, imports: Default::default() }
     }
 
     pub fn get(&self, id: &Id) -> Option<&Type> {
@@ -29,6 +30,7 @@ impl Env {
     pub fn update(&self, id: Id, ty: Type) -> Self {
         Env {
             env: self.env.update(id, ty),
+            imports: self.imports.clone(),
         }
     }
 }
@@ -62,6 +64,12 @@ pub enum TypeCheckingError {
 }
 
 pub type TypeCheckingResult<T> = Result<T, TypeCheckingError>;
+
+macro_rules! err {
+    ($s:expr, $($t:tt)*) => (
+        TypeCheckingError::Other(format!($($t)*), $s.clone())
+    )
+}
 
 macro_rules! error {
     ($s:expr, $($t:tt)*) => (
@@ -107,6 +115,7 @@ pub fn type_check(p: &mut Program) -> TypeCheckingResult<()> {
     let mut env: Env = Env::new();
     for (x, t) in &p.rts_fn_imports {
         env.insert(Id::Named(x.to_string()), t.clone());
+        env.imports.insert(Id::Named(x.to_string()), t.clone());
     }
 
     for (id, f) in p.functions.iter() {
@@ -271,8 +280,6 @@ fn type_check_stmt(env: Env, s: &mut Stmt, ret_ty: &Option<Type>) -> TypeCheckin
 
 fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
     match e {
-        Expr::HT => Ok(Type::HT),
-        Expr::Array => Ok(Type::Array),
         Expr::ObjectEmpty => Ok(Type::DynObject),
         Expr::Push(a_arr, a_elt, s) => {
             let got_arr = type_check_atom(env, a_arr)?;
@@ -313,6 +320,24 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             let _ = ensure("object set (val)", Type::Any, got_val, s)?;
 
             Ok(Type::Any) // returns value set
+        }
+        Expr::PrimCall(crate::rts_function::RTSFunction::Import(name), args, s) => {
+            let ty = env.imports.get(&Id::Named(name.clone()))
+                .ok_or(err!(s, "invalid primtive {}", name))?;
+            let (arg_tys, opt_ret_ty) = ty.unwrap_fun();
+            let ret_ty = opt_ret_ty.ok_or(err!(s, "invalid return type for {}", name))?;
+            if arg_tys.len() != args.len() {
+                return Err(err!(s, "wrong number of arguments for {}", name));
+            }
+            for ((i, expected_ty), arg) in arg_tys.iter().enumerate().zip(args.iter_mut()) {
+                let got_ty = type_check_atom(env, arg)?;
+                if expected_ty != &got_ty {
+                    return Err(err!(s, 
+                        "wrong type for argument {} of {}. Expected {}, but received {}", 
+                        i, name, expected_ty, got_ty));
+                }
+            }
+            Ok(ret_ty.clone())
         }
         Expr::PrimCall(prim, args, s) => {
             match prim.janky_typ().notwasm_typ() {

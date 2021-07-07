@@ -214,8 +214,6 @@ impl Pretty for Expr {
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
         match self {
-            Expr::HT => pp.text("ht"),
-            Expr::Array => pp.text("array"),
             Expr::Push(l, r, _) =>
                 // pp.concat(vec![l.pretty(pp), pp.text(".push"), r.pretty(pp).parens()]),
                 prettyp!(pp, (seq (id l) ".push" (parens (id r)))),

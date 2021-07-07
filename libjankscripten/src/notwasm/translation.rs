@@ -583,8 +583,6 @@ impl<'a> Translate<'a> {
     fn translate_expr(&mut self, expr: &mut N::Expr) {
         match expr {
             N::Expr::Atom(atom, _) => self.translate_atom(atom),
-            N::Expr::HT => self.rt_call("ht_new"),
-            N::Expr::Array => self.rt_call("array_new"),
             N::Expr::ArraySet(arr, index, value, _) => {
                 self.translate_atom(arr);
                 self.translate_atom(index);
@@ -632,7 +630,7 @@ impl<'a> Translate<'a> {
                 // Rust runtime or the NotWasm runtime.
                 match name {
                     RTSFunctionImpl::Rust(name) => {
-                        self.rt_call(name);
+                        self.rt_call(name.as_str());
                     }
                     RTSFunctionImpl::NotWasm(name) => {
                         self.notwasm_rt_call(name);

@@ -31,12 +31,13 @@ pub enum RTSFunction {
     InstanceOf,
     In,
     BitwiseNot,
+    Import(std::string::String),
 }
 
 // The name of a runtime function implementation.
 pub enum RTSFunctionImpl {
     /// A runtime function implemented in Rust.
-    Rust(&'static str),
+    Rust(std::string::String),
     /// A runtime function implemented in NotWasm.
     NotWasm(&'static str),
 }
@@ -51,23 +52,24 @@ impl RTSFunction {
         use RTSFunctionImpl::*;
         match self {
             Todo(name) => todo!("unimplemented operator: {}", name),
-            LogAny => Rust("log_any"),
-            Typeof => Rust("janky_typeof"),
-            Delete => Rust("janky_delete"),
-            Void => Rust("janky_void"),
-            Plus => NotWasm("jnks_plus"), // Implemented in NotWasm RT
-            Minus => Rust("janky_minus"),
-            Times => Rust("janky_times"),
-            Over => Rust("janky_over"),
-            Mod => Rust("janky_mod"),
-            ModF64 => Rust("janky_mod_f64"),
-            StrictEqual => Rust("janky_strict_equal"),
-            Equal => Rust("janky_equal"),
-            StrictNotEqual => Rust("janky_strict_not_equal"),
-            NotEqual => Rust("janky_not_equal"),
-            InstanceOf => Rust("instance_of"),
-            In => Rust("janky_in"),
-            BitwiseNot => Rust("janky_not"),
+            LogAny => Rust("log_any".into()),
+            Typeof => Rust("janky_typeof".into()),
+            Delete => Rust("janky_delete".into()),
+            Void => Rust("janky_void".into()),
+            Plus => NotWasm("jnks_plus".into()), // Implemented in NotWasm RT
+            Minus => Rust("janky_minus".into()),
+            Times => Rust("janky_times".into()),
+            Over => Rust("janky_over".into()),
+            Mod => Rust("janky_mod".into()),
+            ModF64 => Rust("janky_mod_f64".into()),
+            StrictEqual => Rust("janky_strict_equal".into()),
+            Equal => Rust("janky_equal".into()),
+            StrictNotEqual => Rust("janky_strict_not_equal".into()),
+            NotEqual => Rust("janky_not_equal".into()),
+            InstanceOf => Rust("instance_of".into()),
+            In => Rust("janky_in".into()),
+            BitwiseNot => Rust("janky_not".into()),
+            Import(name) => Rust(name.clone()),
         }
     }
 
@@ -110,6 +112,7 @@ impl RTSFunction {
                 Function(vec![Any, Any], Box::new(Bool))
             }
             BitwiseNot => Function(vec![Int], Box::new(Int)),
+            Import(..) => panic!("unimplemented function: {}", self),
         }
     }
 }
@@ -139,6 +142,7 @@ impl std::fmt::Display for RTSFunction {
                 InstanceOf => "instanceof",
                 In => "in",
                 BitwiseNot => "~",
+                Import(_s) => "import",
             }
         )
     }

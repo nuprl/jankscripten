@@ -288,9 +288,6 @@ impl Atom {
 // An `Expr` is an expression that may trigger garbage collection.
 #[derive(Debug, PartialEq)]
 pub enum Expr {
-    HT,
-    // TODO: Give Array initial capacity
-    Array,
     Push(Atom, Atom, Pos),
     /// TODO(luna, Pos): we need to detect out-of-bounds and turn into a hashmap
     ArraySet(Atom, Atom, Atom, Pos),
