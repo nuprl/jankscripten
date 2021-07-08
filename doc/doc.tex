@@ -1,4 +1,4 @@
-\documentclass{article}
+\documentclass{book}
 \usepackage[T1]{fontenc}
 \usepackage{fullpage}
 \usepackage{palatino}
@@ -23,7 +23,7 @@
 
 \tableofcontents
 
-\section{Introduction}
+\chapter{Introduction}
 
 \system is a compiler and runtime system that targets WebAssembly and supports
 multiple front-end languages:
@@ -181,54 +181,146 @@ correctly. See the
 \href{https://nodejs.org/en/docs/guides/debugging-getting-started/}{Node
 Debugging Guide} for more information.
 
-\section{\notwasm Guide}
+\chapter{\notwasm Guide}
 
-\notwasm programs use the following concrete syntax:
+\notwasm is a somewhat low-level language that compiles to WebAssembly. It
+supports several data structures that WebAssembly does not natively support. It
+also supports garbage collection (presently, a simple mark-and-sweep collector).
+\notwasm programs are linked to a runtime system, which is written in Rust
+and compiled to WebAssembly.
+
+\notwasm programs use the following concrete syntax for types:
 
 \begin{tabular}{rcll}
+\textbf{Result Types} \\
+\metavar{R} & := & T 
+            & \textrm{Result of type T} \\
+            & |  & \kw{void}
+            & \textrm{No result} \\
 \textbf{Types} \\
-\metavar{T} & := & \kw{any} & Unknown type \\
-    & |  & \kw{i32} & Signed, 32-bit integer \\
-    & |  & \kw{f64} & 64-bit float \\
-    & |  & \kw{bool} & Boolean \\
-    & |  & \kw{str} & Pointer to an immutable string \\
-    & |  & \kw{Array} & A pointer to an array of any-typed values \\
-    & |  & \kw{DynObject} & A pointer to an object with a dynamic set of any-typed fields \\
-    & |  & \kw{(} \metavar{T} \kw{,...,} \metavar{T}\kw{) ->} \metavar{T}
+\metavar{T} & := & \kw{any} 
+         & Unknown type (occupies 64-bits) \\
+    & |  & \kw{i32} 
+         & A signed, 32-bit integer \\
+    & |  & \kw{f64} 
+         & A 64-bit float \\
+    & |  & \kw{bool} 
+         & A boolean \\
+    & |  & \kw{str} 
+         & A pointer to an immutable string \\
+    & |  & \kw{Array}
+         & A pointer to an array of any-typed values \\
+    & |  & \kw{DynObject} 
+         & A pointer to an object with a dynamic set of any-typed fields \\
+    & |  & \kw{HT}
+         & A pointer to a hash table with string keys and any-typed values \\
+    & |  & \kw{(} \metavar{T} \kw{,...,} \metavar{T}\kw{) ->} \metavar{R}
          & A pointer to a function \\
-    & |  & \kw{(} \metavar{T} \kw{,...,} \metavar{T}\kw{) -> void} 
-         & A pointer to a function that does not return a value \\
-    & |  & TODO: more to document \\
-\metavar{b} & := & \kw{true} | \kw{false} & Boolean literal \\
-\metavar{n} & := & ... | $-1$ | 0 | 1 | ... & Integer literals \\
-\metavar{s} & := & \texttt{"..."} & String literals \\
-\metavar{c} & := & b | n | s & Literals \\
-\metavar{e} & := & \textit{x}  & Bound identifier \\
-            & |  & \metavar{c} & Literal \\
-            & |  & e \kw{:} T  & Type ascription \\
-            & |  & \kw{(} \metavar{e} \kw{)} & Parenthesis \\
-            & |  & \kw{fun} \metavar{x} \kw{.} \metavar{e} & Function \\
-            & |  & \metavar{e}\textsubscript{1} \metavar{e}\textsubscript{2}
-                    & Application \\
-            & |  & \metavar{e}\textsubscript{1} \kw{+} \metavar{e}\textsubscript{2}
-                    & Addition \\
-            & |  & \metavar{e}\textsubscript{1} \kw{*} \metavar{e}\textsubscript{2}
-                    & Multiplication \\
-            & |  & \metavar{e}\textsubscript{1} \kw{=} \metavar{e}\textsubscript{2}
-                    & Integer equality \\
-            & |  & \metavar{e}\textsubscript{1} \kw{+?} \metavar{e}\textsubscript{2}
-                    & Addition or string concatenation (overloaded) \\
-            & |  & \kw{(}\metavar{e}\textsubscript{1}\kw{,}\metavar{e}\textsubscript{2}\kw{)}
-                    & Pair \\
-            & |  & \kw{fix} \metavar{f} \kw{.}\metavar{e}
-                    & Fixpoint \\
-            & |  & \kw{if} \metavar{e}\textsubscript{1} \kw{then} \metavar{e}\textsubscript{2} \kw{else} \metavar{e}\textsubscript{3}
-                    & Conditional \\
-            & |  & \kw{let} \metavar{x} \kw{=} \metavar{e}\textsubscript{1} \kw{in} \metavar{e}\textsubscript{2}
-                    & Let binding \\
-            & |  & \kw{let rec} \metavar{x} \kw{=} \metavar{e}\textsubscript{1} \kw{in} \metavar{e}\textsubscript{2}
-                    & Recursive let binding \\
-
+    & |  & \kw{clos (} \metavar{T} \kw{,...,} \metavar{T}\kw{) ->} \metavar{R}
+         & A pointer to a closure \\
+    & |  & \kw{Ref(}T\kw{)}
+         & A pointer to a heap-allocated value of type \metavar{T} \\
+    & |  & \kw{env}
+         & A pointer to an environment \\
 \end{tabular}
+
+\notwasm programs use a psuedo-ANF: \emph{atoms} do no not alter control-flow
+or allocate memory, \emph{expressions} may allocate memory but do not alter
+control-flow, and \emph{statements} function bodies that may alter the
+control-flow of the program.
+
+\paragraph{Primitives} Programs may reference primitive operations that are
+defined in the \notwasm runtime system. These operations are imported at the
+top of \texttt{stdlib.notwasm}, which is in the root of the repository.
+
+\paragraph{Atoms}
+Atoms use the following concrete syntax:
+
+\begin{tabular}{rcll}
+\metavar{bop} & := & \kw{+}   & Integer addition \\
+              & |  & \kw{-}   & Integer subtraction \\
+              & |  & \kw{*}   & Integer multiplication \\
+              & |  & \kw{>}   & Integer greater-than comparison \\
+              & |  & \kw{<}   & Integer less-than comparison \\
+              & |  & \kw{>=}  & Integer greater-than-or-equal-to comparison \\
+              & |  & \kw{<=}  & Integer less-than-or-equal-to comparison \\
+              & |  & \kw{==}  & Integer equal-to comparison \\
+              & |  & \kw{===} & Pointer equality comparison \\
+              & |  & \kw{+.}  & Floating-point addition \\
+              & |  & \kw{-.}  & Floating-point subtraction \\
+              & |  & \kw{*.}  & Floating-point multiplication \\
+              & |  & \kw{/.}  & Floating-point division \\
+\metavar{b}   & := & \kw{true} | \kw{false} & Boolean literal \\
+\metavar{n}   & := & ... & Integer literals \\
+\metavar{f}   & := & ... & Floating point literals \\
+\metavar{s}   & := & \texttt{"..."} & String literals \\
+\metavar{a}   & := & \metavar{b} \\
+              & |  & \metavar{n} \\
+              & |  & \metavar{f} \\
+              & |  & \metavar{s} \\
+              & |  & \kw{null} & The null value (has type \kw{any}) \\
+              & |  & \metavar{x} & Bound identifier \\
+              & |  & \kw{@} \metavar{prim}\textsubscript{a}\kw{(} a\textsubscript{1} ... a\textsubscript{n}\kw{)}
+                   & Application of a primitive function that does not allocate memory \\ 
+              & |  & \kw{*}\metavar{a}{:}\kw{T}
+                   & Pointer dereference \\
+              & |  & \metavar{a}\textsubscript{1}\kw{.}\metavar{s}
+                   & Read a field of a \kw{DynObject} \\
+              & |  & \metavar{a}\textsubscript{1} \metavar{bop} \metavar{a}\textsubscript{2}
+                   & Apply a binary operator that does not allocate memory
+\end{tabular}
+
+\paragraph{Expresssions}
+Expressions have the following concrete syntax:
+
+\begin{tabular}{rcll}
+\metavar{e} & := & \metavar{a} 
+                 & Atom \\
+            & |  & \kw{!} \metavar{prim}\textsubscript{e}\kw{(} x\textsubscript{1} ... x\textsubscript{n}\kw{)}            
+                 & Application of a primitive function that may allocate memory \\
+            & |  & \metavar{x}\textsubscript{f}\kw{(} x\textsubscript{1} ... x\textsubscript{n}\kw{)}
+                 & Function application \\
+            & |  & \metavar{x}\textsubscript{f}\kw{!(} \metavar{x}\textsubscript{e}\kw{,}x\textsubscript{1} ... x\textsubscript{n}\kw{)}
+                 & Closure application \\
+\end{tabular}
+
+\paragraph{Statements}
+Statements have the following concrete syntax:
+
+\begin{tabular}{rcll}
+\metavar{blk} & := & \kw{\{} \metavar{s}\textsubscript{1} ... \metavar{s}\textsubscript{n}\kw{\}} \\
+\metavar{s} & := & \kw{var} \metavar{x}\kw{:}\metavar{T}\kw{=} \metavar{e}\kw{;}
+                 & \textrm{Declare a variable of type \metavar{T}} \\
+            & |  & \metavar{x} \kw{=} \metavar{e}\kw{;}
+                 & \textrm{Assign a value to a variable} \\
+            & |  & \kw{if (}\metavar{a} \kw{)} \metavar{blk} \kw{else} \metavar{blk}
+                 & \textrm{Conditional} \\
+            & |  & \kw{loop} \metavar{blk}
+                 & \textrm{Loop} \\
+            & |  & \kw{return} \metavar{a}\kw{;}
+                 & \textrm{Return a value} \\
+            & |  & \kw{break} \metavar{l}\kw{;}
+                 & \textrm{Break out of a block} \\
+            & |  & \kw{*}\metavar{x}\kw{=} \metavar{e}\kw{;}
+                 & \textrm{Update a local variable} \\
+\end{tabular}
+
+\paragraph{Programs}
+A program is a list of global variables, followed by a list of functions.
+Global variables have the following concrete syntax:
+
+\begin{tabular}{l}
+\kw{var} \metavar{x}\kw{:}\metavar{T}\kw{=} \metavar{a}\kw{;} 
+\end{tabular}
+
+Functions have the following concrete syntax:
+
+\begin{tabular}{l}
+\kw{function} \metavar{x}\textsubscript{f}\kw{(} 
+\metavar{x}\textsubscript{1}\kw{:}\metavar{T}\textsubscript{1} ... \metavar{x}\textsubscript{n}\kw{:}\metavar{T}\textsubscript{n}\kw{):}\metavar{R}\kw{ }\metavar{blk}
+\end{tabular}
+
+There \emph{must} be a function called \texttt{main} that received no arguments
+and does not return a result.
 
 \end{document}
