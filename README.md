@@ -216,6 +216,7 @@ Expressions have the following concrete syntax:
 |     | |  | **`!`** *prim*<sub>e</sub>**`(`** x<sub>1</sub> ... x<sub>n</sub>**`)`**             | Application of a primitive function that may allocate memory |
 |     | |  | *x*<sub>f</sub>**`(`** x<sub>1</sub> ... x<sub>n</sub>**`)`**                        | Function application                                         |
 |     | |  | *x*<sub>f</sub>**`!(`** *x*<sub>e</sub>**`,`**x<sub>1</sub> ... x<sub>n</sub>**`)`** | Closure application                                          |
+|     | |  | *x***`.`***str* **`=`** *e*                                                          | <span class="roman">Update a field of a DynObject</span>     |
 
 ##### Statements
 

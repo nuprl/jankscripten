@@ -297,7 +297,7 @@ pub enum Expr {
     ClosureCall(Id, Vec<Id>, Pos),
     PrimCall(RTSFunction, Vec<Atom>, Pos),
     ObjectEmpty,
-    /// ObjectSet(obj, field_name, value, typ, Pos) is obj.field_name: typ = value;
+    /// ObjectSet(obj, field_name, value, Pos) is obj.field_name = value;
     ObjectSet(Atom, Atom, Atom, Pos),
     NewRef(Atom, Type, Pos), // newRef(something, Pos)
     Atom(Atom, Pos),

@@ -161,7 +161,7 @@ Stmt -> Stmt :
     { Stmt::Var(VarStmt { id: $2, named: $5, ty: $3 }, pos($1)) }
   | Id '=' Expr ';'                         { Stmt::Assign($1, $3, pos($2)) }
   | IdString ':' Block                      { label_($1, $3, pos($2)) }
-  // TODO(arjun): The concrete syntax is more restrictive than the abstract syntax.
+  // TODO(arjun): The concrete syntax is more restrictive than the abstract syntax. This should be in Expr anyway.
   | IdAtom '.' IdString '=' AtomAdd ';'
     { Stmt::Var(VarStmt::new(id_("_"), Expr::ObjectSet($1, str_($3, pos($2)), $5, pos($2))), pos($2)) }
   // TODO(arjun): The concrete syntax is more restrictive than the abstract syntax.
