@@ -97,6 +97,7 @@ Atom -> Atom :
 AtomMul -> Atom :
     Atom              { $1 }
   | Atom '*' AtomMul  { binary_(BinaryOp::I32Mul, $1, $3, pos($2)) }
+  | Atom '/' AtomMul  { binary_(BinaryOp::I32Div, $1, $3, pos($2)) }  
   | Atom '*.' AtomMul { binary_(BinaryOp::F64Mul, $1, $3, pos($2)) }
   | Atom '/.' AtomMul { binary_(BinaryOp::F64Div, $1, $3, pos($2)) }
   ;
@@ -113,6 +114,7 @@ AtomAdd -> Atom :
   | AtomMul '==' AtomAdd  { binary_(BinaryOp::I32Eq, $1, $3, pos($2)) }
   | AtomMul '+.' AtomAdd  { binary_(BinaryOp::F64Add, $1, $3, pos($2)) }
   | AtomMul '-.' AtomAdd  { binary_(BinaryOp::F64Sub, $1, $3, pos($2)) }
+  | AtomMul '>.' AtomAdd   { binary_(BinaryOp::F64GT, $1, $3, pos($2)) }
   ;
 
 // TODO(arjun): The concrete syntax is more restrictive than the abstract syntax.
