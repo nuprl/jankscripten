@@ -336,7 +336,8 @@ impl VarStmt {
                 if existing_ty != &ty {
                     // TODO(arjun): This is a error in hand-written Wasm. Fail
                     // more gracefully.
-                    panic!("Calculated type is not equal to existing type");
+                    panic!("Calculated type of variable {} ({}) does not match type annotation {}",
+                        self.id, ty, existing_ty);
                 }
             }
         }
