@@ -170,6 +170,7 @@ pub enum UnaryOp {
     Sqrt,
     Neg,
     Eqz,
+    
 }
 
 impl UnaryOp {
@@ -327,8 +328,18 @@ impl VarStmt {
     }
 
     pub fn set_ty(&mut self, ty: Type) {
-        assert!(self.ty.is_none(), "called set_typ twice on VarStmt");
-        self.ty = Some(ty);
+        match &self.ty {
+            None => {
+                self.ty = Some(ty);
+            }
+            Some(existing_ty) => {
+                if existing_ty != &ty {
+                    // TODO(arjun): This is a error in hand-written Wasm. Fail
+                    // more gracefully.
+                    panic!("Calculated type is not equal to existing type");
+                }
+            }
+        }
     }
 
     pub fn ty(&self) -> &Type {
