@@ -251,8 +251,8 @@ fn type_check_stmt(env: Env, s: &mut Stmt, ret_ty: &Option<Type>) -> TypeCheckin
             Ok(env)
         }
         Stmt::Break(_lbl, _) => Ok(env),
-        Stmt::Return(a, s) => {
-            let got = type_check_atom(&env, a)?;
+        Stmt::Return(e, s) => {
+            let got = type_check_expr(&env, e)?;
 
             // ??? MMG if ret_ty = None, can one return early?
             match ret_ty {

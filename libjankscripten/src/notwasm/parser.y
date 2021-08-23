@@ -171,7 +171,7 @@ Stmt -> Stmt :
     { Stmt::Var(VarStmt::new(id_("_"), Expr::HTSet($1, str_($3, pos($2)), $5, pos($2))), pos($2)) }
   | 'if' '(' AtomAdd ')' Block 'else' Block { Stmt::If($3, Box::new($5), Box::new($7), pos($1)) }
   | 'loop' Block                            { Stmt::Loop(Box::new($2), pos($1)) }
-  | 'return' AtomAdd ';'                    { Stmt::Return($2, pos($1)) }
+  | 'return' Expr ';'                    { Stmt::Return($2, pos($1)) }
   | 'break' IdString ';'                    { Stmt::Break(Label::Named($2), pos($1)) }
   | 'while' '(' AtomAdd ')' Block           { while_($3, $5, pos($1)) }
   | '*' Id '=' Expr ';'                     { Stmt::Store($2, $4, pos($1)) }
