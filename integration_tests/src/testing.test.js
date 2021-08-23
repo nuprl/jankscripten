@@ -26,7 +26,7 @@ function makeTest(filename) {
         cp.spawnSync(jankscriptenPath, ['compile', '-o', path.join(wasmPath), path.join(jsPath)], { stdio: 'inherit' });
         let output;
         try {
-            output = String(cp.execSync(`node ../bin/run-node ${wasmPath}`, { stderr: 'inherit' })).trim();
+            output = String(cp.execSync(`node --experimental-wasm-return_call ../bin/run-node ${wasmPath}`, { stderr: 'inherit' })).trim();
         } catch (e) {
             // jest is very stubborn about printing in the right spot only
             // if it's a thrown error, and the captured stdout won't be seen

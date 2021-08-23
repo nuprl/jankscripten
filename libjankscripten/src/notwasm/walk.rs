@@ -120,9 +120,7 @@ where
                 self.walk_expr(&mut var_stmt.named, loc);
             }
             // 1xExpr
-            Expression(a, _) | Assign(.., a, _) | Store(.., a, _) => self.walk_expr(a, loc),
-            // 1xAtom
-            Return(a, _) => self.walk_atom(a, loc),
+            Return(a, _) | Expression(a, _) | Assign(.., a, _) | Store(.., a, _) => self.walk_expr(a, loc),
             // 1xExpr, 2xStmt
             If(e, sa, sb, _) => {
                 self.walk_atom(e, loc);

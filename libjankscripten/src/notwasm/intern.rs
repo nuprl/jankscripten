@@ -112,7 +112,7 @@ mod test {
                         ),
                         s.clone(),
                     ),
-                    Stmt::Return(i32_(0, s.clone()), s.clone()),
+                    Stmt::Return(Expr::Atom(i32_(0, s.clone()), s.clone()), s.clone()),
                 ],
                 s.clone(),
             ),

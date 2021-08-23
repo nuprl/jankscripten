@@ -363,7 +363,7 @@ pub enum Stmt {
     Label(Label, Box<Stmt>, Pos),
     Break(Label, Pos),
     // Break value as return?
-    Return(Atom, Pos),
+    Return(Expr, Pos),
     Block(Vec<Stmt>, Pos),
     Trap,
     /// these don't exist in NotWasm, only GotoWasm. if you try to [translate]

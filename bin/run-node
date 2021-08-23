@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S node --experimental-wasm-return_call
 
 // Usage: ./run.js <jankscripten-compiled WASM file>
 // Executes the given WASM code using the jankscripten runtime.

@@ -531,7 +531,7 @@ fn compile_stmt<'a>(state: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
         // TODO(luna): notwasm needs to support exceptions
         S::Throw(_, _) => Rope::new(),
         S::Return(e, p) => {
-            compile_expr(state, *e, C::a(|_s, a| Rope::singleton(Stmt::Return(a, p))))
+            compile_expr(state, *e, C::a(|_s, a| Rope::singleton(Stmt::Return(Expr::Atom(a, p.clone()), p))))
         }
     }
 }

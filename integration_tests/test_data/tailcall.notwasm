@@ -1,0 +1,21 @@
+
+function notfactorial(n : i32, acc: i32) : i32 {
+    if (n == 0) {
+        return acc;
+    }
+    else {
+        acc = acc + n;
+        n = n - 1;
+        return notfactorial(n, acc);
+    }
+}
+
+function main() {
+    var consoleLogF = rt(console_log);
+    var consoleLog = clos(consoleLogF,);
+    var n = 1000000;
+    var acc = 1;
+    var result = notfactorial(n, acc);
+    var r = any(result);
+    consoleLog!(r, r);
+}

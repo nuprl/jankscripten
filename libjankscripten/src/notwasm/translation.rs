@@ -30,6 +30,13 @@ pub fn translate(opts: &Opts, program: N::Program) -> Result<Vec<u8>, Error> {
 
 type IdEnv = im_rc::HashMap<N::Id, IdIndex>;
 
+fn opt_valuetype_to_blocktype(t: &Option<ValueType>) -> BlockType {
+    match t {
+        None => BlockType::NoResult,
+        Some(t) => BlockType::Value(t.clone())
+    }
+}
+
 pub fn translate_parity(opts: &Opts, mut program: N::Program) -> Module {
     // The initial environment maps functions names to their indices.
     let mut global_env = IdEnv::default();
@@ -86,12 +93,12 @@ pub fn translate_parity(opts: &Opts, mut program: N::Program) -> Module {
     {
         let type_i = if let N::Type::Fn(fn_ty) = ty {
             let wasm_ty = (types_as_wasm(&fn_ty.args), option_as_wasm(&fn_ty.result));
-            let i_check = module.push_signature(
-                signature()
-                    .with_params(wasm_ty.0.clone())
-                    .with_return_type(wasm_ty.1.clone())
-                    .build_sig(),
-            );
+            let mut sig_builder = signature()
+                .with_params(wasm_ty.0.clone());
+            if let Some(ret_ty) = wasm_ty.1 {
+                sig_builder = sig_builder.with_result(ret_ty.clone());
+            }
+            let i_check = module.push_signature(sig_builder.build_sig());
             assert_eq!(*type_indexes.entry(wasm_ty).or_insert(i_check), i_check);
             i_check
         } else {
@@ -257,9 +264,10 @@ fn translate_func(
     }
 
     let mut env = Env::default();
+    env.result_type = func.fn_type.result.as_ref().map(|x| x.as_wasm());
 
     // generate the actual code
-    translator.translate_rec(&mut env, &mut func.body);
+    translator.translate_rec(&mut env, &mut func.body, true);
     let mut insts = vec![];
 
     if opts.disable_gc == false {
@@ -272,9 +280,9 @@ fn translate_func(
 
     insts.append(&mut translator.out);
 
-    if opts.disable_gc == false {
-        insts.push(Call(*rt_indexes.get("gc_exit_fn").expect("no exit")));
-    }
+    // if opts.disable_gc == false {
+    //      insts.push(Call(*rt_indexes.get("gc_exit_fn").expect("no exit")));
+    // }
 
     insts.push(End);
     let locals: Vec<_> = translator
@@ -291,10 +299,13 @@ fn translate_func(
             _ => None,
         })
         .collect();
-    let func = function()
+    let mut func_builder = function()
         .signature()
-        .with_params(types_as_wasm(&func.fn_type.args))
-        .with_return_type(option_as_wasm(&func.fn_type.result))
+        .with_params(types_as_wasm(&func.fn_type.args));
+    if let Some(ret_ty) = &func.fn_type.result {
+        func_builder = func_builder.with_result(ret_ty.as_wasm());
+    }
+    let func = func_builder
         .build()
         .body()
         .with_instructions(Instructions::new(insts))
@@ -325,6 +336,7 @@ struct Translate<'a> {
 #[derive(Clone, PartialEq, Default, Debug)]
 struct Env {
     labels: im_rc::Vector<TranslateLabel>,
+    result_type: Option<ValueType>,
 }
 
 /// We use `TranslateLabel` to compile the named labels and breaks of NotWasm
@@ -392,7 +404,7 @@ impl<'a> Translate<'a> {
     // the environment of its successor. (The alternative would be to have
     // `translate_rec` return a new environment.) However, we have to take care
     // to clone `env` when we enter a new block scope.
-    pub(self) fn translate_rec(&mut self, env: &Env, stmt: &mut N::Stmt) {
+    pub(self) fn translate_rec(&mut self, env: &Env, stmt: &mut N::Stmt, tail_position: bool) {
         match stmt {
             N::Stmt::Store(id, expr, _) => {
                 // storing into a reference translates into a raw write
@@ -406,21 +418,25 @@ impl<'a> Translate<'a> {
                 } else {
                     panic!("tried to store into non-ref");
                 };
-                self.translate_expr(expr);
+                self.translate_expr(expr, false);
                 self.store(ty, TAG_SIZE);
             }
             N::Stmt::Empty => (),
             N::Stmt::Block(ss, _) => {
                 // don't surround in an actual block, those are only useful
                 // when labeled
-                for s in ss {
-                    self.translate_rec(env, s);
+                if ss.len() == 0 {
+                    return; // TODO(arjun): This happens
+                }
+                let last_index = ss.len() - 1;
+                for (index, s) in ss.iter_mut().enumerate() {
+                    self.translate_rec(env, s, tail_position && index == last_index);
                 }
             }
             N::Stmt::Var(var_stmt, _) => {
                 // Binds variable in env after compiling expr (prevents
                 // circularity).
-                self.translate_expr(&mut var_stmt.named);
+                self.translate_expr(&mut var_stmt.named, false);
 
                 let index = self.next_id;
                 self.next_id += 1;
@@ -440,7 +456,7 @@ impl<'a> Translate<'a> {
                 }
             }
             N::Stmt::Expression(expr, _) => {
-                self.translate_expr(expr);
+                self.translate_expr(expr, false);
                 self.out.push(Drop); // side-effects only, please
             }
             N::Stmt::Assign(id, expr, _) => {
@@ -451,7 +467,7 @@ impl<'a> Translate<'a> {
                     .clone()
                 {
                     IdIndex::Local(n, ty) => {
-                        self.translate_expr(expr);
+                        self.translate_expr(expr, false);
                         if self.opts.disable_gc == true || ty.is_gc_root() == false {
                             self.out.push(SetLocal(n));
                         } else {
@@ -461,7 +477,7 @@ impl<'a> Translate<'a> {
                         }
                     }
                     IdIndex::Global(n, ty) => {
-                        self.translate_expr(expr);
+                        self.translate_expr(expr, false);
                         // no tee for globals
                         self.out.push(SetGlobal(n));
                         if self.opts.disable_gc == false && ty.is_gc_root() {
@@ -477,7 +493,7 @@ impl<'a> Translate<'a> {
                         // aren't really even real (yet at least), it's not worth
                         // reasoning through this
                         self.out.push(GetGlobal(n));
-                        self.translate_expr(expr);
+                        self.translate_expr(expr, false);
                         self.store(ty, 0);
                     }
                     IdIndex::Fun(..) => panic!("cannot set function"),
@@ -485,12 +501,17 @@ impl<'a> Translate<'a> {
             }
             N::Stmt::If(cond, conseq, alt, _) => {
                 self.translate_atom(cond);
-                self.out.push(If(BlockType::NoResult));
+                let block_type = if tail_position {
+                    opt_valuetype_to_blocktype(&env.result_type)
+                } else {
+                    BlockType::NoResult
+                };
+                self.out.push(If(block_type));
                 let mut env1 = env.clone();
                 env1.labels.push_front(TranslateLabel::Unused);
-                self.translate_rec(&env1, conseq);
+                self.translate_rec(&env1, conseq, tail_position);
                 self.out.push(Else);
-                self.translate_rec(&env1, alt);
+                self.translate_rec(&env1, alt, tail_position);
                 self.out.push(End);
             }
             N::Stmt::Loop(body, _) => {
@@ -498,7 +519,7 @@ impl<'a> Translate<'a> {
                 self.out.push(Loop(BlockType::NoResult));
                 let mut env1 = env.clone();
                 env1.labels.push_front(TranslateLabel::Unused);
-                self.translate_rec(&env1, body);
+                self.translate_rec(&env1, body, false);
                 // loop doesn't automatically continue, don't ask me why
                 self.out.push(Br(0));
                 self.out.push(End);
@@ -510,7 +531,7 @@ impl<'a> Translate<'a> {
                 self.out.push(Block(BlockType::NoResult));
                 let mut env1 = env.clone();
                 env1.labels.push_front(TranslateLabel::Label(x.clone()));
-                self.translate_rec(&mut env1, stmt);
+                self.translate_rec(&mut env1, stmt, tail_position);
                 self.out.push(End);
             }
             N::Stmt::Break(label, _) => {
@@ -521,12 +542,11 @@ impl<'a> Translate<'a> {
                     .expect(&format!("unbound label {:?}", label));
                 self.out.push(Br(i as u32));
             }
-            N::Stmt::Return(atom, _) => {
+            N::Stmt::Return(e, _) => {
                 if self.opts.disable_gc == false {
                     self.rt_call("gc_exit_fn");
                 }
-                self.translate_atom(atom);
-                self.out.push(Return);
+                self.translate_expr(e, true);
             }
             N::Stmt::Trap => {
                 self.out.push(Unreachable);
@@ -580,7 +600,8 @@ impl<'a> Translate<'a> {
         }
     }
 
-    fn translate_expr(&mut self, expr: &mut N::Expr) {
+    fn translate_expr(&mut self, expr: &mut N::Expr, tail_position: bool) {
+        let mut emitted_return = false;
         match expr {
             N::Expr::Atom(atom, _) => self.translate_atom(atom),
             N::Expr::ArraySet(arr, index, value, _) => {
@@ -646,7 +667,14 @@ impl<'a> Translate<'a> {
                         // we index in notwasm by 0 = first user function. but
                         // wasm indexes by 0 = first rt function. so we have
                         // to offset
-                        self.out.push(Call(i + self.rt_indexes.len() as u32));
+                        let offset = i + self.rt_indexes.len() as u32;
+                        if tail_position {
+                            self.out.push(ReturnCall(offset));
+                            emitted_return = true;
+                        }
+                        else {
+                            self.out.push(Call(offset));
+                        }
                     }
                     Some(IdIndex::Local(i, t)) => {
                         self.out.push(GetLocal(i));
@@ -656,11 +684,17 @@ impl<'a> Translate<'a> {
                             }
                             _ => panic!("identifier {:?} is not function-typed", f),
                         };
-                        let ty_index = self
+                        let ty_index = *self
                             .type_indexes
                             .get(&(params_tys, ret_ty))
                             .unwrap_or_else(|| panic!("function type was not indexed {:?}", s));
-                        self.out.push(CallIndirect(*ty_index, 0));
+                        if tail_position {
+                            self.out.push(ReturnCallIndirect(ty_index, 0));
+                            emitted_return = true;
+                        }
+                        else {
+                            self.out.push(CallIndirect(ty_index, 0));
+                        }
                     }
                     Some(index) => panic!(
                         "can't translate Func ID for function ({}): ({:?})",
@@ -740,6 +774,9 @@ impl<'a> Translate<'a> {
                 self.get_id(id);
                 self.rt_call("closure_new");
             }
+        }
+        if emitted_return == false && tail_position {
+            self.out.push(Return);
         }
     }
 
@@ -1023,20 +1060,20 @@ fn insert_generated_main(
         insts.push(Call(*rt_indexes.get("gc_exit_fn").expect("no gc_exit_fn")));
     }
     insts.push(End);
+    let mut func_builder = function()
+        .signature()
+        .with_params(vec![]);
     // this is just the worst hack due to lack of void type. i still
     // don't want to add it because it doesn't exist in from-jankyscript
     // notwasm, but it makes all my tests that return have an extra thing
     // on the stack. but since it's only the tests, i should be able to
     // identify tests and drop only then. it's awful. i know
     #[cfg(test)]
-    let return_type = Some(N::Type::I32.as_wasm());
-    #[cfg(not(test))]
-    let return_type = None;
+    {
+        func_builder = func_builder.with_result(N::Type::I32.as_wasm());
+    }
     module.push_function(
-        function()
-            .signature()
-            .with_params(vec![])
-            .with_return_type(return_type)
+            func_builder
             .build()
             .body()
             .with_instructions(Instructions::new(insts))
