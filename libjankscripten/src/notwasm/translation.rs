@@ -24,6 +24,13 @@ const FN_OBJ_SIZE: u32 = 4;
 
 type FuncTypeMap = HashMap<(Vec<ValueType>, Option<ValueType>), u32>;
 
+fn opt_valuetype_to_blocktype(t: &Option<ValueType>) -> BlockType {
+    match t {
+        None => BlockType::NoResult,
+        Some(t) => BlockType::Value(t.clone()),
+    }
+}
+
 pub fn translate(opts: &Opts, program: N::Program) -> Result<Vec<u8>, Error> {
     serialize(translate_parity(opts, program))
 }
@@ -260,9 +267,10 @@ fn translate_func(
     }
 
     let mut env = Env::default();
+    env.result_type = func.fn_type.result.as_ref().map(|x| x.as_wasm());
 
     // generate the actual code
-    translator.translate_rec(&mut env, &mut func.body);
+    translator.translate_rec(&mut env, true, &mut func.body);
     let mut insts = vec![];
 
     if opts.disable_gc == false {
@@ -273,11 +281,10 @@ fn translate_func(
         insts.push(Call(*rt_indexes.get("gc_enter_fn").expect("no enter")));
     }
 
-    insts.append(&mut translator.out);
-
     if opts.disable_gc == false {
-        insts.push(Call(*rt_indexes.get("gc_exit_fn").expect("no exit")));
+        translator.rt_call("gc_exit_fn");
     }
+    insts.append(&mut translator.out);
 
     insts.push(End);
     let locals: Vec<_> = translator
@@ -336,6 +343,7 @@ struct Translate<'a> {
 #[derive(Clone, PartialEq, Default, Debug)]
 struct Env {
     labels: im_rc::Vector<TranslateLabel>,
+    result_type: Option<ValueType>,
 }
 
 /// We use `TranslateLabel` to compile the named labels and breaks of NotWasm
@@ -403,7 +411,7 @@ impl<'a> Translate<'a> {
     // the environment of its successor. (The alternative would be to have
     // `translate_rec` return a new environment.) However, we have to take care
     // to clone `env` when we enter a new block scope.
-    pub(self) fn translate_rec(&mut self, env: &Env, stmt: &mut N::Stmt) {
+    pub(self) fn translate_rec(&mut self, env: &Env, tail_position: bool, stmt: &mut N::Stmt) {
         match stmt {
             N::Stmt::Store(id, expr, _) => {
                 // storing into a reference translates into a raw write
@@ -422,10 +430,14 @@ impl<'a> Translate<'a> {
             }
             N::Stmt::Empty => (),
             N::Stmt::Block(ss, _) => {
-                // don't surround in an actual block, those are only useful
-                // when labeled
-                for s in ss {
-                    self.translate_rec(env, s);
+                // NOTE(arjun,luna): We don't surround all blocks in a Wasm block. Those are only
+                // useful when the block is labelled.
+                if ss.len() == 0 {
+                    return; // TODO(arjun): This happens
+                }
+                let last_index = ss.len() - 1;
+                for (index, s) in ss.iter_mut().enumerate() {
+                    self.translate_rec(env, tail_position && index == last_index, s);
                 }
             }
             N::Stmt::Var(var_stmt, _) => {
@@ -496,12 +508,17 @@ impl<'a> Translate<'a> {
             }
             N::Stmt::If(cond, conseq, alt, _) => {
                 self.translate_atom(cond);
-                self.out.push(If(BlockType::NoResult));
+                let block_type = if tail_position {
+                    opt_valuetype_to_blocktype(&env.result_type)
+                } else {
+                    BlockType::NoResult
+                };
+                self.out.push(If(block_type));
                 let mut env1 = env.clone();
                 env1.labels.push_front(TranslateLabel::Unused);
-                self.translate_rec(&env1, conseq);
+                self.translate_rec(&env1, tail_position, conseq);
                 self.out.push(Else);
-                self.translate_rec(&env1, alt);
+                self.translate_rec(&env1, tail_position, alt);
                 self.out.push(End);
             }
             N::Stmt::Loop(body, _) => {
@@ -509,7 +526,7 @@ impl<'a> Translate<'a> {
                 self.out.push(Loop(BlockType::NoResult));
                 let mut env1 = env.clone();
                 env1.labels.push_front(TranslateLabel::Unused);
-                self.translate_rec(&env1, body);
+                self.translate_rec(&env1, false, body);
                 // loop doesn't automatically continue, don't ask me why
                 self.out.push(Br(0));
                 self.out.push(End);
@@ -521,7 +538,7 @@ impl<'a> Translate<'a> {
                 self.out.push(Block(BlockType::NoResult));
                 let mut env1 = env.clone();
                 env1.labels.push_front(TranslateLabel::Label(x.clone()));
-                self.translate_rec(&mut env1, stmt);
+                self.translate_rec(&mut env1, tail_position, stmt);
                 self.out.push(End);
             }
             N::Stmt::Break(label, _) => {

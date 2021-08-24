@@ -1,0 +1,17 @@
+function F(n: i32): i32 {
+    if (n == 0) {
+        return 1;
+    }
+    else {
+        return 0;
+    }
+}
+
+function main() {
+    var consoleLogF = rt(console_log);
+    var consoleLog = clos(consoleLogF,);
+    var n = 1;
+    var result = F(n);
+    var r = any(result);
+    consoleLog!(r, r);
+}
