@@ -2,7 +2,6 @@
 [\t\r\n ]+ ;
 //[^\n]* ;
 any "any"
-arrayPush "arrayPush"
 as "as"
 Array "Array"
 bogus "bogus"
@@ -50,7 +49,6 @@ while "while"
 / "/"
 /\. "/."
 -> "->"
-<< "<<"
 >\. ">."
 > ">"
 ; ";"

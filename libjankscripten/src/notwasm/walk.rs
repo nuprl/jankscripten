@@ -139,14 +139,10 @@ where
         match expr {
             // TODO(arjun): PrimCall should be walking atom!
             ObjectEmpty | Call(..) | ClosureCall(..) | PrimCall(..) => (),
-            HTSet(ea, eb, ec, ..) | ObjectSet(ea, eb, ec, ..) | ArraySet(ea, eb, ec, _) => {
+            ObjectSet(ea, eb, ec, ..) | ArraySet(ea, eb, ec, _) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
                 self.walk_atom(ec, loc);
-            }
-            Push(ea, eb, ..) => {
-                self.walk_atom(ea, loc);
-                self.walk_atom(eb, loc);
             }
             NewRef(a, ..) | Atom(a, ..) => self.walk_atom(a, loc),
             Closure(_, has_atoms, _) => {

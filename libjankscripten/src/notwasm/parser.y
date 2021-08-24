@@ -136,7 +136,6 @@ Expr -> Expr :
   | '{' '}'                             { Expr::ObjectEmpty }
   | '!' Id '(' AtomSeq ')'              { Expr::prim_call($2.into_name(), $4, pos($1)) } 
   | 'clos' '(' Id ',' IdAtomTypeSeq ')' { Expr::Closure($3, $5, pos($1)) }
-  | 'arrayPush' '(' Atom ',' Atom ')'   { Expr::Push($3, $5, pos($1)) }
   // TODO(arjun): We can infer the type annotation.
   | 'newRef' '(' Atom ',' Type ')'      { Expr::NewRef($3, $5, pos($1)) }
   | Id '!' '(' IdSeq ')'                { Expr::ClosureCall($1, $4, pos($2)) }
@@ -166,9 +165,6 @@ Stmt -> Stmt :
   // TODO(arjun): The concrete syntax is more restrictive than the abstract syntax. This should be in Expr anyway.
   | IdAtom '.' IdString '=' AtomAdd ';'
     { Stmt::Var(VarStmt::new(id_("_"), Expr::ObjectSet($1, str_($3, pos($2)), $5, pos($2))), pos($2)) }
-  // TODO(arjun): The concrete syntax is more restrictive than the abstract syntax.
-  | IdAtom '<<' IdString '=' AtomAdd ';'   
-    { Stmt::Var(VarStmt::new(id_("_"), Expr::HTSet($1, str_($3, pos($2)), $5, pos($2))), pos($2)) }
   | 'if' '(' AtomAdd ')' Block 'else' Block { Stmt::If($3, Box::new($5), Box::new($7), pos($1)) }
   | 'loop' Block                            { Stmt::Loop(Box::new($2), pos($1)) }
   | 'return' AtomAdd ';'                    { Stmt::Return($2, pos($1)) }

@@ -617,12 +617,6 @@ impl<'a> Translate<'a> {
                 self.translate_atom(value);
                 self.rt_call("array_set");
             }
-            N::Expr::HTSet(ht, field, val, _) => {
-                self.translate_atom(ht);
-                self.translate_atom(field);
-                self.translate_atom(val);
-                self.rt_call("ht_set");
-            }
             N::Expr::ObjectSet(obj, field, val, _) => {
                 self.translate_atom(obj);
                 self.translate_atom(field);
@@ -641,11 +635,6 @@ impl<'a> Translate<'a> {
                 // `{}` inherits from the default Object prototype, which
                 // must be resolved dynamically.
                 self.notwasm_rt_call("jnks_new_object");
-            }
-            N::Expr::Push(array, val, _) => {
-                self.translate_atom(array);
-                self.translate_atom(val);
-                self.rt_call("array_push");
             }
             N::Expr::PrimCall(rts_func, args, _) => {
                 for arg in args {

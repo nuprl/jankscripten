@@ -257,9 +257,12 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             ));
             for member_id in member_ids {
                 rv = rv.append(Rope::singleton(Stmt::Expression(
-                    Expr::Push(
-                        Atom::Id(array_name.clone(), p.clone()),
-                        Atom::Id(member_id, p.clone()),
+                    Expr::prim_call(
+                        "array_push",
+                        vec![
+                            Atom::Id(array_name.clone(), p.clone()),
+                            Atom::Id(member_id, p.clone()),
+                        ],
                         p.clone(),
                     ),
                     p.clone(),
