@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 thiserror = "*"
 pretty = "^0.10.0"
-parity-wasm = "^0.41.0"
+parity-wasm = "^0.42.0"
 im-rc = "15.0.0"
 strum = "0.19"
 strum_macros = "0.19"

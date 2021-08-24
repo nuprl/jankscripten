@@ -89,7 +89,10 @@ pub fn translate_parity(opts: &Opts, mut program: N::Program) -> Module {
             let i_check = module.push_signature(
                 signature()
                     .with_params(wasm_ty.0.clone())
-                    .with_return_type(wasm_ty.1.clone())
+                    .with_results(match &wasm_ty.1 {
+                        None => vec![],
+                        Some(t) => vec![t.clone()],
+                    })
                     .build_sig(),
             );
             assert_eq!(*type_indexes.entry(wasm_ty).or_insert(i_check), i_check);
@@ -294,7 +297,7 @@ fn translate_func(
     let func = function()
         .signature()
         .with_params(types_as_wasm(&func.fn_type.args))
-        .with_return_type(option_as_wasm(&func.fn_type.result))
+        .with_results(opt_ty_as_typ_vec(&func.fn_type.result))
         .build()
         .body()
         .with_instructions(Instructions::new(insts))
@@ -307,6 +310,14 @@ fn translate_func(
 fn types_as_wasm(types: &[N::Type]) -> Vec<ValueType> {
     types.iter().map(N::Type::as_wasm).collect()
 }
+
+fn opt_ty_as_typ_vec(ty: &Option<Box<N::Type>>) -> Vec<ValueType> {
+    match ty {
+        None => vec![],
+        Some(t) => vec![t.as_wasm()],
+    }
+}
+
 fn option_as_wasm(ty: &Option<Box<N::Type>>) -> Option<ValueType> {
     ty.as_ref().map(|t| t.as_wasm())
 }
@@ -1029,14 +1040,14 @@ fn insert_generated_main(
     // on the stack. but since it's only the tests, i should be able to
     // identify tests and drop only then. it's awful. i know
     #[cfg(test)]
-    let return_type = Some(N::Type::I32.as_wasm());
+    let return_type = vec![N::Type::I32.as_wasm()];
     #[cfg(not(test))]
-    let return_type = None;
+    let return_type = vec![];
     module.push_function(
         function()
             .signature()
             .with_params(vec![])
-            .with_return_type(return_type)
+            .with_results(return_type)
             .build()
             .body()
             .with_instructions(Instructions::new(insts))
