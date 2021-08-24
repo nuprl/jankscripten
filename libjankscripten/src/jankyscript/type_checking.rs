@@ -397,7 +397,7 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             let obj_type = type_check_expr(obj, env)?;
 
             ensure(
-                "property lookup done on real object",
+                "property lookup expects a DynObject",
                 Type::DynObject,
                 obj_type,
                 &s,

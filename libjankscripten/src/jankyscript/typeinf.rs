@@ -92,6 +92,7 @@ struct SubtMetavarVisitor<'a> {
     z3ez: &'a Z3EZ<'a>,
 }
 
+/// Replaces type metavariables with concrete types produced by Z3.
 impl<'a> Visitor for SubtMetavarVisitor<'a> {
     fn enter_typ(&mut self, t: &mut Type, _loc: &Loc) {
         match t {
@@ -275,11 +276,27 @@ impl<'a> Typeinf<'a> {
                 self.cgen_stmt(then_branch);
                 self.cgen_stmt(else_branch);
             }
-            Stmt::ForIn(..) => todo!(),
-            Stmt::Break(..) => todo!(),
-            Stmt::Throw(..) => todo!(),
-            Stmt::Finally(..) => todo!(),
-            // _ => todo!("{:?}", stmt),
+            Stmt::ForIn(x, iter, body, p) => {
+                let (phi, t) = self.cgen_expr(iter);
+                self.solver.assert(&phi);
+                **iter = coerce(t, typ!(string), iter.take(), p.clone());
+                let outer_env = self.env.clone();
+                self.env.update(x.clone(), typ!(string));
+                self.cgen_stmt(body);
+                self.env = outer_env;
+            }
+            Stmt::Break(..) => {
+                // Nothing to do
+            }
+            Stmt::Throw(e, _) => {
+                let (phi, t) = self.cgen_expr(e);
+                self.solver.assert(&phi);
+                self.solver.assert(&z3f!(self, (= (tid t) (typ any))));
+            }
+            Stmt::Finally(main_block, finally_block, _) => {
+                self.cgen_stmt(main_block);
+                self.cgen_stmt(finally_block);
+            }
         }
     }
 
@@ -314,8 +331,8 @@ impl<'a> Typeinf<'a> {
             | Expr::Closure(..)
             | Expr::Unary(..) => panic!("unexpected {:?}", &expr),
             Expr::Lit(l, p) => {
-                let t = typ_lit(&l);
                 let p = p.clone();
+                let t = typ_lit(&l);
                 let alpha_t = self.fresh_metavar("alpha");
                 let w = self.fresh_weight();
                 let phi = z3f!(self,
@@ -333,30 +350,40 @@ impl<'a> Typeinf<'a> {
                     // break pointer-equality.
                     phis.push(z3f!(self, (= (tid t) (typ any))));
                 }
+                // TODO(arjun): must be wobbly
                 (self.zand(phis), Type::Array)
             }
-            Expr::Object(props, _) => {
+            Expr::Object(props, p) => {
+                let p = p.clone();
                 let (mut phis, ts) = self.cgen_exprs(props.iter_mut().map(|(_, e)| e));
                 for t in ts {
                     // See note for array elements: same principle applies here.
                     phis.push(z3f!(self, (= (tid t) (typ any))));
                 }
-                (self.zand(phis), Type::DynObject)
+                let alpha = self.fresh_metavar("object_lit");
+                let w = self.fresh_weight();
+                let phi = z3f!(self,
+                    (or (and (id w.clone()) (= (tid alpha) (typ dynobject)))
+                        (and (not (id w)) (= (tid alpha) (typ any)))));
+                let e = expr.take();
+                *expr = coerce(Type::DynObject, alpha.clone(), e, p);
+                phis.push(phi);
+                (self.zand(phis), alpha)
             }
             Expr::Id(x, t, _) => {
                 *t = self.env.get(x);
                 (z3f!(self, true), t.clone())
             }
-            Expr::Dot(e, _x, p) => {
+            Expr::Dot(obj_e, _x, p) => {
                 let p = p.clone();
                 let w = self.fresh_weight();
-                let (phi_1, t) = self.cgen_expr(e);
+                let (phi_1, t) = self.cgen_expr(obj_e);
                 let phi_2 = z3f!(self,
                     (or
                         (and (= (tid t) (typ dynobject)) (id w.clone()))
                         (and (= (tid t) (typ any)) (not (id &w)))));
-                let e = expr.take();
-                *expr = coerce(t, Type::DynObject, e, p);
+                let e = obj_e.take();
+                **obj_e = coerce(t, Type::DynObject, e, p);
                 (phi_1 & phi_2, Type::Any)
             }
             Expr::Bracket(..) => todo!(),
@@ -446,6 +473,7 @@ impl<'a> Typeinf<'a> {
                 let (phi_1, t_f) = self.cgen_expr(f);
                 let (args_phi, args_t) = self.cgen_exprs(args.iter_mut());
                 let phi_2 = self.zand(args_phi);
+                // Name for the result type of f(args)
                 let beta = self.fresh_metavar("beta");
                 let gamma = self.fresh_metavar("gamma");
 
@@ -744,4 +772,33 @@ mod tests {
         );
         assert_eq!(n, 2); // coercions are for the comparison
     }
+
+    #[test]
+    fn escaping_fun() {
+        let n = typeinf_test(
+            r#"
+            function f(x) {
+                return x;
+            }
+            var o = { g: f };
+            //f(1);
+            o.g(true);
+            "#,
+        );
+        assert_eq!(n, 3); // 1) the function, 2) the object, 3) the bool
+    }
+
+    #[test]
+    fn higher_order_app_err() {
+        let n = typeinf_test(
+            r#"
+            function f(g, x) {
+                return g(x);
+            }
+            f(1, 2);
+            "#,
+        );
+        assert_eq!(n, 2);
+    }
+
 }
