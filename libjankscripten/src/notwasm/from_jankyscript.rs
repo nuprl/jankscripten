@@ -249,7 +249,10 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
         J::Expr::Array(members, p) => compile_exprs(state, members, move |state, member_ids| {
             let array_name = state.fresh();
             let mut rv = Rope::singleton(Stmt::Var(
-                VarStmt::new(array_name.clone(), Expr::prim_call("array_new", vec![], p.clone())),
+                VarStmt::new(
+                    array_name.clone(),
+                    Expr::prim_call("array_new", vec![], p.clone()),
+                ),
                 p.clone(),
             ));
             for member_id in member_ids {
@@ -316,7 +319,9 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 compile_expr(
                     state,
                     *index,
-                    C::a(move |state, index| cxt.recv_a(state, prim_app_("array_index", vec![arr, index], p)))
+                    C::a(move |state, index| {
+                        cxt.recv_a(state, prim_app_("array_index", vec![arr, index], p))
+                    }),
                 )
             }),
         ),

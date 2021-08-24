@@ -45,7 +45,7 @@ pub fn get_rt_bindings() -> BindMap {
         } else if let RTSFunctionImpl::Rust(name) = rts.name() {
             // Automatically generate the name and notwasm type
             match rts {
-                RTSFunction::Import(..) => { }
+                RTSFunction::Import(..) => {}
                 _ => {
                     m.insert(name.into(), rts.janky_typ().notwasm_typ());
                 }

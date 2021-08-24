@@ -800,5 +800,4 @@ mod tests {
         );
         assert_eq!(n, 2);
     }
-
 }

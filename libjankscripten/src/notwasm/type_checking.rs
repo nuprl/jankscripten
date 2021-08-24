@@ -16,7 +16,10 @@ impl Env {
             .into_iter()
             .map(|(k, v)| (Id::Named(k), v))
             .collect();
-        Env { env, imports: Default::default() }
+        Env {
+            env,
+            imports: Default::default(),
+        }
     }
 
     pub fn get(&self, id: &Id) -> Option<&Type> {
@@ -322,8 +325,11 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             Ok(Type::Any) // returns value set
         }
         Expr::PrimCall(crate::rts_function::RTSFunction::Import(name), args, s) => {
-            let ty = env.imports.get(&Id::Named(name.clone()))
-                .ok_or(err!(s, "invalid primtive {}", name))?;
+            let ty = env.imports.get(&Id::Named(name.clone())).ok_or(err!(
+                s,
+                "invalid primtive {}",
+                name
+            ))?;
             let (arg_tys, opt_ret_ty) = ty.unwrap_fun();
             let ret_ty = opt_ret_ty.ok_or(err!(s, "invalid return type for {}", name))?;
             if arg_tys.len() != args.len() {
@@ -332,9 +338,14 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             for ((i, expected_ty), arg) in arg_tys.iter().enumerate().zip(args.iter_mut()) {
                 let got_ty = type_check_atom(env, arg)?;
                 if expected_ty != &got_ty {
-                    return Err(err!(s, 
-                        "wrong type for argument {} of {}. Expected {}, but received {}", 
-                        i, name, expected_ty, got_ty));
+                    return Err(err!(
+                        s,
+                        "wrong type for argument {} of {}. Expected {}, but received {}",
+                        i,
+                        name,
+                        expected_ty,
+                        got_ty
+                    ));
                 }
             }
             Ok(ret_ty.clone())
@@ -514,22 +525,29 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             let ty = lookup(env, prim, s)?;
             let (expected_arg_ts, ret_t) = ty.unwrap_fun();
             let ret_t = ret_t.expect("primtive function that returns a value");
-            let arg_ts = args.iter_mut().map(|a| type_check_atom(env, a))
+            let arg_ts = args
+                .iter_mut()
+                .map(|a| type_check_atom(env, a))
                 .collect::<Result<Vec<_>, _>>()?;
             if arg_ts.len() != expected_arg_ts.len() {
                 return error!(
                     s,
                     "primitive {:?} expected {} arguments, but received {}",
-                    prim, expected_arg_ts.len(), 
-                    arg_ts.len());
+                    prim,
+                    expected_arg_ts.len(),
+                    arg_ts.len()
+                );
             }
 
-            if arg_ts.iter().zip(expected_arg_ts.iter())
-                    .any(|(t1, t2)| t1 != t2) {
+            if arg_ts
+                .iter()
+                .zip(expected_arg_ts.iter())
+                .any(|(t1, t2)| t1 != t2)
+            {
                 return error!(s, "primitive {:?} applied to wrong argument type", prim);
             }
             return Ok(ret_t.clone());
-        }        
+        }
         Atom::ToAny(to_any, s) => {
             let ty = type_check_atom(env, &mut to_any.atom)?;
             assert_variant_of_any(&ty, s)?;

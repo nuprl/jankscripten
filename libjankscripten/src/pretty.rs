@@ -24,7 +24,7 @@ macro_rules! impl_Display_Pretty {
 /// Nice syntax for writing pretty printers.
 ///
 /// prettyp!(pp, e) where
-/// 
+///
 /// ```text
 /// <e> ::= space                // Insert a space or line break
 ///       | line                 // Insert a line break
@@ -52,7 +52,7 @@ macro_rules! prettyp {
     ($pp:ident, ( as_string $t:ident ) ) =>
         ($pp.as_string($t));
     ($pp:ident, ( id $( $t:tt )* ) ) =>
-        (($($t)*).pretty($pp));        
+        (($($t)*).pretty($pp));
     ($pp:ident, ( nest $( $ts:tt )* ) ) =>
         ((prettyp!($pp, $( $ts )*)).nest(2));
     ($pp:ident, ( parens $( $ts:tt )* ) ) =>

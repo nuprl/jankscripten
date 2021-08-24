@@ -168,18 +168,14 @@ where
                 for a in args.iter_mut() {
                     self.walk_atom(a, loc);
                 }
-            }            
+            }
             ToAny(to_any, _) => {
                 self.walk_atom(to_any.atom.as_mut(), loc);
             }
-            FloatToInt(ea, _)
-            | IntToFloat(ea, _)
-            | Unary(.., ea, _)
-            | FromAny(ea, ..) => {
+            FloatToInt(ea, _) | IntToFloat(ea, _) | Unary(.., ea, _) | FromAny(ea, ..) => {
                 self.walk_atom(ea, loc);
             }
-            | ObjectGet(ea, eb, ..)
-            | Binary(.., ea, eb, _)  => {
+            ObjectGet(ea, eb, ..) | Binary(.., ea, eb, _) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
             }

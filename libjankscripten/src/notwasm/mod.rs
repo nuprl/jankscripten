@@ -23,5 +23,5 @@ pub mod syntax;
 pub mod type_checking;
 
 pub use compile::compile;
-pub use parser::parse;
 pub use from_jankyscript::*;
+pub use parser::parse;

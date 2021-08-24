@@ -1,7 +1,7 @@
 use super::syntax::*;
 
-use crate::{prettyp, impl_Display_Pretty};
 use crate::pretty::Pretty;
+use crate::{impl_Display_Pretty, prettyp};
 
 impl Pretty for Type {
     fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A>
@@ -142,11 +142,11 @@ impl Pretty for Lit {
 }
 
 impl Pretty for Id {
-    fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A> 
+    fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A>
     where
         D: pretty::DocAllocator<'b, A>,
         A: std::clone::Clone,
-        <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,    
+        <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
         pp.as_string(self)
     }
@@ -166,7 +166,6 @@ impl Pretty for ToAny {
 }
 
 impl Pretty for (Atom, Type) {
-
     fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A>
     where
         D: pretty::DocAllocator<'b, A>,
@@ -196,7 +195,7 @@ impl Pretty for Atom {
                 Atom::Lit(Lit::String(r), _) => prettyp!(pp, (seq (id l) ".htget" (id r))),
                 _ => prettyp!(pp, (seq (id l) "." (id r))),
             },
-            Atom::Id(id, _) => pp.as_string(id),          
+            Atom::Id(id, _) => pp.as_string(id),
             Atom::GetPrimFunc(id, _) => prettyp!(pp, (seq "rt" (parens (id id)))),
             Atom::Unary(op, a, _) => prettyp!(pp, (seq (id op) (id a))),
             Atom::Binary(op, l, r, _) => prettyp!(pp, (seq (id l) (id op) (id r))),
@@ -215,9 +214,12 @@ impl Pretty for Expr {
     {
         match self {
             Expr::Push(l, r, _) =>
-                // pp.concat(vec![l.pretty(pp), pp.text(".push"), r.pretty(pp).parens()]),
-                prettyp!(pp, (seq (id l) ".push" (parens (id r)))),
-            Expr::ArraySet(a, b, c, _) => /* pp.concat(vec![
+            // pp.concat(vec![l.pretty(pp), pp.text(".push"), r.pretty(pp).parens()]),
+            {
+                prettyp!(pp, (seq (id l) ".push" (parens (id r))))
+            }
+            Expr::ArraySet(a, b, c, _) =>
+            /* pp.concat(vec![
                 pp.text("array_set"),
                 pp.concat(vec![
                     a.pretty(pp),
@@ -228,8 +230,11 @@ impl Pretty for Expr {
                 ])
                 .braces(),
             ]), */
-                prettyp!(pp, (seq "array_set" (braces (seq (id a) "," (id b) "," (id c))))),
-            Expr::HTSet(a, b, c, _) => /* pp.concat(vec![
+            {
+                prettyp!(pp, (seq "array_set" (braces (seq (id a) "," (id b) "," (id c)))))
+            }
+            Expr::HTSet(a, b, c, _) =>
+            /* pp.concat(vec![
                 pp.text("ht_set"),
                 pp.concat(vec![
                     a.pretty(pp),
@@ -240,8 +245,11 @@ impl Pretty for Expr {
                 ])
                 .braces(),
             ]), */
-                prettyp!(pp, (seq "ht_set" (braces (seq (id a) "," (id b) "," (id c))))),
-            Expr::Call(f, args, _) => /* pp.concat(vec![
+            {
+                prettyp!(pp, (seq "ht_set" (braces (seq (id a) "," (id b) "," (id c)))))
+            }
+            Expr::Call(f, args, _) =>
+            /* pp.concat(vec![
                 pp.as_string(f),
                 pp.intersperse(
                     args.iter().map(|a| pp.as_string(a)),
@@ -249,11 +257,19 @@ impl Pretty for Expr {
                 )
                 .parens(),
             ]), */
-                prettyp!(pp, (seq (id f) (parens (comma_sep args)))),
-            Expr::ClosureCall(f, args, _) => prettyp!(pp, (seq (id f) "!" (parens (comma_sep args)))),
-            Expr::PrimCall(rtsfun, args, _) => prettyp!(pp, (seq (as_string rtsfun) (parens (comma_sep args)))),
+            {
+                prettyp!(pp, (seq (id f) (parens (comma_sep args))))
+            }
+            Expr::ClosureCall(f, args, _) => {
+                prettyp!(pp, (seq (id f) "!" (parens (comma_sep args))))
+            }
+            Expr::PrimCall(rtsfun, args, _) => {
+                prettyp!(pp, (seq (as_string rtsfun) (parens (comma_sep args))))
+            }
             Expr::ObjectEmpty => pp.text("{}"),
-            Expr::ObjectSet(a, Atom::Lit(Lit::String(s), _), c, _) => prettyp!(pp, (seq (id a) "." (id s) "=" (id c) ";")),
+            Expr::ObjectSet(a, Atom::Lit(Lit::String(s), _), c, _) => {
+                prettyp!(pp, (seq (id a) "." (id s) "=" (id c) ";"))
+            }
             Expr::ObjectSet(a, b, c, _) => prettyp!(pp, (seq (id a) "." (id b) "=" (id c) ";")),
             Expr::NewRef(a, ty, _) => prettyp!(pp, (seq "new_ref::" (id ty) (parens (id a)))),
             Expr::Atom(a, _) => a.pretty(pp),

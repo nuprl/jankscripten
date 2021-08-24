@@ -770,7 +770,7 @@ impl<'a> Translate<'a> {
                     self.translate_atom(a);
                 }
                 self.rt_call(&id.clone().into_name());
-            }            
+            }
             N::Atom::GetPrimFunc(id, _) => {
                 // TODO(luna): i honestly for the life of me can't remember
                 // why we accept an &mut Atom instead of an Atom, which
