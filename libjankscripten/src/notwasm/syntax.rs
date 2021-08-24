@@ -290,16 +290,15 @@ impl Atom {
 // An `Expr` is an expression that may trigger garbage collection.
 #[derive(Debug, PartialEq)]
 pub enum Expr {
-    Push(Atom, Atom, Pos),
     /// TODO(luna, Pos): we need to detect out-of-bounds and turn into a hashmap
     ArraySet(Atom, Atom, Atom, Pos),
-    HTSet(Atom, Atom, Atom, Pos),
     /// right now, never constructed from jankyscript, only in tests
     Call(Id, Vec<Id>, Pos),
     ClosureCall(Id, Vec<Id>, Pos),
     PrimCall(RTSFunction, Vec<Atom>, Pos),
     ObjectEmpty,
-    /// ObjectSet(obj, field_name, value, Pos) is obj.field_name = value;
+    /// `ObjectSet(obj, field, value, _)` is `obj.field = value;`. The translator generates code
+    /// that caches the offset of `field` in `obj`, thus this is not a simple library call.
     ObjectSet(Atom, Atom, Atom, Pos),
     NewRef(Atom, Type, Pos), // newRef(something, Pos)
     Atom(Atom, Pos),

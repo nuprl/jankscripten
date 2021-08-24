@@ -284,15 +284,6 @@ fn type_check_stmt(env: Env, s: &mut Stmt, ret_ty: &Option<Type>) -> TypeCheckin
 fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
     match e {
         Expr::ObjectEmpty => Ok(Type::DynObject),
-        Expr::Push(a_arr, a_elt, s) => {
-            let got_arr = type_check_atom(env, a_arr)?;
-            let got_elt = type_check_atom(env, a_elt)?;
-
-            let _ = ensure("array push (array)", Type::Array, got_arr, s)?;
-            let _ = ensure("array push (element)", Type::Any, got_elt, s)?;
-
-            Ok(Type::I32) // returns length
-        }
         Expr::ArraySet(a_arr, a_idx, a_val, s) => {
             let got_arr = type_check_atom(env, a_arr)?;
             let got_idx = type_check_atom(env, a_idx)?;
@@ -301,17 +292,6 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             let _ = ensure("array set (array)", Type::Array, got_arr, s);
             let _ = ensure("array set (value)", Type::Any, got_val, s);
             Ok(Type::Any)
-        }
-        Expr::HTSet(a_ht, a_field, a_val, s) => {
-            let got_ht = type_check_atom(env, a_ht)?;
-            let got_field = type_check_atom(env, a_field)?;
-            let got_val = type_check_atom(env, a_val)?;
-
-            ensure("ht set (ht)", Type::HT, got_ht, s)?;
-            let _ = ensure("ht set (field)", Type::String, got_field, s)?;
-            let _ = ensure("ht set (val)", Type::Any, got_val, s)?;
-
-            Ok(Type::Any) // returns value set
         }
         Expr::ObjectSet(a_obj, a_field, a_val, s) => {
             let got_obj = type_check_atom(env, a_obj)?;

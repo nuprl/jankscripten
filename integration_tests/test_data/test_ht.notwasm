@@ -1,9 +1,9 @@
   function main() {
     var x = HT{};
     var ret = any(0);
-    x<<one = any(1);
-    x<<two = any(2);
-    x<<three = any(3);
+    @ht_set(x, "one", any(1));
+    @ht_set(x, "two", any(2));
+    @ht_set(x, "three", any(3));
     ret = @ht_get(x, "one");
     print_any(ret);
 }

@@ -1,0 +1,6 @@
+function main() {
+    var arr = !array_new();
+    @array_push(arr, any(500));
+    var x = @array_index(arr, 0);
+    print_any(x);
+}

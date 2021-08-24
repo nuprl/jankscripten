@@ -213,11 +213,6 @@ impl Pretty for Expr {
         <D as pretty::DocAllocator<'b, A>>::Doc: std::clone::Clone,
     {
         match self {
-            Expr::Push(l, r, _) =>
-            // pp.concat(vec![l.pretty(pp), pp.text(".push"), r.pretty(pp).parens()]),
-            {
-                prettyp!(pp, (seq (id l) ".push" (parens (id r))))
-            }
             Expr::ArraySet(a, b, c, _) =>
             /* pp.concat(vec![
                 pp.text("array_set"),
@@ -232,21 +227,6 @@ impl Pretty for Expr {
             ]), */
             {
                 prettyp!(pp, (seq "array_set" (braces (seq (id a) "," (id b) "," (id c)))))
-            }
-            Expr::HTSet(a, b, c, _) =>
-            /* pp.concat(vec![
-                pp.text("ht_set"),
-                pp.concat(vec![
-                    a.pretty(pp),
-                    pp.text(", "),
-                    b.pretty(pp),
-                    pp.text(", "),
-                    c.pretty(pp),
-                ])
-                .braces(),
-            ]), */
-            {
-                prettyp!(pp, (seq "ht_set" (braces (seq (id a) "," (id b) "," (id c)))))
             }
             Expr::Call(f, args, _) =>
             /* pp.concat(vec![

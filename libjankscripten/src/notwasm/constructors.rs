@@ -100,9 +100,6 @@ pub const FALSE_: Atom = Atom::Lit(Lit::Bool(false), Pos::UNKNOWN);
 pub fn atom_(a: Atom, s: Pos) -> Expr {
     Expr::Atom(a, s)
 }
-pub fn ht_set_(a: Atom, b: Atom, c: Atom, s: Pos) -> Expr {
-    Expr::HTSet(a, b, c, s)
-}
 pub fn program_(functions: HashMap<Id, Function>) -> Program {
     Program {
         functions,
