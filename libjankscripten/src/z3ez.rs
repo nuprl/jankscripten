@@ -29,7 +29,8 @@ macro_rules! z3f {
 
 #[macro_export]
 macro_rules! z3_datatype_accessor (
-    ((datatype $name:ident)) => (z3::DatatypeAccessor::Datatype(stringify!($name).into()));
+    ($bool_sort:ident, (datatype $name:ident)) => (z3::DatatypeAccessor::Datatype(stringify!($name).into()));
+    ($bool_sort:ident, bool) => (z3::DatatypeAccessor::Sort($bool_sort));
 );
 
 #[macro_export]
@@ -77,11 +78,12 @@ macro_rules! z3_datatype {
                 return z3::ast::Dynamic::from_ast(&t);
             }
 
+            /// `b` must be BoolSort.
             #[allow(unused)]
-            pub fn make_dts(cxt: &'a z3::Context) -> z3::DatatypeBuilder<'a, 'a> {
+            pub fn make_dts(cxt: &'a z3::Context, b: &'a z3::Sort) -> z3::DatatypeBuilder<'a, 'a> {
                 z3::DatatypeBuilder::new(&cxt, stringify!($sort_name))
                     $(.variant(stringify!($variant),
-                        vec![$( (stringify!($field_name), z3_datatype_accessor!($field_sort)) ),*]))*
+                        vec![$( (stringify!($field_name), z3_datatype_accessor!(b, $field_sort)) ),*]))*
             }
 
             // From TypeWhich, written by Luna.
@@ -116,6 +118,13 @@ macro_rules! z3_datatype {
                 #[allow(unused)]
                 pub fn [<is_ $variant>](&self, model: &z3::Model, e: &z3::ast::Dynamic) -> bool {
                     return self.is_variant(self.variant_index(stringify!($variant)), model, e);
+                }
+
+                /// Produces a predicate to check if an expression is constructed with $variant.
+                #[allow(unused)]
+                pub fn [<test_ $variant>](&self, e: &z3::ast::Dynamic<'a>) -> z3::ast::Dynamic<'a> {
+                    let variant_index = self.variant_index(stringify!($variant));
+                    return self.dts.variants[variant_index].tester.apply(&[e]);
                 }
 
                 $(

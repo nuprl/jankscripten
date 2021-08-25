@@ -41,7 +41,12 @@ z3_datatype! {
     (str)
     (array)
     (dynobject)
-    (fun (args (datatype Z3TypList)) (ret (datatype Z3Typ)))
+    // The must_ground field is a trick we use to ground function types. When
+    // `e` is a `fun and `(must_ground e)` is `true`, then the arguments are
+    // return type are constrained to be `any`. This is accomplished by
+    // auxilliary constraints that we define when we construct the type of
+    // `Expr::Fun` in `zfun`.
+    (fun (must_ground bool) (args (datatype Z3TypList)) (ret (datatype Z3Typ)))
 }
 
 z3_datatype! {
@@ -154,14 +159,47 @@ impl<'a> Typeinf<'a> {
                 .expect("unbound type metavariable")
                 .clone(),
             Type::Function(args, r) => {
+                // Note that this case doesn't setup the grounding constraints
+                // on args and ret. For those constraints, use `zfun`.
                 let mut z_args = self.zl.make_tnil();
+                let must_ground = z3::ast::Bool::fresh_const(self.z.cxt, "must_ground");
                 for a in args.iter().rev() {
                     z_args = self.zl.make_tcons(&self.t(a), &z_args);
                 }
-                self.z.make_fun(&z_args, &self.t(r))
+                self.z.make_fun(&must_ground.into(), &z_args, &self.t(r))
             }
             _ => todo!("Type: {:?}", t),
         }
+    }
+
+    fn zfun(
+        &self,
+        must_ground: z3::ast::Bool<'a>,
+        args: &Vec<Type>,
+        r: &Type,
+    ) -> z3::ast::Dynamic<'a> {
+        let mut z_args = self.zl.make_tnil();
+        for a in args.iter().rev() {
+            let z_arg = self.t(a);
+            self.solver.assert(&z3f!(self,
+                (or (not (id must_ground.clone()))
+                    (= (id z_arg.clone()) (typ any)))));
+            z_args = self.zl.make_tcons(&z_arg, &z_args);
+        }
+        let z_r = self.t(r);
+        self.solver.assert(&z3f!(self,
+            (or (not (id must_ground.clone()))
+                (= (id z_r.clone()) (typ any)))));
+        self.z.make_fun(&must_ground.into(), &z_args, &z_r)
+    }
+
+    fn is_ground(&mut self, t: &Type) -> z3::ast::Bool<'a> {
+        let t_z = self.t(t);
+        let test_fun = self.z.test_fun(&t_z).as_bool().unwrap();
+        let fun_must_ground = self.z.fun_must_ground(&t_z).as_bool().unwrap();
+        z3f!(self,
+            (or (not (id test_fun))
+                (id fun_must_ground)))
     }
 
     fn z3_to_typ_vec(&self, model: &'a Model, mut e: Dynamic<'a>) -> Vec<Type> {
@@ -255,10 +293,12 @@ impl<'a> Typeinf<'a> {
                 let w = self.fresh_weight();
                 self.solver.assert(&phi);
                 let t_r = self.return_type.clone();
+                let t_is_ground = self.is_ground(&t);
                 self.solver.assert(&z3f!(self,
                     (or (and (id w.clone()) (= (tid t_r.clone()) (tid t.clone())))
-                    // TODO(arjun): And t_r must be ground
-                        (and (not (id w)) (= (tid t_r.clone()) (typ any))))
+                        (and (not (id w))
+                             (id t_is_ground)
+                             (= (tid t_r.clone()) (typ any))))
                 ));
                 **e = coerce(t, t_r, e.take(), p.clone());
             }
@@ -517,14 +557,14 @@ impl<'a> Typeinf<'a> {
                 // Fresh metavariables for formal arguments.
                 for (x, t) in f.args_with_typs.iter_mut() {
                     assert_eq!(t, &Type::Missing);
-                    *t = self.fresh_metavar("alpha");
+                    *t = self.fresh_metavar("arg");
                     self.env.update(x.clone(), t.clone());
                 }
                 // Recur into the body.
                 self.cgen_stmt(&mut *f.body);
                 // Get the return type.
                 let return_typ = self.return_type.take();
-                // Pop the fudged stack.
+                // Pop the fudged stack: restore outer environment and return type.
                 self.return_type = outer_return_typ;
                 self.env = outer_env;
 
@@ -532,14 +572,14 @@ impl<'a> Typeinf<'a> {
 
                 let w = self.fresh_weight();
                 let beta = self.fresh_metavar("beta");
+                // When `(not w)` is true, the auxiliary grounding assertions
+                // produced by `zfun` force `args` and `return_typ` to be `any`.
+                let z_fun = self.zfun(z3f!(self, (not (id w.clone()))), &args, &return_typ);
+
                 let phi = z3f!(self,
                     (or
-                        (and (= (typ unquote(beta)) (typ fun_vec(args.clone()) -> unquote(return_typ.clone())))
-                             (id w.clone()))
-                        (and (= (typ unquote(beta)) (typ any))
-                             (= (typ unquote(return_typ.clone())) (typ any))
-                             /* TODO(arjun): args must be * too. */
-                             (not (id w)))));
+                      (and (id w.clone()) (= (tid beta) (id z_fun.clone())))
+                      (and (not (id w.clone())) (= (tid beta) (typ any)))));
                 let p = p.clone();
                 *expr = coerce(
                     typ!(fun_vec(args) -> unquote(return_typ)),
@@ -566,8 +606,9 @@ impl<'a> Typeinf<'a> {
 pub fn typeinf(stmt: &mut Stmt) {
     let z3_cfg = z3::Config::new();
     let cxt = z3::Context::new(&z3_cfg);
-    let dts = Z3Typ::make_dts(&cxt);
-    let dts_list = Z3TypList::make_dts(&cxt);
+    let bool_sort = z3::Sort::bool(&cxt);
+    let dts = Z3Typ::make_dts(&cxt, &bool_sort);
+    let dts_list = Z3TypList::make_dts(&cxt, &bool_sort);
     let sorts = z3::datatype_builder::create_datatypes(vec![dts, dts_list]);
     let z = Z3Typ::new(&cxt, &sorts[0]);
     let zl = Z3TypList::new(&cxt, &sorts[1]);
@@ -799,5 +840,27 @@ mod tests {
             "#,
         );
         assert_eq!(n, 2);
+    }
+
+    #[test]
+    fn heterogenous_return_types_must_be_ground() {
+        let n = typeinf_test(
+            r#"
+            function F() {
+                if (true) {
+                    return function(x) { return x << 2; }
+                }
+                else {
+                    return "hi";
+                
+                }
+            }
+            "#,
+        );
+        // - Nested function is coerced to any
+        // - x is coerced to a number (does not count, we are counting *to* any)
+        // - x << 2 is coerced to any
+        // - "hello" is coerced to any
+        assert_eq!(n, 3);
     }
 }
