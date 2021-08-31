@@ -933,7 +933,7 @@ mod tests {
               arr[0] + 2; // 1 coercion
               "#,
         );
-        assert_eq!(n, 4);        
+        assert_eq!(n, 4);
     }
 
     #[test]
@@ -947,7 +947,7 @@ mod tests {
               F([]); // coercion from [] to any
             "#,
         );
-        assert_eq!(n, 2);        
+        assert_eq!(n, 2);
     }
 
     #[test]
@@ -972,5 +972,4 @@ mod tests {
         );
         assert_eq!(n, 3);
     }
-
 }
