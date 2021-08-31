@@ -382,7 +382,7 @@ impl<'a> Typeinf<'a> {
                 *expr = coerce(t, alpha_t.clone(), e, p);
                 (phi, alpha_t)
             }
-            Expr::Array(es, _) => {
+            Expr::Array(es, p) => {
                 let (mut phis, ts) = self.cgen_exprs(es.iter_mut());
                 for t in ts {
                     // The reader may wonder if this constraint is too strict. Why should we force
@@ -390,8 +390,14 @@ impl<'a> Typeinf<'a> {
                     // break pointer-equality.
                     phis.push(z3f!(self, (= (tid t) (typ any))));
                 }
-                // TODO(arjun): must be wobbly
-                (self.zand(phis), Type::Array)
+                let w = self.fresh_weight();
+                let alpha = self.fresh_metavar("array_lit");
+                let p = p.clone();
+                *expr = coerce(Type::Array, alpha.clone(), expr.take(), p);
+                let phi = z3f!(self,
+                    (or (and (id w.clone()) (= (tid alpha) (typ array)))
+                        (and (not (id w)) (= (tid alpha) (typ any)))));
+                (self.zand(phis) & phi, alpha)
             }
             Expr::Object(props, p) => {
                 let p = p.clone();
@@ -426,7 +432,40 @@ impl<'a> Typeinf<'a> {
                 **obj_e = coerce(t, Type::DynObject, e, p);
                 (phi_1 & phi_2, Type::Any)
             }
-            Expr::Bracket(..) => todo!(),
+            Expr::Bracket(e1, e2, p) => {
+                // NOTE(arjun): The following remarks are from the old code on coercion insertion.
+                //
+                // container is either array or object. for now, i'm going
+                // to assume it's an array because introducing OR into here
+                // seems pretty messy (TODO(luna))
+                //
+                // michael: probably best to have different bracket operations for
+                // different types. there could be four:
+                //
+                // 1. arrays
+                // 2. objects
+                // 3. strings
+                // 4. Any
+                //
+                // with maybe...
+                //
+                // 5. instances of classes
+                let p = p.clone();
+                let w = self.fresh_weight();
+                let w2 = self.fresh_weight();
+                let (phi_1, t) = self.cgen_expr(e1);
+                let phi_2 = z3f!(self,
+                    (or
+                        (and (= (tid t) (typ array)) (id w.clone()))
+                        (and (= (tid t) (typ any)) (not (id &w)))));
+                let (phi_3, t_2) = self.cgen_expr(e2);
+                let phi_4 = z3f!(self,
+                    (or
+                        (and (= (tid t_2) (typ int)) (id w2.clone()))
+                        (and (= (tid t_2) (typ any)) (not (id &w2)))));
+                **e1 = coerce(t, Type::Array, e1.take(), p);
+                (phi_1 & phi_2 & phi_3 & phi_4, Type::Any)
+            }
             Expr::JsOp(
                 op,
                 args,
@@ -545,7 +584,7 @@ impl<'a> Typeinf<'a> {
                 *expr = coerce(beta, gamma.clone(), e, p);
                 (self.zand(vec![phi_1, phi_2, phi_3, phi_4]), gamma)
             }
-            // TypeWhich shows us how to do unary functions. Generazling
+            // TypeWhich shows us how to do unary functions. This is a significant generalization.
             Expr::Func(f, p) => {
                 // Fudge stack with local state: the function body will
                 // update the environment and the return type.
@@ -863,4 +902,44 @@ mod tests {
         // - "hello" is coerced to any
         assert_eq!(n, 3);
     }
+
+    #[test]
+    fn funarg_to_operator_must_be_ground() {
+        let n = typeinf_test(
+            r#"
+            function F(x) { // F is coerced to any
+                return x * 10; // result is coerced to any
+            }
+            F(200); // 200 is coerced to any
+            F * 77; // 77 is coerced to any
+            "#,
+        );
+        assert_eq!(n, 4);
+    }
+
+    #[test]
+    fn bracket_produces_any() {
+        let n = typeinf_test(
+            r#"
+              let arr = [1, 2, 3]; // 3 coercions
+              arr[0] + 2; // 1 coercion
+              "#,
+        );
+        assert_eq!(n, 4);        
+    }
+
+    #[test]
+    fn bracket_can_consume_any() {
+        let n = typeinf_test(
+            r#"
+              function F(x) {
+                  return x[0] * x[0];
+              }
+              F(""); // coercion from "" to any
+              F([]); // coercion from [] to any
+            "#,
+        );
+        assert_eq!(n, 2);        
+    }
+
 }

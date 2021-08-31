@@ -13,6 +13,7 @@ macro_rules! typ {
     (string) => (Type::String);
     (any) => (Type::Any);
     (dynobject) => (Type::DynObject);
+    (array) => (Type::Array);
     (fun($( $arg:tt ),*) -> $ret:tt) =>
         (Type::Function(vec![ $( typ!($arg) ),* ], Box::new(typ!($ret))));
     (fun_vec($($args:tt)*) -> $($ret:tt)*) =>
