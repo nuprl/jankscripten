@@ -516,7 +516,7 @@ impl<'a> Typeinf<'a> {
 
                 // Special case: what we do when none of the precise overloads match
                 if let Some((t, notwasm_op)) = OVERLOADS.on_any(op) {
-                    let (any_case_args, result_typ) = t.unwrap_fun();
+                    let (any_case_args, op_ret_t) = t.unwrap_fun();
                     let mut conjuncts = vec![
                         !w, // Try to avoid this case,
                         z3f!(self, (not (id any_case_z3))),
@@ -526,7 +526,7 @@ impl<'a> Typeinf<'a> {
                         // TODO(arjun): t1 must be compatible with any
                         conjuncts.push(self.t(t2)._eq(&self.z.make_any()));
                     }
-                    conjuncts.push(self.t(&alpha_t)._eq(&self.t(result_typ)));
+                    conjuncts.push(self.t(&alpha_t)._eq(&self.t(op_ret_t)));
                     disjuncts.push(self.zand(conjuncts));
                     *arg_ts = any_case_args.clone();
                 }
@@ -540,7 +540,15 @@ impl<'a> Typeinf<'a> {
                     let t = self.env.get(x);
                     *x_t = t.clone();
                     let (phi_1, e_t) = self.cgen_expr(&mut *e);
-                    // TODO(arjun): Not quite right. Too strict
+                    // TODO(arjun): Can we get away with strict equality? If so, we must ensure that
+                    // the type of any expression may be any. This is already the case for literals,
+                    // function applications, and getting values from collections. However, what
+                    // about builtin operators? It seems reasonable to same that e1 === e2 *always*
+                    // produces a boolean and does not produce an any.
+                    //
+                    // However, introducing coercions to any in arbitrary places, such as here, can
+                    // break object identity. It is safer to coerce to any *only* where we introduce
+                    // new values, including the values produced by builtin operators.
                     let phi_2 = self.t(&t)._eq(&self.t(&e_t));
                     (phi_1 & phi_2, t)
                 }
@@ -940,6 +948,29 @@ mod tests {
             "#,
         );
         assert_eq!(n, 2);        
+    }
+
+    #[test]
+    fn variable_may_be_any_typed() {
+        let n = typeinf_test(
+            r#"
+            var x = 10;
+            x = "hello";
+            x = true;
+            "#,
+        );
+        assert_eq!(n, 3);
+    }
+
+    #[test]
+    fn variable_may_be_any_typed_2() {
+        let n = typeinf_test(
+            r#"
+            var x = (2 === 3);
+            x = "hello";
+            "#,
+        );
+        assert_eq!(n, 3);
     }
 
 }
