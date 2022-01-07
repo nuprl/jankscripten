@@ -354,6 +354,29 @@ impl<'a> Typeinf<'a> {
         (phis, ts)
     }
 
+    // Coerce expr: t at p to either t (preferred) or any. Does not enforce
+    // ground constrants! Only use if you know t is ground. Returns
+    // (phis & additional, t or any)
+    fn wobbly<B: Into<Option<ast::Bool<'a>>>>(
+        &mut self,
+        p: Pos,
+        expr: &mut Expr,
+        phis: B,
+        t: Type,
+    ) -> (ast::Bool<'a>, Type) {
+        let w = self.fresh_weight();
+        let alpha = self.fresh_metavar("wobbly");
+        let phi = z3f!(self,
+            (or (and (id w.clone()) (= (tid alpha) (tid t)))
+                (and (not (id w)) (= (tid alpha) (typ any)))));
+        let e = expr.take();
+        *expr = coerce(t, alpha.clone(), e, p);
+        match phis.into() {
+            Some(phis) => (phis & phi, alpha),
+            None => (phi, alpha),
+        }
+    }
+
     fn zand(&self, phis: Vec<ast::Bool<'a>>) -> ast::Bool<'a> {
         let phis = phis.iter().collect::<Vec<_>>();
         ast::Bool::and(self.z.cxt, phis.as_slice())
@@ -371,33 +394,18 @@ impl<'a> Typeinf<'a> {
             | Expr::Closure(..)
             | Expr::Unary(..) => panic!("unexpected {:?}", &expr),
             Expr::Lit(l, p) => {
-                let p = p.clone();
                 let t = typ_lit(&l);
-                let alpha_t = self.fresh_metavar("alpha");
-                let w = self.fresh_weight();
-                let phi = z3f!(self,
-                    (or (and (id w.clone()) (= (tid alpha_t) (tid t)))
-                        (and (not (id w)) (= (tid alpha_t) (typ any)))));
-                let e = expr.take();
-                *expr = coerce(t, alpha_t.clone(), e, p);
-                (phi, alpha_t)
+                self.wobbly(p.clone(), expr, None, t)
             }
             Expr::Array(es, p) => {
-                let (mut phis, ts) = self.cgen_exprs(es.iter_mut());
-                for t in ts {
-                    // The reader may wonder if this constraint is too strict. Why should we force
-                    // each element to be any, instead of coercing them to any? A coercion would
-                    // break pointer-equality.
-                    phis.push(z3f!(self, (= (tid t) (typ any))));
-                }
-                let w = self.fresh_weight();
-                let alpha = self.fresh_metavar("array_lit");
-                let p = p.clone();
-                *expr = coerce(Type::Array, alpha.clone(), expr.take(), p);
-                let phi = z3f!(self,
-                    (or (and (id w.clone()) (= (tid alpha) (typ array)))
-                        (and (not (id w)) (= (tid alpha) (typ any)))));
-                (self.zand(phis) & phi, alpha)
+                let (phi_vec, ts) = self.cgen_exprs(es.iter_mut());
+                let phis = self.zand(
+                    phi_vec
+                        .into_iter()
+                        .chain(ts.iter().map(|x| z3f!(self, (= (tid x) (typ any)))))
+                        .collect(),
+                );
+                self.wobbly(p.clone(), expr, phis, Type::Array)
             }
             Expr::Object(props, p) => {
                 let p = p.clone();
@@ -406,17 +414,10 @@ impl<'a> Typeinf<'a> {
                     // See note for array elements: same principle applies here.
                     phis.push(z3f!(self, (= (tid t) (typ any))));
                 }
-                let alpha = self.fresh_metavar("object_lit");
-                let w = self.fresh_weight();
-                let phi = z3f!(self,
-                    (or (and (id w.clone()) (= (tid alpha) (typ dynobject)))
-                        (and (not (id w)) (= (tid alpha) (typ any)))));
-                let e = expr.take();
-                *expr = coerce(Type::DynObject, alpha.clone(), e, p);
-                phis.push(phi);
-                (self.zand(phis), alpha)
+                self.wobbly(p.clone(), expr, self.zand(phis), Type::DynObject)
             }
             Expr::Id(x, t, _) => {
+                // Rigid vars
                 *t = self.env.get(x);
                 (z3f!(self, true), t.clone())
             }
@@ -474,7 +475,7 @@ impl<'a> Typeinf<'a> {
                     op_metavar,
                     any_case,
                 },
-                _,
+                p,
             ) => {
                 let w = self.fresh_weight();
                 *any_case = Some(self.z3ez.fresh_bool_const());
@@ -533,7 +534,7 @@ impl<'a> Typeinf<'a> {
                 let cases =
                     ast::Bool::or(self.z.cxt, disjuncts.iter().collect::<Vec<_>>().as_slice());
                 args_phi.push(cases);
-                (self.zand(args_phi), alpha_t)
+                self.wobbly(p.clone(), expr, self.zand(args_phi), alpha_t)
             }
             Expr::Assign(lval, e, _) => match &mut **lval {
                 LValue::Id(x, x_t) => {
@@ -578,6 +579,7 @@ impl<'a> Typeinf<'a> {
                              (= (tid beta) (typ any))
                              (id phi_31)
                              (not (id w_1)))));
+                // NOTE(luna): Does this properly enforce ground constraints?
                 let phi_4 = z3f!(self,
                     (or (and (= (tid beta) (tid gamma)) (id w_2.clone()))
                         (and (= (tid gamma) (typ any)) (not (id w_2)))));
@@ -684,7 +686,10 @@ pub fn typeinf(stmt: &mut Stmt) {
     }
     match state.solver.check(&[]) {
         SatResult::Unknown => panic!("Got an unknown from Z3"),
-        SatResult::Unsat => panic!("type inference failed (unsat)"),
+        SatResult::Unsat => {
+            println!("Constraints:\n{}", state.solver);
+            panic!("type inference failed (unsat)")
+        }
         SatResult::Sat => (),
     };
     let model = state
@@ -966,10 +971,10 @@ mod tests {
     fn variable_may_be_any_typed_2() {
         let n = typeinf_test(
             r#"
-            var x = (2 === 3);
-            x = "hello";
+            var x = (2 === 3); // 2->any, 3->any, ===->any
+            x = "hello"; // "hello"->any
             "#,
         );
-        assert_eq!(n, 3);
+        assert_eq!(n, 4);
     }
 }
