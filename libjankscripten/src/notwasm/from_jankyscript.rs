@@ -238,7 +238,7 @@ fn coercion_to_expr(c: J::Coercion, a: Atom, p: Pos) -> Atom {
         Fun(..) => todo!(), // TODO(michael) needs to call something that proxies the function
         Id(..) => a,
         Seq(c1, c2) => coercion_to_expr(*c2, coercion_to_expr(*c1, a, p.clone()), p),
-        Meta(..) => panic!("Meta coerce remains"),
+        Meta(..) => panic!("Meta coerce remains {}", p),
     }
 }
 
@@ -485,10 +485,22 @@ fn compile_stmt<'a>(state: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
         //
         // var tmp = f();
         // var r = tmp + 1;
-        S::Var(x, _, e, p) => compile_expr(
+        //
+        // NOTE(luna): We copy in the type unlike our usual approach because
+        // sometimes we "mis-annotate" undefined for initialization
+        S::Var(x, t, e, p) => compile_expr(
             state,
             *e,
-            C::e(|_s, e_notwasm| Rope::singleton(Stmt::Var(VarStmt::new(x, e_notwasm), p))),
+            C::e(|_s, e_notwasm| {
+                Rope::singleton(Stmt::Var(
+                    VarStmt {
+                        id: x,
+                        named: e_notwasm,
+                        ty: Some(compile_ty(t)),
+                    },
+                    p,
+                ))
+            }),
         ),
         S::Block(stmts, p) => Rope::singleton(Stmt::Block(
             stmts

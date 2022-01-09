@@ -12,8 +12,8 @@ impl Pretty for Type {
     {
         match self {
             Type::Missing => pp.text("_"),
-            Type::Float => pp.text("i32"),
-            Type::Int => pp.text("f64"),
+            Type::Float => pp.text("f64"),
+            Type::Int => pp.text("i32"),
             Type::String => pp.text("string"),
             Type::Array => pp.text("array"),
             Type::Bool => pp.text("bool"),

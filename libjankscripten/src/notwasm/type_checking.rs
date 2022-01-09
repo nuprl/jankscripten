@@ -194,7 +194,17 @@ fn type_check_stmt(env: Env, s: &mut Stmt, ret_ty: &Option<Type>) -> TypeCheckin
         Stmt::Empty => Ok(env),
         Stmt::Var(var_stmt, _) => {
             let ty = type_check_expr(&env, &mut var_stmt.named)?;
-            var_stmt.set_ty(ty.clone());
+            if let VarStmt {
+                named: Expr::Atom(Atom::Lit(Lit::Undefined, _), _),
+                ty: Some(_),
+                ..
+            } = var_stmt
+            {
+                // This is an initialization undefined
+            } else {
+                assert!(var_stmt.ty.is_none() || var_stmt.ty.as_ref() == Some(&ty));
+                var_stmt.set_ty(ty.clone());
+            }
             let id = &var_stmt.id;
 
             // ??? MMG what do we want here? i assume we don't actually want to allow strong update...
@@ -209,7 +219,7 @@ fn type_check_stmt(env: Env, s: &mut Stmt, ret_ty: &Option<Type>) -> TypeCheckin
             //if lookup(&env, id, s).is_ok() {
             //    Err(TypeCheckingError::MultiplyDefined(id.clone(), s))
             //} else {
-            Ok(env.update(id.clone(), ty.clone()))
+            Ok(env.update(id.clone(), var_stmt.ty.clone().unwrap()))
             //}
         }
         Stmt::Expression(e, _) => {

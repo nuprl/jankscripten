@@ -1,14 +1,18 @@
 use super::box_assigns::box_assigns;
 use super::closure_convert::closure_convert;
+use super::coercions::reify_coercions;
 use super::collect_assigns::collect_assigns;
 use super::fv::free_vars;
 use super::syntax::*;
 use super::type_checking::{type_check, TypeCheckingError};
+use super::typeinf::typeinf;
 
 pub fn compile<F>(janky_ast: &mut Stmt, inspect_janky: F) -> Result<(), TypeCheckingError>
 where
     F: FnOnce(&Stmt) -> (),
 {
+    typeinf(janky_ast);
+    reify_coercions(janky_ast);
     type_check(janky_ast)?;
     // TODO(luna): maybe the runtime should be added in jankierscript or
     // jankyscript. this would mean we could assert free_vars == \emptyset
