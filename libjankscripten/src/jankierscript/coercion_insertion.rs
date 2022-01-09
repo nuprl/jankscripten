@@ -28,7 +28,6 @@ macro_rules! error {
 #[derive(Debug, Clone)]
 enum EnvItem {
     JsId(Type),
-    Prim(RTSFunction),
 }
 
 #[derive(Debug, Clone)]
@@ -39,12 +38,6 @@ struct Env {
 impl Env {
     pub fn new() -> Env {
         let mut env: HashMap<Id, EnvItem> = HashMap::new();
-        env.insert(
-            Id::Named("log_any".to_string()),
-            // NOTE(arjun): This is the *ONLY* EnvItem::Prim that we construct,
-            // which seems silly. We can probably eliminate this.
-            EnvItem::Prim(RTSFunction::LogAny),
-        );
         for (k, v) in get_global_object().into_iter() {
             env.insert(Id::Named(k), EnvItem::JsId(v));
         }
@@ -54,17 +47,6 @@ impl Env {
     pub fn _get(&self, id: &Id) -> Option<&Type> {
         match self.env.get(id) {
             Some(EnvItem::JsId(t)) => Some(t),
-            _ => None,
-        }
-    }
-
-    /// If `expr` is an identifier that isbound to a primitive, returns its name and type.
-    pub fn get_prim_ty(&self, expr: &Expr) -> Option<RTSFunction> {
-        match expr {
-            Expr::Id(id, _) => match self.env.get(id) {
-                Some(EnvItem::Prim(rts_func)) => Some(rts_func.clone()),
-                _ => None,
-            },
             _ => None,
         }
     }
@@ -417,18 +399,6 @@ impl InsertCoercions {
                 }
             },
             Expr::Call(f, args, s) => {
-                // Special case for a primitive function call. JavaScript, and thus JankierScript
-                // do not distinguish primitive calls from calls to user-defined functions. However,
-                // we make the distinction explicit right here.
-                if let Some(rts_func) = env.get_prim_ty(&f) {
-                    if let Type::Function(arg_typs, result_ty) = rts_func.janky_typ() {
-                        let coerced_args = self.exprs(&mut env.clone(), args, arg_typs)?;
-                        let coerced_e = Janky::Expr::PrimCall(rts_func, coerced_args, s);
-                        return Ok((coerced_e, *result_ty.clone()));
-                    }
-                    return error!("primitive is not a function {:?}", f);
-                }
-
                 // TODO(arjun): Handle Expr::Call in expr too, for bidirectionality?
                 // michael: eh, no need. if we use inference, it should handle it for us.
                 let args_with_typs = args

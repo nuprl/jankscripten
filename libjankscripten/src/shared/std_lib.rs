@@ -1,4 +1,4 @@
-use crate::shared::types::Type;
+use crate::{shared::types::Type, typ};
 use Type::*;
 
 /// these get merged into a hashmap so no reason to hash twice
@@ -16,6 +16,10 @@ pub fn get_global_object() -> BindMap {
     // jankscripten are provided under the __JNKS object. TODO(luna): i want to
     // move log_any here
     insert(m, "__JNKS", DynObject);
+    // This isn't in JavaScript. Kept here to not have to migrate the test
+    // suite. Test suite should eventually move to either using __JNKS.log_any or
+    // console.log
+    insert(m, "log_any", typ!(fun (any, any) -> any));
 
     // i don't know where this would be documented but i know we need it
     insert(m, "arguments", Array);

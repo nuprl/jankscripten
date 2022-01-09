@@ -63,6 +63,7 @@ import math_min : (env, any, any, any) -> any;
 import math_max : (env, any, any, any) -> any;
 // __JNKS
 import heap_dump : (env, any) -> any;
+import log_any_raw : (any, any) -> any;
 
 import janky_primitive_plus : (any, any) -> any;
 import any_is_object : (any) -> bool;
@@ -96,6 +97,7 @@ var Math: DynObject;
 var global: DynObject;
 var console: DynObject;
 var __JNKS: DynObject;
+var log_any: clos(env, any, any) -> any;
 // (_, _this, what, radix) -> i32 or f64(NaN)
 var parseInt: clos(env, any, any, any) -> any;
 // temporary Error ground to see other compile-time errors (unrelated to this
@@ -217,6 +219,7 @@ function jnks_init_std_lib(): i32 {
     var mem_info_f = rt(mem_info);
     var mem_info = clos(mem_info_f, );
     __JNKS.mem_info = any(mem_info);
+    log_any = clos(log_any_raw_env, );
 
     // Other cached runtime functions
     var primitive_plusF = rt(janky_primitive_plus);
@@ -257,6 +260,12 @@ function error_raw(_: env, _this: any, message: str): DynObject {
     var e_proto_any = any(e_proto);
     var e = jnks_objectCreate!(undefined, e_proto_any);
     return e as DynObject;
+}
+
+function log_any_raw_env(_: env, this: any, message: any): any {
+    var call_to = rt(log_any_raw);
+    call_to(this, message);
+    return undefined;
 }
 
 // there's no reason Error has to be ground. it's top-level, not stored
