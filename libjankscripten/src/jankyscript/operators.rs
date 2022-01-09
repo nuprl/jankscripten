@@ -126,9 +126,7 @@ lazy_static! {
         use notwasm::BinaryOp::*;
         let mut table = OverloadTable::default();
         table.add(Plus, typ!(fun(int, int) -> int), I32Add);
-        // TODO(arjun): Why not string cat?
-        // TODO(arjun): should this be int*int->int?
-        table.add(Plus, typ!(fun(string, string) -> any), RTSFunction::Plus);
+        table.add(Plus, typ!(fun(string, string) -> string), RTSFunction::StringCat);
         table.add_on_any(Plus, typ!(fun(any, any) -> any), RTSFunction::Plus);
 
 

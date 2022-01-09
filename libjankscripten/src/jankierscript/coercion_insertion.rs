@@ -248,19 +248,6 @@ impl InsertCoercions {
         Ok(Janky_::block_(ret, s))
     }
 
-    fn exprs(
-        &self,
-        env: &mut Env,
-        exprs: Vec<Expr>,
-        expected_tys: Vec<Type>,
-    ) -> CoercionResult<Vec<Janky::Expr>> {
-        exprs
-            .into_iter()
-            .zip(expected_tys.into_iter())
-            .map(|(e, t)| self.expr(e, t, env, Pos::UNKNOWN))
-            .collect::<Result<Vec<_>, _>>()
-    }
-
     fn expr_and_type(&self, expr: Expr, env: &mut Env) -> CoercionResult<(Janky::Expr, Type)> {
         match expr {
             Expr::Lit(l, s) => {
