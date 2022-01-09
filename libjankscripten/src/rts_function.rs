@@ -11,8 +11,6 @@ use strum_macros::EnumIter;
 #[derive(Debug, Clone, PartialEq, EnumIter, Eq, Hash)]
 pub enum RTSFunction {
     Todo(&'static str),
-    // ???
-    LogAny,
     // unary ops
     Typeof,
     Delete,
@@ -52,7 +50,6 @@ impl RTSFunction {
         use RTSFunctionImpl::*;
         match self {
             Todo(name) => todo!("unimplemented operator: {}", name),
-            LogAny => Rust("log_any".into()),
             Typeof => Rust("janky_typeof".into()),
             Delete => Rust("janky_delete".into()),
             Void => Rust("janky_void".into()),
@@ -100,7 +97,6 @@ impl RTSFunction {
         use RTSFunction::*;
         match self {
             Todo(name) => todo!("unimplemented operator: {}", name),
-            LogAny => Function(vec![Any, Any], Box::new(Any)),
             Typeof => Function(vec![Any], Box::new(String)),
             // the second operand of InstanceOf is really "any closure" but we don't have a type for that
             Delete | InstanceOf => Function(vec![Any, Any], Box::new(Bool)),
@@ -125,7 +121,6 @@ impl std::fmt::Display for RTSFunction {
             "{}",
             match self {
                 Todo(s) => s,
-                LogAny => "logany",
                 Typeof => "typeof",
                 Delete => "delete",
                 Void => "void",

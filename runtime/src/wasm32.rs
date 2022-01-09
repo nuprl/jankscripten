@@ -106,7 +106,7 @@ pub fn mem_info(_: EnvPtr, _this: AnyValue) -> AnyValue {
 
 /// returns Any::I32(42) because jankyscript requires return values
 #[no_mangle]
-pub fn log_any(_this: AnyValue, any: AnyValue) -> AnyValue {
+pub fn log_any_raw(_this: AnyValue, any: AnyValue) -> AnyValue {
     let any: AnyEnum = *any;
     log!("{:?}", any);
     AnyEnum::I32(42).into()
