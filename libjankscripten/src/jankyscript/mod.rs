@@ -1,5 +1,6 @@
 mod box_assigns;
 mod closure_convert;
+mod coercions;
 mod collect_assigns;
 mod compile;
 pub mod constructors;

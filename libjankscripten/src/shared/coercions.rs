@@ -1,3 +1,5 @@
+use crate::pos::Pos;
+
 use super::types::Type;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -34,6 +36,53 @@ pub enum Coercion {
 }
 
 impl Coercion {
+    pub fn new(t1: Type, t2: Type, s: Pos) -> Coercion {
+        if t1 == t2 {
+            Coercion::Id(t1)
+        } else {
+            match (t1, t2) {
+                (Type::Any, t2) if t2.is_ground() => Coercion::Untag(t2),
+                (t1, Type::Any) if t1.is_ground() => Coercion::Tag(t1),
+                (t1, Type::Any) => panic!("non-ground {:?} to any {:?}", t1, s),
+                (Type::Any, Type::Function(args, ret)) => {
+                    let gf = Type::ground_function(args.len());
+                    Coercion::seq(
+                        Coercion::new(Type::Any, gf.clone(), s.clone()),
+                        Coercion::new(gf, Type::Function(args, ret), s),
+                    )
+                }
+                (Type::Function(args1, ret1), Type::Function(args2, ret2)) => {
+                    if args1.len() != args2.len() {
+                        panic!("Coercing between arities: {:?} to {:?}", args1, args2);
+                    }
+
+                    Coercion::fun(
+                        args1
+                            .into_iter()
+                            .zip(args2.into_iter())
+                            .map(|(arg1, arg2)| Coercion::new(arg2, arg1, s.clone()))
+                            .collect(),
+                        Coercion::new(*ret1, *ret2, s),
+                    )
+                }
+                (Type::Int, Type::Float) => Coercion::IntToFloat,
+                (Type::Float, Type::Int) => Coercion::FloatToInt,
+                (t1, t2) => {
+                    eprintln!(
+                        "doing coerce({:?}, {:?}) through Any ({:?})",
+                        t1,
+                        t2,
+                        s.clone()
+                    );
+                    Coercion::seq(
+                        Coercion::new(t1, Type::Any, s.clone()),
+                        Coercion::new(Type::Any, t2, s),
+                    )
+                }
+            }
+        }
+    }
+
     pub fn meta(t1: Type, t2: Type) -> Coercion {
         if t1 == t2 {
             Coercion::Id(t1)

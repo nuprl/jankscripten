@@ -651,7 +651,6 @@ impl<'a> Typeinf<'a> {
     }
 }
 
-#[allow(unused)]
 pub fn typeinf(stmt: &mut Stmt) {
     let z3_cfg = z3::Config::new();
     let cxt = z3::Context::new(&z3_cfg);

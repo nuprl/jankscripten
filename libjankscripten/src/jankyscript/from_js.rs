@@ -79,9 +79,10 @@ fn stmt(s: Js::Stmt) -> Stmt {
         S::Switch(_, _, _, s) => unexpected(&s),
         S::While(c, body, s) => {
             if let Js::Expr::Lit(Lit::Bool(true), _) = *c {
+                Loop(Box::new(stmt(*body)), s)
+            } else {
                 panic!("desugaring should have removed while loops");
             }
-            Loop(Box::new(stmt(*body)), s)
         }
         S::DoWhile(_, _, s) => unexpected(&s),
         S::For(_, _, _, _, s) => unexpected(&s),
