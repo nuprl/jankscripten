@@ -19,6 +19,7 @@
 use super::super::shared::coercions::Coercion;
 use super::operators::OVERLOADS;
 use super::operators_z3::Z3Operators;
+use super::prototypes;
 use super::syntax::*;
 use super::typeinf_env::Env;
 use super::walk::{Loc, Visitor};
@@ -386,6 +387,10 @@ impl<'a> Typeinf<'a> {
         ast::Bool::and(self.z.cxt, phis.as_slice())
     }
 
+    fn zor(&self, phis: &[&ast::Bool<'a>]) -> ast::Bool<'a> {
+        ast::Bool::or(self.z.cxt, phis)
+    }
+
     pub fn cgen_expr(&mut self, expr: &mut Expr) -> (ast::Bool<'a>, Type) {
         match expr {
             Expr::Binary(..)
@@ -440,16 +445,41 @@ impl<'a> Typeinf<'a> {
                 let t = t.clone();
                 self.wobbly(p.clone(), expr, z3f!(self, true), t)
             }
-            Expr::Dot(obj_e, _x, p) => {
-                let p = p.clone();
+            // NOTE(luna): Dot is actually not an elimination form in general, so we
+            // perform no coercions. We sometimes don't know for sure if we
+            // refer to the prototype of a janky-object (Array, Date, ...) or a
+            // real DynObject. We hope we can resolve the type from other
+            // constraints; if not we have to use a runtime dot function. I
+            // want to see how far we can get *without* having to write that (please).
+            // -
+            // Janky assumption:
+            // (No platypus) Array/Date/Strings don't have string fields (besides
+            // their prototype); DynObjects don't have numeric fields. My
+            // memory is our jankyp run found this mostly possible with some
+            // regexes
+            // -
+            // We'll never type a DynObject with unfortunate-named fields as Array:
+            // Consider the unfortunately named field "length" on a DynObject o
+            // Then o.length is at some point written, so o is DynObject or any
+            Expr::Dot(obj_e, x, p) => {
                 let w = self.fresh_weight();
                 let (phi_1, t) = self.cgen_expr(obj_e);
+                let phi_array = if prototypes::ARRAY_PROTOTYPE.contains(x.name()) {
+                    z3f!(self, (and (= (tid t) (typ array))))
+                } else {
+                    // Since the field is part of no known prototype (we assume
+                    // no platypus objects) (still TODO Date, String, etc),
+                    // we know it's a DynObject, so can safely perform the
+                    // coercion
+                    let e = obj_e.take();
+                    **obj_e = coerce(t.clone(), Type::DynObject, e, p.clone());
+                    z3f!(self, false)
+                };
                 let phi_2 = z3f!(self,
                     (or
                         (and (= (tid t) (typ dynobject)) (id w.clone()))
+                        (and (id phi_array) (id w.clone()))
                         (and (= (tid t) (typ any)) (not (id &w)))));
-                let e = obj_e.take();
-                **obj_e = coerce(t, Type::DynObject, e, p);
                 (phi_1 & phi_2, Type::Any)
             }
             Expr::Bracket(e1, e2, p) => {
@@ -997,5 +1027,19 @@ mod tests {
             "#,
         );
         assert_eq!(n, 2);
+    }
+
+    fn array_length() {
+        let n = typeinf_test("[undefined, undefined, undefined].length");
+        assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn array_push() {
+        let n = typeinf_test("[].push(undefined)");
+        // the coercion is hidden in `this` desugar:
+        // let obj4this = [];
+        // obj4this.push([] AS ANY, undefined);
+        assert_eq!(n, 1);
     }
 }
