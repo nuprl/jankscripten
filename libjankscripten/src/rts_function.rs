@@ -98,7 +98,7 @@ impl RTSFunction {
         match self {
             Todo(name) => todo!("unimplemented operator: {}", name),
             Typeof => Function(vec![Any], Box::new(String)),
-            // the second operand of InstanceOf is really "any closure" but we don't have a type for that
+            // the second operand of InstanceOf is really "a function" but we don't have a type for that
             Delete | InstanceOf => Function(vec![Any, Any], Box::new(Bool)),
             Void => Function(vec![Any], Box::new(Any)),
             Plus | Minus | Times | Mod => Function(vec![Any, Any], Box::new(Any)),
