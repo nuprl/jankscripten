@@ -23,7 +23,11 @@ function makeTest(filename) {
         let root = path.dirname(path.dirname(__dirname));
         let jankscriptenPath = path.join(root, 'target', 'debug', 'jankscripten');
 
-        cp.spawnSync(jankscriptenPath, ['compile', '-o', path.join(wasmPath), path.join(jsPath)], { stdio: 'inherit' });
+        let program = normalizeStr(String(fs.readFileSync(jsPath)));
+        let flagsMatch = program.match("//! (.*)")
+        let flags = flagsMatch === null ? [] : flagsMatch[1]?.split(' ') ?? [];
+
+        cp.spawnSync(jankscriptenPath, ['compile', '-o', path.join(wasmPath), path.join(jsPath), ...flags], { stdio: 'inherit' });
         let output;
         try {
             output = String(cp.execSync(`node ../bin/run-node ${wasmPath}`, { stderr: 'inherit' })).trim();

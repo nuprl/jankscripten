@@ -9,12 +9,12 @@ struct Compile {
     #[clap(short, long)]
     output: Option<String>,
     input: String,
-
     #[clap(short, long)]
     jankyscript_dump: bool,
-
     #[clap(short, long)]
     notwasm_dump: bool,
+    #[clap(short, long)]
+    typeinf: bool,
     /// Only for debugging.
     #[clap(long)]
     disable_gc: bool,
@@ -51,6 +51,7 @@ impl Compile {
         let p = self.stdlib.as_ref().unwrap();
         let stdlib_source_code = fs::read_to_string(p).expect(&format!("reading {}", p));
         compile_opts.notwasm_stdlib_source_code = stdlib_source_code;
+        compile_opts.typeinf = self.typeinf;
         compile_opts
     }
 }
