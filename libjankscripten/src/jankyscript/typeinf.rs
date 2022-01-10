@@ -354,9 +354,10 @@ impl<'a> Typeinf<'a> {
         (phis, ts)
     }
 
-    // Coerce expr: t at p to either t (preferred) or any. Does not enforce
-    // ground constrants! Only use if you know t is ground. Returns
-    // (phis & additional, t or any)
+    // Coerce expr: t at p to either t (preferred) or any. Returns
+    // (phis & additional, t or any). Only coerces to any when t is ground
+    // NOTE(luna): If we end up with z3 performance concerns, not checking for
+    // ground on known types like literals would likely help
     fn wobbly<B: Into<Option<ast::Bool<'a>>>>(
         &mut self,
         p: Pos,
@@ -366,9 +367,12 @@ impl<'a> Typeinf<'a> {
     ) -> (ast::Bool<'a>, Type) {
         let w = self.fresh_weight();
         let alpha = self.fresh_metavar("wobbly");
+        let is_ground = self.is_ground(&t);
         let phi = z3f!(self,
             (or (and (id w.clone()) (= (tid alpha) (tid t)))
-                (and (not (id w)) (= (tid alpha) (typ any)))));
+                (and (not (id w))
+                    (= (tid alpha) (typ any))
+                    (id is_ground))));
         let e = expr.take();
         *expr = coerce(t, alpha.clone(), e, p);
         match phis.into() {
@@ -416,10 +420,25 @@ impl<'a> Typeinf<'a> {
                 }
                 self.wobbly(p.clone(), expr, self.zand(phis), Type::DynObject)
             }
-            Expr::Id(x, t, _) => {
-                // Rigid vars
+            Expr::Id(x, t, p) => {
+                // NOTE(luna): A brief argument for wobbly/non-rigid vars:
+                // 1. The usual advantage of rigid vars is more consistent/sensical
+                //    types. This makes sense in a documentation context, but not in
+                //    a performance context where types will likely not be seen
+                // 2. In jankscripten in particular, we desugar x.f() as x.f(x)
+                //    This is for supporting `this`. When f has any -> any,
+                //    this forces x : any when x is clearly dynobject. Since this
+                //    happens so much, either we should allow the first argument of
+                //    ground functions to be DynObject, or allow wobbly vars. The latter
+                //    is easier, and both could be done eventually
+                // 3. This could be worked around, but when x comes from
+                //    std_lib, we don't get to decide it has type any, because we
+                //    already specified it has type DynObject. This is a limitation
+                //    of TypeWhich that we never addressed (partially annotated
+                //    programs are not guaranteed to migrate)
                 *t = self.env.get(x);
-                (z3f!(self, true), t.clone())
+                let t = t.clone();
+                self.wobbly(p.clone(), expr, z3f!(self, true), t)
             }
             Expr::Dot(obj_e, _x, p) => {
                 let p = p.clone();
@@ -919,11 +938,14 @@ mod tests {
     fn funarg_to_operator_must_be_ground() {
         let n = typeinf_test(
             r#"
+            function id(x) {
+                return x;
+            }
             function F(x) { // F is coerced to any
                 return x * 10; // result is coerced to any
             }
-            F(200); // 200 is coerced to any
-            F * 77; // 77 is coerced to any
+            id(F)(id(200)); // 200 is coerced to any
+            F(300); // 300 is coerced to any
             "#,
         );
         assert_eq!(n, 4);
