@@ -50,6 +50,14 @@ pub extern "C" fn janky_minus(a: Any, b: Any) -> Any {
     i32s_or_as_f64s_any(a, b, |a, b| a - b, |a, b| a - b).expect("unsupported for -")
 }
 #[no_mangle]
+pub extern "C" fn janky_neg(a: Any) -> Any {
+    match *a {
+        AnyEnum::I32(i) => any_from_i32(-i),
+        AnyEnum::F64(f) => f64_to_any(-unsafe { *f }),
+        _ => f64_to_any(-any_to_f64(a)),
+    }
+}
+#[no_mangle]
 pub extern "C" fn janky_times(a: Any, b: Any) -> Any {
     i32s_or_as_f64s_any(a, b, |a, b| a * b, |a, b| a * b).expect("unsupported for *")
 }

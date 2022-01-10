@@ -15,6 +15,7 @@ pub enum RTSFunction {
     Typeof,
     Delete,
     Void,
+    Neg,
     // janky binops
     Plus,
     Minus,
@@ -54,6 +55,7 @@ impl RTSFunction {
             Typeof => Rust("janky_typeof".into()),
             Delete => Rust("janky_delete".into()),
             Void => Rust("janky_void".into()),
+            Neg => Rust("janky_neg".into()),
             Plus => NotWasm("jnks_plus".into()), // Implemented in NotWasm RT
             Minus => Rust("janky_minus".into()),
             Times => Rust("janky_times".into()),
@@ -103,6 +105,7 @@ impl RTSFunction {
             // the second operand of InstanceOf is really "a function" but we don't have a type for that
             Delete | InstanceOf => Function(vec![Any, Any], Box::new(Bool)),
             Void => Function(vec![Any], Box::new(Any)),
+            Neg => Function(vec![Any], Box::new(Any)),
             Plus | Minus | Times | Mod => Function(vec![Any, Any], Box::new(Any)),
             Over => Function(vec![Any, Any], Box::new(Float)),
             ModF64 => Function(vec![Float, Float], Box::new(Float)),
@@ -129,6 +132,7 @@ impl std::fmt::Display for RTSFunction {
                 Void => "void",
                 Plus => "+",
                 Minus => "-",
+                Neg => "-",
                 Times => "*",
                 Over => "/",
                 Mod => "%",

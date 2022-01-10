@@ -618,7 +618,8 @@ impl<'a> Translate<'a> {
     fn translate_unop(&mut self, op: &N::UnaryOp) {
         match op {
             N::UnaryOp::Sqrt => self.out.push(F64Sqrt),
-            N::UnaryOp::Neg => self.out.push(F64Neg),
+            N::UnaryOp::F64Neg => self.out.push(F64Neg),
+            N::UnaryOp::I32Neg => self.out.push(I32Sub),
             N::UnaryOp::Eqz => self.out.push(I32Eqz),
         }
     }
@@ -849,6 +850,9 @@ impl<'a> Translate<'a> {
                 self.translate_binop(op);
             }
             N::Atom::Unary(op, a, _) => {
+                if op == &mut N::UnaryOp::I32Neg {
+                    self.out.push(I32Const(0));
+                }
                 self.translate_atom(a);
                 self.translate_unop(op);
             }
