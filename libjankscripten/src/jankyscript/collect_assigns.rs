@@ -6,6 +6,10 @@
 //! if it isn't boxed, assignments after the environment creation will not
 //! update the closure environment; also, assignments into the closure
 //! environment will not update the surrounding environment
+//!
+//! TODO(luna): Check integration_tests/test_data/closure_in_closure.js
+//! It seems weird that inner is turned into a ref. It is never assigned from
+//! within a function.
 
 use super::syntax::*;
 use super::walk::*;
