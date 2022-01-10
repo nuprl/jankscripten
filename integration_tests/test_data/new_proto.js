@@ -1,3 +1,5 @@
+// Blocking --typeinf: no explicit return
+
 // Testing the `new` operator with its
 // prototype/inheritance semantics.
 

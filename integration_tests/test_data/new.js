@@ -1,3 +1,4 @@
+// Blocking --typeinf: no explicit return
 function ObjOfAges() {
     this.x = 5;
 }
