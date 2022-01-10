@@ -881,7 +881,7 @@ mod tests {
             F(100);
             "#,
         );
-        assert_eq!(n, 2); // coercions are for the comparison
+        assert_eq!(n, 0);
     }
 
     #[test]
@@ -992,10 +992,10 @@ mod tests {
     fn variable_may_be_any_typed_2() {
         let n = typeinf_test(
             r#"
-            var x = (2 === 3); // 2->any, 3->any, ===->any
+            var x = (2 === 3); // ===->any
             x = "hello"; // "hello"->any
             "#,
         );
-        assert_eq!(n, 4);
+        assert_eq!(n, 2);
     }
 }
