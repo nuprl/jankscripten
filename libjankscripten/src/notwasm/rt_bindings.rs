@@ -47,7 +47,7 @@ pub fn get_rt_bindings() -> BindMap {
             match rts {
                 RTSFunction::Import(..) => {}
                 _ => {
-                    m.insert(name.into(), rts.janky_typ().notwasm_typ());
+                    m.insert(name.into(), rts.janky_typ().notwasm_typ(false));
                 }
             }
         }
