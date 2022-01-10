@@ -3,7 +3,6 @@
 use super::constructors::*;
 use super::syntax::*;
 use super::walk::*;
-use crate::pos::Pos;
 use crate::shared::NameGen;
 use im_rc::HashSet as ImmHashSet;
 
@@ -92,7 +91,31 @@ impl Visitor for BoxVisitor {
     fn exit_stmt(&mut self, stmt: &mut Stmt, _: &Loc) {
         match stmt {
             Stmt::Var(id, ty, expr, s) if self.should_box(id) => {
-                *stmt = var_to_new_ref(id.clone(), ty, expr.take(), s.clone());
+                let is_init = ty != &mut Type::Any
+                    && if let Expr::Lit(Lit::Undefined, _) = **expr {
+                        true
+                    } else {
+                        false
+                    };
+                if is_init {
+                    *stmt = {
+                        var_(
+                            id.clone(),
+                            Type::Ref(Box::new(ty.clone())),
+                            expr.take(),
+                            s.clone(),
+                        )
+                    }
+                } else {
+                    *stmt = {
+                        var_(
+                            id.clone(),
+                            Type::Ref(Box::new(ty.clone())),
+                            new_ref_(expr.take(), ty.clone(), s.clone()),
+                            s.clone(),
+                        )
+                    }
+                }
             }
             _ => (),
         }
@@ -108,15 +131,4 @@ impl BoxVisitor {
     fn should_box(&self, id: &Id) -> bool {
         self.to_box_stack.last().unwrap().contains(id)
     }
-}
-
-/// provide: the name to assign to; the type of the expr unboxed, and the
-/// expr the var is assigned to
-fn var_to_new_ref(id: Id, ty: &Type, expr: Expr, s: Pos) -> Stmt {
-    var_(
-        id,
-        Type::Ref(Box::new(ty.clone())),
-        new_ref_(expr, ty.clone(), s.clone()),
-        s,
-    )
 }

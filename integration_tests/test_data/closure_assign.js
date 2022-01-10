@@ -1,3 +1,4 @@
+//! -t
 function sillyAdder(x) {
     return function(y) {
         x += 1;
