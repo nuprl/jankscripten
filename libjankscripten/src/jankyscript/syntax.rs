@@ -35,7 +35,8 @@ impl UnaryOp {
     pub fn janky_typ(self: &UnaryOp) -> (Type, Type) {
         match self {
             UnaryOp::Sqrt => (Type::Float, Type::Float),
-            UnaryOp::Neg => (Type::Float, Type::Float),
+            UnaryOp::F64Neg => (Type::Float, Type::Float),
+            UnaryOp::I32Neg => (Type::Int, Type::Int),
             UnaryOp::Eqz => (Type::Bool, Type::Bool),
         }
     }

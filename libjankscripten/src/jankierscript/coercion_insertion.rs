@@ -474,7 +474,7 @@ impl InsertCoercions {
                         Type::Any,
                     )),
                     (UnaryOp::Minus, Type::Float) => Ok((
-                        Janky::Expr::Unary(NotWasm::UnaryOp::Neg, Box::new(coerced_e), s),
+                        Janky::Expr::Unary(NotWasm::UnaryOp::F64Neg, Box::new(coerced_e), s),
                         e_ty,
                     )),
                     (UnaryOp::Minus, Type::Int) => Ok((

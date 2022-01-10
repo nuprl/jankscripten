@@ -167,10 +167,11 @@ impl BinaryOp {
 }
 
 /// Unary operators that correspond to primitive WebAssembly instructions.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum UnaryOp {
     Sqrt,
-    Neg,
+    F64Neg,
+    I32Neg,
     Eqz,
 }
 
