@@ -1,3 +1,6 @@
+// Blocking --typeinf: Implementation of < for any OR a way to specify "number
+// operators" that fall back to f64
+
 // slow primes using nested loop
 var max = 30;
 log_any(2);
