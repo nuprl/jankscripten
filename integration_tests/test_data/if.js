@@ -1,3 +1,4 @@
+//! -t
 var x = 5;
 if (true) {
     x = 6;
