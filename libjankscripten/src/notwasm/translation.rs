@@ -441,9 +441,22 @@ impl<'a> Translate<'a> {
                 }
             }
             N::Stmt::Var(var_stmt, _) => {
-                // Binds variable in env after compiling expr (prevents
-                // circularity).
-                self.translate_expr(&mut var_stmt.named);
+                // If the expression is undefined and the type is not
+                // any, this is an initialization expression. Put
+                // webassembly garbage in there (i think it's actually zero by
+                // the spec)
+                let is_init = var_stmt.ty != Some(N::Type::Any)
+                    && if let N::Expr::Atom(N::Atom::Lit(N::Lit::Undefined, _), _) = var_stmt.named
+                    {
+                        true
+                    } else {
+                        false
+                    };
+                if !is_init {
+                    // Binds variable in env after compiling expr (prevents
+                    // circularity).
+                    self.translate_expr(&mut var_stmt.named);
+                }
 
                 let index = self.next_id;
                 self.next_id += 1;
@@ -453,13 +466,15 @@ impl<'a> Translate<'a> {
                     IdIndex::Local(index, var_stmt.ty().clone()),
                 );
 
-                // Eager shadow stack:
-                if self.opts.disable_gc == true || var_stmt.ty().is_gc_root() == false {
-                    self.out.push(SetLocal(index));
-                } else {
-                    self.out.push(TeeLocal(index));
-                    self.out.push(I32Const(index.try_into().unwrap()));
-                    self.set_in_current_shadow_frame_slot(var_stmt.ty());
+                // Eager shadow stack: (and setting the actual value)
+                if !is_init {
+                    if self.opts.disable_gc == true || var_stmt.ty().is_gc_root() == false {
+                        self.out.push(SetLocal(index));
+                    } else {
+                        self.out.push(TeeLocal(index));
+                        self.out.push(I32Const(index.try_into().unwrap()));
+                        self.set_in_current_shadow_frame_slot(var_stmt.ty());
+                    }
                 }
             }
             N::Stmt::Expression(expr, _) => {
