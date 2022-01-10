@@ -153,13 +153,51 @@ lazy_static! {
         table.add(Times, typ!(fun(any, any) -> any), RTSFunction::Times);
         table.add(Over, typ!(fun(float, float) -> float), F64Div);
         table.add_on_any(Over, typ!(fun(any, any) -> float), RTSFunction::Over);
+        table.add(Mod, typ!(fun(int, int) -> int), I32Rem);
+        table.add(Mod, typ!(fun(float, float) -> float), RTSFunction::ModF64);
+        table.add_on_any(Mod, typ!(fun(any, any) -> any), RTSFunction::Mod);
         table.add_on_any(LeftShift, typ!(fun(int, int) -> int), I32Shl);
+        table.add(Equal, typ!(fun(int, int) -> bool), I32Eq);
+        table.add(Equal, typ!(fun(float, float) -> bool), F64Eq);
+        table.add_on_any(Equal, typ!(fun(any, any) -> bool), RTSFunction::Equal);
+        table.add(NotEqual, typ!(fun(int, int) -> bool), I32Ne);
+        table.add(NotEqual, typ!(fun(float, float) -> bool), F64Ne);
+        table.add_on_any(NotEqual, typ!(fun(any, any) -> bool), RTSFunction::NotEqual);
+        table.add(StrictEqual, typ!(fun(int, int) -> bool), I32Eq);
+        table.add(StrictEqual, typ!(fun(float, float) -> bool), F64Eq);
         table.add_on_any(StrictEqual, typ!(fun(any, any) -> bool), RTSFunction::StrictEqual);
+        table.add(StrictNotEqual, typ!(fun(int, int) -> bool), I32Ne);
+        table.add(StrictNotEqual, typ!(fun(float, float) -> bool), F64Ne);
+        table.add_on_any(StrictNotEqual, typ!(fun(any, any) -> bool), RTSFunction::StrictNotEqual);
+        table.add(LessThan, typ!(fun(int, int) -> bool), I32LT);
+        table.add(LessThan, typ!(fun(float, float) -> bool), F64LT);
+        table.add_on_any(LessThan, typ!(fun(any, any) -> bool), RTSFunction::Todo("any <?"));
+        table.add(LessThanEqual, typ!(fun(int, int) -> bool), I32Le);
+        table.add(LessThanEqual, typ!(fun(float, float) -> bool), F64Le);
+        table.add_on_any(LessThanEqual, typ!(fun(any, any) -> bool), RTSFunction::Todo("any <=?"));
+        table.add(GreaterThan, typ!(fun(int, int) -> bool), I32GT);
+        table.add(GreaterThan, typ!(fun(float, float) -> bool), F64GT);
+        table.add_on_any(GreaterThan, typ!(fun(any, any) -> bool), RTSFunction::Todo("any >?"));
+        table.add(GreaterThanEqual, typ!(fun(int, int) -> bool), I32Ge);
+        table.add(GreaterThanEqual, typ!(fun(float, float) -> bool), F64Ge);
+        table.add_on_any(GreaterThanEqual, typ!(fun(any, any) -> bool), RTSFunction::Todo("any >=?"));
         // ]).others(typ!(int)),
+        // TODO(luna): Some operators are elimination forms and shouldn't
+        // even have an any version. Example: & (binary and). Should coerce its
+        // operands to int. We need a way to notate this
+        // Other operators needed for: |, <<, >>, ^, >>>, ~, !
+        // For the operations that are strictly number operations, we have int
+        // and float, but there should be a better way to deal with the any-case
+        // (should be float)
+        table.add_on_any(InstanceOf, typ!(fun(any, any) -> bool), RTSFunction::InstanceOf);
+        table.add_on_any(In, typ!(fun(any, any) -> bool), RTSFunction::In);
 
         table.add(JUO::Minus, typ!(fun(int) -> int), UnaryOp::I32Neg);
         table.add(JUO::Minus, typ!(fun(float) -> float), UnaryOp::F64Neg);
         table.add_on_any(JUO::Minus, typ!(fun(any) -> any), RTSFunction::Neg);
+        table.add_on_any(JUO::TypeOf, typ!(fun(any) -> string), RTSFunction::Typeof);
+        table.add_on_any(JUO::Void, typ!(fun(any) -> any), RTSFunction::Void);
+        table.add_on_any(JUO::Delete, typ!(fun(any) -> any), RTSFunction::Delete);
 
         table
     };
