@@ -16,9 +16,8 @@ macro_rules! z3f {
     ($me:ident, (typ $($t:tt)*)) => ($me.t(&typ!($($t)*)));
     ($me:ident, (and $(($($t1:tt)*))*)) =>
         ($me.zand(vec![ $(z3f!($me, ($($t1)*))),* ]));
-    ($me:ident, (or ($($t1:tt)*) ($($t2:tt)*))) =>
-        (z3f!($me, ($($t1)*)) | &z3f!($me, ($($t2)*)));
-
+    ($me:ident, (or $(($($t1:tt)*))*)) =>
+        ($me.zor(&[ $(&z3f!($me, ($($t1)*))),* ]));
     ($me:ident, (id $($t:tt)*)) => ($($t)*);
     ($me:ident, (not ($($t1:tt)*))) =>
     (!z3f!($me, ($($t1)*)));

@@ -9,6 +9,7 @@ mod fv;
 mod operators;
 mod operators_z3;
 mod pretty;
+mod prototypes;
 pub mod syntax;
 mod type_checking;
 mod typeinf;

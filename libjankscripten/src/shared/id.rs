@@ -52,6 +52,12 @@ impl Id {
             _ => panic!("into_name on Id::Generated"),
         }
     }
+    pub fn name(&self) -> &str {
+        match self {
+            Id::Named(s) => s,
+            _ => panic!("name on Id::Generated"),
+        }
+    }
 }
 
 impl<T: Into<String>> From<T> for Id {
