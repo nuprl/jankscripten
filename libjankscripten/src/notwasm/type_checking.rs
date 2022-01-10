@@ -341,7 +341,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
             Ok(ret_ty.clone())
         }
         Expr::PrimCall(prim, args, s) => {
-            match prim.janky_typ().notwasm_typ() {
+            match prim.janky_typ().notwasm_typ(false) {
                 Type::Fn(fn_ty) => {
                     let arg_tys = args
                         .into_iter()
@@ -570,7 +570,7 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             Ok(Type::Any)
         }
         Atom::Unary(op, a, s) => {
-            let (ty_in, ty_out) = op.notwasm_typ();
+            let (ty_in, ty_out) = op.notwasm_typ(true);
             let got = type_check_atom(env, a)?;
             let _ = ensure(&format!("unary ({:?})", op), ty_in, got, s)?;
             Ok(ty_out)
@@ -582,7 +582,7 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             Ok(Type::Bool)
         }
         Atom::Binary(op, a_l, a_r, s) => {
-            let (ty_in, ty_out) = op.notwasm_typ();
+            let (ty_in, ty_out) = op.notwasm_typ(true);
             let got_l = type_check_atom(env, a_l)?;
             let got_r = type_check_atom(env, a_r)?;
             let _ = ensure(&format!("binary ({:?}) lhs", op), ty_in.clone(), got_l, s)?;

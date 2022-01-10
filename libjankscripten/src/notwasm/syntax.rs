@@ -158,11 +158,14 @@ pub enum BinaryOp {
 }
 
 impl BinaryOp {
-    pub fn notwasm_typ(self: &BinaryOp) -> (Type, Type) {
+    pub fn notwasm_typ(self: &BinaryOp, allow_closure: bool) -> (Type, Type) {
         // these binops are used in jankyscript too, so we can derive
         // their notwasm types from them
         let (janky_in_type, janky_out_type) = self.janky_typ();
-        (janky_in_type.notwasm_typ(), janky_out_type.notwasm_typ())
+        (
+            janky_in_type.notwasm_typ(allow_closure),
+            janky_out_type.notwasm_typ(allow_closure),
+        )
     }
 }
 
@@ -176,11 +179,14 @@ pub enum UnaryOp {
 }
 
 impl UnaryOp {
-    pub fn notwasm_typ(self: &UnaryOp) -> (Type, Type) {
+    pub fn notwasm_typ(self: &UnaryOp, allow_closure: bool) -> (Type, Type) {
         // these unaryops are used in jankyscript too, so we can derive
         // their notwasm types from them
         let (janky_in_type, janky_out_type) = self.janky_typ();
-        (janky_in_type.notwasm_typ(), janky_out_type.notwasm_typ())
+        (
+            janky_in_type.notwasm_typ(allow_closure),
+            janky_out_type.notwasm_typ(allow_closure),
+        )
     }
 }
 

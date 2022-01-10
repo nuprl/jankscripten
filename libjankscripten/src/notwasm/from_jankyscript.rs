@@ -215,26 +215,13 @@ fn compile_exprs<'a>(
     return stmts.append(cxt(state, ids));
 }
 
-pub fn compile_ty(janky_typ: J::Type) -> Type {
-    // why the seemingly double behavior?
-    // we turn Fn into Closure only when it's in the program, not in
-    // RTSFunctions
-    match janky_typ.notwasm_typ() {
-        Type::Fn(mut fn_ty) => {
-            fn_ty.args.insert(0, Type::Env);
-            Type::Closure(fn_ty)
-        }
-        got => got,
-    }
-}
-
 fn coercion_to_expr(c: J::Coercion, a: Atom, p: Pos) -> Atom {
     use J::Coercion::*;
     match c {
         FloatToInt => Atom::FloatToInt(Box::new(a), p),
         IntToFloat => Atom::IntToFloat(Box::new(a), p),
         Tag(..) => to_any_(a, p),
-        Untag(ty) => from_any_(a, compile_ty(ty), p),
+        Untag(ty) => from_any_(a, ty.notwasm_typ(true), p),
         Fun(..) => todo!(), // TODO(michael) needs to call something that proxies the function
         Id(..) => a,
         Seq(c1, c2) => coercion_to_expr(*c2, coercion_to_expr(*c1, a, p.clone()), p),
@@ -352,7 +339,7 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                     state,
                     e,
                     C::a(|_s, x| {
-                        env_items.push((x, compile_ty(ty)));
+                        env_items.push((x, ty.notwasm_typ(true)));
                         Rope::nil()
                     }),
                 ));
@@ -452,12 +439,12 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
         J::Expr::NewRef(expr, ty, p) => compile_expr(
             state,
             *expr,
-            C::a(move |state, of| cxt.recv_e(state, Expr::NewRef(of, compile_ty(ty), p))),
+            C::a(move |state, of| cxt.recv_e(state, Expr::NewRef(of, ty.notwasm_typ(true), p))),
         ),
         J::Expr::Deref(expr, ty, p) => compile_expr(
             state,
             *expr,
-            C::a(move |state, of| cxt.recv_a(state, deref_(of, compile_ty(ty), p))),
+            C::a(move |state, of| cxt.recv_a(state, deref_(of, ty.notwasm_typ(true), p))),
         ),
         J::Expr::Store(into, expr, _, p) => compile_expr(
             state,
@@ -470,7 +457,7 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 )
             }),
         ),
-        J::Expr::EnvGet(i, ty, p) => cxt.recv_a(state, Atom::EnvGet(i, compile_ty(ty), p)),
+        J::Expr::EnvGet(i, ty, p) => cxt.recv_a(state, Atom::EnvGet(i, ty.notwasm_typ(true), p)),
     }
 }
 
@@ -496,7 +483,7 @@ fn compile_stmt<'a>(state: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
                     VarStmt {
                         id: x,
                         named: e_notwasm,
-                        ty: Some(compile_ty(t)),
+                        ty: Some(t.notwasm_typ(true)),
                     },
                     p,
                 ))
@@ -572,14 +559,14 @@ fn compile_function<'a>(state: &'a mut S, f: J::Func, p: Pos) -> Function {
     // closure conversion
     param_names.insert(0, Id::Bogus("env"));
     let param_tys = std::iter::once(Type::Env)
-        .chain(jnks_tys.into_iter().map(|t| compile_ty(t)))
+        .chain(jnks_tys.into_iter().map(|t| t.notwasm_typ(true)))
         .collect();
     Function {
         body: Stmt::Block(compile_stmt(state, *f.body).into_iter().collect(), p),
         params: param_names,
         fn_type: FnType {
             args: param_tys,
-            result: Some(Box::new(compile_ty(f.result_typ))),
+            result: Some(Box::new(f.result_typ.notwasm_typ(true))),
         },
         span: Default::default(),
     }

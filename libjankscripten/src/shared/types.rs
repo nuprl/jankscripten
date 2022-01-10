@@ -32,21 +32,32 @@ impl Type {
         }
     }
 
-    pub fn notwasm_typ(&self) -> NotWasmType {
+    pub fn notwasm_typ(&self, allow_closure: bool) -> NotWasmType {
         match self {
             Type::Missing => panic!("received Type::Missing"),
             Type::Any => NotWasmType::Any,
             Type::Float => NotWasmType::F64,
             Type::Int => NotWasmType::I32,
             Type::Bool => NotWasmType::Bool,
-            Type::Function(arg_typs, ret_ty) => NotWasmType::Fn(FnType {
-                args: arg_typs.iter().map(|t| t.notwasm_typ()).collect(),
-                result: Some(Box::new(ret_ty.notwasm_typ())),
-            }),
+            Type::Function(arg_typs, ret_ty) => {
+                let result = Some(Box::new(ret_ty.notwasm_typ(allow_closure)));
+                if allow_closure {
+                    let args = std::iter::once(NotWasmType::Env)
+                        .chain(arg_typs.iter().map(|t| t.notwasm_typ(allow_closure)))
+                        .collect();
+                    NotWasmType::Closure(FnType { args, result })
+                } else {
+                    let args = arg_typs
+                        .iter()
+                        .map(|t| t.notwasm_typ(allow_closure))
+                        .collect();
+                    NotWasmType::Fn(FnType { args, result })
+                }
+            }
             Type::String => NotWasmType::String,
             Type::Array => NotWasmType::Array,
             Type::DynObject => NotWasmType::DynObject,
-            Type::Ref(of) => NotWasmType::Ref(Box::new(of.notwasm_typ())),
+            Type::Ref(of) => NotWasmType::Ref(Box::new(of.notwasm_typ(allow_closure))),
             Type::Metavar(_) => panic!("Metavar received"),
         }
     }
