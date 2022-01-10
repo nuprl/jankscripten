@@ -355,6 +355,95 @@ impl<'a> Typeinf<'a> {
         (phis, ts)
     }
 
+    // The type of Dot is always any because jankyscript containers hold any
+    // -
+    // NOTE(luna): Dot is actually not an elimination form in general.
+    // We sometimes don't know for sure if we
+    // refer to the prototype of a janky-object (Array, Date, ...) or a
+    // real DynObject. We hope we can resolve the type from other
+    // constraints; if not we have to use a runtime dot function. I
+    // want to see how far we can get *without* having to write that (please).
+    // -
+    // Janky assumption:
+    // (No platypus) Array/Date/Strings don't have string fields (besides
+    // their prototype); DynObjects don't have numeric fields. My
+    // memory is our jankyp run found this mostly possible with some
+    // regexes
+    // -
+    // We'll never type a DynObject with unfortunate-named fields as Array:
+    // Consider the unfortunately named field "length" on a DynObject o
+    // Then o.length is at some point written, so o is DynObject or any
+    fn cgen_dot(&mut self, obj_e: &mut Expr, x: &mut Id, p: &mut Pos) -> ast::Bool<'a> {
+        let w = self.fresh_weight();
+        let (phi_1, t) = self.cgen_expr(obj_e);
+        let phi_array = if prototypes::ARRAY_PROTOTYPE.contains(x.name()) {
+            z3f!(self, (and (= (tid t) (typ array))))
+        } else {
+            // Since the field is part of no known prototype (we assume
+            // no platypus objects) (still TODO Date, String, etc),
+            // we know it's a DynObject, so can safely perform the
+            // coercion
+            let e = obj_e.take();
+            *obj_e = coerce(t.clone(), Type::DynObject, e, p.clone());
+            z3f!(self, false)
+        };
+        let phi_2 = z3f!(self,
+                    (or
+                        (and (= (tid t) (typ dynobject)) (id w.clone()))
+                        (and (id phi_array) (id w.clone()))
+                        (and (= (tid t) (typ any)) (not (id &w)))));
+        phi_1 & phi_2
+    }
+
+    // The type of Bracket is always any because jankyscript containers hold any
+    // NOTE(luna): We "know" from our platypus object jankyp that
+    // o[f : string] has o : DynObject and o[f : int] has o : Array
+    // and vice versa
+    // -
+    // Maybe we can say o[f] always has f : int? But that seems pretty
+    // strong. It would be nice though, because then we definitely
+    // wouldn't have to add an (any, any) -> any bracket operation
+    fn cgen_bracket(&mut self, o: &mut Expr, f: &mut Expr, p: &mut Pos) -> ast::Bool<'a> {
+        let (phi_1, ot) = self.cgen_expr(o);
+        let (phi_2, ft) = self.cgen_expr(f);
+        // final container type
+        let otf = self.fresh_metavar("o");
+        let ftf = self.fresh_metavar("f");
+        let wcoerce = self.fresh_weight();
+        let wrt = self.fresh_weight();
+        // a : S -> b : T   or
+        // a : S -> coerce(any, T) b
+        // af = "a final"
+        let known = |a: &Type, af: &Type, s: &Type, b: &Type, bf: &Type, t: &Type| -> ast::Bool {
+            z3f!(self, (and
+                        (= (tid a) (tid af) (tid s))
+                        (= (tid bf) (tid t))
+                        (or
+                            (and (= (tid b) (tid t)) (id wcoerce.clone()))
+                            (and (= (tid b) (typ any)) (not (id wcoerce.clone()))))
+                        (id wrt.clone())))
+        };
+        // o : DynObject implies f may be coerced to string
+        // (but o : DynObject doesn't imply f : string; f may be any)
+        let phi_3 = known(&ot, &otf, &Type::DynObject, &ft, &ftf, &Type::String)
+                    // f : string implies o may be coerced to DynObject
+                    | known(&ft, &ftf, &Type::String, &ot, &otf, &Type::DynObject)
+                    // o : Array implies f may be coerced to int
+                    | known(&ot, &otf, &Type::Array, &ft, &ftf, &Type::Int)
+                    // f : int implies o may be coerced to Array
+                    | known(&ft, &ftf, &Type::Int, &ot, &otf, &Type::Array)
+                    // o:any[f:any]. hopefully this doesn't happen in practice
+                    | z3f!(self, (and
+                        (= (tid ot) (tid otf) (typ any))
+                        (= (tid ft) (tid ftf) (typ any))
+                        (not (id wrt))));
+        let cont = o.take();
+        *o = coerce(ot, otf, cont, p.clone());
+        let field = f.take();
+        *f = coerce(ft, ftf, field, p.clone());
+        phi_1 & phi_2 & phi_3
+    }
+
     // Coerce expr: t at p to either t (preferred) or any. Returns
     // (phis & additional, t or any). Only coerces to any when t is ground
     // NOTE(luna): If we end up with z3 performance concerns, not checking for
@@ -445,77 +534,8 @@ impl<'a> Typeinf<'a> {
                 let t = t.clone();
                 self.wobbly(p.clone(), expr, z3f!(self, true), t)
             }
-            // NOTE(luna): Dot is actually not an elimination form in general, so we
-            // perform no coercions. We sometimes don't know for sure if we
-            // refer to the prototype of a janky-object (Array, Date, ...) or a
-            // real DynObject. We hope we can resolve the type from other
-            // constraints; if not we have to use a runtime dot function. I
-            // want to see how far we can get *without* having to write that (please).
-            // -
-            // Janky assumption:
-            // (No platypus) Array/Date/Strings don't have string fields (besides
-            // their prototype); DynObjects don't have numeric fields. My
-            // memory is our jankyp run found this mostly possible with some
-            // regexes
-            // -
-            // We'll never type a DynObject with unfortunate-named fields as Array:
-            // Consider the unfortunately named field "length" on a DynObject o
-            // Then o.length is at some point written, so o is DynObject or any
-            Expr::Dot(obj_e, x, p) => {
-                let w = self.fresh_weight();
-                let (phi_1, t) = self.cgen_expr(obj_e);
-                let phi_array = if prototypes::ARRAY_PROTOTYPE.contains(x.name()) {
-                    z3f!(self, (and (= (tid t) (typ array))))
-                } else {
-                    // Since the field is part of no known prototype (we assume
-                    // no platypus objects) (still TODO Date, String, etc),
-                    // we know it's a DynObject, so can safely perform the
-                    // coercion
-                    let e = obj_e.take();
-                    **obj_e = coerce(t.clone(), Type::DynObject, e, p.clone());
-                    z3f!(self, false)
-                };
-                let phi_2 = z3f!(self,
-                    (or
-                        (and (= (tid t) (typ dynobject)) (id w.clone()))
-                        (and (id phi_array) (id w.clone()))
-                        (and (= (tid t) (typ any)) (not (id &w)))));
-                (phi_1 & phi_2, Type::Any)
-            }
-            Expr::Bracket(e1, e2, p) => {
-                // NOTE(arjun): The following remarks are from the old code on coercion insertion.
-                //
-                // container is either array or object. for now, i'm going
-                // to assume it's an array because introducing OR into here
-                // seems pretty messy (TODO(luna))
-                //
-                // michael: probably best to have different bracket operations for
-                // different types. there could be four:
-                //
-                // 1. arrays
-                // 2. objects
-                // 3. strings
-                // 4. Any
-                //
-                // with maybe...
-                //
-                // 5. instances of classes
-                let p = p.clone();
-                let w = self.fresh_weight();
-                let w2 = self.fresh_weight();
-                let (phi_1, t) = self.cgen_expr(e1);
-                let phi_2 = z3f!(self,
-                    (or
-                        (and (= (tid t) (typ array)) (id w.clone()))
-                        (and (= (tid t) (typ any)) (not (id &w)))));
-                let (phi_3, t_2) = self.cgen_expr(e2);
-                let phi_4 = z3f!(self,
-                    (or
-                        (and (= (tid t_2) (typ int)) (id w2.clone()))
-                        (and (= (tid t_2) (typ any)) (not (id &w2)))));
-                **e1 = coerce(t, Type::Array, e1.take(), p);
-                (phi_1 & phi_2 & phi_3 & phi_4, Type::Any)
-            }
+            Expr::Dot(obj_e, x, p) => (self.cgen_dot(obj_e, x, p), Type::Any),
+            Expr::Bracket(o, f, p) => (self.cgen_bracket(o, f, p), Type::Any),
             Expr::JsOp(
                 op,
                 args,
@@ -585,7 +605,7 @@ impl<'a> Typeinf<'a> {
                 args_phi.push(cases);
                 self.wobbly(p.clone(), expr, self.zand(args_phi), alpha_t)
             }
-            Expr::Assign(lval, e, _) => match &mut **lval {
+            Expr::Assign(lval, e, p) => match &mut **lval {
                 LValue::Id(x, x_t) => {
                     let t = self.env.get(x);
                     *x_t = t.clone();
@@ -602,7 +622,18 @@ impl<'a> Typeinf<'a> {
                     let phi_2 = self.t(&t)._eq(&self.t(&e_t));
                     (phi_1 & phi_2, t)
                 }
-                _ => todo!(),
+                LValue::Dot(c, f) => {
+                    let (phi_1, e_t) = self.cgen_expr(&mut *e);
+                    let phi_2 = self.cgen_dot(c, f, p);
+                    let phi_3 = z3f!(self, (= (tid e_t) (typ any)));
+                    (phi_1 & phi_2 & phi_3, Type::Any)
+                }
+                LValue::Bracket(o, f) => {
+                    let (phi_1, e_t) = self.cgen_expr(&mut *e);
+                    let phi_2 = self.cgen_bracket(o, f, p);
+                    let phi_3 = z3f!(self, (= (tid e_t) (typ any)));
+                    (phi_1 & phi_2 & phi_3, Type::Any)
+                }
             },
             Expr::Call(f, args, p) => {
                 let w_1 = self.fresh_weight();
@@ -786,6 +817,7 @@ mod tests {
         let mut ng = NameGen::default();
         desugar(&mut js, &mut ng);
         let mut janky = crate::jankyscript::from_js::from_javascript(js);
+        println!("after from_js: {}", janky);
         typeinf(&mut janky);
         let mut count_anys = CountToAnys::default();
         janky.walk(&mut count_anys);
@@ -1041,5 +1073,65 @@ mod tests {
         // let obj4this = [];
         // obj4this.push([] AS ANY, undefined);
         assert_eq!(n, 1);
+    }
+
+    #[test]
+    fn array_bracket() {
+        let n = typeinf_test(
+            r#"
+            let a = [];
+            let i = 2;
+            (a[i]);
+            "#,
+        );
+        assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn obj_bracket() {
+        let n = typeinf_test(
+            r#"
+            let a = {};
+            let i = "x";
+            (a[i]);
+            "#,
+        );
+        assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn obj_bracket_through_any() {
+        let n = typeinf_test(
+            r#"
+            let a = {};
+            let i = 2;
+            (a[i]);
+            "#,
+        );
+        assert_eq!(n, 1);
+    }
+
+    #[test]
+    fn any_obj_dot_assign() {
+        let n = typeinf_test(
+            r#"
+            let a = undefined;
+            a = {}; // {} as any
+            a.x = 2; // 2 as any
+            "#,
+        );
+        assert_eq!(n, 2);
+    }
+
+    #[test]
+    fn array_bracket_assign_through_any() {
+        let n = typeinf_test(
+            r#"
+            let a = [];
+            let i = "2"; // "2" as any (i as int)
+            a[i] = 10; // 10 as any
+            "#,
+        );
+        assert_eq!(n, 2);
     }
 }
