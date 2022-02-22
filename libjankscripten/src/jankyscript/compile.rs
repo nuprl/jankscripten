@@ -5,6 +5,7 @@ use super::closure_convert::closure_convert;
 use super::coercions::reify_coercions;
 use super::collect_assigns::collect_assigns;
 use super::fv::free_vars;
+use super::insert_returns::insert_returns;
 use super::syntax::*;
 use super::type_checking::{type_check, TypeCheckingError};
 use super::typeinf::typeinf;
@@ -17,6 +18,7 @@ pub fn compile<F>(
 where
     F: FnOnce(&Stmt) -> (),
 {
+    insert_returns(janky_ast);
     if opts.typeinf {
         typeinf(janky_ast);
         reify_coercions(janky_ast);

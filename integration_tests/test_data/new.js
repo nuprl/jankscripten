@@ -1,4 +1,5 @@
-// Blocking --typeinf: no explicit return
+//! -t
+
 function ObjOfAges() {
     this.x = 5;
 }

@@ -1,4 +1,4 @@
-// Blocking --typeinf: no explicit return
+//! -t
 
 // Testing the `new` operator with its
 // prototype/inheritance semantics.
