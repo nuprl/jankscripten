@@ -177,6 +177,7 @@ pub enum UnaryOp {
     I32Neg,
     I32Not,
     Eqz,
+    Nop,
 }
 
 impl UnaryOp {

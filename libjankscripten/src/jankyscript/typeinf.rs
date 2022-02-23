@@ -739,8 +739,8 @@ pub fn typeinf(stmt: &mut Stmt) {
         env,
     };
     state.cgen_stmt(stmt);
-    println!("Before subst: {}", &stmt);
     if state.trace {
+        println!("Before subst: {}", &stmt);
         println!("{:?}", state.solver);
     }
     match state.solver.check(&[]) {
@@ -764,7 +764,6 @@ pub fn typeinf(stmt: &mut Stmt) {
         ops: &state.ops,
     };
     stmt.walk(&mut subst_metavar);
-    println!("After cgen: {}", &stmt);
 }
 
 #[cfg(test)]

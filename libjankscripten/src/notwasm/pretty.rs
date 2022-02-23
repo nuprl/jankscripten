@@ -65,6 +65,7 @@ impl Pretty for UnaryOp {
             UnaryOp::I32Not => pp.text("~"),
             UnaryOp::F64Neg => pp.text("-."),
             UnaryOp::Eqz => pp.text("!"),
+            UnaryOp::Nop => pp.nil(),
         }
     }
 }
