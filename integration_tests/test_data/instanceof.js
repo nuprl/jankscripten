@@ -1,4 +1,4 @@
-// Blocking --typeinf: ! support (elimination form overrides)
+//! -t
 
 function MyObj() {
     this.everything = "everything";

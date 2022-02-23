@@ -175,6 +175,7 @@ pub enum UnaryOp {
     Sqrt,
     F64Neg,
     I32Neg,
+    I32Not,
     Eqz,
 }
 

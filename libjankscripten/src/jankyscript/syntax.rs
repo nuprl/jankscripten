@@ -37,6 +37,7 @@ impl UnaryOp {
             UnaryOp::Sqrt => (Type::Float, Type::Float),
             UnaryOp::F64Neg => (Type::Float, Type::Float),
             UnaryOp::I32Neg => (Type::Int, Type::Int),
+            UnaryOp::I32Not => (Type::Int, Type::Int),
             UnaryOp::Eqz => (Type::Bool, Type::Bool),
         }
     }
@@ -111,7 +112,6 @@ pub struct JsOpTypeinf {
     pub arg_ts: Vec<Type>,
     /// During type inference, holds a metavariable that resolved to the inferred NotwasmOp.
     pub op_metavar: NotwasmOp,
-    pub any_case: Option<crate::z3ez::Bool>,
 }
 
 #[derive(Debug, PartialEq)]

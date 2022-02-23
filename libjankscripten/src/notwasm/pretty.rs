@@ -62,6 +62,7 @@ impl Pretty for UnaryOp {
         match self {
             UnaryOp::Sqrt => pp.text("Math.sqrt"),
             UnaryOp::I32Neg => pp.text("-"),
+            UnaryOp::I32Not => pp.text("~"),
             UnaryOp::F64Neg => pp.text("-."),
             UnaryOp::Eqz => pp.text("!"),
         }

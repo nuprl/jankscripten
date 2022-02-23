@@ -1,5 +1,4 @@
-// Blocking --typeinf: Implementation of < for any OR a way to specify "number
-// operators" that fall back to f64
+//! -t
 
 // slow primes using nested loop
 var max = 30;
