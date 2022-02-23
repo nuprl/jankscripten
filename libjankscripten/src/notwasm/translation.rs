@@ -619,7 +619,13 @@ impl<'a> Translate<'a> {
         match op {
             N::UnaryOp::Sqrt => self.out.push(F64Sqrt),
             N::UnaryOp::F64Neg => self.out.push(F64Neg),
+            // 0 - x; 0 was previously added to stack
             N::UnaryOp::I32Neg => self.out.push(I32Sub),
+            // -1 ^ x
+            N::UnaryOp::I32Not => {
+                self.out.push(I32Const(-1));
+                self.out.push(I32Xor)
+            }
             N::UnaryOp::Eqz => self.out.push(I32Eqz),
         }
     }

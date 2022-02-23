@@ -124,20 +124,9 @@ impl<'a> Visitor for SubtMetavarVisitor<'a> {
             }
             Expr::JsOp(_, arg_es, ti, p) => {
                 let p = std::mem::replace(p, Default::default());
-                let mut es = std::mem::replace(arg_es, Default::default());
-                match self.z3ez.eval_bool_const(self.model, &ti.any_case.unwrap()) {
-                    true => {
-                        let lower_op = self.ops.eval_op(&ti.op_metavar, self.model);
-                        *expr = lower_op.make_app(es, p);
-                    }
-                    false => {
-                        let lower_op = self.ops.eval_op(&ti.op_metavar, self.model);
-                        for (e, t) in es.iter_mut().zip(&ti.arg_ts) {
-                            *e = coerce(Type::Any, t.clone(), e.take(), p.clone());
-                        }
-                        *expr = lower_op.make_app(es, p);
-                    }
-                }
+                let es = std::mem::replace(arg_es, Default::default());
+                let lower_op = self.ops.eval_op(&ti.op_metavar, self.model);
+                *expr = lower_op.make_app(es, p);
             }
             _ => {}
         }
@@ -536,19 +525,8 @@ impl<'a> Typeinf<'a> {
             }
             Expr::Dot(obj_e, x, p) => (self.cgen_dot(obj_e, x, p), Type::Any),
             Expr::Bracket(o, f, p) => (self.cgen_bracket(o, f, p), Type::Any),
-            Expr::JsOp(
-                op,
-                args,
-                JsOpTypeinf {
-                    arg_ts,
-                    op_metavar,
-                    any_case,
-                },
-                p,
-            ) => {
+            Expr::JsOp(op, args, JsOpTypeinf { arg_ts, op_metavar }, p) => {
                 let w = self.fresh_weight();
-                *any_case = Some(self.z3ez.fresh_bool_const());
-                let any_case_z3 = any_case.unwrap().z(&self.z3ez);
                 // Fresh metavariable for the operator that we will select, stored in the AST for
                 // the next phase.
                 *op_metavar = self.ops.fresh_op_selector();
@@ -567,38 +545,40 @@ impl<'a> Typeinf<'a> {
                 }
                 // In DNF, one disjunct for each overload
                 let mut disjuncts = Vec::new();
-                for (t, notwasm_op) in OVERLOADS.overloads(op) {
+                let mut one_possibility = |t: &Type, notwasm_op, allow_coerce| {
                     let (op_arg_t, op_ret_t) = t.unwrap_fun();
                     // For this overload, arguments and result must match
                     let mut conjuncts = vec![
-                        w.clone(), // favor using a precise overload
-                        z3f!(self, (id any_case_z3.clone())),
                         z3f!(self, (= (id self.ops.z(&op_metavar)) (id self.ops.z(notwasm_op)))),
                     ];
                     for ((t1, t2), t3) in args_t.iter().zip(op_arg_t).zip(betas_t.iter()) {
-                        // TODO(arjun): Duplication in Z3
-                        conjuncts.push(z3f!(self, (= (tid t1) (tid t2))));
+                        if allow_coerce {
+                            // If we allow coerce, we still prefer not to
+                            // coerce (ie, so we don't coerce through any for no
+                            // reason)
+                            conjuncts.push(z3f!(self, (or
+                                (and (not (id w.clone())) (= (tid t1) (typ any)))
+                                (= (tid t1) (tid t2)))));
+                        } else {
+                            conjuncts.push(z3f!(self, (= (tid t1) (tid t2))));
+                        }
                         conjuncts.push(z3f!(self, (= (tid t2) (tid t3))));
                     }
                     conjuncts.push(self.t(&alpha_t)._eq(&self.t(op_ret_t)));
                     disjuncts.push(self.zand(conjuncts));
+                    *arg_ts = op_arg_t.clone();
+                };
+                // This is the case where we perform no coercions. This
+                // includes the any case! The coercions are done on the
+                // expressions themselves when asserted to be any
+                for (t, notwasm_op) in OVERLOADS.overloads(op) {
+                    one_possibility(t, notwasm_op, false);
                 }
-
-                // Special case: what we do when none of the precise overloads match
-                if let Some((t, notwasm_op)) = OVERLOADS.on_any(op) {
-                    let (any_case_args, op_ret_t) = t.unwrap_fun();
-                    let mut conjuncts = vec![
-                        !w, // Try to avoid this case,
-                        z3f!(self, (not (id any_case_z3))),
-                        z3f!(self, (= (id self.ops.z(&op_metavar)) (id self.ops.z(notwasm_op)))),
-                    ];
-                    for (_t1, t2) in args_t.iter().zip(betas_t.iter()) {
-                        // TODO(arjun): t1 must be compatible with any
-                        conjuncts.push(self.t(t2)._eq(&self.z.make_any()));
-                    }
-                    conjuncts.push(self.t(&alpha_t)._eq(&self.t(op_ret_t)));
-                    disjuncts.push(self.zand(conjuncts));
-                    *arg_ts = any_case_args.clone();
+                // Special case: we allow a coercion from any on operators with
+                // only one reasonable type. We assume the target type is
+                // ground because we wrote it so in operators.rs
+                if let Some((t, notwasm_op)) = OVERLOADS.coercible(op) {
+                    one_possibility(t, notwasm_op, true);
                 }
                 let cases =
                     ast::Bool::or(self.z.cxt, disjuncts.iter().collect::<Vec<_>>().as_slice());
@@ -1061,6 +1041,7 @@ mod tests {
         assert_eq!(n, 2);
     }
 
+    #[test]
     fn array_length() {
         let n = typeinf_test("[undefined, undefined, undefined].length");
         assert_eq!(n, 0);

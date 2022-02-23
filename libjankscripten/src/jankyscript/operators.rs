@@ -111,7 +111,7 @@ impl OverloadTable {
         overload.overloads.push((typ, notwasm.into()));
     }
 
-    fn add_on_any(&mut self, op: impl Into<JsOp>, typ: Type, notwasm: impl Into<NotwasmOp>) {
+    fn add_coercible(&mut self, op: impl Into<JsOp>, typ: Type, notwasm: impl Into<NotwasmOp>) {
         let overload = self.table.entry(op.into()).or_insert(Overload::default());
         overload.on_other_args = Some((typ, notwasm.into()));
     }
@@ -127,12 +127,16 @@ impl OverloadTable {
             .iter()
     }
 
-    pub fn on_any<'a, 'b>(&'a self, op: &'b JsOp) -> Option<&'a (Type, NotwasmOp)> {
+    pub fn coercible<'a, 'b>(&'a self, op: &'b JsOp) -> Option<&'a (Type, NotwasmOp)> {
         self.table.get(op).unwrap().on_other_args.as_ref()
     }
 }
 
 lazy_static! {
+    /// NOTE: Only ground types should be arguments to the provided type! ie,
+    /// fun(int, int) -> int is allowed but fun(fun(int) -> int) -> int is NOT.
+    /// This shouldn't be an issue, since operators should accept ground types
+    /// anyway
     pub static ref OVERLOADS: OverloadTable = {
         use crate::javascript::syntax::BinaryOp::*;
         use crate::javascript::syntax::UnaryOp as JUO;
@@ -140,64 +144,66 @@ lazy_static! {
         let mut table = OverloadTable::default();
         table.add(Plus, typ!(fun(int, int) -> int), I32Add);
         table.add(Plus, typ!(fun(string, string) -> string), RTSFunction::StringCat);
-        table.add_on_any(Plus, typ!(fun(any, any) -> any), RTSFunction::Plus);
+        table.add(Plus, typ!(fun(any, any) -> any), RTSFunction::Plus);
 
 
         table.add(Minus, typ!(fun(float, float) -> float), F64Sub);
         table.add(Minus, typ!(fun(int, int) -> int), I32Sub);
-        table.add_on_any(Minus, typ!(fun(any, any) -> any), RTSFunction::Minus);
+        table.add(Minus, typ!(fun(any, any) -> any), RTSFunction::Minus);
 
-        table.add(LeftShift, typ!(fun(int, int) -> int), I32Shl);
         table.add(Times, typ!(fun(float, float) -> float), F64Mul);
         table.add(Times, typ!(fun(int, int) -> int), I32Mul);
         table.add(Times, typ!(fun(any, any) -> any), RTSFunction::Times);
         table.add(Over, typ!(fun(float, float) -> float), F64Div);
-        table.add_on_any(Over, typ!(fun(any, any) -> float), RTSFunction::Over);
+        table.add(Over, typ!(fun(any, any) -> float), RTSFunction::Over);
         table.add(Mod, typ!(fun(int, int) -> int), I32Rem);
         table.add(Mod, typ!(fun(float, float) -> float), RTSFunction::ModF64);
-        table.add_on_any(Mod, typ!(fun(any, any) -> any), RTSFunction::Mod);
-        table.add_on_any(LeftShift, typ!(fun(int, int) -> int), I32Shl);
+        table.add(Mod, typ!(fun(any, any) -> any), RTSFunction::Mod);
         table.add(Equal, typ!(fun(int, int) -> bool), I32Eq);
         table.add(Equal, typ!(fun(float, float) -> bool), F64Eq);
-        table.add_on_any(Equal, typ!(fun(any, any) -> bool), RTSFunction::Equal);
+        table.add(Equal, typ!(fun(any, any) -> bool), RTSFunction::Equal);
         table.add(NotEqual, typ!(fun(int, int) -> bool), I32Ne);
         table.add(NotEqual, typ!(fun(float, float) -> bool), F64Ne);
-        table.add_on_any(NotEqual, typ!(fun(any, any) -> bool), RTSFunction::NotEqual);
+        table.add(NotEqual, typ!(fun(any, any) -> bool), RTSFunction::NotEqual);
         table.add(StrictEqual, typ!(fun(int, int) -> bool), I32Eq);
         table.add(StrictEqual, typ!(fun(float, float) -> bool), F64Eq);
-        table.add_on_any(StrictEqual, typ!(fun(any, any) -> bool), RTSFunction::StrictEqual);
+        table.add(StrictEqual, typ!(fun(any, any) -> bool), RTSFunction::StrictEqual);
         table.add(StrictNotEqual, typ!(fun(int, int) -> bool), I32Ne);
         table.add(StrictNotEqual, typ!(fun(float, float) -> bool), F64Ne);
-        table.add_on_any(StrictNotEqual, typ!(fun(any, any) -> bool), RTSFunction::StrictNotEqual);
+        table.add(StrictNotEqual, typ!(fun(any, any) -> bool), RTSFunction::StrictNotEqual);
         table.add(LessThan, typ!(fun(int, int) -> bool), I32LT);
-        table.add(LessThan, typ!(fun(float, float) -> bool), F64LT);
-        table.add_on_any(LessThan, typ!(fun(any, any) -> bool), RTSFunction::Todo("any <?"));
+        // It's always safe to coerce to float because < only operates on
+        // numbers and all numbers can be represented as floats. TODO(luna): This
+        // isn't actually true: string ordering is a thing. However, this hack
+        // brings us to parity with the old coercion insertion
+        table.add_coercible(LessThan, typ!(fun(float, float) -> bool), F64LT);
         table.add(LessThanEqual, typ!(fun(int, int) -> bool), I32Le);
-        table.add(LessThanEqual, typ!(fun(float, float) -> bool), F64Le);
-        table.add_on_any(LessThanEqual, typ!(fun(any, any) -> bool), RTSFunction::Todo("any <=?"));
+        table.add_coercible(LessThanEqual, typ!(fun(float, float) -> bool), F64Le);
         table.add(GreaterThan, typ!(fun(int, int) -> bool), I32GT);
-        table.add(GreaterThan, typ!(fun(float, float) -> bool), F64GT);
-        table.add_on_any(GreaterThan, typ!(fun(any, any) -> bool), RTSFunction::Todo("any >?"));
+        table.add_coercible(GreaterThan, typ!(fun(float, float) -> bool), F64GT);
         table.add(GreaterThanEqual, typ!(fun(int, int) -> bool), I32Ge);
-        table.add(GreaterThanEqual, typ!(fun(float, float) -> bool), F64Ge);
-        table.add_on_any(GreaterThanEqual, typ!(fun(any, any) -> bool), RTSFunction::Todo("any >=?"));
-        // ]).others(typ!(int)),
-        // TODO(luna): Some operators are elimination forms and shouldn't
-        // even have an any version. Example: & (binary and). Should coerce its
-        // operands to int. We need a way to notate this
-        // Other operators needed for: |, <<, >>, ^, >>>, ~, !
+        table.add_coercible(GreaterThanEqual, typ!(fun(float, float) -> bool), F64Ge);
+        table.add_coercible(LeftShift, typ!(fun(int, int) -> int), I32Shl);
+        table.add_coercible(RightShift, typ!(fun(int, int) -> int), I32Shr);
+        table.add_coercible(UnsignedRightShift, typ!(fun(int, int) -> int), I32ShrU);
+        table.add_coercible(Or, typ!(fun(int, int) -> int), I32Or);
+        table.add_coercible(And, typ!(fun(int, int) -> int), I32And);
+        table.add_coercible(XOr, typ!(fun(int, int) -> int), I32Xor);
         // For the operations that are strictly number operations, we have int
         // and float, but there should be a better way to deal with the any-case
         // (should be float)
-        table.add_on_any(InstanceOf, typ!(fun(any, any) -> bool), RTSFunction::InstanceOf);
-        table.add_on_any(In, typ!(fun(any, any) -> bool), RTSFunction::In);
+        table.add_coercible(InstanceOf, typ!(fun(any, any) -> bool), RTSFunction::InstanceOf);
+        table.add_coercible(In, typ!(fun(any, any) -> bool), RTSFunction::In);
 
         table.add(JUO::Minus, typ!(fun(int) -> int), UnaryOp::I32Neg);
         table.add(JUO::Minus, typ!(fun(float) -> float), UnaryOp::F64Neg);
-        table.add_on_any(JUO::Minus, typ!(fun(any) -> any), RTSFunction::Neg);
-        table.add_on_any(JUO::TypeOf, typ!(fun(any) -> string), RTSFunction::Typeof);
-        table.add_on_any(JUO::Void, typ!(fun(any) -> any), RTSFunction::Void);
-        table.add_on_any(JUO::Delete, typ!(fun(any) -> any), RTSFunction::Delete);
+        table.add(JUO::Minus, typ!(fun(any) -> any), RTSFunction::Neg);
+        table.add(JUO::TypeOf, typ!(fun(any) -> string), RTSFunction::Typeof);
+        table.add(JUO::Void, typ!(fun(any) -> any), RTSFunction::Void);
+        table.add(JUO::Delete, typ!(fun(any) -> any), RTSFunction::Delete);
+
+        table.add_coercible(JUO::Not, typ!(fun(bool) -> bool), UnaryOp::Eqz);
+        table.add_coercible(JUO::Tilde, typ!(fun(int) -> int), UnaryOp::I32Not);
 
         table
     };
