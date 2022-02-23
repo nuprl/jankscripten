@@ -195,6 +195,8 @@ lazy_static! {
         table.add_coercible(InstanceOf, typ!(fun(any, any) -> bool), RTSFunction::InstanceOf);
         table.add_coercible(In, typ!(fun(any, any) -> bool), RTSFunction::In);
 
+        table.add(JUO::Plus, typ!(fun(int) -> int), UnaryOp::Nop);
+        table.add_coercible(JUO::Plus, typ!(fun(float) -> float), UnaryOp::Nop);
         table.add(JUO::Minus, typ!(fun(int) -> int), UnaryOp::I32Neg);
         table.add(JUO::Minus, typ!(fun(float) -> float), UnaryOp::F64Neg);
         table.add(JUO::Minus, typ!(fun(any) -> any), RTSFunction::Neg);

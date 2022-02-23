@@ -627,6 +627,7 @@ impl<'a> Translate<'a> {
                 self.out.push(I32Xor)
             }
             N::UnaryOp::Eqz => self.out.push(I32Eqz),
+            N::UnaryOp::Nop => (),
         }
     }
 

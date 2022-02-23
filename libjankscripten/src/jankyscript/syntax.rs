@@ -39,6 +39,9 @@ impl UnaryOp {
             UnaryOp::I32Neg => (Type::Int, Type::Int),
             UnaryOp::I32Not => (Type::Int, Type::Int),
             UnaryOp::Eqz => (Type::Bool, Type::Bool),
+            // This is currently just used for +, so this is correct, but maybe
+            // it was a bad name for it because now it's specified to ints
+            UnaryOp::Nop => (Type::Int, Type::Int),
         }
     }
 }
