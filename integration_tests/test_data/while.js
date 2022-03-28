@@ -1,4 +1,3 @@
-//! -t
 var x = 0;
 var triangle = 0;
 while (x < 10) {

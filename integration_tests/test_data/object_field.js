@@ -1,4 +1,3 @@
-//! -t
 function Hi(y) {
     return 5;
 }

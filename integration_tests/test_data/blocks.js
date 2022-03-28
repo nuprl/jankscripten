@@ -1,4 +1,3 @@
-//! -t
 
 function sideEffect() {
     console.log("THIS IS A WARNING OF THINGS TO COME");

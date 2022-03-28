@@ -1,4 +1,3 @@
-//! -t
 function noExplictReturn() {
     console.log("Hi");
 }

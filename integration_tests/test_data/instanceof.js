@@ -1,4 +1,3 @@
-//! -t
 
 function MyObj() {
     this.everything = "everything";

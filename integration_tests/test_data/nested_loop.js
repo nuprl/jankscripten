@@ -1,4 +1,3 @@
-//! -t
 
 // slow primes using nested loop
 var max = 30;
