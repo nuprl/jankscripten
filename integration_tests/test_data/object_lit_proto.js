@@ -1,4 +1,3 @@
-//! -t
 // Make sure that `{}` inherits from `Object.prototype`.
 
 Object.prototype.sum = function(x, y) {

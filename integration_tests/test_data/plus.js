@@ -1,4 +1,3 @@
-//! -t
 // Testing various data type coercions with the + operator
 
 // monotype

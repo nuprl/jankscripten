@@ -1,4 +1,3 @@
-//! -t
 
 function ObjOfAges() {
     this.x = 5;

@@ -13,8 +13,6 @@ struct Compile {
     jankyscript_dump: bool,
     #[clap(short, long)]
     notwasm_dump: bool,
-    #[clap(short, long)]
-    typeinf: bool,
     /// Only for debugging.
     #[clap(long)]
     disable_gc: bool,
@@ -51,7 +49,6 @@ impl Compile {
         let p = self.stdlib.as_ref().unwrap();
         let stdlib_source_code = fs::read_to_string(p).expect(&format!("reading {}", p));
         compile_opts.notwasm_stdlib_source_code = stdlib_source_code;
-        compile_opts.typeinf = self.typeinf;
         compile_opts
     }
 }
@@ -194,10 +191,7 @@ fn parse(opts: Parse) {
     let mut parsed_javascript = parse_javascript(&opts.input, &src_javascript, &opts.input);
     // desugaring mutates the stmt in place
     desugar_javascript(&mut parsed_javascript);
-    let desugared_javascript = parsed_javascript;
-
-    ///// JavaScript -> JankierScript
-    let _jankyscript = libjankscripten::jankierscript::from_javascript(desugared_javascript);
+    let _desugared_javascript = parsed_javascript;
 }
 
 fn main() {

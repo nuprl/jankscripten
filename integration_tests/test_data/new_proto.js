@@ -1,4 +1,3 @@
-//! -t
 
 // Testing the `new` operator with its
 // prototype/inheritance semantics.

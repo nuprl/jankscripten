@@ -1,4 +1,3 @@
-//! -t
 // let's do T-F every other
 log_any(undefined == null);
 log_any(null == 5);

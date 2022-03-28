@@ -1,4 +1,3 @@
-//! -t
 // This test ensures that field accesses on an object automatically searches
 // prototype chain if the object is missing a field. This is the basis for
 // inheritance in JavaScript.

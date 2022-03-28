@@ -1,4 +1,3 @@
-//! -t
 function inner() {
     return 5;
 }
