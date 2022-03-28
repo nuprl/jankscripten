@@ -132,6 +132,7 @@ pub enum Expr {
     If(Box<Expr>, Box<Expr>, Box<Expr>, Pos),
     Assign(AssignOp, Box<LValue>, Box<Expr>, Pos),
     Call(Box<Expr>, Vec<Expr>, Pos),
+    MethodCall(Id, String, Vec<Expr>, Pos),
     Func(Option<Id>, Vec<Id>, Box<Stmt>, Pos),
     Seq(Vec<Expr>, Pos),
 }

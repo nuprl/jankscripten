@@ -19,7 +19,6 @@
 use super::super::shared::coercions::Coercion;
 use super::operators::OVERLOADS;
 use super::operators_z3::Z3Operators;
-use super::prototypes;
 use super::syntax::*;
 use super::typeinf_env::Env;
 use super::walk::{Loc, Visitor};
@@ -365,21 +364,12 @@ impl<'a> Typeinf<'a> {
     fn cgen_dot(&mut self, obj_e: &mut Expr, x: &mut Id, p: &mut Pos) -> ast::Bool<'a> {
         let w = self.fresh_weight();
         let (phi_1, t) = self.cgen_expr(obj_e);
-        let phi_array = if prototypes::ARRAY_PROTOTYPE.contains(x.name()) {
-            z3f!(self, (and (= (tid t) (typ array))))
-        } else {
-            // Since the field is part of no known prototype (we assume
-            // no platypus objects) (still TODO Date, String, etc),
-            // we know it's a DynObject, so can safely perform the
-            // coercion
-            let e = obj_e.take();
-            *obj_e = coerce(t.clone(), Type::DynObject, e, p.clone());
-            z3f!(self, false)
-        };
+        let e = obj_e.take();
+        *obj_e = coerce(t.clone(), Type::DynObject, e, p.clone());
         let phi_2 = z3f!(self,
                     (or
                         (and (= (tid t) (typ dynobject)) (id w.clone()))
-                        (and (id phi_array) (id w.clone()))
+                        (id w.clone())
                         (and (= (tid t) (typ any)) (not (id &w)))));
         phi_1 & phi_2
     }
