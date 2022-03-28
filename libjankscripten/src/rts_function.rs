@@ -11,6 +11,10 @@ use strum_macros::EnumIter;
 #[derive(Debug, Clone, PartialEq, EnumIter, Eq, Hash)]
 pub enum RTSFunction {
     Todo(&'static str),
+    // Type-specialized methods. They are always implemented in rust, with a
+    // name given algorithmically based on the type and method name. The full type is
+    // also provided, because it's generated in the methods table
+    Method(&'static str, Type),
     // unary ops
     Typeof,
     Delete,
@@ -52,6 +56,7 @@ impl RTSFunction {
         use RTSFunctionImpl::*;
         match self {
             Todo(name) => todo!("unimplemented operator: {}", name),
+            Method(..) => Rust(self.to_string()),
             Typeof => Rust("janky_typeof".into()),
             Delete => Rust("janky_delete".into()),
             Void => Rust("janky_void".into()),
@@ -101,6 +106,7 @@ impl RTSFunction {
         use RTSFunction::*;
         match self {
             Todo(name) => todo!("unimplemented operator: {}", name),
+            Method(_, ty) => ty.clone(),
             Typeof => Function(vec![Any], Box::new(String)),
             // the second operand of InstanceOf is really "a function" but we don't have a type for that
             Delete | InstanceOf => Function(vec![Any, Any], Box::new(Bool)),
@@ -127,6 +133,13 @@ impl std::fmt::Display for RTSFunction {
             "{}",
             match self {
                 Todo(s) => s,
+                Method(name, ty) => {
+                    if let Type::Function(ts, _) = ty {
+                        return write!(f, "{}_{}", ts[0], name);
+                    } else {
+                        panic!("non-function function type")
+                    }
+                }
                 Typeof => "typeof",
                 Delete => "delete",
                 Void => "void",

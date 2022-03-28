@@ -2,7 +2,6 @@
 //! This occurs after type inference to ensure that type inference succeeded
 //! correctly.
 
-use super::prototypes;
 use super::syntax::*;
 use crate::pos::Pos;
 use crate::shared::std_lib::get_global_object;
@@ -357,6 +356,10 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             // type check this call
             type_check_fun_call(fun_type, args, env, s.clone())
         }
+        Expr::MethodCall(obj, args, typ, s) => {
+            let obj_type = lookup(&env, &obj, &s)?;
+            type_check_fun_call(typ.clone(), args, env, s.clone())
+        }
         Expr::Coercion(coercion, e, s) => {
             // type the expression. regardless of the coercion, the expression
             // needs to be well-typed.
@@ -396,18 +399,6 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
         }
         Expr::Dot(obj, prop, s) => {
             let obj_type = type_check_expr(obj, env)?;
-
-            // TODO(luna): , Date, String, ...
-            if !(prototypes::ARRAY_PROTOTYPE.contains(prop.name())
-                && (obj_type == Type::Array || obj_type == Type::Any))
-            {
-                ensure(
-                    "property lookup expects a DynObject",
-                    Type::DynObject,
-                    obj_type,
-                    &s,
-                )?;
-            }
 
             // we don't know anything about the type we're returning.
             // even if this property doesn't exist on the given object,
