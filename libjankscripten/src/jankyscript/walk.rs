@@ -258,13 +258,10 @@ where
                 self.walk_stmt(&mut *f.body, &loc);
                 self.visitor.exit_fn(f, &loc);
             }
-            JsOp(_, es, JsOpTypeinf { arg_ts, .. }, _) => {
+            JsOp(_, es, _, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 for e in es {
                     self.walk_expr(e, &loc);
-                }
-                for t in arg_ts {
-                    self.walk_type(t, &loc);
                 }
             }
             // 1x[Expr]
