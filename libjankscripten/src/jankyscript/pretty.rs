@@ -208,6 +208,15 @@ impl Pretty for Expr {
                 )
                 .parens(),
             ]),
+            Expr::MethodCall(x, name, args, typ, _) => pp.concat(vec![
+                x.pretty(pp),
+                typ.pretty(pp).angles(),
+                pp.intersperse(
+                    args.iter().map(|e| e.pretty(pp)),
+                    pp.text(",").append(pp.line()),
+                )
+                .parens(),
+            ]),
             Expr::PrimCall(rts, args, _) => pp.concat(vec![
                 pp.as_string(rts),
                 pp.intersperse(
