@@ -356,8 +356,9 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             // type check this call
             type_check_fun_call(fun_type, args, env, s.clone())
         }
-        Expr::MethodCall(obj, args, typ, s) => {
-            let obj_type = lookup(&env, &obj, &s)?;
+        Expr::MethodCall(obj, _, args, typ, s) => {
+            let obj_type = type_check_expr(obj, env.clone())?;
+            ensure("this", obj_type, typ.unwrap_fun().0[0].clone(), s)?;
             type_check_fun_call(typ.clone(), args, env, s.clone())
         }
         Expr::Coercion(coercion, e, s) => {

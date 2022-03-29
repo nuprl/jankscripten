@@ -47,7 +47,7 @@ fn expr(e: Js::Expr) -> Expr {
             s,
         ),
         E::MethodCall(id, name, es, s) => Expr::MethodCall(
-            id,
+            Box::new(Expr::Id(id, Type::Missing, s.clone())),
             name,
             es.into_iter().map(|e| expr(e)).collect(),
             Type::Missing,

@@ -303,10 +303,12 @@ where
                     self.walk_expr(e, &loc);
                 }
             }
-            MethodCall(id, name, args, typ, _) => {
+            MethodCall(_, _, args, typ, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
-                let loc = Loc::Node(Context::BoundId(x), loc);
-                self.walk_type(t, &loc)
+                for arg in args {
+                    self.walk_expr(arg, &loc);
+                }
+                self.walk_type(typ, &loc);
             }
             // 2xExpr
             Bracket(ea, eb, _) | Binary(.., ea, eb, _) | Store(ea, eb, ..) => {

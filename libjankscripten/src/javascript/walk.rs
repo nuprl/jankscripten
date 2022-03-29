@@ -298,6 +298,7 @@ where
                 self.walk_expr(eb, &loc);
                 self.walk_expr(ec, &loc);
             }
+            MethodCall(..) => unimplemented!(),
         }
         self.visitor.exit_expr(expr, loc);
     }

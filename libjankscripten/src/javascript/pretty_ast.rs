@@ -169,6 +169,7 @@ impl Expr {
                 .append(D::space())
                 .append(to.to_doc()),
             Call(clos, args, _) => fn_call_to_doc(clos, args),
+            MethodCall(..) => D::text("TODOmethodcall"),
             Func(maybe_name, params, body, _) => func_to_doc(maybe_name.as_ref(), params, body),
             Seq(es, _) => D::text("(")
                 .append(D::intersperse(es.iter().map(Expr::to_doc), D::text(", ")))

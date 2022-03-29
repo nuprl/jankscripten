@@ -4,11 +4,14 @@ use std::collections::HashMap;
 
 macro_rules! entry {
     ($name:ident, $($args:tt -> $ret:ident),+) => {
-        (stringify!($name), vec![$(typ!(fun $args -> $ret)),+])
+        {
+            let tys = vec![$(typ!(fun $args -> $ret)),+];
+            ((stringify!($name), tys[0].unwrap_fun().0.len()), tys)
+        }
     };
 }
 
-fn methods_table() -> HashMap<&'static str, Vec<Type>> {
+fn methods_table() -> HashMap<(&'static str, usize), Vec<Type>> {
     [
         entry!(slice, (string, int, int) -> string, (array, int, int) -> array),
         entry!(at, (string, int) -> any, (string, int) -> string),
@@ -61,5 +64,5 @@ fn methods_table() -> HashMap<&'static str, Vec<Type>> {
 }
 
 lazy_static! {
-    pub static ref METHODS_TABLE: HashMap<&'static str, Vec<Type>> = methods_table();
+    pub static ref METHODS_TABLE: HashMap<(&'static str, usize), Vec<Type>> = methods_table();
 }
