@@ -111,8 +111,6 @@ impl From<js::UnaryOp> for JsOp {
 
 #[derive(Debug, PartialEq, Default)]
 pub struct JsOpTypeinf {
-    /// During type inference, holds type-metavariables with the types of each argument.
-    pub arg_ts: Vec<Type>,
     /// During type inference, holds a metavariable that resolved to the inferred NotwasmOp.
     pub op_metavar: NotwasmOp,
 }

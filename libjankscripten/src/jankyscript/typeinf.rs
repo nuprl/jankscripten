@@ -515,7 +515,7 @@ impl<'a> Typeinf<'a> {
             }
             Expr::Dot(obj_e, x, p) => (self.cgen_dot(obj_e, x, p), Type::Any),
             Expr::Bracket(o, f, p) => (self.cgen_bracket(o, f, p), Type::Any),
-            Expr::JsOp(op, args, JsOpTypeinf { arg_ts, op_metavar }, p) => {
+            Expr::JsOp(op, args, JsOpTypeinf { op_metavar }, p) => {
                 let w = self.fresh_weight();
                 // Fresh metavariable for the operator that we will select, stored in the AST for
                 // the next phase.
@@ -556,7 +556,6 @@ impl<'a> Typeinf<'a> {
                     }
                     conjuncts.push(self.t(&alpha_t)._eq(&self.t(op_ret_t)));
                     disjuncts.push(self.zand(conjuncts));
-                    *arg_ts = op_arg_t.clone();
                 };
                 // This is the case where we perform no coercions. This
                 // includes the any case! The coercions are done on the
