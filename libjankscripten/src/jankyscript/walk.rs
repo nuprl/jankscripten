@@ -306,6 +306,11 @@ where
                     self.walk_expr(e, &loc);
                 }
             }
+            MethodCall(id, name, args, typ, _) => {
+                let loc = Loc::Node(Context::Expr, loc);
+                let loc = Loc::Node(Context::BoundId(x), loc);
+                self.walk_type(t, &loc)
+            }
             // 2xExpr
             Bracket(ea, eb, _) | Binary(.., ea, eb, _) | Store(ea, eb, ..) => {
                 let loc = Loc::Node(Context::Expr, loc);

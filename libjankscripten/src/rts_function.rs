@@ -134,11 +134,7 @@ impl std::fmt::Display for RTSFunction {
             match self {
                 Todo(s) => s,
                 Method(name, ty) => {
-                    if let Type::Function(ts, _) = ty {
-                        return write!(f, "{}_{}", ts[0], name);
-                    } else {
-                        panic!("non-function function type")
-                    }
+                    return write!(f, "{}_{}", ty.unwrap_fun().0[0], name);
                 }
                 Typeof => "typeof",
                 Delete => "delete",

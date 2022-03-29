@@ -46,6 +46,13 @@ fn expr(e: Js::Expr) -> Expr {
             es.into_iter().map(|e| expr(e)).collect(),
             s,
         ),
+        E::MethodCall(id, name, es, s) => Expr::MethodCall(
+            id,
+            name,
+            es.into_iter().map(|e| expr(e)).collect(),
+            Type::Missing,
+            s,
+        ),
         E::Func(_, args, body, s) => func(
             args.into_iter().map(|x| (x, Type::Missing)).collect(),
             Type::Missing,
