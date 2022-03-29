@@ -97,6 +97,7 @@ use super::super::rope::Rope;
 use super::constructors::*;
 use super::syntax::*;
 use crate::pos::Pos;
+use crate::rts_function::RTSFunction;
 use crate::shared::NameGen;
 use std::collections::HashMap;
 
@@ -244,14 +245,7 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             ));
             for member_id in member_ids {
                 rv = rv.append(Rope::singleton(Stmt::Expression(
-                    Expr::prim_call(
-                        "array_push",
-                        vec![
-                            Atom::Id(array_name.clone(), p.clone()),
-                            Atom::Id(member_id, p.clone()),
-                        ],
-                        p.clone(),
-                    ),
+                    Expr::prim_call("array_push", vec![array_name.clone(), member_id], p.clone()),
                     p.clone(),
                 )))
             }
@@ -414,17 +408,7 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
         ),
         J::Expr::PrimCall(prim_name, args, p) => {
             compile_exprs(state, args, move |state, arg_ids| {
-                cxt.recv_e(
-                    state,
-                    Expr::PrimCall(
-                        prim_name,
-                        arg_ids
-                            .into_iter()
-                            .map(|x| Atom::Id(x, p.clone()))
-                            .collect(),
-                        p,
-                    ),
-                )
+                cxt.recv_e(state, Expr::PrimCall(prim_name, arg_ids, p))
             })
         }
         J::Expr::Call(fun, args, p) => compile_expr(
@@ -436,6 +420,27 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 })
             }),
         ),
+        J::Expr::MethodCall(obj, method, args, typ, p) => match typ.unwrap_fun().0[0] {
+            J::Type::Any => compile_expr(
+                state,
+                *obj,
+                C::id(move |state, fun_id| {
+                    compile_exprs(state, args, move |state, arg_ids| {
+                        cxt.recv_e(
+                            state,
+                            Expr::AnyMethodCall(fun_id, method, arg_ids, todo!(), p),
+                        )
+                    })
+                }),
+            ),
+            J::Type::DynObject => todo!(),
+            _ => compile_exprs(state, args, move |state, arg_ids| {
+                cxt.recv_e(
+                    state,
+                    Expr::PrimCall(RTSFunction::Method(method, typ), arg_ids, p),
+                )
+            }),
+        },
         J::Expr::NewRef(expr, ty, p) => compile_expr(
             state,
             *expr,

@@ -14,7 +14,7 @@ pub enum RTSFunction {
     // Type-specialized methods. They are always implemented in rust, with a
     // name given algorithmically based on the type and method name. The full type is
     // also provided, because it's generated in the methods table
-    Method(&'static str, Type),
+    Method(std::string::String, Type),
     // unary ops
     Typeof,
     Delete,

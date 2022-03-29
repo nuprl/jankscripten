@@ -246,6 +246,10 @@ impl Pretty for Expr {
             Expr::ClosureCall(f, args, _) => {
                 prettyp!(pp, (seq (id f) "!" (parens (comma_sep args))))
             }
+            Expr::AnyMethodCall(obj, method, args, typs, _) => {
+                let simple_types: Vec<_> = typs.into_iter().map(|t| &t.unwrap_fun().0[0]).collect();
+                prettyp!(pp, (seq (id obj) "." (id method) "?[" (comma_sep simple_types) "]" (parens (comma_sep args))))
+            }
             Expr::PrimCall(rtsfun, args, _) => {
                 prettyp!(pp, (seq (as_string rtsfun) (parens (comma_sep args))))
             }

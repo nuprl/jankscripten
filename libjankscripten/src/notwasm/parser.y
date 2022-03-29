@@ -131,10 +131,8 @@ IdTypeSeq -> Vec<(Id, Type)> :
   ;
 
 Expr -> Expr :
-    '[' ']'                             { warn("Use !array_new() instead of [] to allocate new arrays"); Expr::prim_call("array_new", vec![], pos($1)) }
-  | 'HT' '{' '}'                        { warn("Use !ht_new() instead of HT{} to allocate new arrays"); Expr::prim_call("ht_new", vec![], pos($1)) }
-  | '{' '}'                             { Expr::ObjectEmpty }
-  | '!' Id '(' AtomSeq ')'              { Expr::prim_call($2.into_name(), $4, pos($1)) } 
+    '{' '}'                             { Expr::ObjectEmpty }
+  | '!' Id '(' IdSeq ')'                { Expr::prim_call($2.into_name(), $4, pos($1)) } 
   | 'clos' '(' Id ',' IdAtomTypeSeq ')' { Expr::Closure($3, $5, pos($1)) }
   // TODO(arjun): We can infer the type annotation.
   | 'newRef' '(' Atom ',' Type ')'      { Expr::NewRef($3, $5, pos($1)) }
