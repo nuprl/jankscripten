@@ -129,7 +129,7 @@ pub enum Expr {
     Binary(BinaryOp, Box<Expr>, Box<Expr>, Pos),
     Assign(Box<LValue>, Box<Expr>, Pos),
     Call(Box<Expr>, Vec<Expr>, Pos),
-    MethodCall(Id, String, Vec<Expr>, Type, Pos),
+    MethodCall(Box<Expr>, String, Vec<Expr>, Type, Pos),
     PrimCall(RTSFunction, Vec<Expr>, Pos),
     Func(Func, Pos),
     Closure(Func, Vec<(Expr, Type)>, Pos),

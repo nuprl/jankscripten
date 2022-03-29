@@ -17,6 +17,7 @@
 //!    list of types.
 
 use super::super::shared::coercions::Coercion;
+use super::methods::METHODS_TABLE;
 use super::operators::OVERLOADS;
 use super::operators_z3::Z3Operators;
 use super::syntax::*;
@@ -423,6 +424,101 @@ impl<'a> Typeinf<'a> {
         phi_1 & phi_2 & phi_3
     }
 
+    fn cgen_method_call(
+        &mut self,
+        obj: &mut Expr,
+        method: &mut String,
+        args: &mut Vec<Expr>,
+        typ: &Type,
+        s: &Pos,
+    ) -> (ast::Bool<'a>, Type) {
+        let (obj_phi, obj_typ) = self.cgen_expr(obj);
+        let (arg_phis, arg_typs) = self.cgen_exprs(args.iter_mut());
+        let (ann_args_typs, ann_ret_ty) = typ.unwrap_fun();
+        // Set up a (so-far unconstrained) coercion for every argument
+        for ((arg_expr, arg_typ), final_typ) in
+            args.iter_mut().zip(arg_typs.iter()).zip(ann_args_typs)
+        {
+            *arg_expr = coerce(
+                arg_typ.clone(),
+                final_typ.clone(),
+                arg_expr.take(),
+                s.clone(),
+            );
+        }
+        let arg_ws: Vec<_> = args.iter().map(|_| self.fresh_weight()).collect();
+        let object_version = Type::Function(
+            std::iter::once(Type::DynObject)
+                .chain(vec![Type::Any; args.len() - 1].into_iter())
+                .collect(),
+            Box::new(Type::Any),
+        );
+        let any_version = Type::Function(vec![Type::Any; args.len()], Box::new(Type::Any));
+        let possible_typs: Box<dyn Iterator<Item = _>> =
+            if let Some(table_typs) = METHODS_TABLE.get(&(method.as_str(), args.len())) {
+                Box::new(
+                    table_typs
+                        .iter()
+                        // 3 / [2] (this is all it takes to cover this case!)
+                        .chain(std::iter::once(&object_version))
+                        // 4 / [3] (this is all it takes to cover this case!)
+                        .chain(std::iter::once(&any_version)),
+                )
+            } else {
+                // 1 / [2]
+                Box::new(std::iter::once(&object_version))
+            };
+        // 2 / [1]
+        let possible_phis = self.zand(
+            possible_typs
+                .map(|possible_typ| {
+                    let (expect_args, expect_ret_ty) = possible_typ.unwrap_fun();
+                    // Write down the method type (we also rely on this
+                    // to reify our coercion above)
+                    let annotate_phi = z3f!(self, (= (tid typ) (tid possible_typ)));
+                    let this_typ = &expect_args[0];
+                    // Ensure that our "known" type of the object
+                    // matches this possible type. When this isn't
+                    // true, this WHOLE expression won't be
+                    // -
+                    // Note this_typ isn't the type of the actual this
+                    // argument, which may get coerced to any, especially
+                    // since we've allowed this to be any even when it
+                    // should be object because of undefined
+                    z3f!(self, (= (tid obj_typ) (tid this_typ)));
+                    // Arguments:
+                    // Ensures that every argument can be legally
+                    // coerced to expect. These coercions were reified
+                    // before the lookup
+                    let args_coerce = self.zand(
+                        expect_args
+                            .iter()
+                            .zip(arg_typs.iter())
+                            .zip(arg_ws.iter())
+                            .map(|((expect, got), w)| {
+                                // If expect is any, this is (= got
+                                // any) and the onus of coercion is on the
+                                // argument expression
+                                z3f!(self, (or
+                                            (and (= (tid got) (typ any)) (not (id w.clone())))
+                                            (and (= (tid got) (tid expect)) (id w.clone()))))
+                            })
+                            .collect::<Vec<_>>(),
+                    );
+                    // Return value:
+                    let ret_ty = z3f!(self, (= (tid expect_ret_ty) (tid ann_ret_ty)));
+                    z3f!(self, (and (id annotate_phi) (id args_coerce) (id ret_ty)))
+                })
+                .collect::<Vec<_>>(),
+        );
+        let phi = z3f!(self, (and
+                    (id obj_phi)
+                    (id self.zand(arg_phis))
+                    (id possible_phis)));
+        let ty = ann_ret_ty.clone();
+        (phi, ty)
+    }
+
     // Coerce expr: t at p to either t (preferred) or any. Returns
     // (phis & additional, t or any). Only coerces to any when t is ground
     // NOTE(luna): If we end up with z3 performance concerns, not checking for
@@ -573,6 +669,21 @@ impl<'a> Typeinf<'a> {
                     ast::Bool::or(self.z.cxt, disjuncts.iter().collect::<Vec<_>>().as_slice());
                 args_phi.push(cases);
                 self.wobbly(p.clone(), expr, self.zand(args_phi), alpha_t)
+            }
+            // There are four possibilities:
+            // - 1. Method name doesn't match a primitive method [2]
+            // - 2. We know obj's type, which matches a known type for a method
+            //   with this name [1]
+            // - 3. We know obj's type to be `object` [2]
+            // - 4. We don't know obj's type [3]
+            // [1]: coerce all arguments/return to the method's expected types
+            // [2]: constrain obj to object and arguments/return to any
+            // [3]: constrain obj to any    and arguments/return to any
+            // We descriminate on these three cases when compiling to NotWasm
+            // to decide which constructs to use
+            Expr::MethodCall(obj, method, args, typ, s) => {
+                let (phi, ty) = self.cgen_method_call(obj, method, args, typ, s);
+                self.wobbly(s.clone(), expr, phi, ty)
             }
             Expr::Assign(lval, e, p) => match &mut **lval {
                 LValue::Id(x, x_t) => {
