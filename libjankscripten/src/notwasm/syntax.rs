@@ -304,8 +304,8 @@ pub enum Expr {
     /// right now, never constructed from jankyscript, only in tests
     Call(Id, Vec<Id>, Pos),
     ClosureCall(Id, Vec<Id>, Pos),
-    AnyMethodCall(Id, Vec<Id>, Vec<Type>, Pos),
-    PrimCall(RTSFunction, Vec<Atom>, Pos),
+    AnyMethodCall(Id, String, Vec<Id>, Vec<Type>, Pos),
+    PrimCall(RTSFunction, Vec<Id>, Pos),
     ObjectEmpty,
     /// `ObjectSet(obj, field, value, _)` is `obj.field = value;`. The translator generates code
     /// that caches the offset of `field` in `obj`, thus this is not a simple library call.

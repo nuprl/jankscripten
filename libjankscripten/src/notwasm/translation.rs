@@ -661,7 +661,7 @@ impl<'a> Translate<'a> {
             }
             N::Expr::PrimCall(rts_func, args, _) => {
                 for arg in args {
-                    self.translate_atom(arg);
+                    self.get_id(arg);
                 }
 
                 let name = rts_func.name();
@@ -708,6 +708,36 @@ impl<'a> Translate<'a> {
                     ),
                     _ => panic!("expected Func ID ({})", f),
                 };
+            }
+            N::Expr::AnyMethodCall(obj, method, args, typs, s) => {
+                todo!();
+                // Unconditional exit 8 (acting 5)
+                self.out.push(Block(BlockType::Value(ValueType::I64)));
+                // Error 7 (acting 4)
+                self.out.push(Block(BlockType::Value(ValueType::I64)));
+                // Skip null 6
+                // Skip undefined 5
+                // TODO(closure) 4
+                // Ptr 3
+                self.out.push(Block(BlockType::Value(ValueType::I64)));
+                // Bool 2
+                self.out.push(Block(BlockType::Value(ValueType::I64)));
+                // F64 1
+                self.out.push(Block(BlockType::Value(ValueType::I64)));
+                // I32 0
+                self.out.push(Block(BlockType::Value(ValueType::I64)));
+                // Get our object and look at the descriminant
+                self.get_id(obj);
+                self.out.push(I32Const(0xf000));
+                self.out.push(I32And);
+                self.out.push(I32Const(3 * 8));
+                self.out.push(I32ShrU);
+                // See runtime::any_value::tests::abi_any_discriminants_stable
+                BrTable(Box::new(BrTableData {
+                    table: Box::new([0, 1, 2, 3, 4, 5, 6]),
+                    default: 7,
+                }));
+                todo!()
             }
             N::Expr::ClosureCall(f, args, s) => {
                 match self.id_env.get(f).cloned() {

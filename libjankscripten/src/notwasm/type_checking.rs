@@ -326,7 +326,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
                 return Err(err!(s, "wrong number of arguments for {}", name));
             }
             for ((i, expected_ty), arg) in arg_tys.iter().enumerate().zip(args.iter_mut()) {
-                let got_ty = type_check_atom(env, arg)?;
+                let got_ty = lookup(env, arg, s)?;
                 if expected_ty != &got_ty {
                     return Err(err!(
                         s,
@@ -345,7 +345,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
                 Type::Fn(fn_ty) => {
                     let arg_tys = args
                         .into_iter()
-                        .map(|a| type_check_atom(env, a))
+                        .map(|a| lookup(env, a, s))
                         .collect::<Result<Vec<_>, _>>()?;
                     if arg_tys.len() != fn_ty.args.len() {
                         error!(
@@ -383,6 +383,13 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
                     s.clone(),
                 ))
             }
+        }
+        Expr::AnyMethodCall(obj, _, actuals, _, s) => {
+            ensure("AnyMethodCall", Type::Any, lookup(env, obj, s)?, s)?;
+            actuals.iter().try_for_each(|a| {
+                ensure("method arg", Type::Any, lookup(env, a, s)?, s).map(|_| ())
+            })?;
+            Ok(Type::Any)
         }
         Expr::ClosureCall(id_f, actuals, s) => {
             let got_f = lookup(env, id_f, s)?;

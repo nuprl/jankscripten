@@ -253,6 +253,22 @@ mod test {
     use super::*;
     use wasm_bindgen_test::wasm_bindgen_test;
 
+    /// This serves as documentation of the discriminants and a test that they
+    /// are as expected. Keeping them in the same place avoids divergence
+    /// This is stable across compiles in the same compiler as long as AnyEnum
+    /// isn't changed. This seems to closely follow just being sequential by
+    /// the definition
+    /// https://doc.rust-lang.org/std/mem/fn.discriminant.html
+    #[wasm_bindgen_test]
+    fn abi_any_discriminants_stable() {
+        assert_disc(AnyEnum::I32(0), 0);
+        assert_disc(AnyEnum::F64(&0.0 as *const f64), 1);
+        assert_disc(AnyEnum::Bool(false), 2);
+        assert_disc(AnyEnum::Ptr(heap().alloc_str_or_gc(".").as_any_ptr()), 3);
+        assert_disc(AnyEnum::Closure(Closure(unsafe { EnvPtr::null() }, 0)), 4);
+        assert_disc(AnyEnum::Undefined, 5);
+        assert_disc(AnyEnum::Null, 6);
+    }
     #[wasm_bindgen_test]
     fn any_size_is_64() {
         assert_eq!(std::mem::size_of::<AnyValue>(), 8, "AnyValue");
@@ -319,5 +335,18 @@ mod test {
         let raw_data_of_shifted = into_any.raw_val() >> 16;
         let calculated_closure: ClosureVal = unsafe { std::mem::transmute(raw_data_of_shifted) };
         assert_eq!(calculated_closure, fake_closure);
+    }
+    fn assert_disc(any: AnyEnum, expected: usize) {
+        use std::mem::discriminant;
+        use std::mem::Discriminant;
+        union DescInt<T> {
+            opaque: Discriminant<T>,
+            int: usize,
+        }
+        let un = DescInt {
+            opaque: discriminant(&any),
+        };
+        let as_int = unsafe { un.int };
+        assert_eq!(as_int, expected);
     }
 }

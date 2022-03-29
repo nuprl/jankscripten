@@ -138,7 +138,7 @@ where
         self.visitor.enter_expr(expr, loc);
         match expr {
             // TODO(arjun): PrimCall should be walking atom!
-            ObjectEmpty | Call(..) | ClosureCall(..) | PrimCall(..) => (),
+            ObjectEmpty | Call(..) | AnyMethodCall(..) | ClosureCall(..) | PrimCall(..) => (),
             ObjectSet(ea, eb, ec, ..) | ArraySet(ea, eb, ec, _) => {
                 self.walk_atom(ea, loc);
                 self.walk_atom(eb, loc);
@@ -202,7 +202,7 @@ impl Expr {
         vs.walk_expr(self, &mut loc);
     }
 
-    pub fn prim_call(name: impl Into<String>, args: Vec<Atom>, pos: Pos) -> Self {
+    pub fn prim_call(name: impl Into<String>, args: Vec<Id>, pos: Pos) -> Self {
         Expr::PrimCall(RTSFunction::Import(name.into()), args, pos)
     }
 }
