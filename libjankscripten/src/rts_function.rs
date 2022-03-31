@@ -133,9 +133,16 @@ impl std::fmt::Display for RTSFunction {
             "{}",
             match self {
                 Todo(s) => s,
-                Method(name, ty) => {
-                    return write!(f, "{}_{}", ty.unwrap_fun().0[0], name);
+                Method(name, Type::Function(args, _)) => {
+                    return write!(f, "{}_{}", args[0], name);
                 }
+                Method(name, Type::Missing) => {
+                    return write!(f, "?_{}", name);
+                }
+                Method(name, Type::Metavar(i)) => {
+                    return write!(f, "<{}>_{}", i, name);
+                }
+                Method(_, _) => panic!("invalid method type"),
                 Typeof => "typeof",
                 Delete => "delete",
                 Void => "void",
