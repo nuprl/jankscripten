@@ -303,8 +303,9 @@ where
                     self.walk_expr(e, &loc);
                 }
             }
-            MethodCall(_, _, args, typ, _) => {
+            MethodCall(obj, _, args, typ, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
+                self.walk_expr(obj, &loc);
                 for arg in args {
                     self.walk_expr(arg, &loc);
                 }

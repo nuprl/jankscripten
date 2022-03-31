@@ -358,7 +358,15 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
         }
         Expr::MethodCall(obj, _, args, typ, s) => {
             let obj_type = type_check_expr(obj, env.clone())?;
-            ensure("this", obj_type, typ.unwrap_fun().0[0].clone(), s)?;
+            // If obj_type is any but typ[0] is object, this is fine, this is
+            // the current (bad) expected behavior because we allow this to take
+            // on `undefined`
+            let _ = match (typ.unwrap_fun().0[0].clone(), obj_type) {
+                (Type::DynObject, Type::Any) | (Type::DynObject, Type::DynObject) => {
+                    Type::DynObject
+                }
+                (expected, got) => ensure("this", expected, got, s)?,
+            };
             type_check_fun_call(typ.clone(), args, env, s.clone())
         }
         Expr::Coercion(coercion, e, s) => {
