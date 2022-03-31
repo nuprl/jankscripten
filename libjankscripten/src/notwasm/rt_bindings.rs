@@ -40,13 +40,11 @@ pub fn get_rt_bindings() -> BindMap {
     );
     // Step 2: automatically insert runtime functions from RTSFunction.
     for rts in RTSFunction::iter() {
-        if let RTSFunction::Todo(_) = rts {
-            // can't !let
-        } else if let RTSFunctionImpl::Rust(name) = rts.name() {
-            // Automatically generate the name and notwasm type
-            match rts {
-                RTSFunction::Import(..) => {}
-                _ => {
+        match rts {
+            RTSFunction::Todo(..) | RTSFunction::Import(..) | RTSFunction::Method(..) => (),
+            _ => {
+                if let RTSFunctionImpl::Rust(name) = rts.name() {
+                    // Automatically generate the name and notwasm type
                     m.insert(name.into(), rts.janky_typ().notwasm_typ(false));
                 }
             }
