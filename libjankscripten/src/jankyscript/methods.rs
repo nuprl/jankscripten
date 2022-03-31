@@ -13,14 +13,21 @@ macro_rules! entry {
 
 fn methods_table() -> HashMap<(&'static str, usize), Vec<Type>> {
     [
+        // Length is EXTREMELY special. Let's be very careful here. When
+        // our object IS a string or array, we do exactly what we want if it's
+        // represented as MethodCall(obj, "length", vec![obj], (string) -> int,
+        // p). BUT when our object is an object, this gets naively compiled as
+        // obj.length() which is NOT what we want! Further, when our object
+        // is any, we need to *generate code* that knows that when obj is
+        // string/array, it should call the primitive, but when obj is an object
+        // it should be JUST a dot lookup. i'm putting this off
+        entry!(length, (string) -> int, (array) -> int),
         entry!(slice, (string, int, int) -> string, (array, int, int) -> array),
         entry!(at, (string, int) -> any, (string, int) -> string),
         entry!(concat, (array, array) -> array, (string, string) -> string),
+        entry!(push, (array, any) -> int),
         // Source: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array
         // Array.prototype[@@unscopables] // ??
-        // length is actually special and not really part of the prototype but
-        // for the purpose of type inference it should be here
-        //"length",
         // Array.prototype[@@iterator]() // ??
         // get Array[@@species] // ??
         //"copyWithin",
@@ -43,7 +50,6 @@ fn methods_table() -> HashMap<(&'static str, usize), Vec<Type>> {
         //"map",
         //"of", // Array.of
         //"pop",
-        //"push",
         //"reduce",
         //"reduceRight",
         //"reverse",
