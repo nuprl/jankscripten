@@ -420,27 +420,18 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 })
             }),
         ),
-        J::Expr::MethodCall(obj, method, args, typ, p) => match typ.unwrap_fun().0[0] {
-            J::Type::Any => compile_expr(
-                state,
-                *obj,
-                C::id(move |state, fun_id| {
-                    compile_exprs(state, args, move |state, arg_ids| {
-                        cxt.recv_e(
-                            state,
-                            Expr::AnyMethodCall(fun_id, method, arg_ids, todo!(), p),
-                        )
-                    })
-                }),
-            ),
-            J::Type::DynObject => todo!(),
-            _ => compile_exprs(state, args, move |state, arg_ids| {
-                cxt.recv_e(
-                    state,
-                    Expr::PrimCall(RTSFunction::Method(method, typ), arg_ids, p),
-                )
+        J::Expr::MethodCall(obj, method, args, _, p) => compile_expr(
+            state,
+            *obj,
+            C::id(move |state, fun_id| {
+                compile_exprs(state, args, move |state, arg_ids| {
+                    cxt.recv_e(
+                        state,
+                        Expr::AnyMethodCall(fun_id, method, arg_ids, todo!(), p),
+                    )
+                })
             }),
-        },
+        ),
         J::Expr::NewRef(expr, ty, p) => compile_expr(
             state,
             *expr,

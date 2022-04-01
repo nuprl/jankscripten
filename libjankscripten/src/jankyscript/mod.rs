@@ -11,6 +11,7 @@ mod methods;
 mod operators;
 mod operators_z3;
 mod pretty;
+mod select_method_call;
 pub mod syntax;
 mod type_checking;
 mod typeinf;
