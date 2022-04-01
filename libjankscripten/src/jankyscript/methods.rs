@@ -69,6 +69,20 @@ fn methods_table() -> HashMap<(&'static str, usize), Vec<Type>> {
     .collect()
 }
 
+pub fn get_type_by_prefix(method: &str, arity: usize, prefix: &Type) -> Type {
+    match prefix {
+        Type::DynObject | Type::Any => typ!(fun_vec(vec![Type::Any; arity]) -> any),
+        _ => METHODS_TABLE
+            .get(&(method, arity))
+            .unwrap()
+            .iter()
+            .filter(|t| &t.unwrap_fun().0[0] == prefix)
+            .next()
+            .unwrap()
+            .clone(),
+    }
+}
+
 lazy_static! {
     pub static ref METHODS_TABLE: HashMap<(&'static str, usize), Vec<Type>> = methods_table();
 }
