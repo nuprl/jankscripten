@@ -24,6 +24,7 @@ pub fn desugar(stmt: &mut Stmt, ng: &mut NameGen) {
     // dep: desugar_function_applications, add_blocks
     desugar_updates::desugar_updates(stmt, ng);
     desugar_bracket_str::desugar_bracket_str(stmt);
+    // dep: desugar_this
     resugar_method_call::resugar_method_call(stmt);
 }
 

@@ -4,6 +4,7 @@ use super::coercions::reify_coercions;
 use super::collect_assigns::collect_assigns;
 use super::fv::free_vars;
 use super::insert_returns::insert_returns;
+use super::select_method_call::select_method_call;
 use super::syntax::*;
 use super::type_checking::{type_check, TypeCheckingError};
 use super::typeinf::typeinf;
@@ -14,6 +15,7 @@ where
 {
     insert_returns(janky_ast);
     typeinf(janky_ast);
+    select_method_call(janky_ast);
     reify_coercions(janky_ast);
     type_check(janky_ast)?;
     // TODO(luna): maybe the runtime should be added in jankierscript or
