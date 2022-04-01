@@ -502,7 +502,7 @@ impl<'a> Typeinf<'a> {
                             // (4) (this is all it takes to cover this case!)
                             .chain(std::iter::once(any_version)),
                     ),
-                    z3f!(self, true),
+                    z3f!(self, (= (tid original_obj_typ) (tid obj_typ))),
                 )
             } else {
                 // (1)

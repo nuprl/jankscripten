@@ -1,5 +1,5 @@
-  function main() {
-    var x = HT{};
+function main() {
+    var x = @ht_new();
     var ret = any(0);
     @ht_set(x, "one", any(1));
     @ht_set(x, "two", any(2));
