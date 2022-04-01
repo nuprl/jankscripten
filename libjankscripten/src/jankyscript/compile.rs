@@ -16,6 +16,7 @@ where
     insert_returns(janky_ast);
     typeinf(janky_ast);
     select_method_call(janky_ast);
+    inspect_janky(&janky_ast);
     reify_coercions(janky_ast);
     type_check(janky_ast)?;
     // TODO(luna): maybe the runtime should be added in jankierscript or
@@ -27,6 +28,6 @@ where
     // type-checking should succeed after every phase.
     type_check(janky_ast)?;
     // Inspect after type-checking, so that all type annotations are present.
-    inspect_janky(&janky_ast);
+    //inspect_janky(&janky_ast);
     Ok(())
 }
