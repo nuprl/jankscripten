@@ -9,6 +9,7 @@
 /// A macro for building a Z3 formula, with some special bits for representing
 /// types.
 #[macro_export]
+#[must_use]
 macro_rules! z3f {
     ($me:ident, true) => (z3::ast::Bool::from_bool($me.cxt, true));
     ($me:ident, false) => (z3::ast::Bool::from_bool($me.cxt, false));

@@ -425,14 +425,16 @@ impl<'a> Typeinf<'a> {
     }
 
     /// There are four possibilities:
-    /// - 1. Method name doesn't match a primitive method [2]
+    /// - 1. Method name doesn't match a primitive method
     /// - 2. We know obj's type, which matches a known type for a method
-    ///   with this name [1]
-    /// - 3. We know obj's type to be `object` [2]
-    /// - 4. We don't know obj's type [3]
-    /// [1]: coerce all arguments/return to the method's expected types
-    /// [2]: constrain obj to object and arguments/return to any
-    /// [3]: constrain obj to any    and arguments/return to any
+    ///   with this name
+    /// - 3. We know obj's type to be `object`
+    /// - 4. We don't know obj's type
+    /// [1]: this is the only elimination form for obj. allow obj to coerce
+    ///      to object
+    /// [2]: coerce all arguments/return to the method's expected types
+    /// [3]: constrain obj to object and arguments/return to any
+    /// [4]: constrain obj to any    and arguments/return to any
     /// We descriminate on these three cases when compiling to NotWasm
     /// to decide which constructs to use
     fn cgen_method_call(
@@ -443,22 +445,29 @@ impl<'a> Typeinf<'a> {
         typ: &mut Type,
         s: &Pos,
     ) -> (ast::Bool<'a>, Type) {
-        let (obj_phi, obj_typ) = self.cgen_expr(obj);
+        let (obj_phi, original_obj_typ) = self.cgen_expr(obj);
         let (arg_phis, arg_typs) = self.cgen_exprs(args.iter_mut());
-        // A. Set up unconstrained coercions for every argument to their type
-        //    in typ. These will be coercions to MORE precise types when we
-        //    know the object type
-        // Step one: destructure typ so we can talk about its parameters/return
-        // We constrain that fresh metavars are equal to typ, to avoid needing to
-        // destructure a metavariable into args and ret (how to even do that?)
+        // A. Set up unconstrained coercions for every argument to some type.
+        //    These will be coercions to MORE precise types when we know the
+        //    object type. These ann_ types are the *actual* post-coercion types
+        // This includes a weird coercion for object that ONLY exists when
+        // there are no special methods (elimination form)
+        let obj_typ = self.fresh_metavar("objmethod");
+        let obj_w = self.fresh_weight();
         let ann_args_typs: Vec<_> = args.iter().map(|_| self.fresh_metavar("param")).collect();
         let ann_ret_ty = self.fresh_metavar("ret");
-        *typ = self.fresh_metavar("method ann");
-        let ann_tys_phi = z3f!(self, (= (tid typ)
-            (typ fun_vec(ann_args_typs.clone()) -> unquote(ann_ret_ty.clone()))));
+        *typ = self.fresh_metavar("method type");
         // Now we can set up our coercions!
-        for ((arg_expr, arg_typ), final_typ) in
-            args.iter_mut().zip(arg_typs.iter()).zip(ann_args_typs)
+        *obj = coerce(
+            original_obj_typ.clone(),
+            obj_typ.clone(),
+            obj.take(),
+            s.clone(),
+        );
+        for ((arg_expr, arg_typ), final_typ) in args
+            .iter_mut()
+            .zip(arg_typs.iter())
+            .zip(ann_args_typs.iter())
         {
             *arg_expr = coerce(
                 arg_typ.clone(),
@@ -470,29 +479,39 @@ impl<'a> Typeinf<'a> {
         // B. Determine all types that our method could take on. This is
         //    dependent on which (1/2/3/4) case we're in, as well as our methods
         //    table
+        // The type of object call is actually still (any...) -> any because of
+        // weird this behavior that i (somewhat) want to change. But it's fine
+        // because the OBJECT is still dynobject. the this just gets coerced
+        // to any
+        // This is just used a couple times
+        let ground = typ!(fun_vec(vec![Type::Any; args.len()]) -> any);
         // Used for (1) AND (3)
-        let object_version = Type::Function(
-            std::iter::once(Type::DynObject)
-                .chain(vec![Type::Any; args.len() - 1].into_iter())
-                .collect(),
-            Box::new(Type::Any),
-        );
+        let object_version = (Type::DynObject, &ground);
         // Used for (4)
-        let any_version = Type::Function(vec![Type::Any; args.len()], Box::new(Type::Any));
+        let any_version = (Type::Any, &ground);
         // Set up our types finally
-        let possible_typs: Box<dyn Iterator<Item = _>> =
+        let (possible_typs, obj_coerce_phi): (Box<dyn Iterator<Item = _>>, _) =
             if let Some(table_typs) = METHODS_TABLE.get(&(method.as_str(), args.len())) {
-                Box::new(
-                    table_typs
-                        .iter()
-                        // 3 / [2] (this is all it takes to cover this case!)
-                        .chain(std::iter::once(&object_version))
-                        // 4 / [3] (this is all it takes to cover this case!)
-                        .chain(std::iter::once(&any_version)),
+                (
+                    Box::new(
+                        table_typs
+                            .iter()
+                            .map(|t| (t.unwrap_fun().0[0].clone(), t))
+                            // (3) (this is all it takes to cover this case!)
+                            .chain(std::iter::once(object_version))
+                            // (4) (this is all it takes to cover this case!)
+                            .chain(std::iter::once(any_version)),
+                    ),
+                    z3f!(self, true),
                 )
             } else {
-                // 1 / [2]
-                Box::new(std::iter::once(&object_version))
+                // (1)
+                (
+                    Box::new(std::iter::once(object_version)),
+                    z3f!(self, (or
+                        (and (= (tid original_obj_typ) (tid obj_typ)) (id obj_w.clone()))
+                        (and (= (tid original_obj_typ) (typ any)) (not (id obj_w))))),
+                )
             };
         // As an optimization, set up a single weight for each argument outside
         // of our type loop. These are used on our coercions
@@ -501,24 +520,21 @@ impl<'a> Typeinf<'a> {
         // By convention we know that each object type is distinct, so each phi
         // is disjoint!
         let possible_phis = possible_typs
-            .map(|possible_typ| {
+            .map(|(possible_obj_typ, possible_typ)| {
                 // For each given type, we want to match the object type
                 // and coerce the arguments
                 let (expect_args, expect_ret_ty) = possible_typ.unwrap_fun();
-                // Write down the method type (we also rely on this
-                // to reify our coercion above). Note the transitive equality:
-                // destructured metavars = annotation(typ) = possible_typ(known type)
-                let annotate_phi = z3f!(self, (= (tid typ) (tid possible_typ)));
-                let this_typ = &expect_args[0];
                 // Ensure that our "known" type of the object
                 // matches this possible type. When this isn't
                 // true, this WHOLE expression won't be
                 // -
-                // Note this_typ isn't the type of the actual this
+                // Note possible_obj_typ isn't the type of the actual this
                 // argument, which may get coerced to any, especially
                 // since we've allowed this to be any even when it
                 // should be object because of undefined (this should change)
-                z3f!(self, (= (tid obj_typ) (tid this_typ)));
+                // -
+                // We write the type in the expression at the same time
+                let obj_match = z3f!(self, (= (tid obj_typ) (tid possible_obj_typ) (tid typ)));
                 // Arguments:
                 // Ensures that every argument can be legally
                 // coerced to expect. These coercions were reified
@@ -527,30 +543,33 @@ impl<'a> Typeinf<'a> {
                     expect_args
                         .iter()
                         .zip(arg_typs.iter())
+                        .zip(ann_args_typs.iter())
                         .zip(arg_ws.iter())
-                        .map(|((expect, got), w)| {
-                            // If expect is any, this is (= got
-                            // any) and the onus of coercion is on the
-                            // argument expression
-                            z3f!(self, (or
-                                            (and (= (tid got) (typ any)) (not (id w.clone())))
-                                            (and (= (tid got) (tid expect)) (id w.clone()))))
+                        .map(|(((expect, got), actual), w)| {
+                            z3f!(self, (and
+                                (= (tid expect) (tid actual))
+                                // If expect is any, this is (= got
+                                // any) and the onus of coercion is on the
+                                // argument expression
+                                (or
+                                    (and (= (tid got) (typ any)) (not (id w.clone())))
+                                    (and (= (tid got) (tid expect)) (id w.clone())))))
                         })
                         .collect::<Vec<_>>(),
                 );
                 // Return value:
                 let ret_ty = z3f!(self, (= (tid expect_ret_ty) (tid ann_ret_ty)));
-                z3f!(self, (and (id annotate_phi) (id args_coerce) (id ret_ty)))
+                z3f!(self, (and (id obj_match) (id args_coerce) (id ret_ty)))
             })
             .collect::<Vec<_>>();
         let possible_phi = self.zor(possible_phis.iter().collect::<Vec<_>>().as_slice());
         // Now simply collect all of our phis and our type is the return
         // type. This gets wobbly-ified at the call site
         let phi = z3f!(self, (and
-                    (id obj_phi)
-                    (id self.zand(arg_phis))
-                    (id possible_phi)
-                    (id ann_tys_phi)));
+            (id obj_phi)
+            (id self.zand(arg_phis))
+            (id possible_phi)
+            (id obj_coerce_phi)));
         let ty = ann_ret_ty.clone();
         (phi, ty)
     }
@@ -923,6 +942,7 @@ mod tests {
         let mut janky = crate::jankyscript::from_js::from_javascript(js);
         println!("after from_js: {}", janky);
         typeinf(&mut janky);
+        println!("after typeinf: {}", janky);
         let mut count_anys = CountToAnys::default();
         janky.walk(&mut count_anys);
         type_check(&janky).expect("result of type inference does not type check");
@@ -1065,7 +1085,7 @@ mod tests {
             "#,
         );
         // o.g<(object, any) -> any>(o as any, true as any);
-        assert_eq!(n, 2); // 1) o, 2) true
+        assert_eq!(n, 3); // 1) put f in o, 2) o, 3) true
     }
 
     #[test]

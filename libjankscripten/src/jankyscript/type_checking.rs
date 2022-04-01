@@ -2,6 +2,7 @@
 //! This occurs after type inference to ensure that type inference succeeded
 //! correctly.
 
+use super::methods::get_type_by_prefix;
 use super::syntax::*;
 use crate::pos::Pos;
 use crate::shared::std_lib::get_global_object;
@@ -356,18 +357,15 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             // type check this call
             type_check_fun_call(fun_type, args, env, s.clone())
         }
-        Expr::MethodCall(obj, _, args, typ, s) => {
+        Expr::MethodCall(obj, method, args, typ, s) => {
             let obj_type = type_check_expr(obj, env.clone())?;
-            // If obj_type is any but typ[0] is object, this is fine, this is
-            // the current (bad) expected behavior because we allow this to take
-            // on `undefined`
-            let _ = match (typ.unwrap_fun().0[0].clone(), obj_type) {
-                (Type::DynObject, Type::Any) | (Type::DynObject, Type::DynObject) => {
-                    Type::DynObject
-                }
-                (expected, got) => ensure("this", expected, got, s)?,
-            };
-            type_check_fun_call(typ.clone(), args, env, s.clone())
+            ensure("this", typ.clone(), obj_type, s)?;
+            type_check_fun_call(
+                get_type_by_prefix(method, args.len(), typ),
+                args,
+                env,
+                s.clone(),
+            )
         }
         Expr::Coercion(coercion, e, s) => {
             // type the expression. regardless of the coercion, the expression
