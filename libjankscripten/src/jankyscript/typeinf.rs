@@ -369,9 +369,8 @@ impl<'a> Typeinf<'a> {
         *obj_e = coerce(t.clone(), Type::DynObject, e, p.clone());
         let phi_2 = z3f!(self,
                     (or
-                        (and (= (tid t) (typ dynobject)) (id w.clone()))
-                        (id w.clone())
-                        (and (= (tid t) (typ any)) (not (id &w)))));
+                        (and (= (tid t) (typ dynobject)) (id w.clone()) (id w.clone()))
+                        (and (= (tid t) (typ any)) (not (id w)))));
         phi_1 & phi_2
     }
 
