@@ -18,7 +18,8 @@ macro_rules! typ {
         (Type::Function(vec![ $( typ!($arg) ),* ], Box::new(typ!($ret))));
     (fun_vec($($args:tt)*) -> $($ret:tt)*) =>
         (Type::Function($($args)*, Box::new(typ!($($ret)*))));
-    (unquote ( $($x:tt)* ) ) => ($($x)*);
+    ((unquote $($x:tt)*)) => ($($x)*);
+    (unquote $($x:tt)*) => ($($x)*);
 }
 
 /// A NotWasm operator: either a primitive Wasm operator, or a call to a function in the runtime

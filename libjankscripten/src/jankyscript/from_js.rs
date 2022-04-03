@@ -53,6 +53,7 @@ fn expr(e: Js::Expr) -> Expr {
             Type::Missing,
             s,
         ),
+        E::Length(obj, s) => Expr::Length(Box::new(expr(*obj)), Type::Missing, s),
         E::Func(_, args, body, s) => func(
             args.into_iter().map(|x| (x, Type::Missing)).collect(),
             Type::Missing,

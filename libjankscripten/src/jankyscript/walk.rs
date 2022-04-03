@@ -311,6 +311,11 @@ where
                 }
                 self.walk_type(typ, &loc);
             }
+            Length(obj, typ, _) => {
+                let loc = Loc::Node(Context::Expr, loc);
+                self.walk_expr(obj, &loc);
+                self.walk_type(typ, &loc);
+            }
             // 2xExpr
             Bracket(ea, eb, _) | Binary(.., ea, eb, _) | Store(ea, eb, ..) => {
                 let loc = Loc::Node(Context::Expr, loc);

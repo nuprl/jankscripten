@@ -432,6 +432,7 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                 })
             }),
         ),
+        J::Expr::Length(obj, typ, p) => todo!(),
         J::Expr::NewRef(expr, ty, p) => compile_expr(
             state,
             *expr,

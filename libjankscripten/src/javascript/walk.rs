@@ -266,7 +266,7 @@ where
                 }
             }
             // 1xExpr
-            Dot(e, .., _) | Unary(.., e, _) => {
+            Dot(e, .., _) | Unary(.., e, _) | Length(e, _) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_expr(e, &loc);
             }
