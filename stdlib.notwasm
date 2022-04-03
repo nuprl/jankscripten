@@ -2,10 +2,8 @@ import ht_new : () -> HT;
 import ht_get: (HT, str) -> any;
 import ht_set: (HT, str, any) -> any;
 import array_new: () -> Array;
-import array_push: (Array, any) -> i32; // new length
 import array_index: (Array, i32) -> any;
 import array_set: (Array, i32, any) -> any;
-import array_len: (Array) -> i32;
 import any_from_ptr: (i32) -> any;
 import any_to_ptr: (any) -> i32;
 import get_undefined: () -> any;
@@ -14,7 +12,6 @@ import object_empty: () -> DynObject;
 import object_create: (env, any, any) -> any;
 import object_set: (DynObject, str, any, ptr) -> any;
 import object_get: (DynObject, str, ptr) -> any;
-import string_len: (str) -> i32;
 import ref_new_non_ptr_32: (i32) -> Ref(i32);
 import ref_new_f64: (f64) -> Ref(f64);
 import ref_new_any: (any) -> Ref(any);
@@ -64,7 +61,7 @@ import math_max : (env, any, any, any) -> any;
 // __JNKS
 import heap_dump : (env, any) -> any;
 import log_any_raw : (any, any) -> any;
-//import dbg_log : (any) -> any;
+import dbg_log : (any) -> any;
 
 import janky_primitive_plus : (any, any) -> any;
 import any_is_object : (any) -> bool;

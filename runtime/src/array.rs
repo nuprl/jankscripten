@@ -20,14 +20,26 @@ pub extern "C" fn array_set(mut array: ArrayPtr, index: i32, val: AnyValue) -> A
 }
 
 #[no_mangle]
-pub extern "C" fn array_len(array: ArrayPtr) -> i32 {
+pub extern "C" fn array_length(array: ArrayPtr) -> i32 {
     array.len() as i32
+}
+
+#[no_mangle]
+pub extern "C" fn array_slice(array: ArrayPtr, a: i32, b: i32) -> ArrayPtr {
+    let a = if a < 0 { todo!() } else { a as usize };
+    let b = if b < 0 { todo!() } else { b as usize };
+    heap().alloc_or_gc(array[a..b].to_vec())
 }
 
 #[no_mangle]
 pub extern "C" fn array_push(mut array: ArrayPtr, value: AnyValue) -> i32 {
     array.push(value);
     array.len() as i32
+}
+
+#[no_mangle]
+pub extern "C" fn array_concat(a: ArrayPtr, b: ArrayPtr) -> ArrayPtr {
+    heap().alloc_or_gc(a.iter().chain(b.iter()).cloned().collect::<Vec<_>>())
 }
 
 #[cfg(test)]

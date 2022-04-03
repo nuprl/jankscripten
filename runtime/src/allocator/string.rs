@@ -1,6 +1,7 @@
 use super::constants::DATA_OFFSET;
 use super::heap_values::*;
 use super::Heap;
+use crate::heap;
 use std::ops::Deref;
 
 /// A managed thin pointer to a string. Interned strings are also tagged
@@ -26,6 +27,26 @@ impl StringPtr {
     }
     pub fn len(&self) -> usize {
         u32::from_le(unsafe { *(self.ptr.add(DATA_OFFSET) as *const u32) }) as usize
+    }
+    pub fn slice(&self, a: i32, b: i32) -> Self {
+        let a = if a < 0 { todo!() } else { a as usize };
+        let b = if b < 0 { todo!() } else { b as usize };
+        let a = if a > self.len() { self.len() } else { a };
+        let b = if b > self.len() {
+            self.len()
+        } else if b < a {
+            a
+        } else {
+            b
+        };
+        let rust_str = unsafe {
+            let start = self.ptr.add(DATA_OFFSET + 1) as *const u8;
+            // TODO(luna): unicode....
+            let first_char = start.add(a);
+            let length = b - a;
+            std::str::from_utf8_unchecked(std::slice::from_raw_parts(first_char, length))
+        };
+        heap().alloc_str_or_gc(rust_str)
     }
 }
 impl HeapPtr for StringPtr {

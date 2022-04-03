@@ -23,7 +23,7 @@ fn methods_table() -> HashMap<(&'static str, usize), Vec<Type>> {
         // it should be JUST a dot lookup. i'm putting this off
         entry!(length, (string) -> int, (array) -> int),
         entry!(slice, (string, int, int) -> string, (array, int, int) -> array),
-        entry!(at, (string, int) -> any, (string, int) -> string),
+        //entry!(at, (string, int) -> any, (string, int) -> string),
         entry!(concat, (array, array) -> array, (string, string) -> string),
         entry!(push, (array, any) -> int),
         // Source: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array

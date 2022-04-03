@@ -39,13 +39,15 @@ pub fn get_rt_bindings() -> BindMap {
         &mono,
         vec![I32, Bool, a_clos.clone()],
     );
+    // Step 2: automatically insert runtime functions from RTSFunction.
     let mut insert_rts_fn = |rts: &RTSFunction| {
         if let RTSFunctionImpl::Rust(name) = rts.name() {
             // Automatically generate the name and notwasm type
-            m.insert(name.into(), rts.janky_typ().notwasm_typ(false));
+            assert!(m
+                .insert(name.into(), rts.janky_typ().notwasm_typ(false))
+                .is_none());
         }
     };
-    // Step 2: automatically insert runtime functions from RTSFunction.
     for rts in RTSFunction::iter() {
         match rts {
             RTSFunction::Todo(..) | RTSFunction::Import(..) | RTSFunction::Method(..) => (),
@@ -80,6 +82,6 @@ fn insert_mono<'a, X, I>(
         let mono_name = format!("{}_{}", name, replace_ty);
         let params_tys = params_tys.iter().map(|f| f(replace_ty.clone())).collect();
         let ret_ty = ret_ty.clone().into().map(|f| f(replace_ty));
-        map.insert(mono_name, fn_ty_(params_tys, ret_ty));
+        assert!(map.insert(mono_name, fn_ty_(params_tys, ret_ty)).is_none());
     }
 }
