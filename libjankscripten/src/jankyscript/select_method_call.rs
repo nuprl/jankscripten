@@ -1,10 +1,10 @@
 //! Turn (typed) method calls into relevant typed calls
 
 use super::constructors::*;
-use super::methods::get_type_by_prefix;
 use super::syntax::*;
 use super::walk::*;
 use crate::rts_function::RTSFunction;
+use crate::shared::methods::get_type_by_prefix;
 use crate::typ;
 
 /// Turn (typed) method calls into relevant typed calls

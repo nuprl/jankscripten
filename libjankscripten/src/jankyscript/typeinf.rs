@@ -17,13 +17,13 @@
 //!    list of types.
 
 use super::super::shared::coercions::Coercion;
-use super::methods::METHODS_TABLE;
 use super::operators::OVERLOADS;
 use super::operators_z3::Z3Operators;
 use super::syntax::*;
 use super::typeinf_env::Env;
 use super::walk::{Loc, Visitor};
 use crate::pos::Pos;
+use crate::shared::methods::METHODS_TABLE;
 use crate::typ;
 use crate::z3ez::Z3EZ;
 use z3::ast::{self, Ast, Dynamic};

@@ -112,6 +112,17 @@ pub fn log_any_raw(_this: AnyValue, any: AnyValue) -> AnyValue {
     AnyEnum::I32(42).into()
 }
 
+/// *This cannot be called by notwasm*. However it is extremely useful for
+/// debugging / notwasm compilation because it doesn't require extra arguments
+/// dbg_log returns its input so as long as the top of the stack is an any, it
+/// can be inserted *anywhere*
+#[no_mangle]
+pub fn dbg_log(any: AnyValue) -> AnyValue {
+    let real: AnyEnum = *any;
+    log!("{:?}", real);
+    any
+}
+
 pub fn heap() -> &'static Heap {
     unsafe { &HEAP }.as_ref().unwrap()
 }

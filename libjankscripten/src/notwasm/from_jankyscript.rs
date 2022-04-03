@@ -97,7 +97,7 @@ use super::super::rope::Rope;
 use super::constructors::*;
 use super::syntax::*;
 use crate::pos::Pos;
-use crate::rts_function::RTSFunction;
+use crate::shared::methods::METHODS_TABLE;
 use crate::shared::NameGen;
 use std::collections::HashMap;
 
@@ -424,10 +424,19 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             state,
             *obj,
             C::id(move |state, fun_id| {
+                // borrow checker
+                let args_len = args.len();
                 compile_exprs(state, args, move |state, arg_ids| {
+                    let possible_typs = METHODS_TABLE
+                        .get(&(method.as_str(), args_len))
+                        .unwrap()
+                        .iter()
+                        // never a function type
+                        .map(|t| t.notwasm_typ(false))
+                        .collect();
                     cxt.recv_e(
                         state,
-                        Expr::AnyMethodCall(fun_id, method, arg_ids, todo!(), p),
+                        Expr::AnyMethodCall(fun_id, method, arg_ids, possible_typs, p),
                     )
                 })
             }),

@@ -1,6 +1,7 @@
-use super::constructors::*;
 use super::syntax::Type;
+use super::{constructors::*, syntax::FnType};
 use crate::rts_function::{RTSFunction, RTSFunctionImpl};
+use crate::shared::methods::METHODS_TABLE;
 use std::collections::HashMap;
 use strum::IntoEnumIterator;
 use Type::*;
@@ -38,20 +39,29 @@ pub fn get_rt_bindings() -> BindMap {
         &mono,
         vec![I32, Bool, a_clos.clone()],
     );
+    let mut insert_rts_fn = |rts: &RTSFunction| {
+        if let RTSFunctionImpl::Rust(name) = rts.name() {
+            // Automatically generate the name and notwasm type
+            m.insert(name.into(), rts.janky_typ().notwasm_typ(false));
+        }
+    };
     // Step 2: automatically insert runtime functions from RTSFunction.
     for rts in RTSFunction::iter() {
         match rts {
             RTSFunction::Todo(..) | RTSFunction::Import(..) | RTSFunction::Method(..) => (),
-            _ => {
-                if let RTSFunctionImpl::Rust(name) = rts.name() {
-                    // Automatically generate the name and notwasm type
-                    m.insert(name.into(), rts.janky_typ().notwasm_typ(false));
-                }
-            }
+            _ => insert_rts_fn(&rts),
         }
 
         // NotWasm runtime functions do not need to be added because
         // NotWasm already knows about them.
+    }
+    // Step 3: RTSFunction::Method is infinitely large, import only the ones
+    // created by METHODS_TABLE
+    for ((name, _), typs) in METHODS_TABLE.iter() {
+        for typ in typs {
+            let rts = RTSFunction::Method(name.to_string(), typ.clone());
+            insert_rts_fn(&rts);
+        }
     }
     map
 }
