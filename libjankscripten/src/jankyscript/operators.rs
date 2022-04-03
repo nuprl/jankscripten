@@ -144,7 +144,7 @@ lazy_static! {
         use notwasm::BinaryOp::*;
         let mut table = OverloadTable::default();
         table.add(Plus, typ!(fun(int, int) -> int), I32Add);
-        table.add(Plus, typ!(fun(string, string) -> string), RTSFunction::StringCat);
+        table.add(Plus, typ!(fun(string, string) -> string), RTSFunction::Method("concat".to_string(), typ!(fun(string, string) -> string)));
         table.add(Plus, typ!(fun(any, any) -> any), RTSFunction::Plus);
 
 

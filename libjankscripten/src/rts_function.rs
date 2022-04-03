@@ -35,7 +35,6 @@ pub enum RTSFunction {
     In,
     BitwiseNot,
     Import(std::string::String),
-    StringCat,
 }
 
 // The name of a runtime function implementation.
@@ -75,7 +74,6 @@ impl RTSFunction {
             In => Rust("janky_in".into()),
             BitwiseNot => Rust("janky_not".into()),
             Import(name) => Rust(name.clone()),
-            StringCat => Rust("string_append".into()),
         }
     }
 
@@ -120,7 +118,6 @@ impl RTSFunction {
             }
             BitwiseNot => Function(vec![Int], Box::new(Int)),
             Import(..) => panic!("unimplemented function: {}", self),
-            StringCat => Function(vec![String, String], Box::new(String)),
         }
     }
 }
@@ -161,7 +158,6 @@ impl std::fmt::Display for RTSFunction {
                 In => "in",
                 BitwiseNot => "~",
                 Import(_s) => "import",
-                StringCat => "..",
             }
         )
     }

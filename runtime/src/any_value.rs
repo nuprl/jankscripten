@@ -76,6 +76,13 @@ impl Display for HeapRefView {
         match *self {
             String(s) => write!(f, "{}", &*s),
             Any(a) => write!(f, "{}", **a),
+            Array(a) => {
+                write!(f, "[")?;
+                for elem in &*a {
+                    write!(f, "{}, ", **elem)?;
+                }
+                write!(f, "]")
+            }
             Class(_) => log_panic!("shouldn't have object data as value"),
             ObjectPtrPtr(_o) => log_panic!("TODO(luna): toString"),
             NonPtr32(_) | MutF64(_) | Ptr(_) => log_panic!("ref inside any"),

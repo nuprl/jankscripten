@@ -1,6 +1,4 @@
-function main(): i32 {
+function main() {
     var a = any(@array_new());
     var _ = a?.push<(Array) -> i32, (str) -> i32>(undefined);
-    var r = 5;
-    return r;
 }

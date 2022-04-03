@@ -12,13 +12,13 @@ pub struct Env {
 
 impl Env {
     pub fn new() -> Env {
-        let env = super::rt_bindings::get_rt_bindings()
+        let env: HashMap<Id, Type> = super::rt_bindings::get_rt_bindings()
             .into_iter()
             .map(|(k, v)| (Id::Named(k), v))
             .collect();
         Env {
+            imports: env.clone(),
             env,
-            imports: Default::default(),
         }
     }
 
@@ -317,7 +317,7 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
         Expr::PrimCall(crate::rts_function::RTSFunction::Import(name), args, s) => {
             let ty = env.imports.get(&Id::Named(name.clone())).ok_or(err!(
                 s,
-                "invalid primtive {}",
+                "invalid primitive {}",
                 name
             ))?;
             let (arg_tys, opt_ret_ty) = ty.unwrap_fun();
