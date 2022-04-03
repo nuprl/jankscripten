@@ -23,6 +23,9 @@ impl Visitor for ResugarMethodCall {
                 }
                 _ => (),
             },
+            Expr::Dot(obj, Id::Named(field), s) if field.as_str() == "length" => {
+                *expr = Expr::Length(Box::new(obj.take()), s.clone());
+            }
             _ => (),
         }
     }

@@ -1,11 +1,11 @@
 //! Turn (typed) method calls into relevant typed calls
 
-use crate::rts_function::RTSFunction;
-
 use super::constructors::*;
 use super::methods::get_type_by_prefix;
 use super::syntax::*;
 use super::walk::*;
+use crate::rts_function::RTSFunction;
+use crate::typ;
 
 /// Turn (typed) method calls into relevant typed calls
 /// For any, this leaves them be and they become AnyMethodCall in notwasm
@@ -40,6 +40,20 @@ impl Visitor for MethodCallVisitor {
                             get_type_by_prefix(method, args.len(), typ),
                         ),
                         std::mem::replace(args, vec![]),
+                        p.clone(),
+                    );
+                }
+            },
+            Expr::Length(obj, typ, p) => match typ {
+                Type::Any => (),
+                Type::DynObject => *expr = dot_(obj.take(), "length", p.clone()),
+                _ => {
+                    *expr = Expr::PrimCall(
+                        RTSFunction::Method(
+                            "length".to_string(),
+                            typ!(fun((unquote typ.take())) -> int),
+                        ),
+                        vec![obj.take()],
                         p.clone(),
                     );
                 }

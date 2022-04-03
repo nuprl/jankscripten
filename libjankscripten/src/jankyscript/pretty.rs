@@ -1,7 +1,7 @@
 use super::syntax::*;
 
-use crate::impl_Display_Pretty;
 use crate::pretty::Pretty;
+use crate::{impl_Display_Pretty, prettyp};
 
 impl Pretty for Type {
     fn pretty<'b, D, A>(&'b self, pp: &'b D) -> pretty::DocBuilder<'b, D, A>
@@ -219,6 +219,7 @@ impl Pretty for Expr {
                 )
                 .parens(),
             ]),
+            Expr::Length(x, typ, _) => prettyp!(pp, (seq (id x) "<" (id typ) ">" ".length")),
             Expr::PrimCall(rts, args, _) => pp.concat(vec![
                 pp.as_string(rts),
                 pp.intersperse(

@@ -367,6 +367,18 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
                 s.clone(),
             )
         }
+        Expr::Length(obj, typ, s) => {
+            ensure(
+                "string_length",
+                typ.clone(),
+                type_check_expr(obj, env.clone())?,
+                s,
+            )?;
+            Ok(match typ {
+                Type::DynObject | Type::Array => Type::Int,
+                _ => Type::Any,
+            })
+        }
         Expr::Coercion(coercion, e, s) => {
             // type the expression. regardless of the coercion, the expression
             // needs to be well-typed.

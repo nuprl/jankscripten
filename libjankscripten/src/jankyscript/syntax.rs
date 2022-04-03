@@ -131,6 +131,9 @@ pub enum Expr {
     Call(Box<Expr>, Vec<Expr>, Pos),
     MethodCall(Box<Expr>, String, Vec<Expr>, Type, Pos),
     PrimCall(RTSFunction, Vec<Expr>, Pos),
+    // This is almost MethodCall(.., "length") except for handling of `this`
+    // and compilation of the dynobject case
+    Length(Box<Expr>, Type, Pos),
     Func(Func, Pos),
     Closure(Func, Vec<(Expr, Type)>, Pos),
     Coercion(Coercion, Box<Expr>, Pos),

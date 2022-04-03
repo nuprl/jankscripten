@@ -434,12 +434,12 @@ impl<'a> Typeinf<'a> {
     /// [2]: coerce all arguments/return to the method's expected types
     /// [3]: constrain obj to object and arguments/return to any
     /// [4]: constrain obj to any    and arguments/return to any
-    /// We descriminate on these three cases when compiling to NotWasm
-    /// to decide which constructs to use
+    /// We then descriminate on the object type to decide which constructs
+    /// to use
     fn cgen_method_call(
         &mut self,
         obj: &mut Expr,
-        method: &mut String,
+        method: &String,
         args: &mut Vec<Expr>,
         typ: &mut Type,
         s: &Pos,
@@ -563,13 +563,53 @@ impl<'a> Typeinf<'a> {
             .collect::<Vec<_>>();
         let possible_phi = self.zor(possible_phis.iter().collect::<Vec<_>>().as_slice());
         // Now simply collect all of our phis and our type is the return
-        // type. This gets wobbly-ified at the call site
+        // type. This gets wobbly-ified at the compiler helper fn call site
         let phi = z3f!(self, (and
             (id obj_phi)
             (id self.zand(arg_phis))
             (id possible_phi)
             (id obj_coerce_phi)));
         let ty = ann_ret_ty.clone();
+        (phi, ty)
+    }
+
+    // This is JUST a specialization of:
+    // self.cgen_method_call(obj, &"length".to_string(), &mut vec![], typ, &Pos::UNKNOWN)
+    // EXCEPT that cgen_method_call assumes that the type of obj is the type of
+    // the first parameter in METHODS_TABLE. This is work-aroundable, but the
+    // specialization is easy to read anyway
+    fn cgen_length(
+        &mut self,
+        obj: &mut Expr,
+        // String, Array, DynObject, or Any(oh no...)
+        typ: &mut Type,
+    ) -> (ast::Bool<'a>, Type) {
+        let (obj_phi, obj_typ) = self.cgen_expr(obj);
+        let expr_ty = self.fresh_metavar("length");
+        *typ = self.fresh_metavar("method type");
+        let possible_typs = [
+            (Type::String, Type::Int),
+            (Type::Array, Type::Int),
+            (Type::DynObject, Type::Any),
+            (Type::Any, Type::Any),
+        ];
+        let possible_phis = possible_typs
+            .iter()
+            .map(|(possible_obj_typ, possible_typ)| {
+                z3f!(self, (and
+                    // Ensure that our "known" type of the object
+                    // matches this possible type. We write the type in the
+                    // expression at the same time
+                    (= (tid obj_typ) (tid possible_obj_typ) (tid typ))
+                    (= (tid expr_ty) (tid possible_typ))))
+            })
+            .collect::<Vec<_>>();
+        let possible_phi = self.zor(possible_phis.iter().collect::<Vec<_>>().as_slice());
+        // This gets wobbly-ified at the compiler helper fn call site
+        let phi = z3f!(self, (and
+            (id obj_phi)
+            (id possible_phi)));
+        let ty = expr_ty.clone();
         (phi, ty)
     }
 
@@ -728,6 +768,10 @@ impl<'a> Typeinf<'a> {
                 let (phi, ty) = self.cgen_method_call(obj, method, args, typ, s);
                 self.wobbly(s.clone(), expr, phi, ty)
             }
+            Expr::Length(obj, typ, s) => {
+                let (phi, ty) = self.cgen_length(obj, typ);
+                self.wobbly(s.clone(), expr, phi, ty)
+            }
             Expr::Assign(lval, e, p) => match &mut **lval {
                 LValue::Id(x, x_t) => {
                     let t = self.env.get(x);
@@ -776,7 +820,7 @@ impl<'a> Typeinf<'a> {
                 );
                 let phi_3 = z3f!(self,
                     (or
-                        (and (= (tid t_f) (typ fun_vec(args_t.clone()) -> unquote(beta.clone())))
+                        (and (= (tid t_f) (typ fun_vec(args_t.clone()) -> unquote beta.clone()))
                              (id w_1.clone()))
                         (and (= (tid t_f) (typ any))
                              (= (tid beta) (typ any))
@@ -788,7 +832,7 @@ impl<'a> Typeinf<'a> {
                         (and (= (tid gamma) (typ any)) (not (id w_2)))));
                 **f = coerce(
                     t_f,
-                    typ!(fun_vec(args_t) -> unquote(beta.clone())),
+                    typ!(fun_vec(args_t) -> unquote beta.clone()),
                     f.take(),
                     p.clone(),
                 );
@@ -834,7 +878,7 @@ impl<'a> Typeinf<'a> {
                       (and (not (id w.clone())) (= (tid beta) (typ any)))));
                 let p = p.clone();
                 *expr = coerce(
-                    typ!(fun_vec(args) -> unquote(return_typ)),
+                    typ!(fun_vec(args) -> unquote return_typ),
                     beta.clone(),
                     expr.take(),
                     p,

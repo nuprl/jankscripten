@@ -179,6 +179,7 @@ impl Expr {
                         .append(D::text(")")),
                 ),
             ),
+            Length(obj, _) => obj.to_doc().append(D::text(".length")),
             Func(maybe_name, params, body, _) => func_to_doc(maybe_name.as_ref(), params, body),
             Seq(es, _) => D::text("(")
                 .append(D::intersperse(es.iter().map(Expr::to_doc), D::text(", ")))
