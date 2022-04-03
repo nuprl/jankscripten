@@ -1,6 +1,10 @@
 //! translate NotWasm to wasm, using the rust runtime whenever possible
 //!
 //! preconditions: [super::compile]
+//!
+//! Much of this module relies on constants duplicated in the runtime, of
+//! course. Check the constants at the top of the file, and any comments that refer
+//! to other definitions
 
 use super::super::rts_function::*;
 use super::rt_bindings::get_rt_bindings;
@@ -21,6 +25,9 @@ const ANY_SIZE: u32 = 8;
 const TAG_SIZE: u32 = 4;
 const LENGTH_SIZE: u32 = 4;
 const FN_OBJ_SIZE: u32 = 4;
+// Check runtime::any_value::test::abi_any_discriminants_stable. For now, (my version of) rust seems to have stable and sensible discriminants for our any representation, which is defined by rust. Then we USE these assumptions in translation for:
+// Expr::AnyMethodCall
+// Expr::AnyLength (TODO)
 
 type FuncTypeMap = HashMap<(Vec<ValueType>, Option<ValueType>), u32>;
 
@@ -709,35 +716,42 @@ impl<'a> Translate<'a> {
                     _ => panic!("expected Func ID ({})", f),
                 };
             }
+            // This is using assumptions from the runtime. See
+            // runtime::any_value::test::abi_any_discriminants_stable
             N::Expr::AnyMethodCall(obj, method, args, typs, s) => {
-                todo!();
-                // Unconditional exit 8 (acting 5)
-                self.out.push(Block(BlockType::Value(ValueType::I64)));
-                // Error 7 (acting 4)
-                self.out.push(Block(BlockType::Value(ValueType::I64)));
-                // Skip null 6
-                // Skip undefined 5
-                // TODO(closure) 4
-                // Ptr 3
-                self.out.push(Block(BlockType::Value(ValueType::I64)));
-                // Bool 2
-                self.out.push(Block(BlockType::Value(ValueType::I64)));
-                // F64 1
-                self.out.push(Block(BlockType::Value(ValueType::I64)));
-                // I32 0
-                self.out.push(Block(BlockType::Value(ValueType::I64)));
-                // Get our object and look at the descriminant
+                // Does this get the discriminant?? Idk!
                 self.get_id(obj);
                 self.out.push(I32Const(0xf000));
                 self.out.push(I32And);
                 self.out.push(I32Const(3 * 8));
                 self.out.push(I32ShrU);
-                // See runtime::any_value::tests::abi_any_discriminants_stable
-                BrTable(Box::new(BrTableData {
-                    table: Box::new([0, 1, 2, 3, 4, 5, 6]),
-                    default: 7,
-                }));
-                todo!()
+                self.to_any(&N::Type::I32);
+                self.rt_call("dbg_log");
+                //// Unconditional exit 8 (acting 5)
+                //self.out.push(Block(BlockType::Value(ValueType::I64)));
+                //// Error 7 (acting 4)
+                //self.out.push(Block(BlockType::Value(ValueType::I64)));
+                //// Skip null 6
+                //// Skip undefined 5
+                //// TODO(closure) 4
+                //// Ptr 3
+                //self.out.push(Block(BlockType::Value(ValueType::I64)));
+                //// Bool 2
+                //self.out.push(Block(BlockType::Value(ValueType::I64)));
+                //// F64 1
+                //self.out.push(Block(BlockType::Value(ValueType::I64)));
+                //// I32 0
+                //self.out.push(Block(BlockType::Value(ValueType::I64)));
+                //// Get our object and look at the discriminant
+                //self.get_id(obj);
+                //self.out.push(I32Const(0xf000));
+                //self.out.push(I32And);
+                //self.out.push(I32Const(3 * 8));
+                //self.out.push(I32ShrU);
+                //BrTable(Box::new(BrTableData {
+                //    table: Box::new([0, 1, 2, 3, 4, 5, 6]),
+                //    default: 7,
+                //}));
             }
             N::Expr::ClosureCall(f, args, s) => {
                 match self.id_env.get(f).cloned() {

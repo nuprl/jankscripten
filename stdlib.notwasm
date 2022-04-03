@@ -64,6 +64,7 @@ import math_max : (env, any, any, any) -> any;
 // __JNKS
 import heap_dump : (env, any) -> any;
 import log_any_raw : (any, any) -> any;
+//import dbg_log : (any) -> any;
 
 import janky_primitive_plus : (any, any) -> any;
 import any_is_object : (any) -> bool;

@@ -23,7 +23,7 @@ IdString -> String :
   ;
 
 Id -> Id : 
-    'ID'                  { Id::Named($lexer.span_str($1.unwrap().span()).to_string()) }
+    IdString              { Id::Named($1) }
   | 'bogus' '(' 'env' ')' { Id::Bogus("env") }
   ;
 
@@ -80,7 +80,7 @@ AtomSeq -> Vec<Atom> :
   ;
 
 Atom -> Atom :
-    '$' Id '(' AtomSeq ')' { Atom::PrimApp($2, $4, pos($1)) }    
+    '$' Id '(' AtomSeq ')' { Atom::PrimApp($2, $4, pos($1)) }
   | 'any' '(' Atom ')'     { Atom::ToAny(ToAny::new($3), pos($1)) }
   | 'env' '.' U32 ':' Type { Atom::EnvGet($3, $5, pos($4)) }
   | 'rt' '(' Id ')'        { Atom::GetPrimFunc($3, pos($1)) }
@@ -138,6 +138,7 @@ Expr -> Expr :
   | 'newRef' '(' Atom ',' Type ')'      { Expr::NewRef($3, $5, pos($1)) }
   | Id '!' '(' IdSeq ')'                { Expr::ClosureCall($1, $4, pos($2)) }
   | Id '(' IdSeq ')'                    { Expr::Call($1, $3, pos($2)) }
+  | Id '?' '.' IdString '<' TypeSeq '>' '(' IdSeq ')' { Expr::AnyMethodCall($1, $4, $9, $6, pos($3)) }
   | AtomAdd                             { let p = $1.pos().clone(); Expr::Atom($1, p) }
   ;
 

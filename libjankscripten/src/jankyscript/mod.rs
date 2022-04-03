@@ -7,7 +7,6 @@ pub mod constructors;
 pub mod from_js;
 mod fv;
 mod insert_returns;
-mod methods;
 mod operators;
 mod operators_z3;
 mod pretty;

@@ -2,9 +2,9 @@
 //! This occurs after type inference to ensure that type inference succeeded
 //! correctly.
 
-use super::methods::get_type_by_prefix;
 use super::syntax::*;
 use crate::pos::Pos;
+use crate::shared::methods::get_type_by_prefix;
 use crate::shared::std_lib::get_global_object;
 use im_rc::HashMap;
 use thiserror::Error;
