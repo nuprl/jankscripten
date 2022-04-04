@@ -54,6 +54,7 @@ impl HasTag for AnyValue {
 }
 pub type MutF64Ptr = TypePtr<f64>;
 impl HasTag for f64 {
+    // TODO(luna): is this right?? What happened to MutF64?
     const TYPE_TAG: TypeTag = TypeTag::Ptr;
 }
 pub type PtrPtr = TypePtr<AnyPtr>;
