@@ -718,7 +718,7 @@ impl<'a> Translate<'a> {
             }
             // This is using assumptions from the runtime. See
             // runtime::any_value::test::abi_any_discriminants_stable
-            N::Expr::AnyMethodCall(any, method, args, typs, s) => {
+            N::Expr::AnyMethodCall(any, method, args, typs, _) => {
                 // We need a local to store our result because br_table doesn't
                 // support results properly (design overlook???)
                 // i checked and this is how rustc/llvm does it; we *need*
@@ -727,6 +727,34 @@ impl<'a> Translate<'a> {
                 let index = self.next_id;
                 self.next_id += 1;
                 self.locals.push(ValueType::I64);
+
+                // Once we figure out our type, if it's not Object, it's a
+                // simple call that looks the same for everyone
+                let typed_call = |s: &mut Self, typ| {
+                    // When this isn't a type at all, we simply put nothing
+                    // here. It won't be jumped to (if code is correct)
+                    if let Some(t) = typs.iter().find(|t| t.unwrap_fun().0[0] == typ) {
+                        let (arg_typs, result_typ) = t.unwrap_fun();
+                        for (arg, typ) in args.iter().zip(arg_typs.iter()) {
+                            s.get_id(arg);
+                            s.from_any(typ);
+                        }
+                        let func_name = format!("{}_{}", typ, method);
+                        s.rt_call(func_name.as_str());
+                        // We could use unwrap because jankyscript doesn't have void
+                        if let Some(result_typ) = result_typ {
+                            s.to_any(result_typ);
+                            s.out.push(SetLocal(index));
+                        }
+                    }
+                };
+
+                // TODO(luna): Call me crazy, but we could probably skip
+                // checking the any. All the types that have methods are heap
+                // types(right?) so we can just skip right to load pointer and
+                // check tag. At the least, when all the types in `typs` are,
+                // we could do this
+
                 // Each block breaks to this block to exit
                 self.out.push(Block(BlockType::NoResult));
                 self.out.push(Block(BlockType::NoResult)); // 4
@@ -789,6 +817,11 @@ impl<'a> Translate<'a> {
                 self.out.push(I64Const(4 * 8));
                 self.out.push(I64ShrU);
                 self.out.push(I32WrapI64);
+                // Now load up the actual tag
+                // The actual tag is the *second* byte, after the marked bool
+                // Note that parity_wasm uses the arguments to load in the
+                // opposite order of the spec (here: alignment, offset)
+                self.out.push(I32Load8U(0, 1));
                 // And break
                 self.out.push(BrTable(Box::new(BrTableData {
                     table: Box::new([0, 1, 2, 3]),
@@ -797,31 +830,11 @@ impl<'a> Translate<'a> {
                 })));
                 self.out.push(End);
                 // Array, 0
-                // We need to ensure this is supported so we don't get
-                // compilation failures
-                if let Some(t) = typs.iter().find(|t| t.unwrap_fun().0[0] == N::Type::Array) {
-                    let (arg_typs, result_typ) = t.unwrap_fun();
-                    for (arg, typ) in args.iter().zip(arg_typs.iter()) {
-                        self.get_id(arg);
-                        self.from_any(typ);
-                    }
-                    let func_name = format!("array_{}", method);
-                    self.rt_call(func_name.as_str());
-                    // We could use unwrap because jankyscript doesn't have void
-                    if let Some(result_typ) = result_typ {
-                        if result_typ != &N::Type::Any {
-                            self.to_any(result_typ);
-                        }
-                        self.out.push(SetLocal(index));
-                    }
-                }
+                typed_call(self, N::Type::Array);
                 self.out.push(Br(4));
                 self.out.push(End);
                 // String, 1
-                // Keeping the convention of just putting our idea of our
-                // discriminants. First digit is 3, second digit is our tag value
-                self.out.push(I64Const(31));
-                self.out.push(SetLocal(index));
+                typed_call(self, N::Type::String);
                 self.out.push(Br(3));
                 self.out.push(End);
                 // HT, 2
@@ -830,6 +843,8 @@ impl<'a> Translate<'a> {
                 self.out.push(Br(2));
                 self.out.push(End);
                 // Object, 3
+                // Keeping the convention of just putting our idea of our
+                // discriminants. First digit is 3, second digit is our tag value
                 self.out.push(I64Const(33));
                 self.out.push(SetLocal(index));
                 // No need for an outer block because we are already in an outer block
