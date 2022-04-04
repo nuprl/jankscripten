@@ -718,40 +718,73 @@ impl<'a> Translate<'a> {
             }
             // This is using assumptions from the runtime. See
             // runtime::any_value::test::abi_any_discriminants_stable
-            N::Expr::AnyMethodCall(obj, method, args, typs, s) => {
-                // Does this get the discriminant?? Idk!
-                self.get_id(obj);
-                self.out.push(I32Const(0xf000));
+            N::Expr::AnyMethodCall(any, method, args, typs, s) => {
+                // We need a local to store our result because br_table doesn't
+                // support results properly (design overlook???)
+                // i checked and this is how rustc/llvm does it; we *need*
+                // a local. TODO(luna): re-use this local somehow? (or just
+                // leave it to wasm-opt)
+                let index = self.next_id;
+                self.next_id += 1;
+                self.locals.push(ValueType::I64);
+                // Each block breaks to this block to exit
+                self.out.push(Block(BlockType::NoResult));
+                self.out.push(Block(BlockType::NoResult)); // 4
+                self.out.push(Block(BlockType::NoResult)); // 3
+                self.out.push(Block(BlockType::NoResult)); // 2
+                self.out.push(Block(BlockType::NoResult)); // 1
+                self.out.push(Block(BlockType::NoResult)); // 0
+
+                // Get our object and look at the discriminant
+                self.get_id(any);
+                // Assume that the discriminant is in the lowest
+                // two bytes. This IS tested in our ABI test
+                self.out.push(I32WrapI64);
+                self.out.push(I32Const(0x00ff));
                 self.out.push(I32And);
-                self.out.push(I32Const(3 * 8));
-                self.out.push(I32ShrU);
+                self.out.push(BrTable(Box::new(BrTableData {
+                    table: Box::new([0, 1, 2, 3, 4]),
+                    // default should never be followed if all goes well. i
+                    // could put a trap in there or i could just give it UB
+                    default: 0,
+                })));
+                self.out.push(End);
+                // I32 0
+                // For now i'm just going to put what i think the discriminant
+                // should be to make sure i'm generating code right
+                self.out.push(I64Const(0));
+                self.out.push(SetLocal(index));
+                self.out.push(Br(4));
+                self.out.push(End);
+                // F64 1
+                self.out.push(I64Const(1));
+                self.out.push(SetLocal(index));
+                self.out.push(Br(3));
+                self.out.push(End);
+                // Bool 2
+                self.out.push(I64Const(2));
+                self.out.push(SetLocal(index));
+                self.out.push(Br(2));
+                self.out.push(End);
+                // Ptr 3
+                self.out.push(I64Const(3));
+                self.out.push(SetLocal(index));
+                self.out.push(Br(1));
+                self.out.push(End);
+                // Closure 4
+                self.out.push(I64Const(4));
+                self.out.push(SetLocal(index));
+                // Would be br(0) but that happens automatically
+                self.out.push(End);
+                // we ignore Undefined 5
+                // we ignore Null 6
+                // This is where we exit to with our any result in the
+                // local. Simply get it
+                self.out.push(GetLocal(index));
+                // This part is just for debugging
+                self.out.push(I32WrapI64);
                 self.to_any(&N::Type::I32);
                 self.rt_call("dbg_log");
-                //// Unconditional exit 8 (acting 5)
-                //self.out.push(Block(BlockType::Value(ValueType::I64)));
-                //// Error 7 (acting 4)
-                //self.out.push(Block(BlockType::Value(ValueType::I64)));
-                //// Skip null 6
-                //// Skip undefined 5
-                //// TODO(closure) 4
-                //// Ptr 3
-                //self.out.push(Block(BlockType::Value(ValueType::I64)));
-                //// Bool 2
-                //self.out.push(Block(BlockType::Value(ValueType::I64)));
-                //// F64 1
-                //self.out.push(Block(BlockType::Value(ValueType::I64)));
-                //// I32 0
-                //self.out.push(Block(BlockType::Value(ValueType::I64)));
-                //// Get our object and look at the discriminant
-                //self.get_id(obj);
-                //self.out.push(I32Const(0xf000));
-                //self.out.push(I32And);
-                //self.out.push(I32Const(3 * 8));
-                //self.out.push(I32ShrU);
-                //BrTable(Box::new(BrTableData {
-                //    table: Box::new([0, 1, 2, 3, 4, 5, 6]),
-                //    default: 7,
-                //}));
             }
             N::Expr::ClosureCall(f, args, s) => {
                 match self.id_env.get(f).cloned() {

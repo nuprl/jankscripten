@@ -355,5 +355,7 @@ mod test {
         };
         let as_int = unsafe { un.int };
         assert_eq!(as_int, expected);
+        // Memory layout test
+        assert_eq!(0x0000_00ff & as_int, expected);
     }
 }
