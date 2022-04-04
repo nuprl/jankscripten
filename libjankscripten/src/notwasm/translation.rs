@@ -797,13 +797,29 @@ impl<'a> Translate<'a> {
                 })));
                 self.out.push(End);
                 // Array, 0
-                // Keeping the convention of just putting our idea of our
-                // discriminants. First digit is 3, second digit is our tag value
-                self.out.push(I64Const(30));
-                self.out.push(SetLocal(index));
+                // We need to ensure this is supported so we don't get
+                // compilation failures
+                if let Some(t) = typs.iter().find(|t| t.unwrap_fun().0[0] == N::Type::Array) {
+                    let (arg_typs, result_typ) = t.unwrap_fun();
+                    for (arg, typ) in args.iter().zip(arg_typs.iter()) {
+                        self.get_id(arg);
+                        self.from_any(typ);
+                    }
+                    let func_name = format!("array_{}", method);
+                    self.rt_call(func_name.as_str());
+                    // We could use unwrap because jankyscript doesn't have void
+                    if let Some(result_typ) = result_typ {
+                        if result_typ != &N::Type::Any {
+                            self.to_any(result_typ);
+                        }
+                        self.out.push(SetLocal(index));
+                    }
+                }
                 self.out.push(Br(4));
                 self.out.push(End);
                 // String, 1
+                // Keeping the convention of just putting our idea of our
+                // discriminants. First digit is 3, second digit is our tag value
                 self.out.push(I64Const(31));
                 self.out.push(SetLocal(index));
                 self.out.push(Br(3));
@@ -831,10 +847,6 @@ impl<'a> Translate<'a> {
                 // This is where we exit to with our any result in the
                 // local. Simply get it
                 self.out.push(GetLocal(index));
-                // This part is just for debugging
-                self.out.push(I32WrapI64);
-                self.to_any(&N::Type::I32);
-                self.rt_call("dbg_log");
             }
             N::Expr::ClosureCall(f, args, s) => {
                 match self.id_env.get(f).cloned() {
@@ -954,15 +966,7 @@ impl<'a> Translate<'a> {
             }
             N::Atom::FromAny(a, ty, _) => {
                 self.translate_atom(a);
-                match ty {
-                    N::Type::I32 => self.rt_call("any_to_i32"),
-                    N::Type::Bool => self.rt_call("any_to_bool"),
-                    N::Type::F64 => self.rt_call("any_to_f64"),
-                    N::Type::Fn(..) => panic!("cannot attain function from any"),
-                    N::Type::Closure(..) => self.rt_call("any_to_closure"),
-                    N::Type::Any => (),
-                    _ => self.rt_call("any_to_ptr"),
-                }
+                self.from_any(ty);
             }
             N::Atom::FloatToInt(a, _) => {
                 self.translate_atom(a);
@@ -1092,6 +1096,17 @@ impl<'a> Translate<'a> {
             N::Type::Closure(..) => self.rt_call("any_from_closure"),
             N::Type::Any => (),
             _ => self.rt_call("any_from_ptr"),
+        }
+    }
+    fn from_any(&mut self, ty: &N::Type) {
+        match ty {
+            N::Type::I32 => self.rt_call("any_to_i32"),
+            N::Type::Bool => self.rt_call("any_to_bool"),
+            N::Type::F64 => self.rt_call("any_to_f64"),
+            N::Type::Fn(..) => panic!("cannot attain function from any"),
+            N::Type::Closure(..) => self.rt_call("any_to_closure"),
+            N::Type::Any => (),
+            _ => self.rt_call("any_to_ptr"),
         }
     }
 

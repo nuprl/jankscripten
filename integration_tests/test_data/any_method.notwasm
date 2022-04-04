@@ -1,4 +1,5 @@
 function main() {
     var a = any(@array_new());
-    var _ = a?.push<(Array) -> i32, (str) -> i32>(undefined);
+    var _ = a?.push<(Array, any) -> i32, (str, any) -> i32>(a, undefined);
+    var _ = !dbg_log(a);
 }
