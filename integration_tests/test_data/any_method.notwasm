@@ -1,5 +1,10 @@
 function main() {
     var a = any(@array_new());
-    var _ = a?.push<(Array, any) -> i32, (str, any) -> i32>(a, undefined);
+    var _ = a?.push<(Array, any) -> i32>(a, undefined);
     var _ = !dbg_log(a);
+    var s = any("hello");
+    var any_2 = any(2);
+    var any_4 = any(4);
+    var sl = s?.slice<(str, i32, i32) -> str, (Array, i32, i32) -> Array>(s, any_2, any_4);
+    var _ = !dbg_log(sl);
 }
