@@ -767,9 +767,59 @@ impl<'a> Translate<'a> {
                 self.out.push(Br(2));
                 self.out.push(End);
                 // Ptr 3
-                self.out.push(I64Const(3));
+                // ======== Begin pointer match =======
+                // So now we need to go look on the heap and use THAT tag to
+                // decide what type we REALLY are. Was this even a good decision?
+                // You can check these values at
+                // runtime::allocator::heap_values::TypeTag
+                // They are way more consistent than the any discriminant
+                // because i was able to specify them in rust
+                // Array = 0
+                // String = 1
+                // HT(still not used by JankyScript!) = 2
+                // Object = 3
+                // We don't need an outer block to break to because we're already in a block!
+                self.out.push(Block(BlockType::NoResult)); // 3
+                self.out.push(Block(BlockType::NoResult)); // 2
+                self.out.push(Block(BlockType::NoResult)); // 1
+                self.out.push(Block(BlockType::NoResult)); // 0
+
+                // Get the pointer
+                self.get_id(any);
+                self.out.push(I64Const(4 * 8));
+                self.out.push(I64ShrU);
+                self.out.push(I32WrapI64);
+                // And break
+                self.out.push(BrTable(Box::new(BrTableData {
+                    table: Box::new([0, 1, 2, 3]),
+                    // Again, default is just UB
+                    default: 0,
+                })));
+                self.out.push(End);
+                // Array, 0
+                // Keeping the convention of just putting our idea of our
+                // discriminants. First digit is 3, second digit is our tag value
+                self.out.push(I64Const(30));
                 self.out.push(SetLocal(index));
+                self.out.push(Br(4));
+                self.out.push(End);
+                // String, 1
+                self.out.push(I64Const(31));
+                self.out.push(SetLocal(index));
+                self.out.push(Br(3));
+                self.out.push(End);
+                // HT, 2
+                // TODO(luna)
+                // blah blah blah HT stuff
+                self.out.push(Br(2));
+                self.out.push(End);
+                // Object, 3
+                self.out.push(I64Const(33));
+                self.out.push(SetLocal(index));
+                // No need for an outer block because we are already in an outer block
+                // We break 1 here which means breaking all the way out to GetLocal
                 self.out.push(Br(1));
+                // ========== End pointer match =========
                 self.out.push(End);
                 // Closure 4
                 self.out.push(I64Const(4));

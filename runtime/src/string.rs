@@ -32,7 +32,7 @@ mod test {
     #[wasm_bindgen_test]
     fn to_string_length() {
         init();
-        assert_eq!(string_len(heap().alloc_str_or_gc("spinel")), 6);
+        assert_eq!(string_length(heap().alloc_str_or_gc("spinel")), 6);
     }
     #[test]
     #[wasm_bindgen_test]

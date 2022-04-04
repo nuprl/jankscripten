@@ -40,26 +40,36 @@ impl Tag {
 
 #[derive(PartialEq, Debug, Copy, Clone)]
 #[repr(u8)]
+/// We specify some values as an ABI with the compiler. In particular we need
+/// to discriminate on the type of anys and make strings
+///
+/// Most of these are *not* values and do *not* appear in Any
 pub enum TypeTag {
-    /// this is any 32-bit non-pointer (i32, bool, fn)
-    ///
-    /// this is a fairly healthy choice for 0, which apparently needs to
-    /// exist or we get messy errors i don't even want to think about
-    NonPtr32,
-    /// We specify a value so we can make fake tags from jankscripten
+    Array = 0,
+    /// We specify a value so we can make tags for strings from jankscripten
     String = 1,
-    HT,
-    Array,
+    /// This is a DynObject from the perspective of JankyScript
+    HT = 2,
+    /// This is an actual object. In practice, it's just a pointer to the
+    /// actual object data, but when choosing what type this is, it's just an
+    /// object. i think
+    ObjectPtrPtr = 3,
+    /// This is *not* the tag of an object (poor naming!!). This is the tag
+    /// of the *object data*, which is one level of indirection behind the actual
+    /// object (does it even need a tag? what the heck is going on)
     DynObject,
-    /// The value after the tag is the address where the array of pointers
-    /// begins, for this object
-    ObjectPtrPtr,
+    /// This only appears as part of
     Env,
     /// following are immediate values only ever on the heap for Ref
+    /// this is any 32-bit value on the heap that doesn't point to / store
+    /// other values. Examples: i32, bool, fn. These won't appear in Any
+    /// (right??) because they'd be dereffed before being coerced
+    NonPtr32,
     Any,
     /// these should only be used for Ref, most f64s go on the f64 heap. this
     /// avoids another layer of indirection we just put a f64 immediately
     /// following the tag. that f64 might be modified
+    /// TODO(luna): I'm pretty sure this is never used. Something is wrong
     MutF64,
     /// this may or may not be duplicated by ObjectPtrPtr
     Ptr,
