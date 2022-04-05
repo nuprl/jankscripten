@@ -33,8 +33,8 @@ pub fn var_<S: Into<String>>(a: S, b: Expr, s: Pos) -> Stmt {
 /// NOTE: This function constructions a `ToAny` that lacks the type annotation
 /// that is necessary for code generation. We must use the type-checker to fill
 /// in the annotation before trying to generate code.
-pub fn get_id_<S: Into<String>>(a: S, s: Pos) -> Atom {
-    Atom::Id(id_(a), s)
+pub fn get_id_<S: Into<Id>>(a: S, s: Pos) -> Atom {
+    Atom::Id(a.into(), s)
 }
 pub fn to_any_(a: Atom, s: Pos) -> Atom {
     Atom::ToAny(ToAny::new(a), s)
@@ -136,8 +136,8 @@ pub fn func_i32_(body: Stmt, s: Pos) -> Function {
     }
 }
 
-pub fn id_<S: Into<String>>(a: S) -> Id {
-    Id::Named(a.into())
+pub fn id_<S: Into<Id>>(a: S) -> Id {
+    a.into()
 }
 pub fn fn_type_<I: Into<Option<Type>>>(b: Vec<Type>, a: I) -> FnType {
     FnType {

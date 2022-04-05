@@ -436,7 +436,7 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                         .collect();
                     cxt.recv_e(
                         state,
-                        Expr::AnyMethodCall(fun_id, method, arg_ids, possible_typs, p),
+                        Expr::AnyMethodCall(fun_id, Lit::String(method), arg_ids, possible_typs, p),
                     )
                 })
             }),

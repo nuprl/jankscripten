@@ -21,7 +21,7 @@
 //! - A set of global variables that are initialized to …whataever Wasm
 //!   supports
 
-use crate::pos::Pos;
+pub use crate::pos::Pos;
 use crate::rts_function::RTSFunction;
 pub use crate::shared::Id;
 use std::collections::HashMap;
@@ -205,7 +205,8 @@ pub enum Lit {
     I32(i32),
     F64(f64),
     String(String),
-    Interned(u32),
+    /// We keep around the old string for humans
+    Interned(String, u32),
     Undefined,
     Null,
 }
@@ -217,7 +218,7 @@ impl Lit {
             Lit::I32(_) => Type::I32,
             Lit::F64(_) => Type::F64,
             Lit::String(_) => Type::String,
-            Lit::Interned(_) => Type::String,
+            Lit::Interned(_, _) => Type::String,
             Lit::Undefined => Type::Any,
             Lit::Null => Type::Any,
         }
@@ -304,7 +305,9 @@ pub enum Expr {
     /// right now, never constructed from jankyscript, only in tests
     Call(Id, Vec<Id>, Pos),
     ClosureCall(Id, Vec<Id>, Pos),
-    AnyMethodCall(Id, String, Vec<Id>, Vec<Type>, Pos),
+    /// The Lit should *only* be a String (representing the method name), and
+    /// then an Interned when it gets interned
+    AnyMethodCall(Id, Lit, Vec<Id>, Vec<Type>, Pos),
     PrimCall(RTSFunction, Vec<Id>, Pos),
     ObjectEmpty,
     /// `ObjectSet(obj, field, value, _)` is `obj.field = value;`. The translator generates code

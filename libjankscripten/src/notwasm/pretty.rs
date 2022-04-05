@@ -136,8 +136,9 @@ impl Pretty for Lit {
             Lit::I32(n) => pp.as_string(n),
             Lit::F64(x) => pp.text(format!("{}f", x)),
             // TOOD(arjun): Escape characters
-            Lit::String(s) => pp.text("\"").append(pp.text(s)).append(pp.text("\"")),
-            Lit::Interned(u) => pp.concat(vec![pp.text("interned"), pp.as_string(u).parens()]),
+            Lit::String(s) | Lit::Interned(s, _) => {
+                pp.text("\"").append(pp.text(s)).append(pp.text("\""))
+            }
             Lit::Undefined => pp.text("undefined"),
             Lit::Null => pp.text("null"),
         }

@@ -19,9 +19,9 @@ where
     let notwasm_std_lib = parse("std_lib.notwasm", src);
     program.merge_in(notwasm_std_lib);
 
-    inspect(&program);
     type_checking::type_check(&mut program)?;
     let inverted_interned_strings = intern(&mut program);
+    inspect(&program);
     let wasm = translate(opts, program)?;
     Ok((wasm, inverted_interned_strings))
 }
