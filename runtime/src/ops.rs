@@ -7,7 +7,6 @@ use crate::heap_types::ObjectPtr;
 use crate::static_strings::static_strings;
 use crate::string::*;
 use crate::util::unwrap_log;
-use crate::HeapPtr;
 
 /// A helper function for the JavaScript `+` operator. This is called
 /// by `jnks_plus` in the NotWasm runtime, which is the full implementation
