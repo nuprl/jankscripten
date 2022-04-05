@@ -576,6 +576,11 @@ fn type_check_atom(env: &Env, a: &mut Atom) -> TypeCheckingResult<Type> {
             let _ = ensure("object field", Type::DynObject, got_obj, s)?;
             Ok(Type::Any)
         }
+        Atom::AnyLength(a_obj, _, s) => {
+            let got_obj = lookup(env, a_obj, s)?;
+            let _ = ensure("object field", Type::Any, got_obj, s)?;
+            Ok(Type::Any)
+        }
         Atom::Unary(op, a, s) => {
             let (ty_in, ty_out) = op.notwasm_typ(true);
             let got = type_check_atom(env, a)?;

@@ -13,15 +13,9 @@ macro_rules! entry {
 
 fn methods_table() -> HashMap<(&'static str, usize), Vec<Type>> {
     [
-        // Length is EXTREMELY special. Let's be very careful here. When
-        // our object IS a string or array, we do exactly what we want if it's
-        // represented as MethodCall(obj, "length", vec![obj], (string) -> int,
-        // p). BUT when our object is an object, this gets naively compiled as
-        // obj.length() which is NOT what we want! Further, when our object
-        // is any, we need to *generate code* that knows that when obj is
-        // string/array, it should call the primitive, but when obj is an object
-        // it should be JUST a dot lookup. i'm putting this off
-        entry!(length, (string) -> int, (array) -> int),
+        // NOTE(luna): Length isn't a method, it's very special because it
+        // isn't called. We actually have our very own construct for it in
+        // each(!) of our languages
         entry!(slice, (string, int, int) -> string, (array, int, int) -> array),
         //entry!(at, (string, int) -> any, (string, int) -> string),
         entry!(concat, (array, array) -> array, (string, string) -> string),

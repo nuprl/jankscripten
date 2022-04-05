@@ -423,7 +423,7 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
         J::Expr::MethodCall(obj, method, args, _, p) => compile_expr(
             state,
             *obj,
-            C::id(move |state, fun_id| {
+            C::id(move |state, obj_id| {
                 // borrow checker
                 let args_len = args.len();
                 compile_exprs(state, args, move |state, arg_ids| {
@@ -436,12 +436,21 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                         .collect();
                     cxt.recv_e(
                         state,
-                        Expr::AnyMethodCall(fun_id, Lit::String(method), arg_ids, possible_typs, p),
+                        Expr::AnyMethodCall(obj_id, Lit::String(method), arg_ids, possible_typs, p),
                     )
                 })
             }),
         ),
-        J::Expr::Length(obj, typ, p) => todo!(),
+        J::Expr::Length(obj, _, p) => compile_expr(
+            state,
+            *obj,
+            C::id(move |state, obj_id| {
+                cxt.recv_a(
+                    state,
+                    Atom::AnyLength(obj_id, Lit::String("length".into()), p),
+                )
+            }),
+        ),
         J::Expr::NewRef(expr, ty, p) => compile_expr(
             state,
             *expr,

@@ -267,6 +267,8 @@ pub enum Atom {
     FloatToInt(Box<Atom>, Pos), // MMG made these Atoms because they shouldn't ever allocate
     IntToFloat(Box<Atom>, Pos),
     ObjectGet(Box<Atom>, Box<Atom>, Pos),
+    /// The Lit is always "length", but it makes the interner do the work
+    AnyLength(Id, Lit, Pos),
     Id(Id, Pos),
     GetPrimFunc(Id, Pos),
     Unary(UnaryOp, Box<Atom>, Pos),
@@ -280,19 +282,20 @@ impl Atom {
     // Every Atom must have a position. Do not create a bogus position here.
     pub fn pos(&self) -> &Pos {
         match self {
-            Atom::Lit(_, p) => p,
-            Atom::PrimApp(_, _, p) => p,
-            Atom::ToAny(_, p) => p,
-            Atom::FromAny(_, _, p) => p,
-            Atom::FloatToInt(_, p) => p,
-            Atom::IntToFloat(_, p) => p,
-            Atom::ObjectGet(_, _, p) => p,
-            Atom::Id(_, p) => p,
-            Atom::GetPrimFunc(_, p) => p,
-            Atom::Unary(_, _, p) => p,
-            Atom::Binary(_, _, _, p) => p,
-            Atom::Deref(_, _, p) => p,
-            Atom::EnvGet(_, _, p) => p,
+            Atom::Lit(.., p)
+            | Atom::PrimApp(.., p)
+            | Atom::ToAny(.., p)
+            | Atom::FromAny(.., p)
+            | Atom::FloatToInt(.., p)
+            | Atom::IntToFloat(.., p)
+            | Atom::ObjectGet(.., p)
+            | Atom::AnyLength(.., p)
+            | Atom::Id(.., p)
+            | Atom::GetPrimFunc(.., p)
+            | Atom::Unary(.., p)
+            | Atom::Binary(.., p)
+            | Atom::Deref(.., p)
+            | Atom::EnvGet(.., p) => p,
         }
     }
 }
