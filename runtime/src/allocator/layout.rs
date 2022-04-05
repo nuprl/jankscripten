@@ -1,16 +1,16 @@
 #![allow(unstable_name_collisions)]
 
 //! Code from https://github.com/fitzgen/bumpalo/blob/master/src/alloc.rs#L38
-use std::alloc::{Layout, LayoutErr};
+use std::alloc::{Layout, LayoutError};
 
-fn new_layout_err() -> LayoutErr {
+fn new_layout_err() -> LayoutError {
     Layout::from_size_align(1, 3).unwrap_err()
 }
 
 pub trait UnstableLayoutMethods {
     fn padding_needed_for(&self, align: usize) -> usize;
-    fn repeat(&self, n: usize) -> Result<(Layout, usize), LayoutErr>;
-    fn array<T>(n: usize) -> Result<Layout, LayoutErr>;
+    fn repeat(&self, n: usize) -> Result<(Layout, usize), LayoutError>;
+    fn array<T>(n: usize) -> Result<Layout, LayoutError>;
 }
 
 pub fn layout_aligned<T>(alignment: usize) -> Layout {
@@ -46,7 +46,7 @@ impl UnstableLayoutMethods for Layout {
         len_rounded_up.wrapping_sub(len)
     }
 
-    fn repeat(&self, n: usize) -> Result<(Layout, usize), LayoutErr> {
+    fn repeat(&self, n: usize) -> Result<(Layout, usize), LayoutError> {
         let padded_size = self
             .size()
             .checked_add(self.padding_needed_for(self.align()))
@@ -63,7 +63,7 @@ impl UnstableLayoutMethods for Layout {
         }
     }
 
-    fn array<T>(n: usize) -> Result<Layout, LayoutErr> {
+    fn array<T>(n: usize) -> Result<Layout, LayoutError> {
         Layout::new::<T>().repeat(n).map(|(k, offs)| {
             debug_assert!(offs == std::mem::size_of::<T>());
             k

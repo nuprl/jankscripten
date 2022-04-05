@@ -15,7 +15,6 @@
 //!   coercions out that we have in there right now could move here
 
 use crate::any_value::{AnyValue as Any, *};
-use crate::heap;
 use crate::heap_types::*;
 
 pub fn i32s_or_as_f64s<T, F, I>(a: Any, b: Any, floats: F, ints: I) -> Option<T>

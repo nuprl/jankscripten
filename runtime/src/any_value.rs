@@ -87,7 +87,7 @@ impl Display for HeapRefView {
             ObjectPtrPtr(_o) => log_panic!("TODO(luna): toString"),
             NonPtr32(_) | MutF64(_) | Ptr(_) => log_panic!("ref inside any"),
             Env(_) => log_panic!("not a value"),
-            HT(_) | Array(_) => log_panic!("Display trait not implemented"),
+            HT(_) => log_panic!("Display trait not implemented"),
         }
     }
 }
@@ -115,28 +115,26 @@ impl Debug for HeapRefView {
 impl AsI64 for AnyEnum {}
 pub type AnyValue = I64Val<AnyEnum>;
 
-// This macro automatically generates simple projection functions.
-macro_rules! decl_proj_fns {
-    ($from_name:ident, $to_name:ident, $any_name:ident, $ty:ty) => {
-        #[no_mangle]
-        pub extern "C" fn $from_name(val: $ty) -> AnyValue {
-            AnyEnum::$any_name(val).into()
-        }
-        #[no_mangle]
-        pub extern "C" fn $to_name(val: AnyValue) -> $ty {
-            if let AnyEnum::$any_name(inner) = *val {
-                inner.into()
-            } else {
-                log!("cannot unwrap {:?} as {}", *val, stringify!($any_name));
-                panic!("");
-            }
-        }
-    };
+#[no_mangle]
+pub extern "C" fn any_to_i32(any: AnyValue) -> i32 {
+    match *any {
+        AnyEnum::I32(i) => i,
+        AnyEnum::F64(f) => (unsafe { *f }) as i32,
+        AnyEnum::Bool(b) => b as i32,
+        AnyEnum::Ptr(ptr) => match ptr.view() {
+            HeapRefView::NonPtr32(_) => panic!("ref is not a value"),
+            HeapRefView::String(s) => s.parse().expect("failed string->i32: what to do?"),
+            _ => panic!("failed to unwrap {:?} as i32", *any),
+        },
+        AnyEnum::Closure(_) | AnyEnum::Undefined => panic!("failed to unwrap {:?} as i32", *any),
+        AnyEnum::Null => 0,
+    }
 }
 
-// Automatically generate these simple projection functions.
-// The rest will be specified manually.
-decl_proj_fns!(any_from_i32, any_to_i32, I32, i32);
+#[no_mangle]
+pub extern "C" fn any_from_i32(x: i32) -> AnyValue {
+    AnyEnum::I32(x).into()
+}
 
 #[no_mangle]
 pub extern "C" fn any_to_f64(any: AnyValue) -> f64 {

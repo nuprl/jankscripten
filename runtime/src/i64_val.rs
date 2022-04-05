@@ -12,7 +12,6 @@
 //! https://github.com/rust-lang/rust/blob/2e0edc0/compiler/rustc_middle/src/ty/layout.rs#L2770-L2772
 
 use std::fmt::{Debug, Formatter, Result as FmtResult};
-use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 /// implement this trait in order to allow into::<I64Val>() / vice-versa
@@ -35,6 +34,7 @@ impl<T: Copy> I64Val<T> {
     /// bits. these should be treated carefully, for example, not compared for
     /// equality
     #[cfg(target_pointer_width = "32")]
+    #[cfg(test)]
     pub(crate) fn raw_val(&self) -> u64 {
         unsafe { self.int }
     }

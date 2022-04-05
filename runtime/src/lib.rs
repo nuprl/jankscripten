@@ -5,6 +5,8 @@
 //! extern functions that work with `u128`. Therefore, most modules below
 //! are setup to only compile with the `wasm32` target.
 
+#![allow(improper_ctypes_definitions)]
+
 #[cfg(all(target_arch = "wasm32"))]
 type Key = crate::heap_types::StringPtr;
 
