@@ -138,7 +138,7 @@ Expr -> Expr :
   | 'newRef' '(' Atom ',' Type ')'      { Expr::NewRef($3, $5, pos($1)) }
   | Id '!' '(' IdSeq ')'                { Expr::ClosureCall($1, $4, pos($2)) }
   | Id '(' IdSeq ')'                    { Expr::Call($1, $3, pos($2)) }
-  | Id '?' '.' IdString '<' TypeSeq '>' '(' IdSeq ')' { Expr::AnyMethodCall($1, $4, $9, $6, pos($3)) }
+  | Id '?' '.' IdString '<' TypeSeq '>' '(' IdSeq ')' { Expr::AnyMethodCall($1, Lit::String($4), $9, $6, pos($3)) }
   | AtomAdd                             { let p = $1.pos().clone(); Expr::Atom($1, p) }
   ;
 

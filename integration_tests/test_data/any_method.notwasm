@@ -1,3 +1,6 @@
+function returns_twelve(_: env, this: any, value: any): any {
+    return any(12);
+}
 function main() {
     var a = any(@array_new());
     var _ = a?.push<(Array, any) -> i32>(a, undefined);
@@ -7,4 +10,14 @@ function main() {
     var any_4 = any(4);
     var sl = s?.slice<(str, i32, i32) -> str, (Array, i32, i32) -> Array>(s, any_2, any_4);
     var _ = !dbg_log(sl);
+    // We call it push so that there is some ambiguity. This shouldn't matter
+    // for NotWasm, but it would matter if we were compiling from js
+    // let o = { push: returns_twelve }
+    // let res = o.push(o, undefined); // remember `this` desugar
+    var o = @object_empty();
+    var f = clos(returns_twelve, );
+    o.push = any(f);
+    var o_any = any(o);
+    var f_call = o_any?.push<(Array, any) -> i32>(o_any, undefined);
+    var _ = !dbg_log(f_call);
 }

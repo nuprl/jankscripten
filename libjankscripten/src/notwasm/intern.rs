@@ -33,40 +33,50 @@ struct InternVisitor {
 impl Visitor for InternVisitor {
     fn exit_atom(&mut self, atom: &mut Atom, _loc: &mut Loc) {
         match atom {
-            Atom::Lit(old_lit @ Lit::String(_), _) => {
-                let lit = std::mem::replace(old_lit, Lit::I32(0));
-                if let Lit::String(s) = lit {
-                    if let Some(offset) = self.already_interned.get(&s) {
-                        // We have seen this string before, so no need to
-                        // reallocate.
-                        *old_lit = Lit::Interned(*offset);
-                        return;
-                    }
-                    let pos = self.data.len() as u32;
-                    // Cache the offset, so that the interned string can be
-                    // reused.
-                    self.already_interned.insert(s.clone(), pos);
-                    let mut bytes = s.into_bytes();
-                    *old_lit = Lit::Interned(pos);
-                    let length = bytes.len() as u32;
-                    let length_bytes: [u8; 4] = unsafe { std::mem::transmute(length.to_le()) };
-                    self.data.extend_from_slice(&STRING_TAG);
-                    self.data.extend_from_slice(&length_bytes);
-                    self.data.append(&mut bytes);
-                    // tag(4), length(4)
-                    let in_memory_length = length + 8;
-                    // now we want to preserve alignment
-                    // 0 -> 3 -> 0; 1 -> 0 -> 3; 2 -> 1 -> 2; 3 -> 2 -> 1
-                    // +3 not -1 because 0 -> -1 % 4 = -1 -> 4, should be 0
-                    let needed = 3 - ((in_memory_length + 3) % 4);
-                    for _ in 0..needed {
-                        self.data.push(b'\0');
-                    }
-                } else {
-                    unreachable!()
-                }
-            }
+            Atom::Lit(old_lit @ Lit::String(_), _) => self.intern_string(old_lit),
             _ => (),
+        }
+    }
+    fn exit_expr(&mut self, expr: &mut Expr, _loc: &mut Loc) {
+        match expr {
+            Expr::AnyMethodCall(_, old_lit @ Lit::String(_), ..) => self.intern_string(old_lit),
+            _ => (),
+        }
+    }
+}
+
+impl InternVisitor {
+    fn intern_string(&mut self, old_lit: &mut Lit) {
+        let lit = std::mem::replace(old_lit, Lit::I32(0));
+        if let Lit::String(s) = lit {
+            if let Some(offset) = self.already_interned.get(&s) {
+                // We have seen this string before, so no need to
+                // reallocate.
+                *old_lit = Lit::Interned(s, *offset);
+                return;
+            }
+            let pos = self.data.len() as u32;
+            // Cache the offset, so that the interned string can be
+            // reused.
+            self.already_interned.insert(s.clone(), pos);
+            let mut bytes = s.clone().into_bytes();
+            *old_lit = Lit::Interned(s, pos);
+            let length = bytes.len() as u32;
+            let length_bytes: [u8; 4] = unsafe { std::mem::transmute(length.to_le()) };
+            self.data.extend_from_slice(&STRING_TAG);
+            self.data.extend_from_slice(&length_bytes);
+            self.data.append(&mut bytes);
+            // tag(4), length(4)
+            let in_memory_length = length + 8;
+            // now we want to preserve alignment
+            // 0 -> 3 -> 0; 1 -> 0 -> 3; 2 -> 1 -> 2; 3 -> 2 -> 1
+            // +3 not -1 because 0 -> -1 % 4 = -1 -> 4, should be 0
+            let needed = 3 - ((in_memory_length + 3) % 4);
+            for _ in 0..needed {
+                self.data.push(b'\0');
+            }
+        } else {
+            unreachable!()
         }
     }
 }
@@ -100,7 +110,10 @@ mod test {
                     Stmt::Var(
                         VarStmt::new(
                             id_("a"),
-                            atom_(Atom::Lit(Lit::Interned(0), s.clone()), s.clone()),
+                            atom_(
+                                Atom::Lit(Lit::Interned("a".into(), 0), s.clone()),
+                                s.clone(),
+                            ),
                         ),
                         s.clone(),
                     ),
@@ -108,7 +121,10 @@ mod test {
                     Stmt::Var(
                         VarStmt::new(
                             id_("b"),
-                            atom_(Atom::Lit(Lit::Interned(16), s.clone()), s.clone()),
+                            atom_(
+                                Atom::Lit(Lit::Interned("b".into(), 16), s.clone()),
+                                s.clone(),
+                            ),
                         ),
                         s.clone(),
                     ),

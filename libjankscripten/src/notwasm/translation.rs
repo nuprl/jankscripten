@@ -7,6 +7,7 @@
 //! to other definitions
 
 use super::super::rts_function::*;
+use super::constructors::*;
 use super::rt_bindings::get_rt_bindings;
 use super::syntax as N;
 use crate::opts::Opts;
@@ -422,11 +423,7 @@ impl<'a> Translate<'a> {
         match stmt {
             N::Stmt::Store(id, expr, _) => {
                 // storing into a reference translates into a raw write
-                // TODO(luna): this should really have the type in the
-                // AST so we don't have to do this messiness
-                let ty = self
-                    .get_id(id)
-                    .expect("add types to globals to support global ref");
+                let ty = self.get_id(id).unwrap();
                 let ty = if let N::Type::Ref(b_ty) = ty {
                     *b_ty
                 } else {
@@ -718,7 +715,12 @@ impl<'a> Translate<'a> {
             }
             // This is using assumptions from the runtime. See
             // runtime::any_value::test::abi_any_discriminants_stable
-            N::Expr::AnyMethodCall(any, method, args, typs, _) => {
+            N::Expr::AnyMethodCall(any, method_lit, args, typs, s) => {
+                let method = if let N::Lit::Interned(m, _) = method_lit {
+                    m
+                } else {
+                    panic!("method field should be interned string");
+                };
                 // We need a local to store our result because br_table doesn't
                 // support results properly (design overlook???)
                 // i checked and this is how rustc/llvm does it; we *need*
@@ -843,9 +845,7 @@ impl<'a> Translate<'a> {
                 self.out.push(Br(2));
                 self.out.push(End);
                 // Object, 3
-                // Keeping the convention of just putting our idea of our
-                // discriminants. First digit is 3, second digit is our tag value
-                self.out.push(I64Const(33));
+                self.translate_object_method(any, method_lit, args, s);
                 self.out.push(SetLocal(index));
                 // No need for an outer block because we are already in an outer block
                 // We break 1 here which means breaking all the way out to GetLocal
@@ -864,44 +864,24 @@ impl<'a> Translate<'a> {
                 self.out.push(GetLocal(index));
             }
             N::Expr::ClosureCall(f, args, s) => {
-                match self.id_env.get(f).cloned() {
-                    Some(IdIndex::Fun(_)) => panic!("closures are always given a name"),
-                    Some(which @ IdIndex::Local(..)) | Some(which @ IdIndex::Global(..)) => {
-                        let t = match which {
-                            IdIndex::Local(i, ref t) => {
-                                self.out.push(GetLocal(i));
-                                t.clone()
-                            }
-                            IdIndex::Global(i, ref t) => {
-                                self.out.push(GetGlobal(i));
-                                t.clone()
-                            }
-                            _ => unreachable!(),
-                        };
-                        self.rt_call("closure_env");
-                        let (params_tys, ret_ty) = match t {
-                            N::Type::Closure(fn_ty) => {
-                                (types_as_wasm(&fn_ty.args), option_as_wasm(&fn_ty.result))
-                            }
-                            _ => panic!("identifier {:?} is not function-typed", f),
-                        };
-                        let ty_index = self
-                            .type_indexes
-                            .get(&(params_tys, ret_ty))
-                            .unwrap_or_else(|| panic!("function type was not indexed {:?}", s));
-                        for arg in args {
-                            self.get_id(arg);
-                        }
-                        match which {
-                            IdIndex::Local(i, _) => self.out.push(GetLocal(i)),
-                            IdIndex::Global(i, _) => self.out.push(GetGlobal(i)),
-                            _ => unreachable!(),
-                        }
-                        self.rt_call("closure_func");
-                        self.out.push(CallIndirect(*ty_index, 0));
+                let t = self.get_id(f).unwrap();
+                self.rt_call("closure_env");
+                let typs = match t {
+                    N::Type::Closure(fn_ty) => {
+                        (types_as_wasm(&fn_ty.args), option_as_wasm(&fn_ty.result))
                     }
-                    got => panic!("expected Func ID ({}), but got {:?}", f, got),
+                    _ => panic!("identifier {:?} is not function-typed", f),
                 };
+                let ty_index = self
+                    .type_indexes
+                    .get(&typs)
+                    .unwrap_or_else(|| panic!("function type was not indexed {:?}", s));
+                for arg in args {
+                    self.get_id(arg);
+                }
+                self.get_id(f);
+                self.rt_call("closure_func");
+                self.out.push(CallIndirect(*ty_index, 0));
             }
             N::Expr::NewRef(a, ty, _) => {
                 self.translate_atom(a);
@@ -946,7 +926,7 @@ impl<'a> Translate<'a> {
             N::Atom::Lit(lit, _) => match lit {
                 N::Lit::I32(i) => self.out.push(I32Const(*i)),
                 N::Lit::F64(f) => self.out.push(F64Const(unsafe { std::mem::transmute(*f) })),
-                N::Lit::Interned(addr) => {
+                N::Lit::Interned(_, addr) => {
                     self.out.push(GetGlobal(JNKS_STRINGS_IDX));
                     self.out.push(I32Const(*addr as i32));
                     self.out.push(I32Add);
@@ -1057,6 +1037,54 @@ impl<'a> Translate<'a> {
         self.out.push(Drop);
     }
 
+    /// The result of the call (an any) is now on the stack
+    fn translate_object_method(
+        &mut self,
+        any: &mut N::Id,
+        method_lit: &mut N::Lit,
+        args: &mut Vec<N::Id>,
+        s: &N::Pos,
+    ) {
+        // This is the type of the function we're pulling out, which
+        // we'll need various places. Notwasm "Closure" types *include*
+        // an env
+        let closure_type = N::Type::Closure(N::FnType {
+            args: std::iter::once(N::Type::Env)
+                .chain(std::iter::repeat(N::Type::Any).take(args.len()))
+                .collect(),
+            result: Some(Box::new(N::Type::Any)),
+        });
+        // Now we need to make a ClosureCall, but ClosureCall requires an
+        // id. It isn't any so we can't use the match one (we could, but
+        // NotWasm would whine. Wasm would be fine with it. But wasm-opt should
+        // take care of this for us)
+        let cl_call_idx = self.next_id;
+        self.next_id += 1;
+        self.locals.push(ValueType::I64);
+        // I don't want to bring in namegen. This id can be
+        // re-used. So, i'm just picking something. I do need an ID to
+        // make the object case easy to write as a desugaring
+        self.id_env.insert(
+            "%mfn".into(),
+            IdIndex::Local(cl_call_idx, closure_type.clone()),
+        );
+        // just an abbr
+        let p = || s.clone();
+        // %mfn = any.method
+        // %mfn(args) // on stack now
+        let dot_atom = object_get_(
+            from_any_(get_id_(any.clone(), p()), N::Type::DynObject, p()),
+            N::Atom::Lit(method_lit.clone(), p()),
+            p(),
+        );
+        let typed_dot = from_any_(dot_atom, closure_type.clone(), p());
+        let mut dot_stmt = N::Stmt::Assign("%mfn".into(), atom_(typed_dot, p()), p());
+        // We know this is just a straight-line stmt so no need for env
+        self.translate_rec(&Env::default(), false, &mut dot_stmt);
+        let mut call_expr = N::Expr::ClosureCall("%mfn".into(), args.clone(), s.clone());
+        self.translate_expr(&mut call_expr);
+    }
+
     fn load(&mut self, ty: &N::Type, offset: u32) {
         match ty.as_wasm() {
             ValueType::I32 => self.out.push(I32Load(2, offset)),
@@ -1135,9 +1163,9 @@ impl<'a> Translate<'a> {
                 self.out.push(GetLocal(*n));
                 Some(ty.clone())
             }
-            IdIndex::Global(n, _) => {
+            IdIndex::Global(n, ty) => {
                 self.out.push(GetGlobal(*n));
-                None
+                Some(ty.clone())
             }
             IdIndex::RTGlobal(n, ty) => {
                 self.out.push(GetGlobal(*n));
