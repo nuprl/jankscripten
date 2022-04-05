@@ -4,6 +4,8 @@ import ht_set: (HT, str, any) -> any;
 import array_new: () -> Array;
 import array_index: (Array, i32) -> any;
 import array_set: (Array, i32, any) -> any;
+import array_length: (Array) -> i32;
+import string_length: (str) -> i32;
 import any_from_ptr: (i32) -> any;
 import any_to_ptr: (any) -> i32;
 import get_undefined: () -> any;

@@ -33,7 +33,8 @@ struct InternVisitor {
 impl Visitor for InternVisitor {
     fn exit_atom(&mut self, atom: &mut Atom, _loc: &mut Loc) {
         match atom {
-            Atom::Lit(old_lit @ Lit::String(_), _) => self.intern_string(old_lit),
+            Atom::Lit(old_lit @ Lit::String(_), _)
+            | Atom::AnyLength(_, old_lit @ Lit::String(_), _) => self.intern_string(old_lit),
             _ => (),
         }
     }

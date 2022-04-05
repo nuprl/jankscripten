@@ -716,7 +716,7 @@ impl<'a> Translate<'a> {
             // This is using assumptions from the runtime. See
             // runtime::any_value::test::abi_any_discriminants_stable
             N::Expr::AnyMethodCall(any, method_lit, args, typs, s) => {
-                self.translate_any_method(any, method_lit, args, typs, s)
+                self.translate_any_method(any, method_lit, args, typs, s, true)
             }
             N::Expr::ClosureCall(f, args, s) => {
                 let t = self.get_id(f).unwrap();
@@ -832,6 +832,26 @@ impl<'a> Translate<'a> {
                 self.data_cache();
                 self.rt_call("object_get");
             }
+            N::Atom::AnyLength(any, method_lit, s) => {
+                let possible_typs = vec![
+                    N::Type::Fn(N::FnType {
+                        args: vec![N::Type::String],
+                        result: Some(Box::new(N::Type::I32)),
+                    }),
+                    N::Type::Fn(N::FnType {
+                        args: vec![N::Type::Array],
+                        result: Some(Box::new(N::Type::I32)),
+                    }),
+                ];
+                self.translate_any_method(
+                    any,
+                    method_lit,
+                    &vec![any.clone()],
+                    &possible_typs,
+                    s,
+                    false,
+                )
+            }
             N::Atom::Binary(op, a, b, _) => {
                 self.translate_atom(a);
                 self.translate_atom(b);
@@ -899,6 +919,7 @@ impl<'a> Translate<'a> {
         args: &Vec<N::Id>,
         typs: &Vec<N::Type>,
         s: &N::Pos,
+        do_call: bool,
     ) {
         let method = if let N::Lit::Interned(m, _) = &method_lit {
             m
@@ -981,7 +1002,7 @@ impl<'a> Translate<'a> {
         self.out.push(Br(2));
         self.out.push(End);
         // Ptr 3
-        self.translate_pointer_method(any, method_lit, args, s, index, typed_call);
+        self.translate_pointer_method(any, method_lit, args, s, index, typed_call, do_call);
         self.out.push(End);
         // Closure 4
         self.out.push(I64Const(4));
@@ -995,6 +1016,8 @@ impl<'a> Translate<'a> {
         self.out.push(GetLocal(index));
     }
 
+    /// do_call represents whether to call the field as a function when any
+    /// is object (you probably want this unless this is Length
     fn translate_pointer_method(
         &mut self,
         any: &N::Id,
@@ -1003,6 +1026,7 @@ impl<'a> Translate<'a> {
         s: &N::Pos,
         index: u32,
         typed_call: impl Fn(&mut Self, N::Type),
+        do_call: bool,
     ) {
         // So now we need to go look on the heap and use THAT tag to
         // decide what type we REALLY are. Was this even a good decision?
@@ -1051,7 +1075,7 @@ impl<'a> Translate<'a> {
         self.out.push(Br(2));
         self.out.push(End);
         // Object, 3
-        self.translate_object_method(any, method_lit, args, s);
+        self.translate_object_method(any, method_lit, args, s, do_call);
         self.out.push(SetLocal(index));
         // No need for an outer block because we are already in an outer block
         // We break 1 here which means breaking all the way out to GetLocal
@@ -1065,6 +1089,7 @@ impl<'a> Translate<'a> {
         method_lit: &N::Lit,
         args: &Vec<N::Id>,
         s: &N::Pos,
+        do_call: bool,
     ) {
         // This is the type of the function we're pulling out, which
         // we'll need various places. Notwasm "Closure" types *include*
@@ -1075,35 +1100,41 @@ impl<'a> Translate<'a> {
                 .collect(),
             result: Some(Box::new(N::Type::Any)),
         });
-        // Now we need to make a ClosureCall, but ClosureCall requires an
-        // id. It isn't any so we can't use the match one (we could, but
-        // NotWasm would whine. Wasm would be fine with it. But wasm-opt should
-        // take care of this for us)
-        let cl_call_idx = self.next_id;
-        self.next_id += 1;
-        self.locals.push(ValueType::I64);
-        // I don't want to bring in namegen. This id can be
-        // re-used. So, i'm just picking something. I do need an ID to
-        // make the object case easy to write as a desugaring
-        self.id_env.insert(
-            "%mfn".into(),
-            IdIndex::Local(cl_call_idx, closure_type.clone()),
-        );
+        if do_call {
+            // Now we need to make a ClosureCall, but ClosureCall requires an
+            // id. It isn't any so we can't use the match one (we could, but
+            // NotWasm would whine. Wasm would be fine with it. But wasm-opt should
+            // take care of this for us)
+            let cl_call_idx = self.next_id;
+            self.next_id += 1;
+            self.locals.push(ValueType::I64);
+            // I don't want to bring in namegen. This id can be
+            // re-used. So, i'm just picking something. I do need an ID to
+            // make the object case easy to write as a desugaring
+            self.id_env.insert(
+                "%mfn".into(),
+                IdIndex::Local(cl_call_idx, closure_type.clone()),
+            );
+        }
         // just an abbr
         let p = || s.clone();
         // %mfn = any.method
         // %mfn(args) // on stack now
-        let dot_atom = object_get_(
+        let mut dot_atom = object_get_(
             from_any_(get_id_(any.clone(), p()), N::Type::DynObject, p()),
             N::Atom::Lit(method_lit.clone(), p()),
             p(),
         );
-        let typed_dot = from_any_(dot_atom, closure_type.clone(), p());
-        let mut dot_stmt = N::Stmt::Assign("%mfn".into(), atom_(typed_dot, p()), p());
-        // We know this is just a straight-line stmt so no need for env
-        self.translate_rec(&Env::default(), false, &mut dot_stmt);
-        let mut call_expr = N::Expr::ClosureCall("%mfn".into(), args.clone(), s.clone());
-        self.translate_expr(&mut call_expr);
+        if do_call {
+            let typed_dot = from_any_(dot_atom, closure_type.clone(), p());
+            let mut dot_stmt = N::Stmt::Assign("%mfn".into(), atom_(typed_dot, p()), p());
+            // We know this is just a straight-line stmt so no need for env
+            self.translate_rec(&Env::default(), false, &mut dot_stmt);
+            let mut call_expr = N::Expr::ClosureCall("%mfn".into(), args.clone(), s.clone());
+            self.translate_expr(&mut call_expr);
+        } else {
+            self.translate_atom(&mut dot_atom);
+        }
     }
 
     fn load(&mut self, ty: &N::Type, offset: u32) {

@@ -1,5 +1,5 @@
+use super::constructors::*;
 use super::syntax::Type;
-use super::{constructors::*, syntax::FnType};
 use crate::rts_function::{RTSFunction, RTSFunctionImpl};
 use crate::shared::methods::METHODS_TABLE;
 use std::collections::HashMap;

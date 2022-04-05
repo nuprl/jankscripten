@@ -159,7 +159,7 @@ where
         self.visitor.enter_atom(atom, loc);
         match atom {
             // 0
-            Lit(..) | Id(..) | GetPrimFunc(..) | Deref(..) | EnvGet(..) => (),
+            Lit(..) | Id(..) | GetPrimFunc(..) | Deref(..) | EnvGet(..) | AnyLength(..) => (),
             PrimApp(_, args, _) => {
                 for a in args.iter_mut() {
                     self.walk_atom(a, loc);
