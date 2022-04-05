@@ -716,152 +716,7 @@ impl<'a> Translate<'a> {
             // This is using assumptions from the runtime. See
             // runtime::any_value::test::abi_any_discriminants_stable
             N::Expr::AnyMethodCall(any, method_lit, args, typs, s) => {
-                let method = if let N::Lit::Interned(m, _) = method_lit {
-                    m
-                } else {
-                    panic!("method field should be interned string");
-                };
-                // We need a local to store our result because br_table doesn't
-                // support results properly (design overlook???)
-                // i checked and this is how rustc/llvm does it; we *need*
-                // a local. TODO(luna): re-use this local somehow? (or just
-                // leave it to wasm-opt)
-                let index = self.next_id;
-                self.next_id += 1;
-                self.locals.push(ValueType::I64);
-
-                // Once we figure out our type, if it's not Object, it's a
-                // simple call that looks the same for everyone
-                let typed_call = |s: &mut Self, typ| {
-                    // When this isn't a type at all, we simply put nothing
-                    // here. It won't be jumped to (if code is correct)
-                    if let Some(t) = typs.iter().find(|t| t.unwrap_fun().0[0] == typ) {
-                        let (arg_typs, result_typ) = t.unwrap_fun();
-                        for (arg, typ) in args.iter().zip(arg_typs.iter()) {
-                            s.get_id(arg);
-                            s.from_any(typ);
-                        }
-                        let func_name = format!("{}_{}", typ, method);
-                        s.rt_call(func_name.as_str());
-                        // We could use unwrap because jankyscript doesn't have void
-                        if let Some(result_typ) = result_typ {
-                            s.to_any(result_typ);
-                            s.out.push(SetLocal(index));
-                        }
-                    }
-                };
-
-                // TODO(luna): Call me crazy, but we could probably skip
-                // checking the any. All the types that have methods are heap
-                // types(right?) so we can just skip right to load pointer and
-                // check tag. At the least, when all the types in `typs` are,
-                // we could do this
-
-                // Each block breaks to this block to exit
-                self.out.push(Block(BlockType::NoResult));
-                self.out.push(Block(BlockType::NoResult)); // 4
-                self.out.push(Block(BlockType::NoResult)); // 3
-                self.out.push(Block(BlockType::NoResult)); // 2
-                self.out.push(Block(BlockType::NoResult)); // 1
-                self.out.push(Block(BlockType::NoResult)); // 0
-
-                // Get our object and look at the discriminant
-                self.get_id(any);
-                // Assume that the discriminant is in the lowest
-                // two bytes. This IS tested in our ABI test
-                self.out.push(I32WrapI64);
-                self.out.push(I32Const(0x00ff));
-                self.out.push(I32And);
-                self.out.push(BrTable(Box::new(BrTableData {
-                    table: Box::new([0, 1, 2, 3, 4]),
-                    // default should never be followed if all goes well. i
-                    // could put a trap in there or i could just give it UB
-                    default: 0,
-                })));
-                self.out.push(End);
-                // I32 0
-                // For now i'm just going to put what i think the discriminant
-                // should be to make sure i'm generating code right
-                self.out.push(I64Const(0));
-                self.out.push(SetLocal(index));
-                self.out.push(Br(4));
-                self.out.push(End);
-                // F64 1
-                self.out.push(I64Const(1));
-                self.out.push(SetLocal(index));
-                self.out.push(Br(3));
-                self.out.push(End);
-                // Bool 2
-                self.out.push(I64Const(2));
-                self.out.push(SetLocal(index));
-                self.out.push(Br(2));
-                self.out.push(End);
-                // Ptr 3
-                // ======== Begin pointer match =======
-                // So now we need to go look on the heap and use THAT tag to
-                // decide what type we REALLY are. Was this even a good decision?
-                // You can check these values at
-                // runtime::allocator::heap_values::TypeTag
-                // They are way more consistent than the any discriminant
-                // because i was able to specify them in rust
-                // Array = 0
-                // String = 1
-                // HT(still not used by JankyScript!) = 2
-                // Object = 3
-                // We don't need an outer block to break to because we're already in a block!
-                self.out.push(Block(BlockType::NoResult)); // 3
-                self.out.push(Block(BlockType::NoResult)); // 2
-                self.out.push(Block(BlockType::NoResult)); // 1
-                self.out.push(Block(BlockType::NoResult)); // 0
-
-                // Get the pointer
-                self.get_id(any);
-                self.out.push(I64Const(4 * 8));
-                self.out.push(I64ShrU);
-                self.out.push(I32WrapI64);
-                // Now load up the actual tag
-                // The actual tag is the *second* byte, after the marked bool
-                // Note that parity_wasm uses the arguments to load in the
-                // opposite order of the spec (here: alignment, offset)
-                self.out.push(I32Load8U(0, 1));
-                // And break
-                self.out.push(BrTable(Box::new(BrTableData {
-                    table: Box::new([0, 1, 2, 3]),
-                    // Again, default is just UB
-                    default: 0,
-                })));
-                self.out.push(End);
-                // Array, 0
-                typed_call(self, N::Type::Array);
-                self.out.push(Br(4));
-                self.out.push(End);
-                // String, 1
-                typed_call(self, N::Type::String);
-                self.out.push(Br(3));
-                self.out.push(End);
-                // HT, 2
-                // TODO(luna)
-                // blah blah blah HT stuff
-                self.out.push(Br(2));
-                self.out.push(End);
-                // Object, 3
-                self.translate_object_method(any, method_lit, args, s);
-                self.out.push(SetLocal(index));
-                // No need for an outer block because we are already in an outer block
-                // We break 1 here which means breaking all the way out to GetLocal
-                self.out.push(Br(1));
-                // ========== End pointer match =========
-                self.out.push(End);
-                // Closure 4
-                self.out.push(I64Const(4));
-                self.out.push(SetLocal(index));
-                // Would be br(0) but that happens automatically
-                self.out.push(End);
-                // we ignore Undefined 5
-                // we ignore Null 6
-                // This is where we exit to with our any result in the
-                // local. Simply get it
-                self.out.push(GetLocal(index));
+                self.translate_any_method(any, method_lit, args, typs, s)
             }
             N::Expr::ClosureCall(f, args, s) => {
                 let t = self.get_id(f).unwrap();
@@ -1037,12 +892,178 @@ impl<'a> Translate<'a> {
         self.out.push(Drop);
     }
 
+    fn translate_any_method(
+        &mut self,
+        any: &N::Id,
+        method_lit: &N::Lit,
+        args: &Vec<N::Id>,
+        typs: &Vec<N::Type>,
+        s: &N::Pos,
+    ) {
+        let method = if let N::Lit::Interned(m, _) = &method_lit {
+            m
+        } else {
+            panic!("method field should be interned string");
+        };
+        // We need a local to store our result because br_table doesn't
+        // support results properly (design overlook???)
+        // i checked and this is how rustc/llvm does it; we *need*
+        // a local. TODO(luna): re-use this local somehow? (or just
+        // leave it to wasm-opt)
+        let index = self.next_id;
+        self.next_id += 1;
+        self.locals.push(ValueType::I64);
+
+        // Once we figure out our type, if it's not Object, it's a
+        // simple call that looks the same for everyone
+        let typed_call = |s: &mut Self, typ| {
+            // When this isn't a type at all, we simply put nothing
+            // here. It won't be jumped to (if code is correct)
+            if let Some(t) = typs.iter().find(|t| t.unwrap_fun().0[0] == typ) {
+                let (arg_typs, result_typ) = t.unwrap_fun();
+                for (arg, typ) in args.iter().zip(arg_typs.iter()) {
+                    s.get_id(arg);
+                    s.from_any(typ);
+                }
+                let func_name = format!("{}_{}", typ, method);
+                s.rt_call(func_name.as_str());
+                // We could use unwrap because jankyscript doesn't have void
+                if let Some(result_typ) = result_typ {
+                    s.to_any(result_typ);
+                    s.out.push(SetLocal(index));
+                }
+            }
+        };
+
+        // TODO(luna): Call me crazy, but we could probably skip
+        // checking the any. All the types that have methods are heap
+        // types(right?) so we can just skip right to load pointer and
+        // check tag. At the least, when all the types in `typs` are,
+        // we could do this
+
+        // Each block breaks to this block to exit
+        self.out.push(Block(BlockType::NoResult));
+        self.out.push(Block(BlockType::NoResult)); // 4
+        self.out.push(Block(BlockType::NoResult)); // 3
+        self.out.push(Block(BlockType::NoResult)); // 2
+        self.out.push(Block(BlockType::NoResult)); // 1
+        self.out.push(Block(BlockType::NoResult)); // 0
+
+        // Get our object and look at the discriminant
+        self.get_id(any);
+        // Assume that the discriminant is in the lowest
+        // two bytes. This IS tested in our ABI test
+        self.out.push(I32WrapI64);
+        self.out.push(I32Const(0x00ff));
+        self.out.push(I32And);
+        self.out.push(BrTable(Box::new(BrTableData {
+            table: Box::new([0, 1, 2, 3, 4]),
+            // default should never be followed if all goes well. i
+            // could put a trap in there or i could just give it UB
+            default: 0,
+        })));
+        self.out.push(End);
+        // I32 0
+        // For now i'm just going to put what i think the discriminant
+        // should be to make sure i'm generating code right
+        self.out.push(I64Const(0));
+        self.out.push(SetLocal(index));
+        self.out.push(Br(4));
+        self.out.push(End);
+        // F64 1
+        self.out.push(I64Const(1));
+        self.out.push(SetLocal(index));
+        self.out.push(Br(3));
+        self.out.push(End);
+        // Bool 2
+        self.out.push(I64Const(2));
+        self.out.push(SetLocal(index));
+        self.out.push(Br(2));
+        self.out.push(End);
+        // Ptr 3
+        self.translate_pointer_method(any, method_lit, args, s, index, typed_call);
+        self.out.push(End);
+        // Closure 4
+        self.out.push(I64Const(4));
+        self.out.push(SetLocal(index));
+        // Would be br(0) but that happens automatically
+        self.out.push(End);
+        // we ignore Undefined 5
+        // we ignore Null 6
+        // This is where we exit to with our any result in the
+        // local. Simply get it
+        self.out.push(GetLocal(index));
+    }
+
+    fn translate_pointer_method(
+        &mut self,
+        any: &N::Id,
+        method_lit: &N::Lit,
+        args: &Vec<N::Id>,
+        s: &N::Pos,
+        index: u32,
+        typed_call: impl Fn(&mut Self, N::Type),
+    ) {
+        // So now we need to go look on the heap and use THAT tag to
+        // decide what type we REALLY are. Was this even a good decision?
+        // You can check these values at
+        // runtime::allocator::heap_values::TypeTag
+        // They are way more consistent than the any discriminant
+        // because i was able to specify them in rust
+        // Array = 0
+        // String = 1
+        // HT(still not used by JankyScript!) = 2
+        // Object = 3
+        // We don't need an outer block to break to because we're already in a block!
+        self.out.push(Block(BlockType::NoResult)); // 3
+        self.out.push(Block(BlockType::NoResult)); // 2
+        self.out.push(Block(BlockType::NoResult)); // 1
+        self.out.push(Block(BlockType::NoResult)); // 0
+
+        // Get the pointer
+        self.get_id(any);
+        self.out.push(I64Const(4 * 8));
+        self.out.push(I64ShrU);
+        self.out.push(I32WrapI64);
+        // Now load up the actual tag
+        // The actual tag is the *second* byte, after the marked bool
+        // Note that parity_wasm uses the arguments to load in the
+        // opposite order of the spec (here: alignment, offset)
+        self.out.push(I32Load8U(0, 1));
+        // And break
+        self.out.push(BrTable(Box::new(BrTableData {
+            table: Box::new([0, 1, 2, 3]),
+            // Again, default is just UB
+            default: 0,
+        })));
+        self.out.push(End);
+        // Array, 0
+        typed_call(self, N::Type::Array);
+        self.out.push(Br(4));
+        self.out.push(End);
+        // String, 1
+        typed_call(self, N::Type::String);
+        self.out.push(Br(3));
+        self.out.push(End);
+        // HT, 2
+        // TODO(luna)
+        // blah blah blah HT stuff
+        self.out.push(Br(2));
+        self.out.push(End);
+        // Object, 3
+        self.translate_object_method(any, method_lit, args, s);
+        self.out.push(SetLocal(index));
+        // No need for an outer block because we are already in an outer block
+        // We break 1 here which means breaking all the way out to GetLocal
+        self.out.push(Br(1));
+    }
+
     /// The result of the call (an any) is now on the stack
     fn translate_object_method(
         &mut self,
-        any: &mut N::Id,
-        method_lit: &mut N::Lit,
-        args: &mut Vec<N::Id>,
+        any: &N::Id,
+        method_lit: &N::Lit,
+        args: &Vec<N::Id>,
         s: &N::Pos,
     ) {
         // This is the type of the function we're pulling out, which
