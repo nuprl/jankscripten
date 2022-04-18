@@ -274,7 +274,7 @@ impl<'a> Typeinf<'a> {
             Stmt::Catch(body, exn_name, catch_body, _) => {
                 self.cgen_stmt(&mut *body);
                 let env = self.env.clone();
-                self.env.extend(exn_name.clone(), Type::Any);
+                self.env.update(exn_name.clone(), Type::Any);
                 self.cgen_stmt(catch_body);
                 self.env = env;
             }

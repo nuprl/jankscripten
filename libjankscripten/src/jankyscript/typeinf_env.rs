@@ -27,6 +27,9 @@ impl Env {
     }
 
     pub fn get(&self, id: &Id) -> Type {
-        self.env.get(id).unwrap().clone()
+        match self.env.get(id) {
+            Some(x) => x.clone(),
+            None => panic!("Poorly scoped: {}", id),
+        }
     }
 }
