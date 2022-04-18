@@ -12,7 +12,7 @@ fn fv_lv(lv: &mut LValue) -> IdMap {
         Id(x, ty) => IdMap::unit(x.clone(), ty.clone()),
         // the "id" in dot is really a field
         Dot(e, _) => fv_expr(e),
-        Bracket(e1, e2) => fv_expr(e1).union(fv_expr(e2)),
+        Bracket(e1, e2, _) => fv_expr(e1).union(fv_expr(e2)),
     }
 }
 
@@ -97,7 +97,7 @@ fn fv_expr(expr: &mut Expr) -> IdMap {
         | NewRef(e, ..)
         | Deref(e, ..)
         | Length(e, ..) => fv_expr(e),
-        Bracket(e1, e2, _) => fv_expr(e1).union(fv_expr(e2)),
+        Bracket(e1, e2, _, _) => fv_expr(e1).union(fv_expr(e2)),
         Binary(_, e1, e2, _) => fv_expr(e1).union(fv_expr(e2)),
         Assign(lv, e, _) => fv_lv(lv).union(fv_expr(e)),
         Call(e, es, _) | MethodCall(e, _, es, _, _) => {

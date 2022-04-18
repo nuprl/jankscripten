@@ -14,7 +14,7 @@ fn lvalue(lval: Js::LValue) -> LValue {
     match lval {
         Js::Id(id) => Id(id, Type::Missing),
         Js::Dot(e, x) => Dot(expr(e), x),
-        Js::Bracket(e1, e2) => Bracket(expr(e1), expr(e2)),
+        Js::Bracket(e1, e2) => Bracket(expr(e1), expr(e2), Default::default()),
     }
 }
 
@@ -27,7 +27,12 @@ fn expr(e: Js::Expr) -> Expr {
         E::This => unexpected(e),
         E::Id(id, s) => Expr::Id(id, Type::Missing, s),
         E::Dot(e, x, s) => Expr::Dot(Box::new(expr(*e)), x, s),
-        E::Bracket(e1, e2, s) => Expr::Bracket(Box::new(expr(*e1)), Box::new(expr(*e2)), s),
+        E::Bracket(e1, e2, s) => Expr::Bracket(
+            Box::new(expr(*e1)),
+            Box::new(expr(*e2)),
+            Default::default(),
+            s,
+        ),
         E::New(_, _, _) => unexpected(e),
         E::Unary(op, e, s) => Expr::JsOp(JsOp::Unary(op), vec![expr(*e)], Default::default(), s),
         E::Binary(BinOp::BinaryOp(op), e1, e2, s) => Expr::JsOp(

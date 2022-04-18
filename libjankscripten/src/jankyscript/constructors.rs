@@ -23,8 +23,8 @@ pub fn dot_<I: Into<Id>>(a: Expr, b: I, s: Pos) -> Expr {
     Expr::Dot(Box::new(a), b.into(), s)
 }
 
-pub fn bracket_(a: Expr, b: Expr, s: Pos) -> Expr {
-    Expr::Bracket(Box::new(a), Box::new(b), s)
+pub fn bracket_(a: Expr, b: Expr, t: Type, s: Pos) -> Expr {
+    Expr::Bracket(Box::new(a), Box::new(b), t, s)
 }
 
 pub fn binary_(op: super::super::notwasm::syntax::BinaryOp, e1: Expr, e2: Expr, s: Pos) -> Expr {

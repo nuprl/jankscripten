@@ -293,18 +293,20 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             *expr,
             C::a(move |state, a| cxt.recv_a(state, unary_(op, a, p))),
         ),
-        // TODO(luna): i think JankyScript bracket supports like
-        // object/hashtable fetch by name, so we have to descriminate based
-        // on type or something(?)
-        J::Expr::Bracket(arr, index, p) => compile_expr(
+        J::Expr::Bracket(c, f, t, p) => compile_expr(
             state,
-            *arr,
-            C::a(move |state, arr| {
+            *c,
+            C::a(move |state, c| {
                 compile_expr(
                     state,
-                    *index,
-                    C::a(move |state, index| {
-                        cxt.recv_a(state, prim_app_("array_index", vec![arr, index], p))
+                    *f,
+                    C::a(move |state, f| match t {
+                        J::Type::Array => {
+                            cxt.recv_a(state, prim_app_("array_index", vec![c, f], p))
+                        }
+                        J::Type::DynObject => cxt.recv_a(state, object_get_(c, f, p)),
+                        J::Type::String => todo!("string index???"),
+                        _ => panic!("non-array non-object index"),
                     }),
                 )
             }),
@@ -388,22 +390,23 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                         }),
                     )
                 }
-                J::LValue::Bracket(container, field) => {
-                    // TODO(luna): don't assume bracket is array
-                    compile_expr(
-                        state,
-                        container,
-                        C::a(move |state, cont| {
-                            compile_expr(
-                                state,
-                                field,
-                                C::a(move |state, f| {
-                                    cxt.recv_e(state, Expr::ArraySet(cont, f, a, p))
-                                }),
-                            )
-                        }),
-                    )
-                }
+                J::LValue::Bracket(container, field, typ) => compile_expr(
+                    state,
+                    container,
+                    C::a(move |state, cont| {
+                        compile_expr(
+                            state,
+                            field,
+                            C::a(move |state, f| match typ {
+                                J::Type::Array => cxt.recv_e(state, Expr::ArraySet(cont, f, a, p)),
+                                J::Type::DynObject => {
+                                    cxt.recv_e(state, Expr::ObjectSet(cont, f, a, p))
+                                }
+                                _ => panic!("bad bracket lvalue type"),
+                            }),
+                        )
+                    }),
+                ),
             }),
         ),
         J::Expr::PrimCall(prim_name, args, p) => {

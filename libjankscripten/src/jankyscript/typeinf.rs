@@ -382,11 +382,18 @@ impl<'a> Typeinf<'a> {
     // Maybe we can say o[f] always has f : int? But that seems pretty
     // strong. It would be nice though, because then we definitely
     // wouldn't have to add an (any, any) -> any bracket operation
-    fn cgen_bracket(&mut self, o: &mut Expr, f: &mut Expr, p: &mut Pos) -> ast::Bool<'a> {
+    fn cgen_bracket(
+        &mut self,
+        o: &mut Expr,
+        f: &mut Expr,
+        t: &mut Type,
+        p: &mut Pos,
+    ) -> ast::Bool<'a> {
         let (phi_1, ot) = self.cgen_expr(o);
         let (phi_2, ft) = self.cgen_expr(f);
         // final container type
         let otf = self.fresh_metavar("o");
+        *t = otf.clone();
         let ftf = self.fresh_metavar("f");
         let wcoerce = self.fresh_weight();
         let wrt = self.fresh_weight();
@@ -704,7 +711,7 @@ impl<'a> Typeinf<'a> {
                 self.wobbly(p.clone(), expr, z3f!(self, true), t)
             }
             Expr::Dot(obj_e, x, p) => (self.cgen_dot(obj_e, x, p), Type::Any),
-            Expr::Bracket(o, f, p) => (self.cgen_bracket(o, f, p), Type::Any),
+            Expr::Bracket(o, f, t, p) => (self.cgen_bracket(o, f, t, p), Type::Any),
             Expr::JsOp(op, args, JsOpTypeinf { op_metavar }, p) => {
                 let w = self.fresh_weight();
                 // Fresh metavariable for the operator that we will select, stored in the AST for
@@ -795,9 +802,9 @@ impl<'a> Typeinf<'a> {
                     let phi_3 = z3f!(self, (= (tid e_t) (typ any)));
                     (phi_1 & phi_2 & phi_3, Type::Any)
                 }
-                LValue::Bracket(o, f) => {
+                LValue::Bracket(o, f, t) => {
                     let (phi_1, e_t) = self.cgen_expr(&mut *e);
-                    let phi_2 = self.cgen_bracket(o, f, p);
+                    let phi_2 = self.cgen_bracket(o, f, t, p);
                     let phi_3 = z3f!(self, (= (tid e_t) (typ any)));
                     (phi_1 & phi_2 & phi_3, Type::Any)
                 }

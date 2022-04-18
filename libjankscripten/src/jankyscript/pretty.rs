@@ -87,7 +87,9 @@ impl Pretty for LValue {
                 .append(pp.text("."))
                 .append(pp.line_())
                 .append(pp.as_string(id)),
-            LValue::Bracket(e1, e2) => e1.pretty(pp).append(e2.pretty(pp).brackets()),
+            LValue::Bracket(e1, e2, t) => {
+                prettyp!(pp, (seq (id e1) "<" (id t) ">" (brackets (id e2))))
+            }
         }
     }
 }
@@ -183,7 +185,9 @@ impl Pretty for Expr {
                 pp.line_(),
                 pp.as_string(id),
             ]),
-            Expr::Bracket(e1, e2, _) => pp.concat(vec![e1.pretty(pp), e2.pretty(pp).brackets()]),
+            Expr::Bracket(e1, e2, t, _) => {
+                prettyp!(pp, (seq (id e1) "<" (id t) ">" (brackets (id e2))))
+            }
             Expr::Unary(op, e, _) => op.pretty(pp).append(e.pretty(pp).parens()),
             Expr::Binary(op, e1, e2, _) => pp.intersperse(
                 vec![

@@ -50,7 +50,7 @@ impl UnaryOp {
 pub enum LValue {
     Id(Id, Type),
     Dot(Expr, Id),
-    Bracket(Expr, Expr),
+    Bracket(Expr, Expr, Type),
 }
 
 #[derive(Debug, PartialEq)]
@@ -122,7 +122,9 @@ pub enum Expr {
     Object(Vec<(Key, Expr)>, Pos),
     Id(Id, Type, Pos),
     Dot(Box<Expr>, Id, Pos),
-    Bracket(Box<Expr>, Box<Expr>, Pos),
+    /// TODO(luna): required for links. Add a type annotation. Compile
+    /// appropriately to notwasm
+    Bracket(Box<Expr>, Box<Expr>, Type, Pos),
     /// A JavaScript operator.
     JsOp(JsOp, Vec<Expr>, JsOpTypeinf, Pos),
     Unary(UnaryOp, Box<Expr>, Pos),

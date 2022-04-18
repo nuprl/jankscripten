@@ -14,7 +14,7 @@ pub enum Id {
     /// be replaced with  another identifier. Instead of using `Option<Id>`, which is very
     /// irritating, we replace the identifier with `Bogus`. So, don't construct a `Bogus` unless you
     /// are sure you don't need it.
-    #[display(fmt = "bogus({})", _0)]
+    #[display(fmt = "bogus_{}", _0)]
     Bogus(&'static str),
 }
 

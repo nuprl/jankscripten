@@ -336,9 +336,14 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
 
                     Ok(rval_ty)
                 }
-                LValue::Bracket(e, computed_prop) => {
+                LValue::Bracket(e, computed_prop, t) => {
                     // e should be well typed
-                    type_check_expr(e, env.clone())?;
+                    ensure(
+                        "bracket type",
+                        t.clone(),
+                        type_check_expr(e, env.clone())?,
+                        s,
+                    )?;
 
                     // computed_prop should be well typed
                     type_check_expr(computed_prop, env.clone())?;
@@ -419,8 +424,13 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             // it'll return undefined (in non-strict mode).
             Ok(Type::Any)
         }
-        Expr::Bracket(obj, dyn_prop, s) => {
-            let obj_type = type_check_expr(obj, env.clone())?;
+        Expr::Bracket(obj, dyn_prop, t, s) => {
+            let obj_type = ensure(
+                "bracket type",
+                t.clone(),
+                type_check_expr(obj, env.clone())?,
+                s,
+            )?;
 
             ensure_indexable("brackets object", obj_type, s.clone())?;
 

@@ -316,8 +316,14 @@ where
                 self.walk_expr(obj, &loc);
                 self.walk_type(typ, &loc);
             }
+            Bracket(ea, eb, t, _) => {
+                let loc = Loc::Node(Context::Expr, loc);
+                self.walk_expr(ea, &loc);
+                self.walk_expr(eb, &loc);
+                self.walk_type(t, &loc);
+            }
             // 2xExpr
-            Bracket(ea, eb, _) | Binary(.., ea, eb, _) | Store(ea, eb, ..) => {
+            Binary(.., ea, eb, _) | Store(ea, eb, ..) => {
                 let loc = Loc::Node(Context::Expr, loc);
                 self.walk_expr(ea, &loc);
                 self.walk_expr(eb, &loc);
@@ -344,10 +350,11 @@ where
                 let loc = Loc::Node(Context::LValue, loc);
                 self.walk_expr(e, &loc);
             }
-            Bracket(ea, eb) => {
+            Bracket(ea, eb, t) => {
                 let loc = Loc::Node(Context::LValue, loc);
                 self.walk_expr(ea, &loc);
                 self.walk_expr(eb, &loc);
+                self.walk_type(t, &loc);
             }
         }
     }
