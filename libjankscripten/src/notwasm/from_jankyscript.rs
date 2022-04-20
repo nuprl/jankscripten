@@ -554,7 +554,7 @@ fn compile_stmt<'a>(state: &'a mut S, stmt: J::Stmt) -> Rope<Stmt> {
         S::Catch(try_stmt, _, _, _) => compile_stmt(state, *try_stmt),
         S::Finally(_, _, _) => todo!("NotWasm needs to support exceptions"),
         // TODO(luna): notwasm needs to support exceptions
-        S::Throw(_, _) => Rope::new(),
+        S::Throw(_, _) => Rope::singleton(Stmt::Trap),
         S::Return(e, p) => {
             compile_expr(state, *e, C::a(|_s, a| Rope::singleton(Stmt::Return(a, p))))
         }
