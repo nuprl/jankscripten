@@ -205,7 +205,7 @@ impl Pretty for Atom {
             Atom::Unary(op, a, _) => prettyp!(pp, (seq (id op) (id a))),
             Atom::Binary(op, l, r, _) => prettyp!(pp, (seq (id l) (id op) (id r))),
             Atom::Deref(a, _, _) => prettyp!(pp, (seq "*" (id a))),
-            Atom::EnvGet(index, t, _) => prettyp!(pp, (seq "env." (id index) ":" (id t))),
+            Atom::EnvGet(index, _, _) => prettyp!(pp, (seq "env." (id index))),
         }
     }
 }
@@ -262,7 +262,10 @@ impl Pretty for Expr {
             Expr::ObjectSet(a, b, c, _) => prettyp!(pp, (seq (id a) "." (id b) "=" (id c) ";")),
             Expr::NewRef(a, ty, _) => prettyp!(pp, (seq "new_ref::" (id ty) (parens (id a)))),
             Expr::Atom(a, _) => a.pretty(pp),
-            Expr::Closure(id, env, _) => prettyp!(pp, (seq "clos" (id id) (comma_sep env))),
+            Expr::Closure(id, env, _) => {
+                let no_tys: Vec<_> = env.iter().map(|(a, _)| a).collect();
+                prettyp!(pp, (seq "clos(" (id id) ", " (comma_sep no_tys) ")"))
+            }
         }
     }
 }
@@ -305,14 +308,18 @@ impl Pretty for Stmt {
             Stmt::Empty => pp.space(),
             Stmt::Var(var_stmt, _) => var_stmt.pretty(pp),
             Stmt::Expression(expr, _) => expr.pretty(pp),
-            Stmt::Assign(x, expr, _) => prettyp!(pp, (seq (id x) "=" (id expr) ";")),
-            Stmt::Store(x, expr, _) => prettyp!(pp, (seq "*" (id x) "=" (id expr) ";")),
-            Stmt::If(e, s1, s2, _) => prettyp!(pp, (seq (seq "if" space (parens (id e)) (nest (id s1)) "else" (nest (id s2))))),
+            Stmt::Assign(x, expr, _) => prettyp!(pp, (seq (id x) space "=" space (id expr) ";")),
+            Stmt::Store(x, expr, _) => prettyp!(pp, (seq "*" (id x) space "=" space (id expr) ";")),
+            Stmt::If(e, s1, s2, _) => {
+                prettyp!(pp, (seq (seq "if" space (parens (id e)) space (id s1) space "else" space (id s2))))
+            }
             Stmt::Loop(st, _) => prettyp!(pp, (seq "loop" (id st))),
             Stmt::Label(lbl, st, _) => prettyp!(pp, (seq (id lbl) ":" line (id st))),
             Stmt::Break(lbl, _) => prettyp!(pp, (seq "break" space (id lbl) ";")),
             Stmt::Return(e, _) => prettyp!(pp, (seq "return" space (id e) ";")),
-            Stmt::Block(stmts, _) => prettyp!(pp, (nest (braces (line_sep stmts)))),
+            Stmt::Block(stmts, _) => {
+                prettyp!(pp, (braces (seq (nest (seq line (line_sep stmts))) line)))
+            }
             Stmt::Trap => pp.text("trap"),
             Stmt::Goto(lbl, _) => prettyp!(pp, (seq "goto" space (id lbl) ";")),
         }
@@ -328,11 +335,10 @@ impl Pretty for Global {
     {
         pp.concat(vec![
             self.ty.pretty(pp),
-            pp.space(),
             self.atom
                 .as_ref()
-                .map(|v| pp.text("= ").append(v.pretty(pp)))
-                .unwrap_or(pp.space()),
+                .map(|v| pp.text(" = ").append(v.pretty(pp)))
+                .unwrap_or(pp.nil()),
             pp.text(";"),
         ])
     }
@@ -350,7 +356,7 @@ impl Pretty for Function {
                 self.params
                     .iter()
                     .zip(&self.fn_type.args)
-                    .map(|(x, t)| pp.concat(vec![pp.as_string(x), pp.text(":"), t.pretty(pp)])),
+                    .map(|(x, t)| prettyp!(pp, (seq (id x) ": " (id t)))),
                 pp.text(",").append(pp.space()),
             )
             .parens(),
@@ -387,24 +393,32 @@ impl Pretty for Program {
                     ])
                 }),
                 pp.hardline(),
-            )
-            .nest(2),
+            ),
             pp.hardline(),
             pp.hardline(),
             pp.intersperse(
-                self.functions.iter().map(|(fn_name, v)| {
-                    pp.concat(vec![
-                        pp.text("function"),
-                        pp.space(),
-                        pp.as_string(fn_name),
-                        pp.space(),
-                        v.pretty(pp),
-                    ])
-                }),
+                self.functions
+                    .iter()
+                    .map(|(fn_name, v)| prettyp!(pp, (seq "function" space (id fn_name) (id v)))),
                 pp.hardline(),
-            )
-            .nest(2),
-            // NOTE(arjun): Not displaying data segment
+            ),
+            pp.hardline(),
+            pp.hardline(),
+            pp.text("DATA SECTION:"),
+            pp.hardline(),
+            pp.concat(
+                self.data
+                    .chunks(2)
+                    .map(|c| {
+                        pp.concat(
+                            c.iter()
+                                .map(|b| pp.text(format!("{:02x}", b)))
+                                .collect::<Vec<_>>(),
+                        )
+                        .append(pp.softline())
+                    })
+                    .collect::<Vec<_>>(),
+            ),
         ])
     }
 }

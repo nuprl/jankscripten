@@ -28,7 +28,7 @@ const LENGTH_SIZE: u32 = 4;
 const FN_OBJ_SIZE: u32 = 4;
 // Check runtime::any_value::test::abi_any_discriminants_stable. For now, (my version of) rust seems to have stable and sensible discriminants for our any representation, which is defined by rust. Then we USE these assumptions in translation for:
 // Expr::AnyMethodCall
-// Expr::AnyLength (TODO)
+// Expr::AnyLength
 
 type FuncTypeMap = HashMap<(Vec<ValueType>, Option<ValueType>), u32>;
 
@@ -1245,8 +1245,7 @@ impl<'a> Translate<'a> {
         self.out.push(I32Const(self.data.len() as i32));
         self.out.push(I32Add);
         // placeholder tag that will never be occupied by a class
-        self.data
-            .extend(&unsafe { std::mem::transmute::<_, [u8; 4]>(0xffffu32) });
+        self.data.extend(&[0xff, 0xff, 0xff, 0xff]);
     }
 }
 

@@ -317,14 +317,37 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             C::a(move |state, a| cxt.recv_a(state, coercion_to_expr(coercion, a, p))),
         ),
         J::Expr::Id(x, _, p) => cxt.recv_a(state, Atom::Id(x, p)),
-        J::Expr::Func(f, p) => {
-            let name = state.fresh();
-            let f = compile_function(state, f, p.clone());
-            state.new_function(name.clone(), f);
-            cxt.recv_a(state, Atom::Id(name, p))
+        J::Expr::Func(_, _) => {
+            panic!(
+                "
+                At this time, all functions capture their environment. This
+                should be indicated in JankyScript using Expr::Closure. TODO(luna):
+                support functions with no environment"
+            );
+            //let name = state.fresh();
+            //let f = compile_function(state, f, p.clone());
+            //state.new_function(name.clone(), f);
+            //cxt.recv_a(state, Atom::Id(name, p))
         }
         J::Expr::Closure(f, env, p) => {
-            let name = state.fresh();
+            // Every function is given a fresh name.  In a way, this makes
+            // sense: not every function is immediately named, and even when
+            // they are, it's not trivial to know what it will be named.  Also,
+            // the function is not the same as the closure that is created based
+            // on its code.  But having every function be named $jnks_anf_n is
+            // /impossible/ to debug.  As a stopgap, let's at least give them a
+            // name that indicates where the function comes from in the JS
+            // -
+            // Anyway this is terrible
+            let name: Id = format!(
+                "$f_{}",
+                p.to_string()
+                    .split_once(": line ")
+                    .unwrap()
+                    .1
+                    .replace(", column ", "x")
+            )
+            .into();
             let f = compile_function(state, f, p.clone());
             state.new_function(name.clone(), f);
             // compile the environment, adapted from compile_exprs

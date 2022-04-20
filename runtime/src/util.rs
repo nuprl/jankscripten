@@ -59,3 +59,7 @@ pub fn error(s: &str) {
 pub fn error(s: &str) {
     log(s);
 }
+
+pub fn console_error_panic_hook(info: &std::panic::PanicInfo) {
+    error(&format!("{}", info));
+}

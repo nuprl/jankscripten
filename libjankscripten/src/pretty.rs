@@ -46,7 +46,7 @@ macro_rules! prettyp {
         ($pp.line());
     ($pp:ident, $t:literal) => ($t.pretty($pp));
     ($pp:ident, ( comma_sep $x:ident ) ) =>
-        ($pp.intersperse($x.iter().map(|item| item.pretty($pp)), $pp.text(",")));
+        ($pp.intersperse($x.iter().map(|item| item.pretty($pp)), $pp.text(", ")));
     ($pp:ident, ( line_sep $x:ident ) ) =>
         ($pp.intersperse($x.iter().map(|item| item.pretty($pp)), $pp.line()));
     ($pp:ident, ( as_string $t:ident ) ) =>

@@ -21,6 +21,7 @@ use crate::any_value::AnyValue;
 use crate::closure::ClosureVal;
 use crate::heap_types::EnvPtr;
 use crate::static_strings;
+use crate::util::console_error_panic_hook;
 
 static mut HEAP: Option<Heap> = None;
 
@@ -30,6 +31,7 @@ pub static JNKS_STRINGS: [u8; 65536] = [0; 65536];
 /// needs to be called before most other code. it initializes the managed heap
 #[no_mangle]
 pub extern "C" fn init() {
+    std::panic::set_hook(Box::new(console_error_panic_hook));
     unsafe {
         HEAP = Some(Heap::new(536870912));
         static_strings::init();

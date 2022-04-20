@@ -20,7 +20,7 @@ pub enum Id {
 
 /// The fields are not public, so the only way to build this is with a `NameGen`.
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash, Display)]
-#[display(fmt = "$jnks_{}_{}", base_name, index)]
+#[display(fmt = "${}_{}", base_name, index)]
 pub struct Generated {
     base_name: &'static str,
     index: usize,
