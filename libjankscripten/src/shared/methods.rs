@@ -20,6 +20,7 @@ fn methods_table() -> HashMap<(&'static str, usize), Vec<Type>> {
         //entry!(at, (string, int) -> any, (string, int) -> string),
         entry!(concat, (array, array) -> array, (string, string) -> string),
         entry!(push, (array, any) -> int),
+        entry!(charAt, (string, int) -> string),
         // Source: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array
         // Array.prototype[@@unscopables] // ??
         // Array.prototype[@@iterator]() // ??

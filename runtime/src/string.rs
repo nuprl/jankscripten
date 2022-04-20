@@ -23,6 +23,13 @@ pub extern "C" fn string_slice(s: StringPtr, a: i32, b: i32) -> StringPtr {
     s.slice(a, b)
 }
 
+#[no_mangle]
+pub extern "C" fn string_char_at(s: StringPtr, i: usize) -> StringPtr {
+    // TODO(luna): unicode / UTF-8 vs UTF-16
+    let c: char = s.as_bytes()[i].into();
+    heap().alloc_str_or_gc(c.to_string().as_str())
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

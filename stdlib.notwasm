@@ -176,11 +176,16 @@ function jnks_init_std_lib(): i32 {
     var objectPrototypeAny = jnks_objectCreate!(undefined, nullVar);
     Object.prototype = objectPrototypeAny;
 
-    // assign static methods to Object
+    // Object.create is very special because we need it to create
+    // closures! This needs to happen now
     Object.create = any(jnks_objectCreate);
 
     // Cache Object properties for jnks_new_object
     jnks_objectPrototype = objectPrototypeAny;
+
+    // Now we can add other static methods on Object
+    var object_freeze = clos(jnks_id, );
+    Object.freeze = any(object_freeze);
 
     // assign methods to Object.prototype.
     // first, unwrap objectPrototypeAny into a DynObject
@@ -331,4 +336,9 @@ function print_any(x: any): i32 {
     var g = clos(f,);
     g!(undefined, x);
     return 0;
+}
+
+/// Useful for stubbing features
+function jnks_id(_: env, this: any, x: any): any {
+    return x;
 }
