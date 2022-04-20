@@ -1,4 +1,3 @@
-use super::class_list::Class;
 use super::*;
 use wasm_bindgen_test::*;
 
@@ -147,7 +146,7 @@ fn object_members_marked() {
     // obj is root
     heap.set_in_current_shadow_frame_slot(1, Some(obj.get_ptr()));
     // but put x into the obj
-    let mut cache = -1;
+    let mut cache = no_cache();
     obj.insert(&heap, x_str, AnyEnum::Ptr(x.into()).into(), &mut cache);
     assert!(
         heap.alloc(12).is_err(),
@@ -209,7 +208,7 @@ fn alloc_container1() {
 fn insert_object() {
     let heap = Heap::new(128);
     let mut obj = heap.alloc_object(0).expect("second alloc");
-    let mut cache = -1;
+    let mut cache = no_cache();
     assert_eq!(
         obj.insert(
             &heap,
@@ -233,7 +232,7 @@ fn insert_object() {
         AnyEnum::I32(32)
     ));
     assert!(matches!(
-        obj.get(&heap, heap.alloc_str("x").unwrap(), &mut -1),
+        obj.get(&heap, heap.alloc_str("x").unwrap(), &mut no_cache()),
         AnyEnum::I32(32)
     ));
 }
@@ -241,7 +240,7 @@ fn insert_object() {
 #[test]
 fn alloc_container2() {
     let heap = Heap::new(128);
-    let empty_type = heap.classes.borrow_mut().new_class_type(Class::new());
+    let empty_type = 0 as u16;
     let one_type = heap
         .classes
         .borrow_mut()

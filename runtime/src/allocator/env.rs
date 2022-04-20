@@ -149,6 +149,7 @@ type EnvItem = AnyEnum;
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::allocator::no_cache;
     use crate::env::*;
     use crate::heap;
     use crate::init;
@@ -175,10 +176,10 @@ mod test {
             heap(),
             heap().alloc_str_or_gc("x"),
             AnyEnum::I32(10).into(),
-            &mut -1,
+            &mut no_cache(),
         );
         assert_eq!(
-            got_fn_obj.get(heap(), heap().alloc_str_or_gc("x"), &mut -1),
+            got_fn_obj.get(heap(), heap().alloc_str_or_gc("x"), &mut no_cache()),
             AnyEnum::I32(10)
         );
 

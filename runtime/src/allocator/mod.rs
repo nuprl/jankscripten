@@ -27,6 +27,7 @@ use heap_types::*;
 pub use heap_values::Tag;
 pub use heap_values::TypeTag;
 use heap_values::*;
+pub use object_ptr::no_cache;
 
 #[cfg(test)]
 mod tests;

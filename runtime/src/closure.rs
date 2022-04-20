@@ -85,6 +85,7 @@ pub extern "C" fn any_closure_arity(closure: AnyClosureVal) -> u32 {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::allocator::no_cache;
     use crate::env::*;
     use crate::object::object_empty;
     use crate::AnyEnum;
@@ -140,10 +141,14 @@ mod test {
             crate::heap(),
             crate::heap().alloc_str_or_gc("x"),
             AnyEnum::I32(11).into(),
-            &mut -1,
+            &mut no_cache(),
         );
         assert_eq!(
-            as_obj.get(crate::heap(), crate::heap().alloc_str_or_gc("x"), &mut -1),
+            as_obj.get(
+                crate::heap(),
+                crate::heap().alloc_str_or_gc("x"),
+                &mut no_cache()
+            ),
             AnyEnum::I32(11)
         );
 
@@ -153,7 +158,11 @@ mod test {
         let as_obj: crate::heap_types::ObjectPtr =
             unsafe { std::mem::transmute(any_to_ptr(any_from_closure(clos))) };
         assert_eq!(
-            as_obj.get(crate::heap(), crate::heap().alloc_str_or_gc("x"), &mut -1),
+            as_obj.get(
+                crate::heap(),
+                crate::heap().alloc_str_or_gc("x"),
+                &mut no_cache()
+            ),
             AnyEnum::I32(11)
         );
         // this could be finished with an EnvGet, but i found the bug already

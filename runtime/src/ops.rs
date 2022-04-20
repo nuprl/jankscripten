@@ -1,5 +1,6 @@
 //! janky ops: see libjankscripten/rts_function.rs
 
+use crate::allocator::no_cache;
 use crate::any_value::{AnyValue as Any, *};
 use crate::coercions::*;
 use crate::heap;
@@ -121,9 +122,9 @@ pub extern "C" fn instance_of(a: Any, b: Any) -> bool {
             let constructor_env = constructor.0;
             let constructor_obj = constructor_env.fn_obj();
             let constructor_prototype =
-                constructor_obj.get(heap(), static_strings().prototype, &mut -1);
+                constructor_obj.get(heap(), static_strings().prototype, &mut no_cache());
             let should_match = unwrap_log(match_object(constructor_prototype), "non-obj prototype");
-            let proto_shim = obj.get(heap(), static_strings().__proto__, &mut -1);
+            let proto_shim = obj.get(heap(), static_strings().__proto__, &mut no_cache());
             if let Some(other) = match_object(proto_shim) {
                 inclusive_instance_of(other, should_match)
             } else {
@@ -165,7 +166,7 @@ fn inclusive_instance_of(obj: ObjectPtr, should_match: ObjectPtr) -> bool {
         true
     } else {
         // Test Case 2: `obj` has a field named "__proto__".
-        let proto_shim = obj.get(heap(), static_strings().__proto__, &mut -1);
+        let proto_shim = obj.get(heap(), static_strings().__proto__, &mut no_cache());
         // Is it a real object that we can read from? As opposed to `null`
         // or any other type of value.
         if let Some(proto_obj) = match_object(proto_shim) {

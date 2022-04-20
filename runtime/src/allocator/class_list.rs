@@ -51,31 +51,33 @@ impl ClassList {
 #[derive(Clone, Debug)]
 pub struct Class {
     pub size: usize,
+    tag: u16,
     offsets: Vec<(StringPtr, usize)>,
     transitions: Vec<(StringPtr, u16)>,
 }
 impl Class {
     /// this is the very base class
-    #[allow(unused)]
     pub fn new() -> Self {
         Self {
             size: 0,
+            tag: 0,
             offsets: Vec::new(),
             transitions: Vec::new(),
         }
     }
-    pub fn lookup(&self, name: StringPtr, cache: &mut isize) -> Option<usize> {
-        if *cache != -1 {
+    pub fn lookup(&self, name: StringPtr, cache: &mut (u16, u16)) -> Option<usize> {
+        if cache.0 == self.tag {
             // TODO: this works for static indexes, but we have to check
             // that index is correct and fall back when dynamic is used. there
             // should be a flag or two functions or something
-            Some(*cache as usize)
+            Some(cache.1 as usize)
         } else {
             self.offsets
                 .iter()
                 .find(|(offset_name, _)| offset_name == &name)
                 .map(|(_, index)| {
-                    *cache = *index as isize;
+                    cache.0 = self.tag;
+                    cache.1 = *index as u16;
                     *index
                 })
         }
@@ -96,6 +98,7 @@ impl Class {
         offsets.push((name, self.size));
         Self {
             size: self.size + 1,
+            tag: new_tag,
             offsets,
             transitions: Vec::new(),
         }

@@ -85,7 +85,7 @@ impl ObjectDataPtr {
     /// if name is found, write to it. if not, transition, clone, write, and
     /// return new pointer. this should be called by ObjectPtr only
     #[must_use]
-    fn insert(self, heap: &Heap, name: StringPtr, value: AnyValue, cache: &mut isize) -> Self {
+    fn insert(self, heap: &Heap, name: StringPtr, value: AnyValue, cache: &mut (u16, u16)) -> Self {
         let class_tag = self.class_tag();
         let mut classes = heap.classes.borrow_mut();
         let class = classes.get_class(class_tag);
@@ -116,7 +116,7 @@ impl ObjectDataPtr {
     /// Reads a property from an object, searching up the prototype chain if
     /// necessary. Returns `undefined` if the property doesn't exist anywhere
     /// on the prototype chain.
-    pub fn get(&self, heap: &Heap, name: StringPtr, cache: &mut isize) -> AnyEnum {
+    pub fn get(&self, heap: &Heap, name: StringPtr, cache: &mut (u16, u16)) -> AnyEnum {
         // Reading a property from an object is a complicated process because
         // of the prototype chain.
         //
@@ -148,7 +148,7 @@ impl ObjectDataPtr {
         }
 
         // Test Case 2: `obj` has a field named "__proto__".
-        let maybe_proto_offset = class.lookup(static_strings().__proto__, &mut -1);
+        let maybe_proto_offset = class.lookup(static_strings().__proto__, &mut no_cache());
         if let Some(proto_offset) = maybe_proto_offset {
             // Get the prototype object
             let proto_val = self.read_at(heap, proto_offset).unwrap();
@@ -158,8 +158,7 @@ impl ObjectDataPtr {
             if let Some(proto_obj) = match_object(proto_val) {
                 // this is Case 2. Perform the same read on the proto obj.
 
-                // -1 because we don't cache reads on the prototype chain
-                return proto_obj.get(heap, name, &mut -1);
+                return proto_obj.get(heap, name, &mut no_cache());
             }
         }
 
@@ -197,7 +196,7 @@ impl ObjectPtr {
         heap: &Heap,
         name: StringPtr,
         value: AnyValue,
-        cache: &mut isize,
+        cache: &mut (u16, u16),
     ) -> AnyValue {
         let data = &mut **self;
         let new = data.insert(heap, name, value, cache);
@@ -243,6 +242,10 @@ impl std::fmt::Debug for ObjectPtr {
         }
         write!(f, "}}")
     }
+}
+
+pub fn no_cache() -> (u16, u16) {
+    (0xff, 0xff)
 }
 
 #[cfg(test)]

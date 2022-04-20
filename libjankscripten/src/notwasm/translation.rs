@@ -1244,9 +1244,9 @@ impl<'a> Translate<'a> {
         self.out.push(GetGlobal(JNKS_STRINGS_IDX));
         self.out.push(I32Const(self.data.len() as i32));
         self.out.push(I32Add);
-        // -1 is our placeholder
+        // placeholder tag that will never be occupied by a class
         self.data
-            .extend(&unsafe { std::mem::transmute::<_, [u8; 4]>((-1i32).to_le()) });
+            .extend(&unsafe { std::mem::transmute::<_, [u8; 4]>(0xffffu32) });
     }
 }
 
