@@ -469,12 +469,17 @@ fn type_check_expr(expr: &Expr, env: Env) -> TypeCheckingResult<Type> {
             Ok(ty_out)
         }
         Expr::NewRef(boxed_e, boxed_t, p) => {
-            ensure(
-                "expression in new box",
-                boxed_t.clone(),
-                type_check_expr(&boxed_e, env)?,
-                p,
-            )?;
+            let boxed_e_t = type_check_expr(&boxed_e, env)?;
+            let is_init = boxed_e_t == Type::Any
+                && boxed_t != &Type::Any
+                && if let Expr::Lit(Lit::Undefined, _) = **boxed_e {
+                    true
+                } else {
+                    false
+                };
+            if !is_init {
+                ensure("expression in new box", boxed_t.clone(), boxed_e_t, p)?;
+            }
             Ok(Type::Ref(Box::new(boxed_t.clone())))
         }
         Expr::Deref(e, t_annot, p) => match type_check_expr(e, env)? {

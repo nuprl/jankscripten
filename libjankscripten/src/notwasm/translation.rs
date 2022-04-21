@@ -739,7 +739,22 @@ impl<'a> Translate<'a> {
                 self.out.push(CallIndirect(*ty_index, 0));
             }
             N::Expr::NewRef(a, ty, _) => {
-                self.translate_atom(a);
+                let is_init = ty != &N::Type::Any
+                    && if let N::Atom::Lit(N::Lit::Undefined, _) = a {
+                        true
+                    } else {
+                        false
+                    };
+                if is_init {
+                    match ty.as_wasm() {
+                        ValueType::I32 => self.out.push(I32Const(0)),
+                        ValueType::I64 => self.out.push(I64Const(0)),
+                        ValueType::F32 => self.out.push(F32Const(0)),
+                        ValueType::F64 => self.out.push(F64Const(0)),
+                    }
+                } else {
+                    self.translate_atom(a);
+                }
                 match ty {
                     N::Type::I32 | N::Type::Bool | N::Type::Fn(..) => {
                         self.rt_call("ref_new_non_ptr_32")

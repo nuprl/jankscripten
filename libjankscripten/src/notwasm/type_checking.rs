@@ -405,7 +405,15 @@ fn type_check_expr(env: &Env, e: &mut Expr) -> TypeCheckingResult<Type> {
         }
         Expr::NewRef(a, ty, s) => {
             let actual = type_check_atom(env, a)?;
-            ensure("new ref", ty.clone(), actual, s)?;
+            let is_init = ty != &Type::Any
+                && if let Atom::Lit(Lit::Undefined, _) = a {
+                    true
+                } else {
+                    false
+                };
+            if !is_init {
+                ensure("new ref", ty.clone(), actual, s)?;
+            }
             Ok(ref_ty_(ty.clone()))
         }
         Expr::Atom(a, _) => type_check_atom(env, a),

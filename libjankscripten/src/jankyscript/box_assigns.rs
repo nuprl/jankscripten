@@ -91,30 +91,13 @@ impl Visitor for BoxVisitor {
     fn exit_stmt(&mut self, stmt: &mut Stmt, _: &Loc) {
         match stmt {
             Stmt::Var(id, ty, expr, s) if self.should_box(id) => {
-                let is_init = ty != &mut Type::Any
-                    && if let Expr::Lit(Lit::Undefined, _) = **expr {
-                        true
-                    } else {
-                        false
-                    };
-                if is_init {
-                    *stmt = {
-                        var_(
-                            id.clone(),
-                            Type::Ref(Box::new(ty.clone())),
-                            expr.take(),
-                            s.clone(),
-                        )
-                    }
-                } else {
-                    *stmt = {
-                        var_(
-                            id.clone(),
-                            Type::Ref(Box::new(ty.clone())),
-                            new_ref_(expr.take(), ty.clone(), s.clone()),
-                            s.clone(),
-                        )
-                    }
+                *stmt = {
+                    var_(
+                        id.clone(),
+                        Type::Ref(Box::new(ty.clone())),
+                        new_ref_(expr.take(), ty.clone(), s.clone()),
+                        s.clone(),
+                    )
                 }
             }
             _ => (),
