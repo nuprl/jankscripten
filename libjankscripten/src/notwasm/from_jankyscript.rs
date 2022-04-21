@@ -306,7 +306,7 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
                         }
                         J::Type::DynObject => cxt.recv_a(state, object_get_(c, f, p)),
                         J::Type::String => todo!("string index???"),
-                        _ => panic!("non-array non-object index"),
+                        _ => panic!("non-array non-object index {}", t),
                     }),
                 )
             }),
@@ -342,9 +342,9 @@ fn compile_expr<'a>(state: &'a mut S, expr: J::Expr, cxt: C<'a>) -> Rope<Stmt> {
             let name: Id = format!(
                 "$f_{}",
                 p.to_string()
-                    .split_once(": line ")
+                    .split(": line ")
+                    .nth(1)
                     .unwrap()
-                    .1
                     .replace(", column ", "x")
             )
             .into();
