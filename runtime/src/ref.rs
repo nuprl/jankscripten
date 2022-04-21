@@ -8,6 +8,8 @@
 //!
 //! there's a ref for kind of *immediate value*, and one for all pointers
 
+use crate::closure::ClosureVal;
+
 use super::{any_value::AnyValue, heap, heap_types::*, AnyPtr};
 
 /// also used for bool, fn. FFI boundary lets us do this type pun
@@ -32,6 +34,10 @@ pub extern "C" fn ref_new_any(val: AnyValue) -> AnyJSPtr {
 pub extern "C" fn ref_new_ptr(val: AnyPtr) -> PtrPtr {
     // object could use a more generic name or something maybe
     heap().alloc_or_gc(val)
+}
+#[no_mangle]
+pub extern "C" fn ref_new_closure(val: ClosureVal) -> ClosurePtr {
+    heap().alloc_or_gc(*val)
 }
 
 // no tests here because dereferencing and storing are not implemented in the

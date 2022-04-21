@@ -18,6 +18,9 @@ import ref_new_non_ptr_32: (i32) -> Ref(i32);
 import ref_new_f64: (f64) -> Ref(f64);
 import ref_new_any: (any) -> Ref(any);
 import ref_new_ptr: (ptr) -> Ref(ptr);
+// i don't believe the fact that there's no generic closure type is a problem
+// here, but it may be
+import ref_new_closure: (clos(env, any) -> any) -> Ref(clos(env, any) -> any);
 import init: () -> void;
 import gc_enter_fn: (i32) -> void;
 import gc_exit_fn: () -> void;

@@ -195,7 +195,10 @@ fn typeof_as_str(a: Any) -> &'static str {
             HeapRefView::Any(what) => typeof_as_str(*what),
             HeapRefView::Class(_) => panic!("shouldn't be able to typeof non-value object data"),
             HeapRefView::MutF64(_) => "number",
-            HeapRefView::NonPtr32(_) | HeapRefView::Ptr(_) | HeapRefView::Env(_) => {
+            HeapRefView::NonPtr32(_)
+            | HeapRefView::Ptr(_)
+            | HeapRefView::Env(_)
+            | HeapRefView::Closure(_) => {
                 panic!("not a value")
             }
         },

@@ -762,6 +762,7 @@ impl<'a> Translate<'a> {
                     N::Type::F64 => self.rt_call("ref_new_f64"),
                     N::Type::Ref(..) => panic!("while recursive refs can be made, they shouldn't"),
                     N::Type::Any => self.rt_call("ref_new_any"),
+                    N::Type::Closure(..) => self.rt_call("ref_new_closure"),
                     _ => self.rt_call("ref_new_ptr"),
                 }
             }

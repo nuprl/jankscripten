@@ -73,6 +73,9 @@ pub enum TypeTag {
     MutF64,
     /// this may or may not be duplicated by ObjectPtrPtr
     Ptr,
+    /// This is a ref of a closure. Closures are usually immediate values (not
+    /// their env! which is above), but not when they're in a ref
+    Closure,
 }
 
 /// Every pointer into the heap points to a tag, thus we could build an API
@@ -131,6 +134,7 @@ pub enum HeapRefView {
     NonPtr32(NonPtr32Ptr),
     MutF64(MutF64Ptr),
     Ptr(PtrPtr),
+    Closure(ClosurePtr),
 }
 impl HeapRefView {
     /// Return a less specific `HeapPtr` that points to the same heap value,
@@ -147,6 +151,7 @@ impl HeapRefView {
             Self::NonPtr32(val) => val,
             Self::MutF64(val) => val,
             Self::Ptr(val) => val,
+            Self::Closure(val) => val,
         }
     }
 }
@@ -196,6 +201,7 @@ impl AnyPtr {
                 }
                 TypeTag::MutF64 => HeapRefView::MutF64(MutF64Ptr::new_tag_unchecked(self.ptr)),
                 TypeTag::Ptr => HeapRefView::Ptr(PtrPtr::new_tag_unchecked(self.ptr)),
+                TypeTag::Closure => HeapRefView::Closure(ClosurePtr::new_tag_unchecked(self.ptr)),
             }
         }
     }

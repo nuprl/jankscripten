@@ -24,7 +24,8 @@ pub extern "C" fn parse_int(env: EnvPtr, this: Any, a: Any, radix_any: Any) -> A
             | HeapRefView::NonPtr32(_)
             | HeapRefView::MutF64(_)
             | HeapRefView::Ptr(_)
-            | HeapRefView::Env(_) => panic!("not a value"),
+            | HeapRefView::Env(_)
+            | HeapRefView::Closure(_) => panic!("not a value"),
         },
     }
 }

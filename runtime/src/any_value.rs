@@ -85,7 +85,7 @@ impl Display for HeapRefView {
             }
             Class(_) => log_panic!("shouldn't have object data as value"),
             ObjectPtrPtr(_o) => log_panic!("TODO(luna): toString"),
-            NonPtr32(_) | MutF64(_) | Ptr(_) => log_panic!("ref inside any"),
+            NonPtr32(_) | MutF64(_) | Ptr(_) | Closure(_) => log_panic!("ref inside any"),
             Env(_) => log_panic!("not a value"),
             HT(_) => log_panic!("Display trait not implemented"),
         }
@@ -108,6 +108,7 @@ impl Debug for HeapRefView {
             MutF64(v) => write!(f, "!F64({})", *v),
             Ptr(p) => write!(f, "!Ref({:?})", p),
             Env(e) => write!(f, "Env({:?})", e),
+            Closure(c) => write!(f, "!Ref({})", *c),
         }
     }
 }

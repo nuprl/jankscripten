@@ -2,6 +2,7 @@ pub use super::env::EnvPtr;
 pub use super::object_ptr::{ObjectDataPtr, ObjectPtr};
 pub use super::string::StringPtr;
 use super::{AnyPtr, HeapPtr, Tag, TypePtr, TypeTag};
+use crate::closure::Closure;
 use crate::{AnyEnum, AnyValue, Heap, Key};
 use std::collections::HashMap;
 
@@ -40,6 +41,10 @@ impl HasTag for Vec<AnyValue> {
 
 // REF TYPES
 // =========
+// TODO(luna): Is this necessary? Aren't the immediate values, rather than the
+// ref, placed in the shadow stack? Why would a ref ever appear in the
+// heap? Answer: If it was in an env. But, shouldn't the env be responsible for
+// dereferencing the ref before giving the pointers to the mark phase?
 
 pub type NonPtr32Ptr = TypePtr<i32>;
 impl HasTag for i32 {
@@ -62,6 +67,14 @@ impl HasTag for AnyPtr {
     const TYPE_TAG: TypeTag = TypeTag::Ptr;
     fn get_data_ptrs(&self, _heap: &Heap) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
         (vec![self.get_ptr()], vec![])
+    }
+}
+pub type ClosurePtr = TypePtr<Closure>;
+impl HasTag for Closure {
+    const TYPE_TAG: TypeTag = TypeTag::Closure;
+    fn get_data_ptrs(&self, _heap: &Heap) -> (Vec<*mut Tag>, Vec<*mut *const f64>) {
+        let env = self.0;
+        (vec![env.get_ptr()], vec![])
     }
 }
 
