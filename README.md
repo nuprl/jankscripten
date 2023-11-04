@@ -73,9 +73,9 @@ Node. Follow these steps to install the prerequisites:
         rustup target add wasm32-unknown-unknown
 
 4.  Install the Wasm-Bindgen CLI, to allow Rust unit tests to run in
-    WebAssembly:
+    WebAssembly (at moment we require version 0.2.68):
     
-        cargo install wasm-bindgen-cli
+        cargo install --version 0.2.68 wasm-bindgen-cli
 
 5.  On Ubuntu Linux, install *libssl* and *pkg-config*:
     
